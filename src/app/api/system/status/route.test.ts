@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   } as Record<string, unknown> | null,
   generationReadinessError: null as { code: string } | null,
   studyProfileReadiness: {
-    contractVersion: "202609060003",
+    contractVersion: "202609080001",
     ready: true,
     pendingConfirmationColumns: true,
     confirmationRpcs: true,
@@ -27,6 +27,9 @@ const mocks = vi.hoisted(() => ({
     attributionCapture: true,
     attributionFirstTouch: true,
     minorConversionSuppression: true,
+    reportScopedReconfirmation: true,
+    boundReportConfirmation: true,
+    landingConfirmationIsolation: true,
   } as Record<string, unknown> | null,
   studyProfileReadinessError: null as { code: string } | null,
   publicLaunchAbuseReadiness: {
@@ -62,7 +65,7 @@ vi.mock("@/lib/supabase/admin", () => ({
       select: async () => ({ error: mocks.invitationTableError }),
     }),
     rpc: async (name: string) => {
-      if (name === "study_profile_public_readiness_v4") {
+      if (name === "study_profile_public_readiness_v5") {
         return {
           data: mocks.studyProfileReadiness,
           error: mocks.studyProfileReadinessError,
@@ -101,7 +104,7 @@ describe("system status tester-access readiness", () => {
     };
     mocks.generationReadinessError = null;
     mocks.studyProfileReadiness = {
-      contractVersion: "202609060003",
+      contractVersion: "202609080001",
       ready: true,
       pendingConfirmationColumns: true,
       confirmationRpcs: true,
@@ -110,6 +113,9 @@ describe("system status tester-access readiness", () => {
       attributionCapture: true,
       attributionFirstTouch: true,
       minorConversionSuppression: true,
+      reportScopedReconfirmation: true,
+      boundReportConfirmation: true,
+      landingConfirmationIsolation: true,
     };
     mocks.studyProfileReadinessError = null;
     mocks.publicLaunchAbuseReadiness = {

@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
   confirmWaitlist: vi.fn(),
+  confirmWaitlistForReport: vi.fn(),
   hashToken: vi.fn(),
 }));
 
@@ -20,14 +21,17 @@ vi.mock("@/lib/study-profile/repository", () => {
     hashStudyProfileReportToken: mocks.hashToken,
     getStudyProfileRepository: () => ({
       confirmWaitlist: mocks.confirmWaitlist,
+      confirmWaitlistForReport: mocks.confirmWaitlistForReport,
     }),
   };
 });
 
 import { POST } from "@/app/api/study-profile/waitlist/confirm/route";
 
-const rawToken = "a".repeat(43);
+const rawConfirmationToken = "a".repeat(43);
+const reportToken = "r".repeat(43);
 const tokenHash = "b".repeat(64);
+const responseId = "11111111-1111-4111-8111-111111111111";
 
 describe("Study Profile waitlist confirmation route", () => {
   beforeEach(() => {
@@ -40,68 +44,148 @@ describe("Study Profile waitlist confirmation route", () => {
       newlyJoined: true,
       metaConversionEligible: true,
     });
+    mocks.confirmWaitlistForReport.mockResolvedValue({
+      status: "confirmed",
+      waitlistJoined: true,
+      newlyJoined: true,
+      metaRegistrationEligible: true,
+      reportUnlocked: true,
+      responseId,
+      under18: false,
+    });
   });
 
-  it("confirms only by POST and never returns the raw token", async () => {
-    const response = await POST(confirmationRequest({ token: rawToken }));
+  it("confirms a landing signup without returning its raw credential", async () => {
+    const response = await POST(confirmationRequest({ token: rawConfirmationToken }));
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0");
-    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
-    expect(response.headers.get("x-robots-tag"))
-      .toBe("noindex, nofollow, noarchive, nosnippet");
+    expectPrivateConfirmationHeaders(response);
     const payload = await response.json();
     expect(payload).toEqual({
       waitlistJoined: true,
       metaConversionEligible: true,
     });
-    expect(JSON.stringify(payload)).not.toContain(rawToken);
-    expect(mocks.hashToken).toHaveBeenCalledWith(rawToken);
+    expect(JSON.stringify(payload)).not.toContain(rawConfirmationToken);
+    expect(mocks.hashToken).toHaveBeenCalledWith(rawConfirmationToken);
     expect(mocks.confirmWaitlist).toHaveBeenCalledWith(tokenHash);
+    expect(mocks.confirmWaitlistForReport).not.toHaveBeenCalled();
   });
 
-  it("returns a false Meta conversion flag for an under-18 confirmation", async () => {
+  it("rejects a report-scoped token when the report credential is omitted", async () => {
     mocks.confirmWaitlist.mockResolvedValueOnce({
+      status: "invalid",
+      waitlistJoined: false,
+      newlyJoined: false,
+      metaConversionEligible: false,
+    });
+
+    const response = await POST(confirmationRequest({ token: rawConfirmationToken }));
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: "This confirmation link is invalid or has already been used.",
+    });
+    expect(mocks.confirmWaitlist).toHaveBeenCalledWith(tokenHash);
+    expect(mocks.confirmWaitlistForReport).not.toHaveBeenCalled();
+  });
+
+  it("confirms a report-bound signup and returns only safe report handoff fields", async () => {
+    const response = await POST(confirmationRequest({
+      token: rawConfirmationToken,
+      reportToken,
+    }));
+
+    expect(response.status).toBe(200);
+    expectPrivateConfirmationHeaders(response);
+    const payload = await response.json() as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      waitlistJoined: true,
+      reportUnlocked: true,
+      responseId,
+      metaLeadEligible: true,
+      metaRegistrationEligible: true,
+    });
+    expect(Object.keys(payload).sort()).toEqual([
+      "metaLeadEligible",
+      "metaRegistrationEligible",
+      "reportUnlocked",
+      "reportUrl",
+      "responseId",
+      "waitlistJoined",
+    ]);
+    expect(new URL(String(payload.reportUrl), "https://www.yovaapp.com").pathname)
+      .toBe(`/study-profile/report/${reportToken}`);
+    expect(payload).not.toHaveProperty("token");
+    expect(payload).not.toHaveProperty("reportToken");
+    expect(JSON.stringify(payload)).not.toContain(rawConfirmationToken);
+    expect(mocks.confirmWaitlistForReport).toHaveBeenCalledWith(tokenHash, reportToken);
+    expect(mocks.confirmWaitlist).not.toHaveBeenCalled();
+  });
+
+  it("keeps both Meta eligibility signals false for an under-18 bound confirmation", async () => {
+    mocks.confirmWaitlistForReport.mockResolvedValueOnce({
       status: "confirmed",
       waitlistJoined: true,
       newlyJoined: true,
-      metaConversionEligible: false,
+      metaRegistrationEligible: false,
+      reportUnlocked: true,
+      responseId,
+      under18: true,
     });
 
-    const response = await POST(confirmationRequest({ token: rawToken }));
+    const response = await POST(confirmationRequest({
+      token: rawConfirmationToken,
+      reportToken,
+    }));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      waitlistJoined: true,
-      metaConversionEligible: false,
+    await expect(response.json()).resolves.toMatchObject({
+      metaLeadEligible: false,
+      metaRegistrationEligible: false,
+      reportUnlocked: true,
     });
   });
 
-  it("rejects malformed and extra input before persistence", async () => {
+  it("rejects malformed, unbound, and extra input before persistence", async () => {
     for (const body of [
       { token: "short" },
-      { token: rawToken, email: "student@example.com" },
+      { token: rawConfirmationToken, reportToken: "short" },
+      { token: rawConfirmationToken, email: "student@example.com" },
       {},
     ]) {
       const response = await POST(confirmationRequest(body));
       expect(response.status).toBe(422);
     }
     expect(mocks.confirmWaitlist).not.toHaveBeenCalled();
+    expect(mocks.confirmWaitlistForReport).not.toHaveBeenCalled();
   });
 
   it.each([
     ["expired", 410],
     ["invalid", 404],
-  ] as const)("returns a safe %s link response", async (status, expectedStatus) => {
-    mocks.confirmWaitlist.mockResolvedValueOnce({
+    ["mismatch", 404],
+  ] as const)("does not leak handoff data for a %s report binding", async (status, expectedStatus) => {
+    mocks.confirmWaitlistForReport.mockResolvedValueOnce({
       status,
       waitlistJoined: false,
       newlyJoined: false,
+      metaRegistrationEligible: false,
+      reportUnlocked: false,
+      responseId: null,
+      under18: null,
     });
 
-    const response = await POST(confirmationRequest({ token: rawToken }));
+    const response = await POST(confirmationRequest({
+      token: rawConfirmationToken,
+      reportToken,
+    }));
+    const payload = await response.json();
+
     expect(response.status).toBe(expectedStatus);
-    expect(JSON.stringify(await response.json())).not.toContain(rawToken);
+    expect(payload).toEqual({ error: expect.any(String) });
+    expect(JSON.stringify(payload)).not.toContain(rawConfirmationToken);
+    expect(JSON.stringify(payload)).not.toContain(reportToken);
+    expect(JSON.stringify(payload)).not.toContain(responseId);
   });
 });
 
@@ -115,4 +199,11 @@ function confirmationRequest(body: unknown) {
     },
     body: JSON.stringify(body),
   });
+}
+
+function expectPrivateConfirmationHeaders(response: Response) {
+  expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0");
+  expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+  expect(response.headers.get("x-robots-tag"))
+    .toBe("noindex, nofollow, noarchive, nosnippet");
 }

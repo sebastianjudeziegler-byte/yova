@@ -367,6 +367,46 @@ describe("Supabase Study Profile public-delivery RPC contracts", () => {
     );
   });
 
+  it("requires the report hash alongside the confirmation hash for report unlock", async () => {
+    const rawReportToken = "report-token-that-is-long-enough-for-the-schema";
+    const confirmationTokenHash = "f".repeat(64);
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        status: "confirmed",
+        waitlistJoined: true,
+        newlyJoined: true,
+        metaRegistrationEligible: true,
+        reportUnlocked: true,
+        responseId: RESPONSE_ID,
+        under18: false,
+      },
+      error: null,
+    });
+
+    await expect(new SupabaseStudyProfileRepository().confirmWaitlistForReport(
+      confirmationTokenHash,
+      rawReportToken,
+    )).resolves.toEqual({
+      status: "confirmed",
+      waitlistJoined: true,
+      newlyJoined: true,
+      metaRegistrationEligible: true,
+      reportUnlocked: true,
+      responseId: RESPONSE_ID,
+      under18: false,
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "confirm_study_profile_report_waitlist_measured",
+      {
+        payload: {
+          confirmationTokenHash,
+          reportTokenHash: hashStudyProfileReportToken(rawReportToken),
+        },
+      },
+    );
+  });
+
   it("parses a one-time confirmation result and a report-email cooldown", async () => {
     mocks.rpc
       .mockResolvedValueOnce({

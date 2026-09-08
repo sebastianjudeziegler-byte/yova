@@ -175,6 +175,9 @@ describe("Study Profile public-funnel release capability probe", () => {
     attributionCapture: true,
     attributionFirstTouch: true,
     minorConversionSuppression: true,
+    reportScopedReconfirmation: true,
+    boundReportConfirmation: true,
+    landingConfirmationIsolation: true,
   };
 
   it("accepts only the complete double-opt-in and abuse-control contract", async () => {
@@ -190,7 +193,7 @@ describe("Study Profile public-funnel release capability probe", () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://project.supabase.co/rest/v1/rpc/study_profile_public_readiness_v4",
+      "https://project.supabase.co/rest/v1/rpc/study_profile_public_readiness_v5",
       expect.objectContaining({
         method: "POST",
         body: "{}",

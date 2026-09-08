@@ -82,16 +82,38 @@ describe("Study Profile repository", () => {
       "sent",
     );
     await expect(repository.confirmWaitlist(confirmationHash)).resolves.toEqual({
+      status: "invalid",
+      waitlistJoined: false,
+      newlyJoined: false,
+      metaConversionEligible: false,
+    });
+    expect(await repository.getReportByToken(token)).toMatchObject({
+      waitlistJoined: false,
+      confirmationPending: true,
+    });
+    await expect(repository.confirmWaitlistForReport(
+      confirmationHash,
+      token,
+    )).resolves.toEqual({
       status: "confirmed",
       waitlistJoined: true,
       newlyJoined: true,
-      metaConversionEligible: true,
+      metaRegistrationEligible: true,
+      reportUnlocked: true,
+      responseId: saved.storedResponse.id,
+      under18: false,
     });
-    await expect(repository.confirmWaitlist(confirmationHash)).resolves.toEqual({
+    await expect(repository.confirmWaitlistForReport(
+      confirmationHash,
+      token,
+    )).resolves.toEqual({
       status: "confirmed",
       waitlistJoined: true,
       newlyJoined: false,
-      metaConversionEligible: true,
+      metaRegistrationEligible: true,
+      reportUnlocked: true,
+      responseId: saved.storedResponse.id,
+      under18: false,
     });
     expect(await repository.getReportByToken(token)).toMatchObject({
       waitlistJoined: true,
@@ -135,16 +157,34 @@ describe("Study Profile repository", () => {
       "sent",
     );
     await expect(repository.confirmWaitlist(confirmationHash)).resolves.toEqual({
+      status: "invalid",
+      waitlistJoined: false,
+      newlyJoined: false,
+      metaConversionEligible: false,
+    });
+    await expect(repository.confirmWaitlistForReport(
+      confirmationHash,
+      saved.storedResponse.reportToken,
+    )).resolves.toEqual({
       status: "confirmed",
       waitlistJoined: true,
       newlyJoined: true,
-      metaConversionEligible: false,
+      metaRegistrationEligible: false,
+      reportUnlocked: true,
+      responseId: saved.storedResponse.id,
+      under18: true,
     });
-    await expect(repository.confirmWaitlist(confirmationHash)).resolves.toEqual({
+    await expect(repository.confirmWaitlistForReport(
+      confirmationHash,
+      saved.storedResponse.reportToken,
+    )).resolves.toEqual({
       status: "confirmed",
       waitlistJoined: true,
       newlyJoined: false,
-      metaConversionEligible: false,
+      metaRegistrationEligible: false,
+      reportUnlocked: true,
+      responseId: saved.storedResponse.id,
+      under18: true,
     });
   });
 
@@ -302,6 +342,58 @@ describe("Study Profile repository", () => {
     })]);
   });
 
+  it("does not create a landing conversion when another confirmation joined first", async () => {
+    let now = new Date("2026-08-11T12:00:00.000Z");
+    const replayRepository = new MemoryStudyProfileRepository(undefined, {
+      now: () => now,
+      uuid: () => crypto.randomUUID(),
+    });
+    const saved = await replayRepository.saveResponse(input("student@example.com", false));
+    const landingHash = hashStudyProfileReportToken(
+      "landing_confirmation_token_that_is_long_enough",
+    );
+    const landing = await replayRepository.requestWaitlistConfirmationByEmail({
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      under18: false,
+      confirmationTokenHash: landingHash,
+    });
+    await replayRepository.markWaitlistConfirmationDelivery(
+      landing.confirmationId ?? "",
+      "sent",
+    );
+
+    now = new Date("2026-08-11T12:16:00.000Z");
+    const reportHash = hashStudyProfileReportToken(
+      "report_confirmation_token_that_is_long_enough",
+    );
+    const report = await replayRepository.requestWaitlistConfirmation(
+      saved.storedResponse.reportToken,
+      "email_gate",
+      reportHash,
+    );
+    await replayRepository.markWaitlistConfirmationDelivery(
+      report?.confirmationId ?? "",
+      "sent",
+    );
+    await expect(replayRepository.confirmWaitlistForReport(
+      reportHash,
+      saved.storedResponse.reportToken,
+    )).resolves.toMatchObject({
+      newlyJoined: true,
+      metaRegistrationEligible: true,
+    });
+
+    await expect(replayRepository.confirmWaitlist(landingHash)).resolves.toMatchObject({
+      newlyJoined: false,
+      metaConversionEligible: false,
+    });
+    await expect(replayRepository.confirmWaitlist(landingHash)).resolves.toMatchObject({
+      newlyJoined: false,
+      metaConversionEligible: false,
+    });
+  });
+
   it("generates opaque 256-bit tokens and stores stable SHA-256 hashes", () => {
     const token = generateStudyProfileReportToken();
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -340,7 +432,10 @@ describe("Study Profile repository", () => {
       requested?.confirmationId ?? "",
       "sent",
     );
-    await repository.confirmWaitlist(confirmationHash);
+    await repository.confirmWaitlistForReport(
+      confirmationHash,
+      first.storedResponse.reportToken,
+    );
 
     expect(await repository.getReportByToken(first.storedResponse.reportToken))
       .toMatchObject({ waitlistJoined: true, confirmationPending: false });
@@ -364,7 +459,7 @@ describe("Study Profile repository", () => {
       shouldSend: false,
       confirmationId: null,
       email: null,
-      retryAfterSeconds: 0,
+      retryAfterSeconds: 900,
     });
   });
 

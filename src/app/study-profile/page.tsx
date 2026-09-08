@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { StudyProfileExperience } from "@/components/study-profile/study-profile-experience";
 
 const title = "Free YOVA Study Profile | Find out how you actually study";
-const description = "Answer 14 quick questions and get your study pattern, a six-habit profile, matched methods, and a plan you can use tonight. Free, with no account.";
+const description = "Answer 14 quick questions, join the free YOVA waitlist, and confirm your email to unlock your study pattern, matched methods, and a plan for tonight.";
 
 export const metadata: Metadata = {
   title,

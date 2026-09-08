@@ -33,7 +33,7 @@ export const STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS: Record<
   string
 > = {
   landing: "study-profile-waitlist-v4-landing",
-  email_gate: "study-profile-waitlist-v4-email-gate",
+  email_gate: "study-profile-waitlist-v5-email-gate",
   report_cta: "study-profile-waitlist-v4-report-cta",
 };
 
@@ -108,6 +108,16 @@ export type StudyProfileWaitlistConfirmationResult = {
   metaConversionEligible: boolean;
 };
 
+export type StudyProfileReportWaitlistConfirmationResult = {
+  status: "confirmed" | "invalid" | "expired" | "mismatch";
+  waitlistJoined: boolean;
+  newlyJoined: boolean;
+  metaRegistrationEligible: boolean;
+  reportUnlocked: boolean;
+  responseId: string | null;
+  under18: boolean | null;
+};
+
 export type StudyProfileReportEmailReservation = {
   allowed: boolean;
   reason: "cooldown" | "daily_cap" | null;
@@ -146,6 +156,10 @@ export interface StudyProfileRepository {
   confirmWaitlist(
     confirmationTokenHash: string,
   ): Promise<StudyProfileWaitlistConfirmationResult>;
+  confirmWaitlistForReport(
+    confirmationTokenHash: string,
+    reportToken: string,
+  ): Promise<StudyProfileReportWaitlistConfirmationResult>;
   reserveReportEmailDelivery(
     responseId: string,
   ): Promise<StudyProfileReportEmailReservation>;
@@ -223,6 +237,7 @@ type MemoryWaitlistConfirmation = {
   replayExpiresAt: string | null;
   deliveryStatus: "pending" | "sent" | "failed";
   under18: boolean | null;
+  metaRegistrationEligible: boolean | null;
   attribution?: StudyProfileSubmission["attribution"];
 };
 
@@ -378,17 +393,6 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
         retryAfterSeconds: 0,
       };
     }
-    if (resolved.lead.waitlistJoined) {
-      return {
-        waitlistJoined: false,
-        confirmationPending: true,
-        dailyCapReached: false,
-        shouldSend: false,
-        confirmationId: null,
-        email: null,
-        retryAfterSeconds: 0,
-      };
-    }
     return this.requestConfirmation({
       lead: resolved.lead,
       responseId,
@@ -398,6 +402,7 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
       scoringRevision: resolved.response.report.scoringRevision,
       profileModelVersion: resolved.response.storedResponse.profileModelVersion,
       under18: resolved.response.under18,
+      requireResponseScopedConfirmation: true,
       attribution,
     });
   }
@@ -451,12 +456,22 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
   }
 
   async confirmWaitlist(confirmationTokenHash: string) {
+    return this.confirmWaitlistInScope(confirmationTokenHash, null);
+  }
+
+  private confirmWaitlistInScope(
+    confirmationTokenHash: string,
+    responseId: string | null,
+  ) {
     const confirmation = this.state.waitlistConfirmations.find((candidate) => (
-      candidate.status === "pending" && candidate.tokenHash === confirmationTokenHash
+      candidate.responseId === responseId
+      && candidate.status === "pending"
+      && candidate.tokenHash === confirmationTokenHash
     ));
     if (!confirmation) {
       const replay = this.state.waitlistConfirmations.find((candidate) => (
-        candidate.status === "confirmed"
+        candidate.responseId === responseId
+        && candidate.status === "confirmed"
         && candidate.consumedTokenHash === confirmationTokenHash
         && candidate.replayExpiresAt !== null
         && new Date(candidate.replayExpiresAt).getTime() > this.clock.now().getTime()
@@ -466,7 +481,7 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
           status: "confirmed" as const,
           waitlistJoined: true,
           newlyJoined: false,
-          metaConversionEligible: replay.under18 === false,
+          metaConversionEligible: replay.metaRegistrationEligible ?? false,
         };
       }
       return {
@@ -522,11 +537,76 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
       new Date(confirmation.expiresAt).getTime(),
       this.clock.now().getTime() + STUDY_PROFILE_WAITLIST_RESEND_COOLDOWN_MS,
     )).toISOString();
+    confirmation.metaRegistrationEligible = newlyJoined && confirmation.under18 === false;
     return {
       status: "confirmed" as const,
       waitlistJoined: true,
       newlyJoined,
-      metaConversionEligible: newlyJoined && confirmation.under18 === false,
+      metaConversionEligible: confirmation.metaRegistrationEligible,
+    };
+  }
+
+  async confirmWaitlistForReport(
+    confirmationTokenHash: string,
+    reportToken: string,
+  ): Promise<StudyProfileReportWaitlistConfirmationResult> {
+    const response = this.state.responsesByTokenHash.get(
+      hashStudyProfileReportToken(reportToken),
+    );
+    if (!response) return unconfirmedReportWaitlistResult("invalid");
+
+    const responseId = response.storedResponse.id;
+    const now = this.clock.now().getTime();
+    const boundConfirmation = this.state.waitlistConfirmations.find((candidate) => (
+      candidate.responseId === responseId
+      && (
+        (candidate.status === "pending" && candidate.tokenHash === confirmationTokenHash)
+        || (
+          candidate.status === "confirmed"
+          && candidate.consumedTokenHash === confirmationTokenHash
+          && candidate.replayExpiresAt !== null
+          && new Date(candidate.replayExpiresAt).getTime() > now
+        )
+      )
+    ));
+    if (!boundConfirmation) {
+      const confirmationExists = this.state.waitlistConfirmations.some((candidate) => (
+        (candidate.status === "pending" && candidate.tokenHash === confirmationTokenHash)
+        || (
+          candidate.status === "confirmed"
+          && candidate.consumedTokenHash === confirmationTokenHash
+          && candidate.replayExpiresAt !== null
+          && new Date(candidate.replayExpiresAt).getTime() > now
+        )
+      ));
+      return unconfirmedReportWaitlistResult(
+        confirmationExists ? "mismatch" : "invalid",
+      );
+    }
+
+    const result = this.confirmWaitlistInScope(
+      confirmationTokenHash,
+      responseId,
+    );
+    if (result.status !== "confirmed") {
+      return unconfirmedReportWaitlistResult(result.status);
+    }
+
+    const reportUnlocked = this.state.waitlistConfirmations.some((candidate) => (
+      candidate.responseId === responseId
+      && candidate.status === "confirmed"
+      && candidate.consumedTokenHash === confirmationTokenHash
+    ));
+    if (!reportUnlocked) return unconfirmedReportWaitlistResult("invalid");
+
+    return {
+      status: "confirmed",
+      waitlistJoined: true,
+      newlyJoined: result.newlyJoined,
+      metaRegistrationEligible: result.metaConversionEligible,
+      reportUnlocked: true,
+      responseId,
+      under18: boundConfirmation.under18,
     };
   }
 
@@ -630,9 +710,10 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
     scoringRevision: string;
     profileModelVersion: string;
     under18: boolean | null;
+    requireResponseScopedConfirmation?: boolean;
     attribution?: StudyProfileSubmission["attribution"];
   }): StudyProfileWaitlistConfirmationRequestState {
-    if (input.lead.waitlistJoined) {
+    if (input.lead.waitlistJoined && !input.requireResponseScopedConfirmation) {
       return {
         waitlistJoined: true,
         confirmationPending: false,
@@ -744,6 +825,7 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
       replayExpiresAt: null,
       deliveryStatus: "pending",
       under18: input.under18,
+      metaRegistrationEligible: null,
       attribution: input.attribution,
     };
     this.state.waitlistConfirmations.push(confirmation);
@@ -960,6 +1042,27 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
     return parseWaitlistConfirmationResult(data);
   }
 
+  async confirmWaitlistForReport(
+    confirmationTokenHash: string,
+    reportToken: string,
+  ) {
+    const { data, error } = await createSupabaseAdminClient().rpc(
+      "confirm_study_profile_report_waitlist_measured",
+      {
+        payload: {
+          confirmationTokenHash,
+          reportTokenHash: hashStudyProfileReportToken(reportToken),
+        },
+      },
+    );
+    if (error) {
+      throw new Error("YOVA could not confirm that report waitlist request.", {
+        cause: error,
+      });
+    }
+    return parseReportWaitlistConfirmationResult(data);
+  }
+
   async reserveReportEmailDelivery(responseId: string) {
     const { data, error } = await createSupabaseAdminClient().rpc(
       "reserve_study_profile_report_email_delivery",
@@ -1050,6 +1153,7 @@ class UnavailableStudyProfileRepository implements StudyProfileRepository {
   async requestWaitlistConfirmationByEmail(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async markWaitlistConfirmationDelivery(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async confirmWaitlist(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
+  async confirmWaitlistForReport(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async reserveReportEmailDelivery(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async setBetaInterest(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async recordEvent(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
@@ -1294,6 +1398,65 @@ function parseWaitlistConfirmationResult(
     };
   }
   throw new Error("YOVA could not confirm the waitlist confirmation result.");
+}
+
+function parseReportWaitlistConfirmationResult(
+  value: unknown,
+): StudyProfileReportWaitlistConfirmationResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("YOVA could not confirm the report waitlist result.");
+  }
+  const receipt = value as Record<string, unknown>;
+  if (receipt.status === "confirmed") {
+    if (
+      receipt.waitlistJoined !== true
+      || typeof receipt.newlyJoined !== "boolean"
+      || typeof receipt.metaRegistrationEligible !== "boolean"
+      || receipt.reportUnlocked !== true
+      || typeof receipt.responseId !== "string"
+      || !isUuid(receipt.responseId)
+      || (receipt.under18 !== null && typeof receipt.under18 !== "boolean")
+    ) {
+      throw new Error("YOVA could not confirm the report waitlist result.");
+    }
+    return {
+      status: "confirmed",
+      waitlistJoined: true,
+      newlyJoined: receipt.newlyJoined,
+      metaRegistrationEligible: receipt.metaRegistrationEligible,
+      reportUnlocked: true,
+      responseId: receipt.responseId,
+      under18: receipt.under18,
+    };
+  }
+  if (
+    (receipt.status === "invalid"
+      || receipt.status === "expired"
+      || receipt.status === "mismatch")
+    && receipt.waitlistJoined === false
+    && receipt.newlyJoined === false
+    && receipt.metaRegistrationEligible === false
+    && receipt.reportUnlocked === false
+    && receipt.responseId === null
+    && receipt.under18 === null
+  ) {
+    return unconfirmedReportWaitlistResult(receipt.status);
+  }
+  throw new Error("YOVA could not confirm the report waitlist result.");
+}
+
+function unconfirmedReportWaitlistResult(
+  status: Exclude<StudyProfileReportWaitlistConfirmationResult["status"], "confirmed">,
+): StudyProfileReportWaitlistConfirmationResult {
+  return {
+    status,
+    waitlistJoined: false,
+    newlyJoined: false,
+    metaRegistrationEligible: false,
+    reportUnlocked: false,
+    responseId: null,
+    under18: null,
+  };
 }
 
 function parseReportEmailReservation(value: unknown): StudyProfileReportEmailReservation {

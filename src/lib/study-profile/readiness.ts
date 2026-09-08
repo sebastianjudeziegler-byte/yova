@@ -5,7 +5,7 @@ import {
   isSupabaseAdminConfigured,
 } from "@/lib/supabase/admin";
 
-export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202609060003";
+export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202609080001";
 
 type StudyProfileReadinessPayload = {
   contractVersion?: unknown;
@@ -17,6 +17,9 @@ type StudyProfileReadinessPayload = {
   attributionCapture?: unknown;
   attributionFirstTouch?: unknown;
   minorConversionSuppression?: unknown;
+  reportScopedReconfirmation?: unknown;
+  boundReportConfirmation?: unknown;
+  landingConfirmationIsolation?: unknown;
 };
 
 export async function studyProfilePublicReadinessStatus(): Promise<"ready" | "unavailable"> {
@@ -24,7 +27,7 @@ export async function studyProfilePublicReadinessStatus(): Promise<"ready" | "un
 
   try {
     const { data, error } = await createSupabaseAdminClient().rpc(
-      "study_profile_public_readiness_v4",
+      "study_profile_public_readiness_v5",
     );
     if (error || !isReadinessPayload(data)) return "unavailable";
 
@@ -37,6 +40,9 @@ export async function studyProfilePublicReadinessStatus(): Promise<"ready" | "un
       && data.attributionCapture === true
       && data.attributionFirstTouch === true
       && data.minorConversionSuppression === true
+      && data.reportScopedReconfirmation === true
+      && data.boundReportConfirmation === true
+      && data.landingConfirmationIsolation === true
       ? "ready"
       : "unavailable";
   } catch {

@@ -20,6 +20,7 @@ import {
   Clock3,
   LockKeyhole,
   Mail,
+  MailCheck,
   RefreshCw,
   SearchCheck,
   ShieldCheck,
@@ -28,12 +29,6 @@ import {
   Zap,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
-import {
-  createMetaEventId,
-  isMetaPixelConfigured,
-  trackMetaConversionOnce,
-  waitForMetaPixelReady,
-} from "@/lib/meta-pixel";
 import {
   captureStudyProfileAttribution,
   getStudyProfileVisitorId,
@@ -46,21 +41,17 @@ import {
   type StudyProfileAttribution,
   type StudyProfileEnergyWindow,
   type StudyProfileMetadata,
-  type StudyProfilePublicStoredResponse,
-  type StudyProfileReport,
   type StudyProfileSchoolLevel,
   type StudyProfileStudyGoal,
 } from "@/lib/study-profile";
 import { STUDY_PROFILE_SUPPORT_MAILTO } from "@/lib/public-contact";
-import { storeStudyProfileReportTransition } from "@/lib/study-profile/report-transition";
-import { StudyProfileReportView } from "./study-profile-report-view";
 import styles from "./study-profile.module.css";
 
-type AssessmentView = "landing" | "question" | "goal" | "context" | "teaser" | "report";
+type AssessmentView = "landing" | "question" | "goal" | "context" | "teaser";
 
 type Draft = {
   version: typeof STUDY_PROFILE_DRAFT_VERSION;
-  view: Exclude<AssessmentView, "landing" | "report">;
+  view: Exclude<AssessmentView, "landing">;
   currentQuestion: number;
   answers: Partial<StudyProfileAnswers>;
   metadata: Partial<StudyProfileMetadata>;
@@ -70,19 +61,7 @@ type StoredDraft = Draft & {
   savedAt: number;
 };
 
-type SubmissionResult = {
-  reportToken: string;
-  reportUrl?: string;
-  storedResponse: StudyProfilePublicStoredResponse;
-  report: StudyProfileReport;
-  metaConversionEligible?: boolean;
-  emailDelivery?: "sent" | "skipped" | "failed" | "cooldown" | "daily_cap" | { status?: "sent" | "skipped" | "failed" | "cooldown" | "daily_cap" };
-  emailSent?: boolean;
-  emailDeliveryQueued?: boolean;
-  waitlistJoined?: boolean;
-  confirmationPending?: boolean;
-  waitlistError?: string | null;
-};
+type SubmissionResult = { confirmationPending?: boolean };
 
 const STUDY_PROFILE_DRAFT_VERSION = "study_profile_draft_v2" as const;
 const DRAFT_STORAGE_KEY = "yova.study-profile.draft.v2";
@@ -123,7 +102,7 @@ export function StudyProfileExperience() {
   const [waitlistConsent, setWaitlistConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
-  const [submissionResult, setSubmissionResult] = useState<SubmissionResult | null>(null);
+  const [confirmationPending, setConfirmationPending] = useState(false);
   const attributionRef = useRef<StudyProfileAttribution>({});
   const [hydrated, setHydrated] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -161,12 +140,12 @@ export function StudyProfileExperience() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || view === "landing" || view === "report") return;
+    if (!hydrated || view === "landing") return;
     persistStudyProfileDraft({ version: STUDY_PROFILE_DRAFT_VERSION, view, currentQuestion, answers, metadata });
   }, [answers, currentQuestion, hydrated, metadata, view]);
 
   useEffect(() => {
-    if (view === "landing" || view === "report") return;
+    if (view === "landing") return;
     const frame = window.requestAnimationFrame(() => {
       window.scrollTo({ top: 0, behavior: "auto" });
       headingRef.current?.focus({ preventScroll: true });
@@ -214,7 +193,7 @@ export function StudyProfileExperience() {
     setUnder18(false);
     setWaitlistConsent(false);
     setSubmissionError(null);
-    setSubmissionResult(null);
+    setConfirmationPending(false);
     completionTrackedRef.current = false;
   }
 
@@ -277,6 +256,10 @@ export function StudyProfileExperience() {
       setSubmissionError("Confirm that you are 13 or older to receive your report.");
       return;
     }
+    if (!waitlistConsent) {
+      setSubmissionError("Confirm that you want to join the YOVA waitlist to unlock your report.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const visitorId = getStudyProfileVisitorId();
@@ -303,75 +286,23 @@ export function StudyProfileExperience() {
       });
       const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
       if (!response.ok) {
-        if ((payload.code === "saved_response_unavailable" || payload.code === "save_outcome_unknown") && typeof payload.reportUrl === "string") {
-          const reportPath = new URL(payload.reportUrl, window.location.href);
-          const reportHref = `${reportPath.pathname}${reportPath.search}${reportPath.hash}`;
-          if (isMetaPixelConfigured()) {
-            window.location.replace(reportHref);
-            return;
-          }
-          window.history.replaceState({}, "", reportHref);
-        }
-        throw new Error(typeof payload.error === "string" ? payload.error : "We could not save your report. Check your email and try again.");
+        throw new Error(typeof payload.error === "string" ? payload.error : "We could not send your confirmation link. Check your email and try again.");
       }
       const result = ((payload.data && typeof payload.data === "object") ? payload.data : payload) as unknown as SubmissionResult;
-      if (!result.reportToken || !result.storedResponse || !result.report) throw new Error("Your report was created, but the response was incomplete. Try again.");
-      if (result.metaConversionEligible === true) {
-        try {
-          const metaEventId = await createMetaEventId(
-            "study_profile_report",
-            result.storedResponse.id,
-          );
-          const conversionQueued = trackMetaConversionOnce(
-            "Lead",
-            { content_name: "study_profile_report" },
-            metaEventId,
-          );
-          if (conversionQueued && isMetaPixelConfigured()) {
-            await waitForMetaPixelReady();
-          }
-        } catch {
-          // Advertising measurement must never block access to a saved report.
-        }
-      }
-      setSubmissionResult(result);
+      if (result.confirmationPending !== true) throw new Error("We could not confirm that your email is on its way. Try again.");
       clearStudyProfileDraft();
-      const reportPath = result.reportUrl
-        ? new URL(result.reportUrl, window.location.href)
-        : new URL(`/study-profile/report/${encodeURIComponent(result.reportToken)}`, window.location.href);
-      const reportHref = `${reportPath.pathname}${reportPath.search}${reportPath.hash}`;
-      if (isMetaPixelConfigured()) {
-        storeStudyProfileReportTransition({
-          responseId: result.storedResponse.id,
-          visitorId,
-          emailDelivery: resolveEmailDelivery(result),
-          waitlistError: result.waitlistError,
-        });
-        window.location.replace(reportHref);
-        return;
-      }
-      window.history.replaceState({}, "", reportHref);
-      setView("report");
-      window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+      setConfirmationPending(true);
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "auto" });
+        headingRef.current?.focus({ preventScroll: true });
+      });
     } catch (error) {
-      setSubmissionError(error instanceof Error ? error.message : "We could not save your report. Try again.");
+      setSubmissionError(error instanceof Error ? error.message : "We could not send your confirmation link. Try again.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  if (view === "report" && submissionResult) {
-    return <StudyProfileReportView
-      storedResponse={submissionResult.storedResponse}
-      report={submissionResult.report}
-      reportToken={submissionResult.reportToken}
-      emailDelivery={resolveEmailDelivery(submissionResult)}
-      initialWaitlistJoined={submissionResult.waitlistJoined}
-      initialWaitlistConfirmationPending={submissionResult.confirmationPending}
-      initialWaitlistError={submissionResult.waitlistError}
-      autoFocusHeading
-    />;
-  }
   if (view === "landing") return <StudyProfileLanding onStart={startQuiz} />;
 
   const assessmentStep = resolveAssessmentStep(view, currentQuestion);
@@ -393,7 +324,7 @@ export function StudyProfileExperience() {
         <div className={styles.progressTrack}><span style={{ width: `${assessmentStep.percent}%` }} /></div>
       </div>
       <main id="assessment-content" className={styles.assessmentMain} tabIndex={-1}>
-        <button type="button" className={styles.backButton} onClick={goBack}><ArrowLeft size={17} aria-hidden="true" /> Back</button>
+        {!confirmationPending && <button type="button" className={styles.backButton} onClick={goBack}><ArrowLeft size={17} aria-hidden="true" /> Back</button>}
         <div className={styles.questionTransition} key={`${view}-${currentQuestion}`}>
           {view === "question" && <QuestionScreen index={currentQuestion} selected={answers[STUDY_PROFILE_QUESTIONS[currentQuestion].id]} onSelect={answerQuestion} headingRef={headingRef} />}
           {view === "goal" && (
@@ -415,16 +346,33 @@ export function StudyProfileExperience() {
                   {SCHOOL_OPTIONS.map((option) => <button type="button" key={option.value} className={metadata.schoolLevel === option.value ? styles.optionSelected : undefined} aria-pressed={metadata.schoolLevel === option.value} onClick={() => setMetadata((current) => ({ ...current, schoolLevel: option.value }))}>{option.label}</button>)}
                 </div></fieldset>
               </div>
-              <button type="button" className={styles.primaryButton} disabled={!metadata.energyWindow || !metadata.schoolLevel} onClick={completeContext}>Finish and unlock my results <ArrowRight size={17} aria-hidden="true" /></button>
+              <button type="button" className={styles.primaryButton} disabled={!metadata.energyWindow || !metadata.schoolLevel} onClick={completeContext}>Finish my profile <ArrowRight size={17} aria-hidden="true" /></button>
             </MetadataScreen>
           )}
-          {view === "teaser" && completedAnswers && (
+          {view === "teaser" && completedAnswers && confirmationPending && (
+            <section className={styles.teaserScreen} aria-labelledby="pattern-reveal-heading">
+              <div className={styles.emailGate} role="status">
+                <span className={styles.lockedResultStatus}><MailCheck size={15} aria-hidden="true" /> Confirmation sent</span>
+                <h1 id="pattern-reveal-heading" ref={headingRef} tabIndex={-1}>Check your email to unlock your report.</h1>
+                <p>Open the message from YOVA and select <strong>Confirm and view my results</strong>. Your report stays locked until you confirm.</p>
+                <div className={styles.unlockList} aria-label="Your locked report includes">
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your named study pattern</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> The study habit to focus on first</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> Three suggested methods to try</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> A plan for tonight</span>
+                </div>
+                <p className={styles.emailNote}>Check your spam folder if the message does not arrive within a few minutes.</p>
+                <p className={styles.legalNote}>The confirmation link expires in 24 hours. See our <a href="/privacy">Privacy Notice</a>.</p>
+              </div>
+            </section>
+          )}
+          {view === "teaser" && completedAnswers && !confirmationPending && (
             <section className={styles.teaserScreen} aria-labelledby="pattern-reveal-heading">
               <form className={styles.emailGate} onSubmit={submitEmail} aria-busy={isSubmitting}>
-                <span className={styles.lockedResultStatus}><LockKeyhole size={15} aria-hidden="true" /> Results ready</span>
-                <h1 id="pattern-reveal-heading" ref={headingRef} tabIndex={-1}>Your answers point to a study pattern.</h1>
-                <p>Enter your email to open your private report. We will send a private link so you can return to it. Joining the waitlist is optional.</p>
-                <label htmlFor="study-profile-email">Email for your private report link</label>
+                <span className={styles.lockedResultStatus}><LockKeyhole size={15} aria-hidden="true" /> Your results are ready</span>
+                <h1 id="pattern-reveal-heading" ref={headingRef} tabIndex={-1}>Your study pattern is ready.</h1>
+                <p>Join the YOVA waitlist to unlock your private report. We will email a secure confirmation link so you can confirm your place and view your results.</p>
+                <label htmlFor="study-profile-email">Email for your confirmation link</label>
                 <div className={styles.emailInputWrap}><Mail size={18} aria-hidden="true" /><input id="study-profile-email" name="email" type="email" inputMode="email" autoComplete="email" required maxLength={254} placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} aria-describedby="email-consent-note" /></div>
                 <div className={styles.unlockList} aria-label="Full report includes">
                   <span><CheckCircle2 size={17} aria-hidden="true" /> Your named study pattern</span>
@@ -434,11 +382,11 @@ export function StudyProfileExperience() {
                 </div>
                 <label className={styles.consentRow}><input type="checkbox" required checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span><strong>I confirm I am 13 or older.</strong></span></label>
                 <label className={styles.consentRow}><input type="checkbox" checked={under18} onChange={(event) => setUnder18(event.target.checked)} /><span><strong>I am under 18.</strong></span></label>
-                <label className={styles.consentRow}><input type="checkbox" checked={waitlistConsent} onChange={(event) => setWaitlistConsent(event.target.checked)} /><span><strong>Also add me to the YOVA waitlist.</strong> I agree to receive YOVA launch emails. I can unsubscribe at any time. Optional.</span></label>
+                <label className={styles.consentRow}><input type="checkbox" required checked={waitlistConsent} onChange={(event) => setWaitlistConsent(event.target.checked)} /><span><strong>Confirm my place on the YOVA waitlist and email me about YOVA&apos;s launch.</strong> I can unsubscribe at any time.</span></label>
                 {submissionError && <p className={styles.formError} role="alert">{submissionError}</p>}
-                <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !emailIsValid || !ageConfirmed}>{isSubmitting ? "Building your report..." : "Email my report and see results"}{!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}</button>
-                <span className={styles.srOnly} role="status" aria-live="polite">{isSubmitting ? "Building and saving your Study Profile report." : ""}</span>
-                <p id="email-consent-note" className={styles.emailNote}>We use this email to send your private report link. No account is created.</p>
+                <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !emailIsValid || !ageConfirmed || !waitlistConsent}>{isSubmitting ? "Sending your confirmation link..." : "Send my confirmation link"}{!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}</button>
+                <span className={styles.srOnly} role="status" aria-live="polite">{isSubmitting ? "Saving your Study Profile and sending your confirmation link." : ""}</span>
+                <p id="email-consent-note" className={styles.emailNote}>We use this email to send your confirmation link and YOVA launch emails after you confirm. No account is created.</p>
                 <p className={styles.legalNote}>By continuing, you agree to our <a href="/terms">Terms</a> and acknowledge our <a href="/privacy">Privacy Notice</a>.</p>
               </form>
             </section>
@@ -462,9 +410,9 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
           <div className={styles.heroCopy}>
             <span className={styles.heroEyebrow}>Free Study Profile · about 3 minutes</span>
             <h1>Find out how you actually study.</h1>
-            <p>14 quick questions. No account. You get a study pattern, a clearer view of what may be getting in the way, and practical methods selected from your answers. Free.</p>
-            <div className={styles.heroActions}><button type="button" className={styles.primaryButton} onClick={onStart}>Get my free study profile <ArrowRight size={18} aria-hidden="true" /></button><span><Clock3 size={16} aria-hidden="true" /> 14 questions · about 3 minutes · no account needed</span></div>
-            <div className={styles.heroTrust}><span><Check size={14} aria-hidden="true" /> Free full report</span><span><Check size={14} aria-hidden="true" /> Practical steps for tonight</span><span><ShieldCheck size={14} aria-hidden="true" /> Private report link</span></div>
+            <p>14 quick questions. Get your study pattern, the habit most worth changing, and practical methods selected from your answers. Join the free YOVA waitlist and confirm your email to unlock the full report.</p>
+            <div className={styles.heroActions}><button type="button" className={styles.primaryButton} onClick={onStart}>Get my free study profile <ArrowRight size={18} aria-hidden="true" /></button><span><Clock3 size={16} aria-hidden="true" /> Free · about 3 minutes · email confirmation required</span></div>
+            <div className={styles.heroTrust}><span><Check size={14} aria-hidden="true" /> Full report after confirmation</span><span><Check size={14} aria-hidden="true" /> Practical steps for tonight</span><span><ShieldCheck size={14} aria-hidden="true" /> Private report link</span></div>
           </div>
           <SamplePatternCard />
         </section>
@@ -478,7 +426,7 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
         </section>
         <section className={styles.howItWorks} aria-labelledby="how-heading">
           <header className={styles.landingSectionHeading}><span className={styles.sectionEyebrow}>How it works</span><h2 id="how-heading">About three minutes. A plan you can use tonight.</h2></header>
-          <ol><li><span>01</span><div><strong>Answer honestly.</strong><p>14 quick questions about how you actually study, not how you wish you studied.</p></div></li><li><span>02</span><div><strong>Finish your profile.</strong><p>Your answers form a named pattern across six study habits.</p></div></li><li><span>03</span><div><strong>Unlock your results.</strong><p>Enter your email to open your private report. Joining the waitlist is optional.</p></div></li></ol>
+          <ol><li><span>01</span><div><strong>Answer honestly.</strong><p>14 quick questions about how you actually study, not how you wish you studied.</p></div></li><li><span>02</span><div><strong>Finish your profile.</strong><p>Your answers form a named pattern across six study habits.</p></div></li><li><span>03</span><div><strong>Join and confirm.</strong><p>Enter your email, join the free YOVA waitlist, and confirm from your inbox to open your private report.</p></div></li></ol>
         </section>
         <section className={styles.sampleResultSection} aria-labelledby="sample-heading">
           <div className={styles.sampleResultCopy}><span className={styles.lightEyebrow}>An example result</span><h2 id="sample-heading">Example: The Familiarity Trap.</h2><p>This learner rereads until the material feels easy, then rarely checks without notes. The first suggested step takes ten minutes to set up.</p><button type="button" className={styles.secondaryCta} onClick={onStart}>Find my pattern <ArrowRight size={17} aria-hidden="true" /></button></div>
@@ -490,7 +438,7 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
         </section>
         <section className={styles.researchStrip} aria-label="Study Profile methodology summary"><Target size={23} aria-hidden="true" /><div><strong>Draws on established study techniques.</strong><p>Retrieval practice, spaced practice, and interleaving inform the suggestions. The match is a starting point based on your answers, not a diagnosis or personality test.</p></div></section>
         <section className={styles.finalCtaSection} aria-labelledby="final-cta-heading">
-          <div><span className={styles.heroEyebrow}>Free · about 3 minutes · no account</span><h2 id="final-cta-heading">Ready to see what your answers suggest?</h2><button type="button" className={styles.primaryButton} onClick={onStart}>Get my free study profile <ArrowRight size={18} aria-hidden="true" /></button></div>
+          <div><span className={styles.heroEyebrow}>Free · about 3 minutes · email confirmation required</span><h2 id="final-cta-heading">Ready to see what your answers suggest?</h2><button type="button" className={styles.primaryButton} onClick={onStart}>Get my free study profile <ArrowRight size={18} aria-hidden="true" /></button></div>
           <div><p>Not ready for the quiz? Join the YOVA waitlist instead.</p><LandingWaitlistForm idPrefix="final-waitlist" compact /></div>
         </section>
       </main>
@@ -568,8 +516,6 @@ function isDraftView(value: unknown): value is Draft["view"] { return value === 
 function isAnswerDraft(value: unknown): value is Partial<StudyProfileAnswers> { return Boolean(value && typeof value === "object"); }
 function isMetadataDraft(value: unknown): value is Partial<StudyProfileMetadata> { return Boolean(value && typeof value === "object"); }
 function clampQuestionIndex(value: unknown) { return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(STUDY_PROFILE_QUESTIONS.length - 1, Math.floor(value))) : 0; }
-function resolveEmailDelivery(result: SubmissionResult): "sent" | "skipped" | "failed" | "cooldown" | "daily_cap" | undefined { if (typeof result.emailDelivery === "string") return result.emailDelivery; if (result.emailDelivery && typeof result.emailDelivery === "object") return result.emailDelivery.status; if (result.emailSent === false) return "failed"; if (result.emailSent === true) return "sent"; if (result.emailDeliveryQueued === false) return "skipped"; return undefined; }
-
 function readStudyProfileDraft(): Partial<Draft> | null {
   try {
     const saved = window.localStorage.getItem(DRAFT_STORAGE_KEY); if (!saved) return null;

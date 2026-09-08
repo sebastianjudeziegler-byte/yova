@@ -35,15 +35,10 @@ const StudyProfileReportEmailInputSchema = z.object({
 
 const StudyProfileWaitlistConfirmationEmailInputSchema = z.object({
   to: StudyProfileEmailSchema,
-  confirmationUrl: z.string().trim().url().max(2_000).refine((value) => {
-    try {
-      const url = new URL(value);
-      return (url.protocol === "http:" || url.protocol === "https:")
-        && /^#token=[A-Za-z0-9_-]{43}$/.test(url.hash);
-    } catch {
-      return false;
-    }
-  }, "Confirmation URL must use HTTP(S) and contain one fragment token"),
+  confirmationUrl: z.string().trim().url().max(2_000).refine(
+    isValidStudyProfileConfirmationUrl,
+    "Confirmation URL must use HTTP(S) and contain a valid private fragment",
+  ),
   confirmationId: z.string().uuid(),
 }).strict();
 
@@ -164,9 +159,52 @@ export function buildStudyProfileWaitlistConfirmationEmail(
   input: Pick<StudyProfileWaitlistConfirmationEmailInput, "confirmationUrl">,
 ) {
   const confirmationUrl = new URL(input.confirmationUrl).toString();
+  const confirmationParameters = new URL(confirmationUrl).hash.slice(1);
+  const unlocksReport = new URLSearchParams(confirmationParameters).has("report");
   const safeConfirmationUrl = escapeStudyProfileEmailHtml(confirmationUrl);
   const privacyUrl = new URL("/privacy", confirmationUrl).toString();
   const safePrivacyUrl = escapeStudyProfileEmailHtml(privacyUrl);
+  if (unlocksReport) {
+    return {
+      subject: "Confirm your YOVA waitlist place and view your Study Profile",
+      text: [
+        "Your Study Profile is ready",
+        "",
+        "Confirm that you want to join the YOVA waitlist and receive YOVA launch emails. After you confirm, your private report will open. You can unsubscribe at any time.",
+        "",
+        "Confirm and view your results:",
+        confirmationUrl,
+        "",
+        `Privacy Notice: ${privacyUrl}`,
+        "",
+        "This link expires in 24 hours. If you did not request this, you can ignore this email.",
+      ].join("\n"),
+      html: `<!doctype html>
+<html lang="en">
+  <body style="margin:0;background:#eef3ff;color:#0b1633;font-family:Inter,Arial,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">One confirmation unlocks your private report.</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3ff;background-image:linear-gradient(180deg,#f8faff 0%,#eef3ff 100%);padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #d8e3ff;border-radius:24px;overflow:hidden;box-shadow:0 24px 70px rgba(31,67,145,0.14);">
+            <tr>
+              <td style="padding:32px;">
+                <div style="font-family:Sora,Inter,Arial,sans-serif;font-size:20px;font-weight:800;letter-spacing:-0.03em;color:#0b1b3e;">YOVA</div>
+                <div style="margin:28px 0 8px;font-size:12px;font-weight:750;letter-spacing:0.12em;text-transform:uppercase;color:#316bff;">YOVA waitlist</div>
+                <h1 style="margin:0 0 12px;font-family:Sora,Inter,Arial,sans-serif;font-size:32px;line-height:1.16;letter-spacing:-0.04em;color:#08152f;">Your Study Profile is ready</h1>
+                <p style="margin:0 0 26px;font-size:16px;line-height:1.65;color:#52617f;">Confirm that you want to join the YOVA waitlist and receive YOVA launch emails. After you confirm, your private report will open. You can unsubscribe at any time.</p>
+                <a href="${safeConfirmationUrl}" style="display:inline-block;padding:14px 20px;background:#316bff;border-radius:12px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:750;box-shadow:0 10px 24px rgba(49,107,255,0.22);">Confirm and view my results</a>
+                <p style="margin:26px 0 0;font-size:13px;line-height:1.65;color:#66758f;">Read the <a href="${safePrivacyUrl}" style="color:#2459d6;">YOVA Privacy Notice</a>. This link expires in 24 hours. If you did not request this, you can ignore this email.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`,
+    };
+  }
   return {
     subject: "Confirm YOVA launch emails",
     text: [
@@ -208,6 +246,24 @@ export function buildStudyProfileWaitlistConfirmationEmail(
   </body>
 </html>`,
   };
+}
+
+function isValidStudyProfileConfirmationUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    const parameters = new URLSearchParams(url.hash.slice(1));
+    const allowedKeys = new Set(["token", "report"]);
+    if ([...parameters.keys()].some((key) => !allowedKeys.has(key))) return false;
+    const confirmationTokens = parameters.getAll("token");
+    const reportTokens = parameters.getAll("report");
+    return confirmationTokens.length === 1
+      && /^[A-Za-z0-9_-]{43}$/.test(confirmationTokens[0] ?? "")
+      && reportTokens.length <= 1
+      && (reportTokens.length === 0 || /^[A-Za-z0-9_-]{43}$/.test(reportTokens[0] ?? ""));
+  } catch {
+    return false;
+  }
 }
 
 /**

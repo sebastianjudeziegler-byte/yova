@@ -131,6 +131,50 @@ describe("Study Profile waitlist confirmation delivery", () => {
     );
   });
 
+  it("delivers a combined confirmation with both credentials only in the URL fragment", async () => {
+    const rawConfirmationToken = "f".repeat(43);
+    const reportToken = "r".repeat(43);
+    mocks.send.mockResolvedValueOnce({
+      status: "sent",
+      provider: "resend",
+      providerMessageId: "combined_email_123",
+    });
+
+    await expect(deliverStudyProfileWaitlistConfirmation(
+      repository,
+      pendingState,
+      rawConfirmationToken,
+      reportToken,
+    )).resolves.toMatchObject({ confirmationPending: true });
+
+    expect(mocks.send).toHaveBeenCalledOnce();
+    const deliveryInput = mocks.send.mock.calls[0][0] as {
+      to: string;
+      confirmationUrl: string;
+      confirmationId: string;
+    };
+    expect(deliveryInput).toMatchObject({
+      to: pendingState.email,
+      confirmationId: pendingState.confirmationId,
+    });
+    const confirmationUrl = new URL(deliveryInput.confirmationUrl);
+    expect(confirmationUrl.pathname).toBe("/study-profile/waitlist/confirm");
+    expect(confirmationUrl.search).toBe("");
+    expect(confirmationUrl.hash.slice(1)).toBe(
+      new URLSearchParams({
+        token: rawConfirmationToken,
+        report: reportToken,
+      }).toString(),
+    );
+    expect(confirmationUrl.href.split("#")[0]).not.toContain(rawConfirmationToken);
+    expect(confirmationUrl.href.split("#")[0]).not.toContain(reportToken);
+    expect(markDelivery).toHaveBeenCalledWith(
+      pendingState.confirmationId,
+      "sent",
+      "combined_email_123",
+    );
+  });
+
   it("keeps the token pending after an ambiguous network failure", async () => {
     mocks.send.mockResolvedValueOnce({ status: "failed", reason: "network_error" });
 

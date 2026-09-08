@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  ArrowRight,
   CheckCircle2,
   Clock3,
   Download,
   Layers3,
   ListChecks,
   LockKeyhole,
-  MailCheck,
   RefreshCw,
   Share2,
   ShieldCheck,
@@ -27,7 +25,6 @@ import {
   type StudyProfileReport,
 } from "@/lib/study-profile";
 import {
-  captureStudyProfileAttribution,
   restoreStudyProfileVisitorId,
   trackStudyProfileEvent,
 } from "@/lib/study-profile/analytics-client";
@@ -55,8 +52,6 @@ type ReportViewProps = {
   autoFocusHeading?: boolean;
 };
 
-type InterestState = "idle" | "pending" | "joined" | "limited";
-type InterestLocation = "banner" | "closing";
 type ShareState = "idle" | "working";
 const ENERGY_LABELS: Record<StudyProfilePublicStoredResponse["metadata"]["energyWindow"], string> = {
   morning: "Morning",
@@ -75,44 +70,13 @@ const LEVEL_LABELS: Record<StudyProfilePublicStoredResponse["metadata"]["schoolL
 export function StudyProfileReportView({
   storedResponse,
   report,
-  reportToken,
   emailDelivery,
-  initialWaitlistJoined = false,
-  initialWaitlistConfirmationPending = false,
-  initialWaitlistDailyCapReached = false,
-  initialWaitlistError = null,
   autoFocusHeading = false,
 }: ReportViewProps) {
   const [resolvedEmailDelivery, setResolvedEmailDelivery] = useState(emailDelivery);
-  const [resolvedInitialWaitlistError, setResolvedInitialWaitlistError] = useState(
-    initialWaitlistError,
-  );
-  const [interestState, setInterestState] = useState<InterestState>(
-    initialWaitlistJoined
-      ? "joined"
-      : initialWaitlistDailyCapReached
-        ? "limited"
-      : initialWaitlistConfirmationPending
-        ? "pending"
-        : "idle",
-  );
-  const [interestError, setInterestError] = useState<string | null>(null);
-  const [isInterestRequesting, setIsInterestRequesting] = useState(false);
-  const [waitlistAgeConfirmed, setWaitlistAgeConfirmed] = useState(false);
-  const [interestLocation, setInterestLocation] = useState<InterestLocation>("banner");
   const [shareState, setShareState] = useState<ShareState>("idle");
   const [shareMessage, setShareMessage] = useState<string | null>(null);
-  const hasJoinedWaitlist = interestState === "joined" || initialWaitlistJoined;
-  const hasPendingConfirmation = !hasJoinedWaitlist && (
-    interestState === "pending" || initialWaitlistConfirmationPending
-  );
-  const hasReachedDailyCap = !hasJoinedWaitlist && (
-    interestState === "limited" || initialWaitlistDailyCapReached
-  );
   const reportHeadingRef = useRef<HTMLHeadingElement>(null);
-  const bannerWaitlistStatusRef = useRef<HTMLDivElement>(null);
-  const closingWaitlistStatusRef = useRef<HTMLDivElement>(null);
-  const shouldManageInterestFocusRef = useRef(false);
   const hasTrackedReportViewRef = useRef(false);
 
   useEffect(() => {
@@ -129,60 +93,10 @@ export function StudyProfileReportView({
       if (transition?.emailDelivery) {
         setResolvedEmailDelivery(transition.emailDelivery);
       }
-      if (transition?.waitlistError) {
-        setResolvedInitialWaitlistError(transition.waitlistError);
-      }
       reportHeadingRef.current?.focus();
     });
     return () => window.cancelAnimationFrame(frame);
   }, [autoFocusHeading, storedResponse.id]);
-
-  useEffect(() => {
-    if (
-      !shouldManageInterestFocusRef.current
-      || (interestState !== "joined" && interestState !== "pending" && interestState !== "limited")
-    ) return;
-    const frame = window.requestAnimationFrame(() => {
-      const target = interestLocation === "banner"
-        ? bannerWaitlistStatusRef.current
-        : closingWaitlistStatusRef.current;
-      target?.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [interestLocation, interestState]);
-
-  async function joinWaitlist(location: InterestLocation) {
-    setInterestLocation(location);
-    shouldManageInterestFocusRef.current = true;
-    setInterestError(null);
-    if (!waitlistAgeConfirmed) {
-      setInterestError("Confirm that you are 13 or older before requesting the email.");
-      return;
-    }
-    setIsInterestRequesting(true);
-    try {
-      const response = await fetch(`/api/study-profile/interest/${encodeURIComponent(reportToken)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          waitlist: true,
-          ageConfirmed: true,
-          source: "report_cta",
-          attribution: captureStudyProfileAttribution(),
-        }),
-      });
-      const payload = await response.json().catch(() => ({})) as { error?: unknown; waitlistJoined?: unknown; confirmationPending?: unknown; dailyCapReached?: unknown };
-      if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "We could not send the confirmation email. Try again.");
-      if (payload.dailyCapReached === true) setInterestState("limited");
-      else if (payload.waitlistJoined === true) setInterestState("joined");
-      else if (payload.confirmationPending === true) setInterestState("pending");
-      else throw new Error("We could not confirm the email request. Try again.");
-    } catch (error) {
-      setInterestError(error instanceof Error ? error.message : "We could not send the confirmation email. Try again.");
-    } finally {
-      setIsInterestRequesting(false);
-    }
-  }
 
   async function sharePattern(format: StudyProfileShareFormat, nativeShare: boolean) {
     void trackStudyProfileEvent("study_profile_share_tapped", { shareFormat: format });
@@ -246,13 +160,6 @@ export function StudyProfileReportView({
             <div><strong>Your report is ready here.</strong><span>We could not send the email copy, so save this private link if you want to return.</span></div>
           </div>
         )}
-        {resolvedInitialWaitlistError && !hasJoinedWaitlist && (
-          <div className={styles.deliveryNotice} role="alert">
-            <TriangleAlert size={18} aria-hidden="true" />
-            <div><strong>Your report is ready.</strong><span>{resolvedInitialWaitlistError}</span></div>
-          </div>
-        )}
-
         <section className={styles.reportHero} aria-labelledby="report-title">
           <div className={styles.reportHeroCopy}>
             <span className={styles.darkEyebrow}>Your YOVA Study Profile</span>
@@ -274,20 +181,6 @@ export function StudyProfileReportView({
         </section>
 
         <div className={styles.reportBody}>
-          <section className={styles.waitlistBanner} aria-label="YOVA waitlist status">
-            <div><strong>Want YOVA to build around this profile?</strong><span>Join the waitlist with the email connected to this report. We will send YOVA launch emails, and you can unsubscribe at any time. See our <Link href="/privacy">Privacy Notice</Link>.</span>{!hasJoinedWaitlist && !hasReachedDailyCap && <WaitlistAgeAffirmation checked={waitlistAgeConfirmed} onChange={setWaitlistAgeConfirmed} />}</div>
-            {!hasJoinedWaitlist && !hasPendingConfirmation && !hasReachedDailyCap ? (
-              <button type="button" className={styles.primaryButton} onClick={() => void joinWaitlist("banner")} disabled={isInterestRequesting || !waitlistAgeConfirmed} aria-busy={isInterestRequesting}>{isInterestRequesting ? "Sending..." : "Send confirmation email"}</button>
-            ) : hasJoinedWaitlist ? (
-              <div className={styles.interestSuccess} role={interestLocation === "banner" ? "status" : undefined} ref={bannerWaitlistStatusRef} tabIndex={interestLocation === "banner" ? -1 : undefined}><CheckCircle2 size={20} aria-hidden="true" /><span><strong>You are on the waitlist.</strong> We will email you when YOVA is ready.</span></div>
-            ) : hasReachedDailyCap ? (
-              <LimitedWaitlistStatus location="banner" activeLocation={interestLocation} statusRef={bannerWaitlistStatusRef} />
-            ) : (
-              <PendingWaitlistStatus location="banner" activeLocation={interestLocation} statusRef={bannerWaitlistStatusRef} requesting={isInterestRequesting} canRequest={waitlistAgeConfirmed} onRetry={() => void joinWaitlist("banner")} />
-            )}
-            {interestError && interestLocation === "banner" && <p className={styles.formError} role="alert">{interestError}</p>}
-          </section>
-
           <section className={styles.whySection} aria-labelledby="why-heading">
             <div className={styles.sectionNumber}>01</div>
             <div><span className={styles.sectionEyebrow}>Matched from your answers</span><h2 id="why-heading">{report.whyThisIsHappening.heading}</h2><p>{report.whyThisIsHappening.body}</p></div>
@@ -369,14 +262,12 @@ export function StudyProfileReportView({
           <section className={styles.waitlistSection} aria-labelledby="waitlist-heading">
             <div className={styles.waitlistIcon}><ListChecks size={25} aria-hidden="true" /></div>
             <div className={styles.waitlistCopy}>
-              <span className={styles.sectionEyebrow}>YOVA waitlist</span>
-              <h2 id="waitlist-heading">Your profile is a snapshot. It is already aging.</h2>
+              <span className={styles.sectionEyebrow}>What comes next</span>
+              <h2 id="waitlist-heading">Your profile is a snapshot. YOVA can keep it current.</h2>
               <p>Habits shift and deadlines move. YOVA builds your plan around your goal, materials, and schedule, then updates it from what you actually do.</p>
-              <p>Free to join. YOVA launch emails only. Unsubscribe at any time. See our <Link href="/privacy">Privacy Notice</Link>.</p>
-              {!hasJoinedWaitlist && !hasReachedDailyCap && <WaitlistAgeAffirmation checked={waitlistAgeConfirmed} onChange={setWaitlistAgeConfirmed} />}
+              <p>You can unsubscribe from YOVA launch emails at any time. See our <Link href="/privacy">Privacy Notice</Link>.</p>
             </div>
-            {!hasJoinedWaitlist && !hasPendingConfirmation && !hasReachedDailyCap ? <button type="button" className={styles.primaryButton} onClick={() => void joinWaitlist("closing")} disabled={isInterestRequesting || !waitlistAgeConfirmed} aria-busy={isInterestRequesting}>{isInterestRequesting ? "Sending..." : "Send confirmation email"}<ArrowRight size={17} aria-hidden="true" /></button> : hasJoinedWaitlist ? <div className={styles.interestSuccess} role={interestLocation === "closing" ? "status" : undefined} ref={closingWaitlistStatusRef} tabIndex={interestLocation === "closing" ? -1 : undefined}><CheckCircle2 size={20} aria-hidden="true" /><span><strong>You are on the waitlist.</strong> We will email you when YOVA is ready.</span></div> : hasReachedDailyCap ? <LimitedWaitlistStatus location="closing" activeLocation={interestLocation} statusRef={closingWaitlistStatusRef} /> : <PendingWaitlistStatus location="closing" activeLocation={interestLocation} statusRef={closingWaitlistStatusRef} requesting={isInterestRequesting} canRequest={waitlistAgeConfirmed} onRetry={() => void joinWaitlist("closing")} />}
-            {interestError && interestLocation === "closing" && <p className={styles.formError} role="alert">{interestError}</p>}
+            <div className={styles.interestSuccess}><CheckCircle2 size={20} aria-hidden="true" /><span><strong>Your waitlist place is confirmed.</strong> We will email you when YOVA is ready.</span></div>
           </section>
 
           <aside className={styles.methodology} aria-labelledby="methodology-heading">
@@ -387,85 +278,6 @@ export function StudyProfileReportView({
       </main>
 
       <footer className={styles.publicFooter}><BrandMark compact /><p>© {new Date().getFullYear()} YOVA. Your study system should adapt to you.</p><nav aria-label="Legal"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><a href={STUDY_PROFILE_SUPPORT_MAILTO}>Email support</a></nav></footer>
-    </div>
-  );
-}
-
-function PendingWaitlistStatus({
-  location,
-  activeLocation,
-  statusRef,
-  requesting,
-  canRequest,
-  onRetry,
-}: {
-  location: InterestLocation;
-  activeLocation: InterestLocation;
-  statusRef: RefObject<HTMLDivElement | null>;
-  requesting: boolean;
-  canRequest: boolean;
-  onRetry: () => void;
-}) {
-  return (
-    <div
-      className={styles.interestPending}
-      role={activeLocation === location ? "status" : undefined}
-      ref={statusRef}
-      tabIndex={activeLocation === location ? -1 : undefined}
-    >
-      <MailCheck size={20} aria-hidden="true" />
-      <div>
-        <strong>Request received.</strong>
-        <span>If this address still needs confirmation, check the inbox for an email. Already confirmed addresses stay on the list.</span>
-        <button type="button" onClick={onRetry} disabled={requesting || !canRequest} aria-busy={requesting}>
-          {requesting ? "Checking..." : "Send confirmation email again"}
-        </button>
-        <small>YOVA sends at most one confirmation email every 15 minutes.</small>
-      </div>
-    </div>
-  );
-}
-
-function WaitlistAgeAffirmation({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className={styles.waitlistAgeConsent}>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <span>I confirm I am 13 or older.</span>
-    </label>
-  );
-}
-
-function LimitedWaitlistStatus({
-  location,
-  activeLocation,
-  statusRef,
-}: {
-  location: InterestLocation;
-  activeLocation: InterestLocation;
-  statusRef: RefObject<HTMLDivElement | null>;
-}) {
-  return (
-    <div
-      className={styles.interestPending}
-      role={activeLocation === location ? "status" : undefined}
-      ref={statusRef}
-      tabIndex={activeLocation === location ? -1 : undefined}
-    >
-      <Clock3 size={20} aria-hidden="true" />
-      <div>
-        <strong>Try again later.</strong>
-        <span>To protect this inbox, YOVA cannot send another confirmation email today. Save this private report link and try again later.</span>
-      </div>
     </div>
   );
 }

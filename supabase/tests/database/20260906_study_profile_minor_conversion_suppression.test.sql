@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(13);
+select extensions.plan(19);
 
 select extensions.is(
   (
@@ -29,6 +29,32 @@ select extensions.ok(
 select extensions.ok(
   (public.study_profile_public_readiness_v4() ->> 'minorConversionSuppression')::boolean,
   'readiness verifies minor conversion suppression'
+);
+
+select extensions.is(
+  public.study_profile_public_readiness_v5() ->> 'contractVersion',
+  '202609080001',
+  'readiness exposes the report confirmation gate contract'
+);
+
+select extensions.ok(
+  (public.study_profile_public_readiness_v5() ->> 'ready')::boolean,
+  'the current public Study Profile database boundary is ready'
+);
+
+select extensions.ok(
+  (public.study_profile_public_readiness_v5() ->> 'reportScopedReconfirmation')::boolean,
+  'every report requires its own confirmation'
+);
+
+select extensions.ok(
+  (public.study_profile_public_readiness_v5() ->> 'boundReportConfirmation')::boolean,
+  'report confirmation validates both bearer-token hashes atomically'
+);
+
+select extensions.ok(
+  (public.study_profile_public_readiness_v5() ->> 'landingConfirmationIsolation')::boolean,
+  'token-only confirmation is isolated to landing waitlist rows'
 );
 
 select extensions.is(
@@ -178,14 +204,25 @@ select extensions.is(
   'a report waitlist confirmation inherits the persisted adult status'
 );
 
+select extensions.is(
+  public.confirm_study_profile_waitlist_measured(
+    jsonb_build_object('confirmationTokenHash', repeat('f', 64))
+  ) ->> 'status',
+  'invalid',
+  'a report-scoped token cannot be downgraded to token-only confirmation'
+);
+
 insert into minor_conversion_receipts (step, receipt)
-select 'adult-confirm', public.confirm_study_profile_waitlist_measured(
-  jsonb_build_object('confirmationTokenHash', repeat('f', 64))
+select 'adult-confirm', public.confirm_study_profile_report_waitlist_measured(
+  jsonb_build_object(
+    'confirmationTokenHash', repeat('f', 64),
+    'reportTokenHash', repeat('e', 64)
+  )
 );
 
 select extensions.ok(
   (
-    select (receipt ->> 'metaConversionEligible')::boolean
+    select (receipt ->> 'metaRegistrationEligible')::boolean
     from minor_conversion_receipts
     where step = 'adult-confirm'
   ),
@@ -194,9 +231,12 @@ select extensions.ok(
 
 select extensions.ok(
   (
-    public.confirm_study_profile_waitlist_measured(
-      jsonb_build_object('confirmationTokenHash', repeat('f', 64))
-    ) ->> 'metaConversionEligible'
+    public.confirm_study_profile_report_waitlist_measured(
+      jsonb_build_object(
+        'confirmationTokenHash', repeat('f', 64),
+        'reportTokenHash', repeat('e', 64)
+      )
+    ) ->> 'metaRegistrationEligible'
   )::boolean,
   'a retry of the same adult token remains eligible for event-ID deduplication'
 );

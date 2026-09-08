@@ -213,6 +213,36 @@ describe("Study Profile waitlist confirmation email", () => {
     expect(url.hash).toMatch(/^#token=[A-Za-z0-9_-]{43}$/);
   });
 
+  it("combines report unlock and waitlist confirmation without revealing results", () => {
+    const reportToken = "b".repeat(43);
+    const combinedInput = {
+      ...confirmationInput,
+      confirmationUrl: `${confirmationInput.confirmationUrl}&report=${reportToken}`,
+    };
+
+    const message = buildStudyProfileWaitlistConfirmationEmail(combinedInput);
+
+    expect(message.subject).toBe("Confirm your YOVA waitlist place and view your Study Profile");
+    expect(message.html).toContain(">Confirm and view my results</a>");
+    expect(message.text).toContain("Confirm and view your results:");
+    expect(message.html).toContain(
+      `href="${combinedInput.confirmationUrl.replace("&", "&amp;")}"`,
+    );
+    for (const privateResultCopy of [
+      input.pattern.name,
+      input.pattern.tell,
+      input.why,
+      input.tonightPlan,
+      ...input.matchedMethods,
+    ]) {
+      expect(message.text).not.toContain(privateResultCopy);
+      expect(message.html).not.toContain(privateResultCopy);
+    }
+    const url = new URL(combinedInput.confirmationUrl);
+    expect(url.search).toBe("");
+    expect(url.hash).toBe(`#token=${"a".repeat(43)}&report=${reportToken}`);
+  });
+
   it("sends with a confirmation-id idempotency key", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_test_secret");
     vi.stubEnv("STUDY_PROFILE_FROM_EMAIL", "YOVA <study-profile@yovaapp.com>");
