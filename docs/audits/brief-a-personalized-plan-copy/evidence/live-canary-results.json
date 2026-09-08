@@ -1,0 +1,92 @@
+[
+  {
+    "file": "src/evals/launch-session-journeys.live.test.ts",
+    "exitCode": 0,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-launch-session-journeys.txt"
+  },
+  {
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "exitCode": 1,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-answer-evaluation-quality.txt"
+  },
+  {
+    "file": "src/evals/launch-lesson-streams.live.test.ts",
+    "exitCode": 0,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-launch-lesson-streams.txt"
+  },
+  {
+    "file": "src/evals/lesson-tutor.live.test.ts",
+    "exitCode": 0,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-lesson-tutor.txt"
+  },
+  {
+    "file": "src/evals/material-osmosis-session.live.test.ts",
+    "exitCode": 0,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-material-osmosis-session.txt"
+  },
+  {
+    "file": "src/evals/outside-teaching-reliability.live.test.ts",
+    "exitCode": 1,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-outside-teaching-reliability.txt"
+  },
+  {
+    "file": "src/evals/personalization-delta.live.test.ts",
+    "exitCode": 0,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-personalization-delta.txt"
+  },
+  {
+    "file": "src/evals/plan-creation-blockers.live.test.ts",
+    "exitCode": 1,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-plan-creation-blockers.txt"
+  },
+  {
+    "file": "src/evals/plan-quality.live.test.ts",
+    "exitCode": 1,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-plan-quality.txt"
+  },
+  {
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "exitCode": 1,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-plan-session-journey.txt"
+  },
+  {
+    "file": "src/evals/session-quality.live.test.ts",
+    "exitCode": 1,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-session-quality.txt"
+  },
+  {
+    "file": "src/evals/streamed-ap-biology.live.test.ts",
+    "exitCode": 0,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-streamed-ap-biology.txt"
+  },
+  {
+    "file": "src/evals/streamed-melatonin-skeleton.live.test.ts",
+    "exitCode": 0,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-streamed-melatonin-skeleton.txt"
+  },
+  {
+    "file": "src/evals/streamed-rayleigh.live.test.ts",
+    "exitCode": 1,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-streamed-rayleigh.txt"
+  },
+  {
+    "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+    "exitCode": 1,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-streamed-world-war-one-lesson.txt"
+  },
+  {
+    "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+    "exitCode": 1,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-streamed-world-war-one-skeleton.txt"
+  },
+  {
+    "file": "src/evals/teaching-assessment-contract.live.test.ts",
+    "exitCode": 0,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-teaching-assessment-contract.txt"
+  },
+  {
+    "file": "src/lib/diagnostics/map-diagnostic.live.test.ts",
+    "exitCode": 0,
+    "log": "docs/audits/brief-a-personalized-plan-copy/evidence/live-map-diagnostic.txt"
+  }
+]

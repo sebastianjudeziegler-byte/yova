@@ -1,0 +1,58 @@
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+ ❯ src/evals/personalization-delta.test.ts (19 tests | 2 failed) 726ms
+     × keeps a long provider rationale within its slot when adding the starting difficulty 20ms
+     × never turns profile context into a learning-style claim in method reasons 37ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > keeps a long provider rationale within its slot when adding the starting difficulty
+ZodError: [
+  {
+    "origin": "string",
+    "code": "too_big",
+    "maximum": 900,
+    "inclusive": true,
+    "path": [
+      "rationale"
+    ],
+    "message": "Too big: expected string to have <=900 characters"
+  }
+]
+ ❯ bindNormalPlanProviderFill src/lib/plan-generation/normal-plan-provider-fill.ts:192:42
+    190|   const safeFill = sanitizeProviderFill(providerFill, fallback, bounda…
+    191|   const topicsById = boundary.topicsById;
+    192|   const draft = GeneratedPlanDraftSchema.parse({
+       |                                          ^
+    193|     title: safeFill.plan.title,
+    194|     topic: safeFill.plan.topic,
+ ❯ buildNormalPlanFromFixedEnvelope src/lib/plan-generation/normal-plan-pipeline.ts:90:17
+ ❯ src/evals/personalization-delta.test.ts:125:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > never turns profile context into a learning-style claim in method reasons
+AssertionError: expected 'Because you have ADHD, you are a visu…' not to match /ADHD|visual learner/
+
+- Expected:
+/ADHD|visual learner/
+
++ Received:
+"Because you have ADHD, you are a visual learner and need an example of ATP."
+
+ ❯ src/evals/personalization-delta.test.ts:135:47
+    133|     fill.sessions[fixture.composition.envelopes[0].envelopeId].methodR…
+    134|     const plan = buildNormalPlanFromFixedEnvelope({ ...fixture, fill }…
+    135|     expect(plan.sessions[0].methodReason).not.toMatch(/ADHD|visual lea…
+       |                                               ^
+    136|     expect(plan.sessions[0].methodReason).toMatch(/example/);
+    137|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 17 passed (19)
+   Start at  20:39:31
+   Duration  1.10s (transform 223ms, setup 0ms, import 306ms, tests 726ms, environment 0ms)

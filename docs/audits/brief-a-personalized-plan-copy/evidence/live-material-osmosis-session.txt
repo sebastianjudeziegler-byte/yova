@@ -1,0 +1,12 @@
+Real-provider canary: src/evals/material-osmosis-session.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  21:10:16
+   Duration  4.23s (transform 282ms, setup 0ms, import 383ms, tests 3.78s, environment 0ms)
+
+
+Exit code: 0

@@ -1,0 +1,68 @@
+Real-provider canary: src/evals/streamed-world-war-one-lesson.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+stdout | src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+WWI streamed lesson metrics {
+  skeletonElapsedMs: 15408,
+  skeletonAttempts: 2,
+  lessonElapsedMs: 11764,
+  latencyToFirstTokenMs: 4356,
+  wordCount: 248,
+  inputTokens: 1007,
+  outputTokens: 480
+}
+
+ ❯ src/evals/streamed-world-war-one-lesson.live.test.ts (1 test | 1 failed) 27388ms
+     × delivers substantive teaching from the first generated lesson brief 27387ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+AssertionError: expected '# Rival Blocs Before 1914\n\n## The b…' to match /Sarajevo|Franz Ferdinand/i
+
+- Expected:
+/Sarajevo|Franz Ferdinand/i
+
++ Received:
+"# Rival Blocs Before 1914
+
+## The big picture
+
+Before the First World War, European powers were divided into two rival groups:
+
+- **Triple Alliance:** Germany, Austria-Hungary, and Italy
+- **Triple Entente:** Britain, France, and Russia
+
+These alignments made Europe feel less like a collection of separate countries and more like two suspicious camps. Each power could expect support from partners, while viewing the other bloc as a possible threat.
+
+Existing tensions deepened this division. Countries competed over military strength and empires. Nationalism increased hostility, especially in the Balkans, where Austria-Hungary and Russia supported competing interests. As powers expanded their armies and navies, one side’s attempt to become safer often made the other side feel less safe. The result was further military preparation and suspicion.
+
+A useful cause map is:
+
+$$\\text{rivalries and tensions} \\rightarrow \\text{alliances} \\rightarrow \\text{two blocs} \\rightarrow \\text{greater risk of a wider conflict}$$
+
+The alliances mattered because a confrontation involving a small number of states could draw in their partners. They therefore created conditions in which a regional crisis might expand.
+
+## A common mix-up
+
+The blocs were not two perfectly fixed teams that automatically entered war together. The Triple Entente was an understanding among Britain, France, and Russia, not simply an exact copy of the Triple Alliance. Italy also did not fight beside Germany and Austria-Hungary when war began in 1914. The key point is that alliances and tensions divided Europe and increased the danger of escalation, not that membership mechanically determined every country’s actions."
+
+ ❯ src/evals/streamed-world-war-one-lesson.live.test.ts:95:28
+     93|     expect(lessonResult.wordCount).toBeLessThanOrEqual(lessonBudget.ma…
+     94|     expect(lessonMarkdown).toMatch(/alliance/i);
+     95|     expect(lessonMarkdown).toMatch(/Sarajevo|Franz Ferdinand/i);
+       |                            ^
+     96|     expect(lessonMarkdown).toMatch(/1914/);
+     97|     expect(lessonMarkdown).toMatch(/mobiliz|declaration of war/i);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  21:24:05
+   Duration  27.68s (transform 296ms, setup 0ms, import 217ms, tests 27.39s, environment 0ms)
+
+
+Exit code: 1

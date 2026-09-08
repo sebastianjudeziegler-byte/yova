@@ -398,7 +398,7 @@ describe("normal-plan provider-fill boundary", () => {
 
     expect(learnerFacing).not.toMatch(/visual learner|ADHD|\*\*|[–—]/iu);
     expect(draft.sessions.flatMap((session) => session.contentTargets)).toContain(
-      "Accepted learning target 1",
+      "Learning topic 1",
     );
   });
 
@@ -425,7 +425,7 @@ describe("normal-plan provider-fill boundary", () => {
     expect(composition.deferrals.length).toBeGreaterThan(0);
     expect(draft.deferredTopics).toEqual(composition.deferrals.map((deferral) => ({
       topicId: deferral.topicId,
-      reason: deferral.reason,
+      reason: deferral.reason.replace(/\btargets?\b/giu, "topic"),
     })));
     expect(new Set([
       ...draft.sessions.flatMap((session) => session.topicIds),

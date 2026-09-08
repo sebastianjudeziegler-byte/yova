@@ -1,0 +1,83 @@
+Real-provider canary: src/evals/plan-session-journey.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+stdout | src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'World War I unit guide in short sessi…'
+
+YOVA connected journey · World War I unit guide in short sessions
+Plan · 4 sessions · 100/100 · 23.1s
+First session · learn · Feynman Technique · 15 min
+Lesson · 5 activities · 65/100 · 44.3s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+stdout | src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'Full beginner calculus pathway'
+
+YOVA connected journey · Full beginner calculus pathway
+Plan · 8 sessions · 100/100 · 30.6s
+First session · learn · Worked Examples · 25 min
+Lesson · 5 activities · 85/100 · 11.5s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+stdout | src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+
+YOVA connected journey · History essay using outside sources
+Plan · 4 sessions · 100/100 · 22.1s
+First session · learn · Outline from Memory · 25 min
+Lesson · 4 activities · 100/100 · 10.3s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+ ❯ src/evals/plan-session-journey.live.test.ts (5 tests | 4 failed) 170550ms
+     × 'One product-rule skill in short sessi…' 28659ms
+     × 'World War I unit guide in short sessi…' 67416ms
+     × 'Full beginner calculus pathway' 42086ms
+     × 'History essay using outside sources' 32387ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/plan-session-journey.live.test.ts:58:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'World War I unit guide in short sessi…'
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'Full beginner calculus pathway'
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Every mapped topic is scheduled or explicitly deferred",
++ ]
+
+ ❯ src/evals/plan-session-journey.live.test.ts:73:41
+     71|     console.info(`Personalization · ${generatedSession.draft.methodBri…
+     72|
+     73|     expect(planResult.requiredFailures).toEqual([]);
+       |                                         ^
+     74|     expect(planResult.score).toBeGreaterThanOrEqual(80);
+     75|     expect(sessionResult.requiredFailures).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 1 passed (5)
+   Start at  21:16:12
+   Duration  171.05s (transform 399ms, setup 0ms, import 395ms, tests 170.55s, environment 0ms)
+
+
+Exit code: 1

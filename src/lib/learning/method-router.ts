@@ -263,7 +263,7 @@ const WRITING_OWNERSHIP_DUE_SIGNAL = new RegExp(
 
 const TASK_SIGNAL_RULES: Record<LearningTaskType, WeightedTaskSignal[]> = {
   memorization: [
-    { pattern: /\b(memorize|memorization|commit .* to memory)\b/i, weight: 7, evidence: "memorization" },
+    { pattern: /\b(memorize|memorise|memorization|memorisation|commit .* to memory)\b/i, weight: 7, evidence: "memorization" },
     { pattern: /\b(vocabulary|flashcards?|term[- ]definition|definitions?|dates and facts|facts and dates)\b/i, weight: 5, evidence: "facts or terms" },
     { pattern: /\b(recall (?:the )?(?:terms|definitions|dates|facts)|learn (?:the )?(?:terms|definitions|dates|facts))\b/i, weight: 4, evidence: "fact recall" },
   ],

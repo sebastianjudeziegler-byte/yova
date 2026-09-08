@@ -1,0 +1,457 @@
+[WebServer] (node:75387) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:75388) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 284 tests using 1 worker
+
+(node:75407) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓    1 [desktop-chromium] › e2e/accessibility-regression.spec.ts:29:5 › the initial HTML provides useful public content without waiting for JavaScript (685ms)
+  ✓    2 [desktop-chromium] › e2e/accessibility-regression.spec.ts:40:5 › form placeholder text keeps AA contrast on public surfaces (2.6s)
+  ✓    3 [desktop-chromium] › e2e/accessibility-regression.spec.ts:69:5 › Ask YOVA history traps focus, closes on Escape, and restores its trigger (3.1s)
+  ✓    4 [desktop-chromium] › e2e/accessibility-regression.spec.ts:100:5 › primary authenticated screens have no serious WCAG A/AA Axe violations (5.6s)
+  ✓    5 [desktop-chromium] › e2e/account-security.spec.ts:17:5 › makes account personalization visible, editable, persistent, and mobile-safe (3.9s)
+  ✓    6 [desktop-chromium] › e2e/account-security.spec.ts:49:5 › explains the self-service export scope and the downloaded-copy boundary (2.1s)
+  ✓    7 [desktop-chromium] › e2e/account-security.spec.ts:59:5 › clears signed-in UI after confirmed sign-out even when preview storage removal throws (2.6s)
+  ✓    8 [desktop-chromium] › e2e/add-to-yova.spec.ts:17:5 › a deadline can live in Calendar, be completed, and stay out of Learning (7.5s)
+  ✓    9 [desktop-chromium] › e2e/add-to-yova.spec.ts:53:5 › an overdue standalone deadline remains reachable and actionable (3.0s)
+  ✓   10 [desktop-chromium] › e2e/add-to-yova.spec.ts:89:5 › an outside assignment routes to one outside-YOVA session (2.2s)
+  ✓   11 [desktop-chromium] › e2e/add-to-yova.spec.ts:101:5 › a multi-session assignment skips an irrelevant knowledge quiz (5.1s)
+  ✓   12 [desktop-chromium] › e2e/add-to-yova.spec.ts:137:5 › speech and presentation plans bypass placement and use artifact-aware modes (5.9s)
+  ✓   13 [desktop-chromium] › e2e/add-to-yova.spec.ts:182:5 › general learning stays deadline-free until the user chooses otherwise (2.1s)
+  ✓   14 [desktop-chromium] › e2e/add-to-yova.spec.ts:192:5 › a timed product-rule request becomes a specific one-off session (2.4s)
+  ✓   15 [desktop-chromium] › e2e/add-to-yova.spec.ts:203:5 › an unfinished one-off session stays out of ongoing Learning goals (7.7s)
+  ✓   16 [desktop-chromium] › e2e/add-to-yova.spec.ts:227:5 › one account never sees another account's deadline (5.2s)
+  ✓   17 [desktop-chromium] › e2e/agenda-scheduling.spec.ts:19:5 › Calendar refuses unchanged and past custom session times (3.7s)
+  ✓   18 [desktop-chromium] › e2e/calendar-journeys.spec.ts:7:5 › two simultaneous tabs preserve both new events and each tab refreshes (5.2s)
+  ✓   19 [desktop-chromium] › e2e/calendar-journeys.spec.ts:23:5 › a stale event edit cannot overwrite the other tab and the draft remains available (4.3s)
+  ✓   20 [desktop-chromium] › e2e/calendar-journeys.spec.ts:43:5 › Quick Add preserves weekdays, explicit dates and exam clocks (2.5s)
+  ✓   21 [desktop-chromium] › e2e/calendar-journeys.spec.ts:58:5 › a deadline can be saved without inventing a study block and corrected later (3.5s)
+  ✓   22 [desktop-chromium] › e2e/calendar-journeys.spec.ts:76:5 › manual events support full keyboard-editable fields and immediate undo (4.2s)
+  ✓   23 [desktop-chromium] › e2e/calendar-journeys.spec.ts:98:5 › details stay visible and focused, and Escape returns focus to the selected block (2.1s)
+  ✓   24 [desktop-chromium] › e2e/calendar-journeys.spec.ts:113:5 › overlapping commitments have distinct clickable lanes and a named conflict (3.0s)
+  ✓   25 [desktop-chromium] › e2e/calendar-journeys.spec.ts:127:5 › full-day grid includes early, late and overnight work on the correct days (3.0s)
+  ✓   26 [desktop-chromium] › e2e/calendar-journeys.spec.ts:142:5 › all deadlines can be searched, inspected and reached beyond the visible week (5.6s)
+  ✓   27 [desktop-chromium] › e2e/calendar-journeys.spec.ts:157:5 › the inline suggestion Move action opens its editor (2.7s)
+  ✓   28 [desktop-chromium] › e2e/calendar-journeys.spec.ts:172:5 › approved adjustments respect zero capacity and fixed commitments and disclose their destination (4.4s)
+  ✓   29 [desktop-chromium] › e2e/calendar-journeys.spec.ts:197:5 › manual workload is included in adjustment totals and has a useful Move action (2.2s)
+  ✓   30 [desktop-chromium] › e2e/calendar-recurring.spec.ts:19:5 › Add recognizes the communications timetable and saves a lasting Monday/Wednesday series (4.6s)
+  ✓   31 [desktop-chromium] › e2e/calendar-recurring.spec.ts:53:5 › every two days supports a finite occurrence count and stops on the right date (2.4s)
+  ✓   32 [desktop-chromium] › e2e/calendar-recurring.spec.ts:67:5 › one occurrence can move, be cancelled and be restored without changing the series (8.1s)
+  ✓   33 [desktop-chromium] › e2e/calendar-recurring.spec.ts:86:5 › the whole series can be edited and deleted with one undoable action (2.7s)
+  ✓   34 [desktop-chromium] › e2e/calendar-recurring.spec.ts:112:5 › missing times and unsupported patterns stay editable instead of saving a guessed schedule (2.0s)
+  ✓   35 [desktop-chromium] › e2e/calendar-recurring.spec.ts:124:5 › the class keeps 11:30 local time after daylight saving ends (2.8s)
+  ✓   36 [desktop-chromium] › e2e/calendar-recurring.spec.ts:132:5 › moving an occurrence to a different month keeps its details in view (2.2s)
+  ✓   37 [desktop-chromium] › e2e/calendar-recurring.spec.ts:145:5 › moving an item into a future recurring class detects the conflict beyond the current week (2.3s)
+  ✓   38 [desktop-chromium] › e2e/calendar-recurring.spec.ts:156:5 › concurrent edits to a recurring series preserve the second tab's unsaved draft (4.4s)
+  ✓   39 [desktop-chromium] › e2e/calendar-safety.spec.ts:7:5 › a failed browser save keeps the draft and retry creates one event (1.9s)
+  ✓   40 [desktop-chromium] › e2e/calendar-safety.spec.ts:27:5 › an adjustment is rechecked when another tab changes destination availability (6.1s)
+  ✓   41 [desktop-chromium] › e2e/calendar-safety.spec.ts:55:5 › completion can be undone without closing the event details (2.0s)
+  ✓   42 [desktop-chromium] › e2e/calendar-safety.spec.ts:65:5 › visual review of Agenda, event editor and overlapping Week blocks (3.6s)
+  ✓   43 [desktop-chromium] › e2e/calendar-tab.spec.ts:23:5 › Calendar exposes Week and Agenda surfaces with bounded keyboard navigation (2.7s)
+  ✓   44 [desktop-chromium] › e2e/calendar-tab.spec.ts:69:5 › quick add confirms its interpretation, persists by account, and can be undone (4.1s)
+  ✓   45 [desktop-chromium] › e2e/calendar-tab.spec.ts:120:5 › quick add clamps an overlong title before confirmation and persists without crashing (2.0s)
+  ✓   46 [desktop-chromium] › e2e/calendar-tab.spec.ts:141:5 › exiting a quick-add plan draft returns to Calendar without losing or duplicating the manual deadline (3.7s)
+  ✓   47 [desktop-chromium] › e2e/calendar-tab.spec.ts:164:5 › finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome (4.0s)
+  ✓   48 [desktop-chromium] › e2e/calendar-tab.spec.ts:200:5 › authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-in time adjustment stay connected (4.4s)
+  ✓   49 [desktop-chromium] › e2e/calendar-tab.spec.ts:250:5 › Calendar Start opens the exact ready session and fails closed on an ambiguous legacy plan (4.8s)
+  ✓   50 [desktop-chromium] › e2e/calendar-tab.spec.ts:278:5 › a future overloaded-day issue edits only that date's availability (3.6s)
+  ✓   51 [desktop-chromium] › e2e/calendar-tab.spec.ts:315:5 › learner-owned blocks resize and suggested moves become pinned only after approval (5.6s)
+  ✓   52 [desktop-chromium] › e2e/canonical-study-profile.spec.ts:9:7 › YOVA canonical Study Profile › builds the canonical 11-question profile, imports it into an account, and skips duplicate onboarding (8.0s)
+  ✓   53 [desktop-chromium] › e2e/canonical-study-profile.spec.ts:91:7 › YOVA canonical Study Profile › restores only a valid saved canonical draft (3.5s)
+  ✓   54 [desktop-chromium] › e2e/canonical-study-profile.spec.ts:124:7 › YOVA canonical Study Profile › finishes safely and explains the fallback when browser storage is unavailable (2.5s)
+  ✓   55 [desktop-chromium] › e2e/canonical-study-profile.spec.ts:142:7 › YOVA canonical Study Profile › exposes semantic progress, pressed choices, and predictable keyboard focus (1.8s)
+  ✓   56 [desktop-chromium] › e2e/canonical-study-profile.spec.ts:170:7 › YOVA canonical Study Profile › keeps landing, questionnaire, and summary inside narrow mobile viewports (6.8s)
+  -   57 [desktop-chromium] › e2e/cloud-sync-recovery.spec.ts:43:5 › Retry retires two permanently rejected terminal events without losing their recovery export
+  -   58 [desktop-chromium] › e2e/cloud-sync-recovery.spec.ts:78:5 › startup retires a stale routed completion from a ready session using cloud route authority
+  -   59 [desktop-chromium] › e2e/cloud-sync-recovery.spec.ts:114:5 › cloud-only private-export metadata keeps AA text contrast
+  ✓   60 [desktop-chromium] › e2e/core-learning-loop.spec.ts:28:5 › Study Now lets the learner review and safely choose an eligible method before activation (3.5s)
+  ✓   61 [desktop-chromium] › e2e/core-learning-loop.spec.ts:67:5 › Study Now discloses omitted scope before starting and lets the learner change time (4.6s)
+  ✓   62 [desktop-chromium] › e2e/core-learning-loop.spec.ts:95:5 › durable allowance exhaustion loads the committed method workpad and names the reset (2.8s)
+  ✓   63 [desktop-chromium] › e2e/core-learning-loop.spec.ts:136:5 › durable allowance exhaustion without a safe fallback has its own non-retryable state (1.7s)
+  ✓   64 [desktop-chromium] › e2e/core-learning-loop.spec.ts:178:5 › streamed lesson quota uses its built-in explanation and surfaces the reset (2.9s)
+  ✓   65 [desktop-chromium] › e2e/core-learning-loop.spec.ts:219:5 › a confident misconception is repaired now without a duplicate follow-up (6.9s)
+  ✓   66 [desktop-chromium] › e2e/core-learning-loop.spec.ts:316:5 › Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context (3.6s)
+  ✓   67 [desktop-chromium] › e2e/core-learning-loop.spec.ts:403:5 › a support request keeps the committed practice recipe when fallback generation fails (4.8s)
+  ✓   68 [desktop-chromium] › e2e/core-learning-loop.spec.ts:442:5 › an inactive-plan generation response cannot open a stale built-in lesson (3.2s)
+  ✓   69 [desktop-chromium] › e2e/core-learning-loop.spec.ts:468:5 › a visibly shortened inside recipe keeps its method in the fallback workpad (5.6s)
+  ✓   70 [desktop-chromium] › e2e/core-learning-loop.spec.ts:505:5 › a built-in fallback never ignores a learner's custom session requirement (4.5s)
+  ✓   71 [desktop-chromium] › e2e/core-learning-loop.spec.ts:551:5 › a new topic is taught before YOVA asks for independent performance (3.3s)
+  ✓   72 [desktop-chromium] › e2e/core-learning-loop.spec.ts:644:5 › a World War I beginner receives real teaching and a direct model answer (2.9s)
+  ✓   73 [desktop-chromium] › e2e/core-learning-loop.spec.ts:694:5 › an opaque class label is stopped until the learner names the actual calculus concept (3.1s)
+  ✓   74 [desktop-chromium] › e2e/core-learning-loop.spec.ts:732:5 › a teaching-first inside outage does not start with unsupported recall (2.2s)
+  ✓   75 [desktop-chromium] › e2e/core-learning-loop.spec.ts:766:5 › a temporary AI failure loads a subject-specific startup funding lesson (2.5s)
+  ✓   76 [desktop-chromium] › e2e/core-learning-loop.spec.ts:795:5 › home lets the learner browse prioritized recommendations without opening every plan (3.2s)
+  ✓   77 [desktop-chromium] › e2e/core-learning-loop.spec.ts:822:5 › outside study gives a concrete source-based session instead of pretending YOVA owns the content (1.7s)
+  ✓   78 [desktop-chromium] › e2e/core-learning-loop.spec.ts:852:5 › an arbitrary outside method workpad completes as practice without changing topic evidence (3.0s)
+  ✓   79 [desktop-chromium] › e2e/core-learning-loop.spec.ts:929:5 › a fallback method workpad resumes its timer and checked targets after reload (7.6s)
+  ✓   80 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1061:5 › a 10-minute outside teaching-first session loads its built-in method lesson (4.0s)
+  ✓   81 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1101:5 › an overdue outside teaching-first session splits into runnable 10-minute parts (9.8s)
+  ✓   82 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1207:5 › an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad (4.3s)
+  ✓   83 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1322:5 › the backend rejects an opaque goal even when the browser guard is bypassed (19ms)
+  ✓   84 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1349:5 › plan generation remains a draft until the learner activates it (167ms)
+  ✘   85 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1400:5 › a learner can stop twice without losing progress or earlier evidence (7.9s)
+(node:75759) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   86 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1448:5 › a lesson and its reopened model teach every fact required by the glycolysis recall check (3.9s)
+  ✓   87 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1517:5 › a resumed streamed question can reopen its prior lesson by persisted activity index (2.2s)
+  ✓   88 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1609:5 › a refresh recovers semantic progress without saving draft answers or inventing an interruption (7.5s)
+  ✓   89 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1783:5 › a saved first-step recall round resumes at the next prompt without persisting draft text (6.9s)
+  ✓   90 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2026:5 › learner text fields keep long pastes visible and block submission until trimmed (5.0s)
+  ✓   91 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2157:5 › an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged (3.7s)
+  ✓   92 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2187:5 › Calendar Agenda stays first and contained at a 375px viewport (3.1s)
+  ✓   93 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2288:5 › spent guided-session allowance is visible before Home or Calendar opens setup (4.9s)
+  ✓   94 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2355:5 › spent allowance still permits a saved session to continue (9.3s)
+  ✓   95 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2420:5 › the product shell keeps every core destination and creation path usable (3.4s)
+  ✓   96 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2469:5 › Ask YOVA turns structured explanations and math into readable interface content (7.5s)
+  ✓   97 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2517:5 › the session tutor stays anchored to the exact learning activity (5.9s)
+  ✓   98 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2588:5 › a planning request outage still produces a reviewable plan from YOVA's saved inputs (4.5s)
+  ✓   99 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2612:5 › legacy split work reopens as an active plan with runnable ten-minute sessions (4.2s)
+  ✓  100 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2733:5 › finishing a shortened guided lesson keeps every deferred target as exact next work (4.3s)
+  ✓  101 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2884:5 › adjusting ordinary future work preserves the exact scheduled review contract (4.0s)
+  ✓  102 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3043:5 › scheduled-review setup stays fixed and opens the exact active or Study Now goal (4.4s)
+  ✓  103 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3254:5 › a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes (3.7s)
+  ✓  104 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3313:5 › map revision cannot activate a stale draft and fresh placement uses the revised map (2.4s)
+  ✓  105 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3362:5 › normal-plan review changes one offered method without regenerating or rewriting other routes (3.8s)
+  ✓  106 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3475:5 › session setup changes one committed method and generates from its exact successor route (5.5s)
+Plan clock evidence: {"initialSessionCount":6,"adjustedSessionCount":9,"deadline":"2026-09-04T22:59:00.000Z","deadlineLocal":"2026-09-04","createdAt":"2026-09-02T10:00:00.000Z","committedAt":["2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z"]}
+  ✓  107 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3725:5 › a multi-session plan carries one clear source decision from Add to Learning (4.5s)
+  ✓  108 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3865:5 › archived, draft, and deleted-plan projections stay out of current-work surfaces (6.7s)
+  ✓  109 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3966:5 › material setup clearly supports files, articles, and YouTube transcripts (1.8s)
+  ✓  110 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3986:5 › material drop zone accepts drag gestures and explains rejected files (3.2s)
+  ✓  111 [desktop-chromium] › e2e/personalization.spec.ts:17:5 › the canonical profile is visible, correctable, persistent, and experiment-free (4.3s)
+  -  112 [desktop-chromium] › e2e/plan-launch-live.spec.ts:7:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload
+  ✓  113 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:21:41 › explicit 1-minute availability remains a priority card (2.6s)
+  ✓  114 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:21:41 › explicit 3-minute availability remains a priority card (2.9s)
+  ✓  115 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:21:41 › explicit 5-minute availability remains a priority card (3.0s)
+  ✓  116 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:21:41 › explicit 9-minute availability remains a priority card (1.8s)
+  ✓  117 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:42:127 › consolidated: a 1-day deadline survives placement, plan review and activation (3.9s)
+  ✓  118 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:42:127 › consolidated: a 3-day deadline survives placement, plan review and activation (4.7s)
+  ✓  119 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:42:127 › consolidated: a three-minute priority records no completion (4.8s)
+  ✓  120 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:134:5 › a natural deadline and an edited date survive every schedule control (3.1s)
+  ✓  121 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:187:5 › explicit study days survive intake and later time changes (1.9s)
+  ✓  122 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:214:5 › a historical topic date cannot override the learner's real deadline (2.9s)
+  ✓  123 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:231:5 › shorter sessions preserve weekly availability and explain insufficient time (3.5s)
+  ✓  124 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:274:5 › an overfull plan returns to its schedule and recovers without a client crash (4.7s)
+{"oldTopics":["Glycolysis products"],"newTopics":["Photosynthesis and chloroplasts"],"visibleQuestion":"Which statement best captures the mapped idea Photosynthesis and chloroplasts?"}
+  ✓  125 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:344:5 › changing the goal through Back replaces the old placement map (4.2s)
+  -  126 [desktop-chromium] › e2e/public-auth.spec.ts:9:5 › presents public signup without a private-alpha gate
+  -  127 [desktop-chromium] › e2e/public-auth.spec.ts:16:5 › creates a public password account with consent and a security token
+  -  128 [desktop-chromium] › e2e/public-auth.spec.ts:57:5 › keeps password errors generic and password recovery non-enumerating
+  -  129 [desktop-chromium] › e2e/public-auth.spec.ts:85:5 › keeps the standalone email-confirmation page at AA text contrast
+  -  130 [desktop-chromium] › e2e/public-auth.spec.ts:126:5 › fits the public account form on a phone-sized viewport
+  ✓  131 [desktop-chromium] › e2e/study-profile-report-compatibility.spec.ts:5:7 › YOVA Study Profile private report compatibility › keeps report credentials server-side until email confirmation (12.9s)
+[WebServer] (node:75966) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:75967) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  132 [desktop-chromium] › e2e/study-profile-report-compatibility.spec.ts:52:7 › YOVA Study Profile private report compatibility › keeps unknown-token failures generic through the API and report route (4.6s)
+  ✓  133 [desktop-chromium] › e2e/study-profile.spec.ts:8:7 › YOVA Study Profile › requires waitlist confirmation before revealing any report (13.1s)
+  ✓  134 [desktop-chromium] › e2e/study-profile.spec.ts:151:7 › YOVA Study Profile › opens a bound report only after explicit waitlist confirmation (2.8s)
+  ✓  135 [desktop-chromium] › e2e/study-profile.spec.ts:196:7 › YOVA Study Profile › keeps results locked when report creation fails (6.6s)
+[WebServer] (node:76049) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  136 [desktop-chromium] › e2e/study-profile.spec.ts:230:7 › YOVA Study Profile › uses a generic not-found screen for an unknown private token (1.8s)
+  ✓  137 [desktop-chromium] › e2e/study-profile.spec.ts:240:7 › YOVA Study Profile › requires an explicit POST to confirm a fragment-only waitlist token (2.8s)
+  ✓  138 [desktop-chromium] › e2e/study-profile.spec.ts:288:7 › YOVA Study Profile › routes public Study Profile support and privacy requests to hello@yovaapp.com (4.1s)
+  -  139 [desktop-chromium] › e2e/study-profile.spec.ts:301:7 › YOVA Study Profile › keeps every pre-report screen usable on common phone widths
+  ✓  140 [desktop-chromium] › e2e/study-profile.spec.ts:421:7 › YOVA Study Profile › keeps working when browser storage is unavailable (2.3s)
+  ✓  141 [desktop-chromium] › e2e/study-profile.spec.ts:435:7 › YOVA Study Profile › clears expired, future-dated, and timestamp-free browser drafts (8.3s)
+  ✓  142 [desktop-chromium] › e2e/study-profile.spec.ts:459:7 › YOVA Study Profile › exposes semantic 14-step progress and dynamic radio keyboard help (1.8s)
+(node:76070) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  143 [mobile-chromium] › e2e/accessibility-regression.spec.ts:29:5 › the initial HTML provides useful public content without waiting for JavaScript (1.1s)
+  ✓  144 [mobile-chromium] › e2e/accessibility-regression.spec.ts:40:5 › form placeholder text keeps AA contrast on public surfaces (3.2s)
+  ✓  145 [mobile-chromium] › e2e/accessibility-regression.spec.ts:69:5 › Ask YOVA history traps focus, closes on Escape, and restores its trigger (2.9s)
+  ✓  146 [mobile-chromium] › e2e/accessibility-regression.spec.ts:100:5 › primary authenticated screens have no serious WCAG A/AA Axe violations (6.1s)
+  ✓  147 [mobile-chromium] › e2e/account-security.spec.ts:17:5 › makes account personalization visible, editable, persistent, and mobile-safe (4.9s)
+  ✓  148 [mobile-chromium] › e2e/account-security.spec.ts:49:5 › explains the self-service export scope and the downloaded-copy boundary (1.7s)
+  ✓  149 [mobile-chromium] › e2e/account-security.spec.ts:59:5 › clears signed-in UI after confirmed sign-out even when preview storage removal throws (2.5s)
+  ✓  150 [mobile-chromium] › e2e/add-to-yova.spec.ts:17:5 › a deadline can live in Calendar, be completed, and stay out of Learning (7.1s)
+  ✓  151 [mobile-chromium] › e2e/add-to-yova.spec.ts:53:5 › an overdue standalone deadline remains reachable and actionable (4.8s)
+  ✓  152 [mobile-chromium] › e2e/add-to-yova.spec.ts:89:5 › an outside assignment routes to one outside-YOVA session (3.2s)
+  ✓  153 [mobile-chromium] › e2e/add-to-yova.spec.ts:101:5 › a multi-session assignment skips an irrelevant knowledge quiz (4.8s)
+  ✓  154 [mobile-chromium] › e2e/add-to-yova.spec.ts:137:5 › speech and presentation plans bypass placement and use artifact-aware modes (6.6s)
+  ✓  155 [mobile-chromium] › e2e/add-to-yova.spec.ts:182:5 › general learning stays deadline-free until the user chooses otherwise (2.5s)
+  ✓  156 [mobile-chromium] › e2e/add-to-yova.spec.ts:192:5 › a timed product-rule request becomes a specific one-off session (4.2s)
+  ✓  157 [mobile-chromium] › e2e/add-to-yova.spec.ts:203:5 › an unfinished one-off session stays out of ongoing Learning goals (11.3s)
+  ✓  158 [mobile-chromium] › e2e/add-to-yova.spec.ts:227:5 › one account never sees another account's deadline (6.5s)
+  ✓  159 [mobile-chromium] › e2e/agenda-scheduling.spec.ts:19:5 › Calendar refuses unchanged and past custom session times (3.6s)
+  ✓  160 [mobile-chromium] › e2e/calendar-journeys.spec.ts:7:5 › two simultaneous tabs preserve both new events and each tab refreshes (6.7s)
+  ✓  161 [mobile-chromium] › e2e/calendar-journeys.spec.ts:23:5 › a stale event edit cannot overwrite the other tab and the draft remains available (3.6s)
+  ✓  162 [mobile-chromium] › e2e/calendar-journeys.spec.ts:43:5 › Quick Add preserves weekdays, explicit dates and exam clocks (3.2s)
+  ✓  163 [mobile-chromium] › e2e/calendar-journeys.spec.ts:58:5 › a deadline can be saved without inventing a study block and corrected later (4.8s)
+  ✓  164 [mobile-chromium] › e2e/calendar-journeys.spec.ts:76:5 › manual events support full keyboard-editable fields and immediate undo (5.0s)
+  ✓  165 [mobile-chromium] › e2e/calendar-journeys.spec.ts:98:5 › details stay visible and focused, and Escape returns focus to the selected block (1.9s)
+  ✓  166 [mobile-chromium] › e2e/calendar-journeys.spec.ts:113:5 › overlapping commitments have distinct clickable lanes and a named conflict (4.2s)
+  ✓  167 [mobile-chromium] › e2e/calendar-journeys.spec.ts:127:5 › full-day grid includes early, late and overnight work on the correct days (4.5s)
+  ✓  168 [mobile-chromium] › e2e/calendar-journeys.spec.ts:142:5 › all deadlines can be searched, inspected and reached beyond the visible week (3.1s)
+  ✓  169 [mobile-chromium] › e2e/calendar-journeys.spec.ts:157:5 › the inline suggestion Move action opens its editor (4.8s)
+  ✓  170 [mobile-chromium] › e2e/calendar-journeys.spec.ts:172:5 › approved adjustments respect zero capacity and fixed commitments and disclose their destination (16.5s)
+  ✓  171 [mobile-chromium] › e2e/calendar-journeys.spec.ts:197:5 › manual workload is included in adjustment totals and has a useful Move action (2.6s)
+  ✓  172 [mobile-chromium] › e2e/calendar-recurring.spec.ts:19:5 › Add recognizes the communications timetable and saves a lasting Monday/Wednesday series (8.0s)
+  ✓  173 [mobile-chromium] › e2e/calendar-recurring.spec.ts:53:5 › every two days supports a finite occurrence count and stops on the right date (2.1s)
+  ✓  174 [mobile-chromium] › e2e/calendar-recurring.spec.ts:67:5 › one occurrence can move, be cancelled and be restored without changing the series (6.2s)
+  ✓  175 [mobile-chromium] › e2e/calendar-recurring.spec.ts:86:5 › the whole series can be edited and deleted with one undoable action (5.2s)
+  ✓  176 [mobile-chromium] › e2e/calendar-recurring.spec.ts:112:5 › missing times and unsupported patterns stay editable instead of saving a guessed schedule (3.8s)
+  ✓  177 [mobile-chromium] › e2e/calendar-recurring.spec.ts:124:5 › the class keeps 11:30 local time after daylight saving ends (1.9s)
+  ✓  178 [mobile-chromium] › e2e/calendar-recurring.spec.ts:132:5 › moving an occurrence to a different month keeps its details in view (2.8s)
+  ✓  179 [mobile-chromium] › e2e/calendar-recurring.spec.ts:145:5 › moving an item into a future recurring class detects the conflict beyond the current week (4.6s)
+  ✓  180 [mobile-chromium] › e2e/calendar-recurring.spec.ts:156:5 › concurrent edits to a recurring series preserve the second tab's unsaved draft (6.2s)
+  ✓  181 [mobile-chromium] › e2e/calendar-safety.spec.ts:7:5 › a failed browser save keeps the draft and retry creates one event (2.8s)
+  ✓  182 [mobile-chromium] › e2e/calendar-safety.spec.ts:27:5 › an adjustment is rechecked when another tab changes destination availability (6.4s)
+  ✓  183 [mobile-chromium] › e2e/calendar-safety.spec.ts:55:5 › completion can be undone without closing the event details (3.6s)
+  ✓  184 [mobile-chromium] › e2e/calendar-safety.spec.ts:65:5 › visual review of Agenda, event editor and overlapping Week blocks (4.3s)
+  ✓  185 [mobile-chromium] › e2e/calendar-tab.spec.ts:23:5 › Calendar exposes Week and Agenda surfaces with bounded keyboard navigation (1.9s)
+  ✓  186 [mobile-chromium] › e2e/calendar-tab.spec.ts:69:5 › quick add confirms its interpretation, persists by account, and can be undone (4.9s)
+  ✓  187 [mobile-chromium] › e2e/calendar-tab.spec.ts:120:5 › quick add clamps an overlong title before confirmation and persists without crashing (3.5s)
+  ✓  188 [mobile-chromium] › e2e/calendar-tab.spec.ts:141:5 › exiting a quick-add plan draft returns to Calendar without losing or duplicating the manual deadline (4.9s)
+  ✓  189 [mobile-chromium] › e2e/calendar-tab.spec.ts:164:5 › finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome (3.4s)
+  ✓  190 [mobile-chromium] › e2e/calendar-tab.spec.ts:200:5 › authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-in time adjustment stay connected (3.1s)
+  ✓  191 [mobile-chromium] › e2e/calendar-tab.spec.ts:250:5 › Calendar Start opens the exact ready session and fails closed on an ambiguous legacy plan (5.4s)
+  ✓  192 [mobile-chromium] › e2e/calendar-tab.spec.ts:278:5 › a future overloaded-day issue edits only that date's availability (4.0s)
+  ✓  193 [mobile-chromium] › e2e/calendar-tab.spec.ts:315:5 › learner-owned blocks resize and suggested moves become pinned only after approval (7.0s)
+  ✓  194 [mobile-chromium] › e2e/canonical-study-profile.spec.ts:9:7 › YOVA canonical Study Profile › builds the canonical 11-question profile, imports it into an account, and skips duplicate onboarding (5.4s)
+  ✓  195 [mobile-chromium] › e2e/canonical-study-profile.spec.ts:91:7 › YOVA canonical Study Profile › restores only a valid saved canonical draft (3.6s)
+  ✓  196 [mobile-chromium] › e2e/canonical-study-profile.spec.ts:124:7 › YOVA canonical Study Profile › finishes safely and explains the fallback when browser storage is unavailable (2.9s)
+  ✓  197 [mobile-chromium] › e2e/canonical-study-profile.spec.ts:142:7 › YOVA canonical Study Profile › exposes semantic progress, pressed choices, and predictable keyboard focus (1.9s)
+  ✓  198 [mobile-chromium] › e2e/canonical-study-profile.spec.ts:170:7 › YOVA canonical Study Profile › keeps landing, questionnaire, and summary inside narrow mobile viewports (9.2s)
+  -  199 [mobile-chromium] › e2e/cloud-sync-recovery.spec.ts:43:5 › Retry retires two permanently rejected terminal events without losing their recovery export
+  -  200 [mobile-chromium] › e2e/cloud-sync-recovery.spec.ts:78:5 › startup retires a stale routed completion from a ready session using cloud route authority
+  -  201 [mobile-chromium] › e2e/cloud-sync-recovery.spec.ts:114:5 › cloud-only private-export metadata keeps AA text contrast
+  ✓  202 [mobile-chromium] › e2e/core-learning-loop.spec.ts:28:5 › Study Now lets the learner review and safely choose an eligible method before activation (3.8s)
+  ✓  203 [mobile-chromium] › e2e/core-learning-loop.spec.ts:67:5 › Study Now discloses omitted scope before starting and lets the learner change time (2.1s)
+  ✓  204 [mobile-chromium] › e2e/core-learning-loop.spec.ts:95:5 › durable allowance exhaustion loads the committed method workpad and names the reset (2.6s)
+  ✓  205 [mobile-chromium] › e2e/core-learning-loop.spec.ts:136:5 › durable allowance exhaustion without a safe fallback has its own non-retryable state (3.8s)
+  ✓  206 [mobile-chromium] › e2e/core-learning-loop.spec.ts:178:5 › streamed lesson quota uses its built-in explanation and surfaces the reset (3.9s)
+  ✓  207 [mobile-chromium] › e2e/core-learning-loop.spec.ts:219:5 › a confident misconception is repaired now without a duplicate follow-up (19.5s)
+  ✓  208 [mobile-chromium] › e2e/core-learning-loop.spec.ts:316:5 › Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context (5.8s)
+  ✓  209 [mobile-chromium] › e2e/core-learning-loop.spec.ts:403:5 › a support request keeps the committed practice recipe when fallback generation fails (10.9s)
+  ✓  210 [mobile-chromium] › e2e/core-learning-loop.spec.ts:442:5 › an inactive-plan generation response cannot open a stale built-in lesson (2.8s)
+  ✓  211 [mobile-chromium] › e2e/core-learning-loop.spec.ts:468:5 › a visibly shortened inside recipe keeps its method in the fallback workpad (6.8s)
+  ✓  212 [mobile-chromium] › e2e/core-learning-loop.spec.ts:505:5 › a built-in fallback never ignores a learner's custom session requirement (6.4s)
+  ✓  213 [mobile-chromium] › e2e/core-learning-loop.spec.ts:551:5 › a new topic is taught before YOVA asks for independent performance (3.5s)
+  ✓  214 [mobile-chromium] › e2e/core-learning-loop.spec.ts:644:5 › a World War I beginner receives real teaching and a direct model answer (4.6s)
+  ✓  215 [mobile-chromium] › e2e/core-learning-loop.spec.ts:694:5 › an opaque class label is stopped until the learner names the actual calculus concept (3.9s)
+  ✓  216 [mobile-chromium] › e2e/core-learning-loop.spec.ts:732:5 › a teaching-first inside outage does not start with unsupported recall (2.4s)
+  ✓  217 [mobile-chromium] › e2e/core-learning-loop.spec.ts:766:5 › a temporary AI failure loads a subject-specific startup funding lesson (3.8s)
+  ✓  218 [mobile-chromium] › e2e/core-learning-loop.spec.ts:795:5 › home lets the learner browse prioritized recommendations without opening every plan (2.9s)
+  ✓  219 [mobile-chromium] › e2e/core-learning-loop.spec.ts:822:5 › outside study gives a concrete source-based session instead of pretending YOVA owns the content (1.8s)
+  ✓  220 [mobile-chromium] › e2e/core-learning-loop.spec.ts:852:5 › an arbitrary outside method workpad completes as practice without changing topic evidence (10.2s)
+  ✓  221 [mobile-chromium] › e2e/core-learning-loop.spec.ts:929:5 › a fallback method workpad resumes its timer and checked targets after reload (10.4s)
+  ✓  222 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1061:5 › a 10-minute outside teaching-first session loads its built-in method lesson (6.8s)
+  ✓  223 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1101:5 › an overdue outside teaching-first session splits into runnable 10-minute parts (5.2s)
+  ✓  224 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1207:5 › an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad (6.3s)
+  ✓  225 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1322:5 › the backend rejects an opaque goal even when the browser guard is bypassed (42ms)
+  ✓  226 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1349:5 › plan generation remains a draft until the learner activates it (291ms)
+  ✘  227 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1400:5 › a learner can stop twice without losing progress or earlier evidence (7.7s)
+(node:76442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  228 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1448:5 › a lesson and its reopened model teach every fact required by the glycolysis recall check (6.5s)
+  ✓  229 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1517:5 › a resumed streamed question can reopen its prior lesson by persisted activity index (5.0s)
+  ✓  230 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1609:5 › a refresh recovers semantic progress without saving draft answers or inventing an interruption (9.5s)
+  ✓  231 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1783:5 › a saved first-step recall round resumes at the next prompt without persisting draft text (11.3s)
+  ✓  232 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2026:5 › learner text fields keep long pastes visible and block submission until trimmed (6.1s)
+  ✓  233 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2157:5 › an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged (3.0s)
+  ✓  234 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2187:5 › Calendar Agenda stays first and contained at a 375px viewport (4.8s)
+  ✓  235 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2288:5 › spent guided-session allowance is visible before Home or Calendar opens setup (8.9s)
+  ✓  236 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2355:5 › spent allowance still permits a saved session to continue (27.3s)
+[WebServer] Error: aborted
+[WebServer]     at ignore-listed frames {
+[WebServer]   code: 'ECONNRESET'
+[WebServer] }
+[WebServer] ⨯ uncaughtException: Error: aborted
+[WebServer]     at ignore-listed frames {
+[WebServer]   code: 'ECONNRESET'
+[WebServer] }
+[WebServer] ⨯ uncaughtException:  Error: aborted
+[WebServer]     at ignore-listed frames {
+[WebServer]   code: 'ECONNRESET'
+[WebServer] }
+  ✓  237 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2420:5 › the product shell keeps every core destination and creation path usable (4.1s)
+  ✓  238 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2469:5 › Ask YOVA turns structured explanations and math into readable interface content (7.8s)
+  ✓  239 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2517:5 › the session tutor stays anchored to the exact learning activity (4.9s)
+  ✓  240 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2588:5 › a planning request outage still produces a reviewable plan from YOVA's saved inputs (13.7s)
+[WebServer] ⚠ Server is approaching the used memory threshold, restarting...
+[WebServer] (node:76528) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  241 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2612:5 › legacy split work reopens as an active plan with runnable ten-minute sessions (41.0s)
+(node:76542) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  242 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2733:5 › finishing a shortened guided lesson keeps every deferred target as exact next work (10.0s)
+  ✓  243 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2884:5 › adjusting ordinary future work preserves the exact scheduled review contract (4.2s)
+  ✓  244 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3043:5 › scheduled-review setup stays fixed and opens the exact active or Study Now goal (7.8s)
+  ✓  245 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3254:5 › a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes (9.2s)
+  ✓  246 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3313:5 › map revision cannot activate a stale draft and fresh placement uses the revised map (4.7s)
+  ✓  247 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3362:5 › normal-plan review changes one offered method without regenerating or rewriting other routes (3.9s)
+  ✓  248 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3475:5 › session setup changes one committed method and generates from its exact successor route (4.7s)
+Plan clock evidence: {"initialSessionCount":6,"adjustedSessionCount":9,"deadline":"2026-09-04T22:59:00.000Z","deadlineLocal":"2026-09-04","createdAt":"2026-09-02T10:00:00.000Z","committedAt":["2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z"]}
+  ✓  249 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3725:5 › a multi-session plan carries one clear source decision from Add to Learning (4.0s)
+  ✓  250 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3865:5 › archived, draft, and deleted-plan projections stay out of current-work surfaces (4.2s)
+  ✓  251 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3966:5 › material setup clearly supports files, articles, and YouTube transcripts (2.4s)
+  ✓  252 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3986:5 › material drop zone accepts drag gestures and explains rejected files (3.0s)
+  ✓  253 [mobile-chromium] › e2e/personalization.spec.ts:17:5 › the canonical profile is visible, correctable, persistent, and experiment-free (3.5s)
+  -  254 [mobile-chromium] › e2e/plan-launch-live.spec.ts:7:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload
+  ✓  255 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:21:41 › explicit 1-minute availability remains a priority card (2.3s)
+  ✓  256 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:21:41 › explicit 3-minute availability remains a priority card (1.9s)
+  ✓  257 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:21:41 › explicit 5-minute availability remains a priority card (2.7s)
+  ✓  258 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:21:41 › explicit 9-minute availability remains a priority card (1.8s)
+  ✓  259 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:42:127 › consolidated: a 1-day deadline survives placement, plan review and activation (2.9s)
+  ✓  260 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:42:127 › consolidated: a 3-day deadline survives placement, plan review and activation (5.1s)
+  ✓  261 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:42:127 › consolidated: a three-minute priority records no completion (3.7s)
+  ✓  262 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:134:5 › a natural deadline and an edited date survive every schedule control (2.3s)
+  ✓  263 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:187:5 › explicit study days survive intake and later time changes (2.7s)
+  ✓  264 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:214:5 › a historical topic date cannot override the learner's real deadline (2.5s)
+  ✓  265 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:231:5 › shorter sessions preserve weekly availability and explain insufficient time (2.4s)
+  ✓  266 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:274:5 › an overfull plan returns to its schedule and recovers without a client crash (4.3s)
+{"oldTopics":["Glycolysis products"],"newTopics":["Photosynthesis and chloroplasts"],"visibleQuestion":"Which statement best captures the mapped idea Photosynthesis and chloroplasts?"}
+  ✓  267 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:344:5 › changing the goal through Back replaces the old placement map (4.4s)
+  -  268 [mobile-chromium] › e2e/public-auth.spec.ts:9:5 › presents public signup without a private-alpha gate
+  -  269 [mobile-chromium] › e2e/public-auth.spec.ts:16:5 › creates a public password account with consent and a security token
+  -  270 [mobile-chromium] › e2e/public-auth.spec.ts:57:5 › keeps password errors generic and password recovery non-enumerating
+  -  271 [mobile-chromium] › e2e/public-auth.spec.ts:85:5 › keeps the standalone email-confirmation page at AA text contrast
+  -  272 [mobile-chromium] › e2e/public-auth.spec.ts:126:5 › fits the public account form on a phone-sized viewport
+  ✓  273 [mobile-chromium] › e2e/study-profile-report-compatibility.spec.ts:5:7 › YOVA Study Profile private report compatibility › keeps report credentials server-side until email confirmation (9.1s)
+[WebServer] (node:76707) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:76708) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  274 [mobile-chromium] › e2e/study-profile-report-compatibility.spec.ts:52:7 › YOVA Study Profile private report compatibility › keeps unknown-token failures generic through the API and report route (4.3s)
+  ✓  275 [mobile-chromium] › e2e/study-profile.spec.ts:8:7 › YOVA Study Profile › requires waitlist confirmation before revealing any report (13.4s)
+  ✓  276 [mobile-chromium] › e2e/study-profile.spec.ts:151:7 › YOVA Study Profile › opens a bound report only after explicit waitlist confirmation (2.7s)
+  ✓  277 [mobile-chromium] › e2e/study-profile.spec.ts:196:7 › YOVA Study Profile › keeps results locked when report creation fails (7.0s)
+[WebServer] (node:76737) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  278 [mobile-chromium] › e2e/study-profile.spec.ts:230:7 › YOVA Study Profile › uses a generic not-found screen for an unknown private token (1.7s)
+  ✓  279 [mobile-chromium] › e2e/study-profile.spec.ts:240:7 › YOVA Study Profile › requires an explicit POST to confirm a fragment-only waitlist token (1.8s)
+  ✓  280 [mobile-chromium] › e2e/study-profile.spec.ts:288:7 › YOVA Study Profile › routes public Study Profile support and privacy requests to hello@yovaapp.com (3.1s)
+  ✓  281 [mobile-chromium] › e2e/study-profile.spec.ts:301:7 › YOVA Study Profile › keeps every pre-report screen usable on common phone widths (28.2s)
+  ✓  282 [mobile-chromium] › e2e/study-profile.spec.ts:421:7 › YOVA Study Profile › keeps working when browser storage is unavailable (2.1s)
+  ✓  283 [mobile-chromium] › e2e/study-profile.spec.ts:435:7 › YOVA Study Profile › clears expired, future-dated, and timestamp-free browser drafts (6.1s)
+  ✓  284 [mobile-chromium] › e2e/study-profile.spec.ts:459:7 › YOVA Study Profile › exposes semantic 14-step progress and dynamic radio keyboard help (1.7s)
+
+
+  1) [desktop-chromium] › e2e/core-learning-loop.spec.ts:1400:5 › a learner can stop twice without losing progress or earlier evidence
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/^3 of \d+ sections? saved$/)
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByText(/^3 of \d+ sections? saved$/)
+
+
+      4264 |
+      4265 |   if (completedSteps !== undefined) {
+    > 4266 |     await expect(page.getByText(new RegExp(`^${completedSteps} of \\d+ sections? saved$`))).toBeVisible();
+           |                                                                                             ^
+      4267 |   }
+      4268 | }
+      4269 |
+        at expectSavedSessionRecommendation (/Users/sebastianziegler/Documents/YOVA/e2e/core-learning-loop.spec.ts:4266:93)
+        at /Users/sebastianziegler/Documents/YOVA/e2e/core-learning-loop.spec.ts:1429:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-learn-c1147-rogress-or-earlier-evidence-desktop-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-learn-c1147-rogress-or-earlier-evidence-desktop-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/core-learning-loop-a-learn-c1147-rogress-or-earlier-evidence-desktop-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-learn-c1147-rogress-or-earlier-evidence-desktop-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/core-learning-loop-a-learn-c1147-rogress-or-earlier-evidence-desktop-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mobile-chromium] › e2e/core-learning-loop.spec.ts:1400:5 › a learner can stop twice without losing progress or earlier evidence
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/^3 of \d+ sections? saved$/)
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByText(/^3 of \d+ sections? saved$/)
+
+
+      4264 |
+      4265 |   if (completedSteps !== undefined) {
+    > 4266 |     await expect(page.getByText(new RegExp(`^${completedSteps} of \\d+ sections? saved$`))).toBeVisible();
+           |                                                                                             ^
+      4267 |   }
+      4268 | }
+      4269 |
+        at expectSavedSessionRecommendation (/Users/sebastianziegler/Documents/YOVA/e2e/core-learning-loop.spec.ts:4266:93)
+        at /Users/sebastianziegler/Documents/YOVA/e2e/core-learning-loop.spec.ts:1429:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-learn-c1147-rogress-or-earlier-evidence-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-learn-c1147-rogress-or-earlier-evidence-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/core-learning-loop-a-learn-c1147-rogress-or-earlier-evidence-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-learn-c1147-rogress-or-earlier-evidence-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/core-learning-loop-a-learn-c1147-rogress-or-earlier-evidence-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2612:5 › legacy split work reopens as an active plan with runnable ten-minute sessions
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://127.0.0.1:3100/?qa=preview", waiting until "load"
+
+
+      4110 |
+      4111 | async function createPreviewAccount(page: Page) {
+    > 4112 |   await page.goto("/?qa=preview");
+           |              ^
+      4113 |   await page.getByRole("button", { name: "Build my plan" }).click();
+      4114 |   await page.getByLabel("First name").fill("Learner");
+      4115 |   await page.getByLabel("Email address").fill("learning-loop@example.com");
+        at createPreviewAccount (/Users/sebastianziegler/Documents/YOVA/e2e/core-learning-loop.spec.ts:4112:14)
+        at /Users/sebastianziegler/Documents/YOVA/e2e/core-learning-loop.spec.ts:2613:9
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [desktop-chromium] › e2e/core-learning-loop.spec.ts:1400:5 › a learner can stop twice without losing progress or earlier evidence
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:1400:5 › a learner can stop twice without losing progress or earlier evidence
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2612:5 › legacy split work reopens as an active plan with runnable ten-minute sessions
+  19 skipped
+  262 passed (21.4m)

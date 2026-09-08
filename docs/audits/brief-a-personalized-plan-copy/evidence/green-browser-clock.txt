@@ -1,0 +1,121 @@
+[WebServer] (node:72210) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:72211) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 14 tests using 1 worker
+
+(node:72229) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop-chromium] › e2e/core-learning-loop.spec.ts:464:5 › a visibly shortened inside recipe keeps its method in the fallback workpad (9.4s)
+  ✘   2 [desktop-chromium] › e2e/core-learning-loop.spec.ts:925:5 › a fallback method workpad resumes its timer and checked targets after reload (14.6s)
+(node:72264) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   3 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1057:5 › a 10-minute outside teaching-first session loads its built-in method lesson (7.6s)
+  ✓   4 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1097:5 › an overdue outside teaching-first session splits into runnable 10-minute parts (8.1s)
+  ✓   5 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:21:127 › consolidated: a 1-day deadline survives placement, plan review and activation (2.9s)
+  ✓   6 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:21:127 › consolidated: a 3-day deadline survives placement, plan review and activation (4.5s)
+  ✓   7 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:21:127 › consolidated: a three-minute priority records no completion (2.8s)
+(node:72330) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   8 [mobile-chromium] › e2e/core-learning-loop.spec.ts:464:5 › a visibly shortened inside recipe keeps its method in the fallback workpad (5.7s)
+  ✘   9 [mobile-chromium] › e2e/core-learning-loop.spec.ts:925:5 › a fallback method workpad resumes its timer and checked targets after reload (12.6s)
+(node:72356) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  10 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1057:5 › a 10-minute outside teaching-first session loads its built-in method lesson (4.6s)
+  ✓  11 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1097:5 › an overdue outside teaching-first session splits into runnable 10-minute parts (5.4s)
+  ✓  12 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:21:127 › consolidated: a 1-day deadline survives placement, plan review and activation (3.1s)
+  ✓  13 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:21:127 › consolidated: a 3-day deadline survives placement, plan review and activation (3.9s)
+  ✓  14 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:21:127 › consolidated: a three-minute priority records no completion (2.8s)
+
+
+  1) [desktop-chromium] › e2e/core-learning-loop.spec.ts:925:5 › a fallback method workpad resumes its timer and checked targets after reload
+
+    Error: expect(locator).not.toHaveText(expected) failed
+
+    Locator:  locator('.method-session-shell > header > span')
+    Expected: not "0:00 elapsed"
+    Received: "0:00 elapsed"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "not toHaveText" with timeout 5000ms
+      - waiting for locator('.method-session-shell > header > span')
+        14 × locator resolved to <span>0:00 elapsed</span>
+           - unexpected value "0:00 elapsed"
+
+
+      1012 |   await topicChecks.first().check();
+      1013 |   await page.waitForTimeout(1_100);
+    > 1014 |   await expect(page.locator(".method-session-shell > header > span")).not.toHaveText("0:00 elapsed");
+           |                                                                           ^
+      1015 |
+      1016 |   await expect.poll(() => page.evaluate(() => {
+      1017 |     const raw = window.localStorage.getItem("yova.active-session-checkpoints.v1");
+        at /Users/sebastianziegler/Documents/YOVA/e2e/core-learning-loop.spec.ts:1014:75
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-desktop-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-desktop-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-desktop-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-desktop-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-desktop-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mobile-chromium] › e2e/core-learning-loop.spec.ts:925:5 › a fallback method workpad resumes its timer and checked targets after reload
+
+    Error: expect(locator).not.toHaveText(expected) failed
+
+    Locator:  locator('.method-session-shell > header > span')
+    Expected: not "0:00 elapsed"
+    Received: "0:00 elapsed"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "not toHaveText" with timeout 5000ms
+      - waiting for locator('.method-session-shell > header > span')
+        14 × locator resolved to <span>0:00 elapsed</span>
+           - unexpected value "0:00 elapsed"
+
+
+      1012 |   await topicChecks.first().check();
+      1013 |   await page.waitForTimeout(1_100);
+    > 1014 |   await expect(page.locator(".method-session-shell > header > span")).not.toHaveText("0:00 elapsed");
+           |                                                                           ^
+      1015 |
+      1016 |   await expect.poll(() => page.evaluate(() => {
+      1017 |     const raw = window.localStorage.getItem("yova.active-session-checkpoints.v1");
+        at /Users/sebastianziegler/Documents/YOVA/e2e/core-learning-loop.spec.ts:1014:75
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [desktop-chromium] › e2e/core-learning-loop.spec.ts:925:5 › a fallback method workpad resumes its timer and checked targets after reload
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:925:5 › a fallback method workpad resumes its timer and checked targets after reload
+  12 passed (1.6m)

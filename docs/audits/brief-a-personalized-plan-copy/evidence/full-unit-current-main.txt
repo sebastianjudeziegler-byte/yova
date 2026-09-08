@@ -1,0 +1,8 @@
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+
+ Test Files  444 passed | 19 skipped (463)
+      Tests  3903 passed | 76 skipped (3979)
+   Start at  21:05:45
+   Duration  57.95s (transform 3.94s, setup 1.55s, import 18.99s, tests 9.93s, environment 20ms)

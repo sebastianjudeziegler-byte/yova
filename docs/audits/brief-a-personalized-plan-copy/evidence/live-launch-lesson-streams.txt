@@ -1,0 +1,12 @@
+Real-provider canary: src/evals/launch-lesson-streams.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  21:09:48
+   Duration  20.47s (transform 183ms, setup 0ms, import 242ms, tests 20.15s, environment 0ms)
+
+
+Exit code: 0
