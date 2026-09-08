@@ -8,9 +8,12 @@ test.describe("YOVA Study Profile", () => {
   test("requires waitlist confirmation before revealing any report", async ({ page }) => {
     test.setTimeout(90_000);
     const email = `study-profile-${Date.now()}@example.com`;
-    await installMetaEventRecorder(page);
 
-    await page.goto("/study-profile?utm_source=instagram&utm_medium=paid_social&utm_campaign=study_profile_quiz&utm_content=static_v1&utm_term=student_planner&fbclid=meta_click_e2e");
+    await page.goto("/study-profile?utm_source=tiktok&utm_medium=organic_social&utm_campaign=study_profile_quiz&utm_content=static_v1&utm_term=student_planner&fbclid=ignored_click_id");
+
+    expect(await page.evaluate(() => typeof (window as typeof window & { fbq?: unknown }).fbq))
+      .toBe("undefined");
+    await expect(page.locator('script[src*="connect.facebook.net"]')).toHaveCount(0);
 
     await expect(page.getByRole("heading", {
       name: "Find out how you actually study.",
@@ -115,14 +118,14 @@ test.describe("YOVA Study Profile", () => {
       hardestPart: null,
     });
     expect(requestBody.attribution).toMatchObject({
-      source: "instagram",
-      utmSource: "instagram",
-      utmMedium: "paid_social",
+      source: "tiktok",
+      utmSource: "tiktok",
+      utmMedium: "organic_social",
       utmCampaign: "study_profile_quiz",
       utmContent: "static_v1",
       utmTerm: "student_planner",
-      fbclid: "meta_click_e2e",
     });
+    expect(requestBody.attribution).not.toHaveProperty("fbclid");
     expect(Object.keys(requestBody.answers)).toHaveLength(12);
 
     const response = await submissionResponse;
@@ -141,7 +144,6 @@ test.describe("YOVA Study Profile", () => {
     })).toBeVisible();
     await expect(page.locator("#report-title")).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText(email);
-    await expect.poll(() => readMetaConversionEvents(page, "Lead")).toHaveLength(0);
     await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), DRAFT_STORAGE_KEY))
       .toBeNull();
   });
@@ -150,7 +152,6 @@ test.describe("YOVA Study Profile", () => {
     const confirmationToken = "c".repeat(43);
     const reportToken = "r".repeat(43);
     const responseId = "11111111-1111-4111-8111-111111111111";
-    await installMetaEventRecorder(page);
 
     await page.route("**/api/study-profile/waitlist/confirm", async (route) => {
       await route.fulfill({
@@ -161,8 +162,6 @@ test.describe("YOVA Study Profile", () => {
           reportUnlocked: true,
           reportUrl: `/study-profile/report/${reportToken}`,
           responseId,
-          metaLeadEligible: true,
-          metaRegistrationEligible: true,
         }),
       });
     });
@@ -180,8 +179,6 @@ test.describe("YOVA Study Profile", () => {
       name: "Confirm your place and unlock your report.",
     })).toBeVisible();
     await expect(page.locator("#report-title")).toHaveCount(0);
-    expect(await readMetaConversionEvents(page, "Lead")).toHaveLength(0);
-    expect(await readMetaConversionEvents(page, "CompleteRegistration")).toHaveLength(0);
 
     const confirmationRequest = page.waitForRequest((request) => (
       request.method() === "POST"
@@ -194,15 +191,11 @@ test.describe("YOVA Study Profile", () => {
     });
     await expect(page).toHaveURL(`/study-profile/report/${reportToken}`);
     await expect(page.locator("#report-title")).toHaveText("Unlocked report");
-    await expect.poll(() => readMetaConversionEvents(page, "Lead")).toHaveLength(1);
-    await expect.poll(() => readMetaConversionEvents(page, "CompleteRegistration"))
-      .toHaveLength(1);
   });
 
   test("keeps results locked when report creation fails", async ({ page }) => {
     test.setTimeout(60_000);
     const email = `study-profile-stale-${Date.now()}@example.com`;
-    await installMetaEventRecorder(page);
     await page.goto("/study-profile");
     await page.getByRole("button", { name: "Get my free study profile" }).first().click();
     await completeAssessmentToReveal(page);
@@ -232,7 +225,6 @@ test.describe("YOVA Study Profile", () => {
       name: "Your study pattern is ready.",
     })).toBeVisible();
     await expect(page).toHaveURL(/\/study-profile$/);
-    expect(await readMetaConversionEvents(page, "Lead")).toHaveLength(0);
   });
 
   test("uses a generic not-found screen for an unknown private token", async ({ page }) => {
@@ -247,7 +239,6 @@ test.describe("YOVA Study Profile", () => {
 
   test("requires an explicit POST to confirm a fragment-only waitlist token", async ({ page }) => {
     const confirmationToken = "c".repeat(43);
-    await installMetaEventRecorder(page);
     let confirmationPosts = 0;
     page.on("request", (request) => {
       if (
@@ -261,7 +252,6 @@ test.describe("YOVA Study Profile", () => {
         contentType: "application/json",
         body: JSON.stringify({
           waitlistJoined: true,
-          metaConversionEligible: true,
         }),
       });
     });
@@ -287,14 +277,6 @@ test.describe("YOVA Study Profile", () => {
     await expect(page.getByRole("heading", {
       name: "You are on the YOVA waitlist.",
     })).toBeVisible();
-    await expect.poll(() => readMetaConversionEvents(page, "CompleteRegistration"))
-      .toHaveLength(1);
-    expect((await readMetaConversionEvents(page, "CompleteRegistration"))[0])
-      .toMatchObject({
-        eventName: "CompleteRegistration",
-        parameters: { content_name: "waitlist" },
-        eventId: expect.stringMatching(/^study_profile_waitlist_[0-9a-f]{48}$/u),
-      });
     const backToProfile = page.getByRole("link", { name: "Back to Study Profile" });
     await expectMinimumTapTargets(backToProfile);
     await backToProfile.scrollIntoViewIfNeeded();
@@ -332,9 +314,11 @@ test.describe("YOVA Study Profile", () => {
 
       try {
         await viewportPage.goto("/study-profile");
-        await expect(viewportPage.getByRole("heading", {
+        const landingHeading = viewportPage.getByRole("heading", {
           name: "Find out how you actually study.",
-        })).toBeVisible();
+        });
+        await expect(landingHeading).toBeVisible();
+        await expect(landingHeading).toHaveCSS("text-align", "center");
         await expectNoHorizontalOverflow(viewportPage);
 
         const startButton = viewportPage
@@ -344,10 +328,15 @@ test.describe("YOVA Study Profile", () => {
         await startButton.tap();
 
         await expectOnlyQuestion(viewportPage, 1);
+        await expect(viewportPage.locator("main section h1").first())
+          .toHaveCSS("text-align", "center");
+        await expect(viewportPage.getByText("Question 1 of 14", { exact: true }))
+          .toHaveCSS("text-align", "center");
         const firstAnswers = viewportPage
           .getByRole("radiogroup", { name: "Answers for question 1" })
           .getByRole("radio");
         await expectMinimumTapTargets(firstAnswers);
+        await expect(firstAnswers.first()).toHaveCSS("text-align", "center");
         await expectNoHorizontalOverflow(viewportPage);
         await firstAnswers.first().tap();
         for (let questionNumber = 2; questionNumber <= 12; questionNumber += 1) {
@@ -355,16 +344,23 @@ test.describe("YOVA Study Profile", () => {
         }
 
         await expectStudyGoalStep(viewportPage);
+        await expect(viewportPage.getByRole("heading", {
+          name: "What are you mainly studying for right now?",
+        })).toHaveCSS("text-align", "center");
         const goalOptions = viewportPage.locator("main section button").filter({
           has: viewportPage.locator("small"),
         });
         await expectSingleColumn(goalOptions);
         await expectMinimumTapTargets(goalOptions);
+        await expect(goalOptions.first()).toHaveCSS("text-align", "center");
         await expectNoElementOverlap(goalOptions);
         await expectNoHorizontalOverflow(viewportPage);
         await viewportPage.getByRole("button", { name: /^Exams coming up/ }).tap();
 
         await expectCombinedContextStep(viewportPage);
+        await expect(viewportPage.getByRole("heading", {
+          name: "One last bit of context.",
+        })).toHaveCSS("text-align", "center");
         const contextOptions = viewportPage.locator("fieldset button");
         await expectMinimumTapTargets(contextOptions);
         await expectNoElementOverlap(contextOptions);
@@ -379,6 +375,17 @@ test.describe("YOVA Study Profile", () => {
 
         await expectLockedReveal(viewportPage);
         await expectNoHorizontalOverflow(viewportPage);
+        const emailGate = viewportPage.getByRole("heading", {
+          name: "Your study pattern is ready.",
+        }).locator("..");
+        await expect(emailGate).toHaveCSS("text-align", "center");
+        const resultStatus = viewportPage.getByText("Your results are ready", { exact: true });
+        await expectHorizontallyCenteredWithin(resultStatus, emailGate);
+        const unlockList = viewportPage.getByLabel("Full report includes");
+        await expectHorizontallyCenteredWithin(unlockList, emailGate);
+        await expect(unlockList).toHaveCSS("text-align", "left");
+        await expect(viewportPage.getByRole("checkbox", { name: "I am under 18." }))
+          .toHaveCount(0);
         const emailInput = viewportPage.getByLabel("Email for your confirmation link");
         await expect.poll(async () => emailInput.evaluate((element) => (
           Number.parseFloat(window.getComputedStyle(element).fontSize)
@@ -472,59 +479,6 @@ test.describe("YOVA Study Profile", () => {
   });
 });
 
-async function installMetaEventRecorder(page: Page) {
-  await page.addInitScript(() => {
-    const storageKey = "yova.study-profile.meta-test-events";
-    const testWindow = window as typeof window & {
-      __yovaMetaTestEvents?: unknown[][];
-      fbq?: (...args: unknown[]) => void;
-    };
-    try {
-      const stored = window.sessionStorage.getItem(storageKey);
-      testWindow.__yovaMetaTestEvents = stored
-        ? JSON.parse(stored) as unknown[][]
-        : [];
-    } catch {
-      testWindow.__yovaMetaTestEvents = [];
-    }
-    testWindow.__yovaMetaConsentGranted = true;
-    testWindow.__yovaMetaPixelConfigured = true;
-    testWindow.__yovaMetaPixelReady = true;
-    testWindow.fbq = (...args: unknown[]) => {
-      testWindow.__yovaMetaTestEvents?.push(args);
-      try {
-        window.sessionStorage.setItem(
-          storageKey,
-          JSON.stringify(testWindow.__yovaMetaTestEvents),
-        );
-      } catch {
-        // Browser storage can be unavailable without breaking measurement tests.
-      }
-    };
-  });
-}
-
-async function readMetaConversionEvents(page: Page, eventName: string) {
-  return page.evaluate((expectedEventName) => {
-    let events = (window as typeof window & {
-      __yovaMetaTestEvents?: unknown[][];
-    }).__yovaMetaTestEvents ?? [];
-    try {
-      const stored = window.sessionStorage.getItem("yova.study-profile.meta-test-events");
-      if (stored) events = JSON.parse(stored) as unknown[][];
-    } catch {
-      // Fall back to the in-memory event recorder.
-    }
-    return events
-      .filter((entry) => entry[0] === "track" && entry[1] === expectedEventName)
-      .map((entry) => ({
-        eventName: entry[1],
-        parameters: entry[2],
-        eventId: (entry[3] as { eventID?: unknown } | undefined)?.eventID,
-      }));
-  }, eventName);
-}
-
 async function completeAssessmentToReveal(page: Page) {
   for (let questionNumber = 1; questionNumber <= 12; questionNumber += 1) {
     await answerQuestion(page, questionNumber, 0);
@@ -609,6 +563,7 @@ async function expectLockedReveal(page: Page) {
   await expect(page.getByRole("checkbox", {
     name: /Confirm my place on the YOVA waitlist/,
   })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "I am under 18." })).toHaveCount(0);
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -708,4 +663,19 @@ async function expectFullyInViewport(page: Page, locator: Locator) {
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
+}
+
+async function expectHorizontallyCenteredWithin(
+  element: Locator,
+  container: Locator,
+  tolerance = 2,
+) {
+  const elementBox = await element.boundingBox();
+  const containerBox = await container.boundingBox();
+  expect(elementBox).not.toBeNull();
+  expect(containerBox).not.toBeNull();
+  if (!elementBox || !containerBox) return;
+  const elementCenter = elementBox.x + elementBox.width / 2;
+  const containerCenter = containerBox.x + containerBox.width / 2;
+  expect(Math.abs(elementCenter - containerCenter)).toBeLessThanOrEqual(tolerance);
 }

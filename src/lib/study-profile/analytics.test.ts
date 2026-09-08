@@ -151,15 +151,17 @@ describe("deriveStudyProfileAttribution", () => {
     });
   });
 
-  it("captures Meta click attribution without treating it as a campaign label", () => {
-    expect(deriveStudyProfileAttribution(
+  it("ignores Meta click identifiers while retaining ordinary campaign tags", () => {
+    const attribution = deriveStudyProfileAttribution(
       "https://www.yovaapp.com/study-profile?utm_source=instagram&fbclid=IwAR_meta.click-123",
       null,
-    )).toMatchObject({
+    );
+
+    expect(attribution).toMatchObject({
       source: "instagram",
       utmSource: "instagram",
-      fbclid: "IwAR_meta.click-123",
     });
+    expect(attribution).not.toHaveProperty("fbclid");
   });
 
   it("drops email-like campaign values", () => {

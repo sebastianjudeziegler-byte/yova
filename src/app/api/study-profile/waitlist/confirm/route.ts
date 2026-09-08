@@ -67,8 +67,6 @@ export async function POST(request: Request) {
         reportUnlocked: result.reportUnlocked,
         reportUrl: `/study-profile/report/${encodeURIComponent(parsed.data.reportToken)}`,
         responseId: result.responseId,
-        metaLeadEligible: result.under18 === false,
-        metaRegistrationEligible: result.metaRegistrationEligible,
       }, {
         headers: confirmationHeaders(),
       });
@@ -83,7 +81,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({
       waitlistJoined: true,
-      metaConversionEligible: result.metaConversionEligible,
     }, {
       headers: confirmationHeaders(),
     });
