@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { freezePlanClock, PLAN_FIXED_NOW } from "./helpers/frozen-clock";
 import type { LearningPlan } from "../src/lib/domain";
 import {
   hydratedSessionResourceCacheIssue,
@@ -3723,6 +3724,9 @@ test("session setup changes one committed method and generates from its exact su
 });
 
 test("a multi-session plan carries one clear source decision from Add to Learning", async ({ page }, testInfo) => {
+  // Deterministic scheduling: this journey asserts on session counts after a
+  // "next Friday" goal, which depends on how much of today is still available.
+  await freezePlanClock(page);
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
@@ -3809,6 +3813,25 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   const adjustedDurations = await page.locator(".timeline-row > span:last-child").allTextContents();
   expect(adjustedDurations.length).toBeGreaterThan(initialSessionCount);
   expect(adjustedDurations.every((duration) => Number.parseInt(duration, 10) <= 15)).toBe(true);
+  const planClock = await page.evaluate(() => {
+    const snapshot = JSON.parse(window.localStorage.getItem("yova.preview.v1")!) as { plans: LearningPlan[] };
+    const plan = snapshot.plans.at(-1)!;
+    return {
+      deadline: plan.deadline,
+      deadlineLocal: new Intl.DateTimeFormat("en-CA").format(new Date(plan.deadline!)),
+      createdAt: plan.createdAt,
+      committedAt: plan.sessions.map((session) => session.studyRoute?.identity.committedAt),
+    };
+  });
+  expect(planClock.deadlineLocal).toBe("2026-09-04");
+  expect(planClock.createdAt).toBe(PLAN_FIXED_NOW.toISOString());
+  expect(planClock.committedAt.every((at) => at === PLAN_FIXED_NOW.toISOString())).toBe(true);
+  const clockEvidence = { initialSessionCount, adjustedSessionCount: adjustedDurations.length, ...planClock };
+  await testInfo.attach("plan-clock-evidence", {
+    body: JSON.stringify(clockEvidence),
+    contentType: "application/json",
+  });
+  console.log("Plan clock evidence:", JSON.stringify(clockEvidence));
   await expect(page.getByText(/sessions complete/).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();

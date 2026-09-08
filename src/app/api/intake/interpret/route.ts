@@ -8,6 +8,7 @@ import {
 } from "@/lib/intake/schema";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
+import { resolveRequestNow } from "@/lib/server/test-clock";
 import {
   refundAIRequestReservationBeforeProvider,
   reserveAIRequest,
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
     description: parsed.data.description,
     materialNames: parsed.data.materialNames,
     timeZone: parsed.data.timeZone,
+    now: new Date(resolveRequestNow(request)),
   }));
   if (developmentPreview || !supabase || !isOpenAISessionConfigured()) {
     return intakeResponse(deterministic, requestId);
