@@ -47,15 +47,15 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
   const nextMap = applied.request.knowledgeMap!;
   const slots = normalPlanAvailability({ request: applied.request, now, searchDays: 366, revisionContext: { reservations: otherReservations, priorSessions: [] } });
   const fitsSchedule = (session: LearningPlanSession) => slots.some(slot => Date.parse(session.scheduledFor) >= Date.parse(slot.startsAt) && finish(session) <= Date.parse(slot.endsAt));
-  const scope = selectRevisionSessionScope({ plan, applied, operations: delta.operations, protections, now, fitsSchedule });
+  const scope = selectRevisionSessionScope({ plan, applied, operations: delta.operations, protections: protections.map(protection => controls.sessionEdits.some(edit => edit.sessionId === protection.sessionId && edit.scheduledFor) ? { ...protection, pinnedTime: false } : protection), now, fitsSchedule });
   const affected = new Set(scope.affectedSessionIds);
   const removed = new Set(scope.removedTopicIds);
   const protectedIds = new Set(scope.protectedSessionIds);
   const originalById = new Map(plan.sessions.map(session => [session.id, session]));
   const protectionById = new Map(protections.map(item => [item.sessionId, item]));
-  const edits = new Map(controls.sessionEdits.map(item => [item.sessionId, item]));
-  if (edits.size !== controls.sessionEdits.length || controls.sessionEdits.some(edit => !originalById.has(edit.sessionId))) throw new Error("Choose an existing session from this preview before editing its method or time.");
-  for (const edit of controls.sessionEdits) {
+  const edits = new Map(controls.sessionEdits.filter(edit => applied.lines.some(line => line.topicId === null || originalById.get(edit.sessionId)?.topicIds?.includes(line.topicId))).map(item => [item.sessionId, item]));
+  if (new Set(controls.sessionEdits.map(edit => edit.sessionId)).size !== controls.sessionEdits.length || controls.sessionEdits.some(edit => !originalById.has(edit.sessionId))) throw new Error("Choose an existing session from this preview before editing its method or time.");
+  for (const edit of edits.values()) {
     if (protectedIds.has(edit.sessionId)) throw new Error("That session has saved work and cannot be changed.");
     affected.add(edit.sessionId);
   }

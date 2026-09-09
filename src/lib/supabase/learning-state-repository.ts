@@ -465,7 +465,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   for (const row of sessionRows) {
     // Replaced parts remain in storage to retire their route identities safely.
     // They are not learner-skipped work and must not reappear after a reload.
-    if (row.status === "skipped" && readTextProperty(row.step_data, "routeAdjustmentRetiredAt")) continue;
+    if (row.status === "skipped" && (readTextProperty(row.step_data, "routeAdjustmentRetiredAt") || readProperty(row.step_data, "revisionRetired") === true)) continue;
     const studyRoute = row.committed_route_revision_id
       ? committedRoutesById.get(row.committed_route_revision_id) ?? null
       : null;

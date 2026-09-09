@@ -424,7 +424,7 @@ describe("living-plan structured preview through the existing adjustment route",
   });
 
   it("budgets time to study a newly attached source before practice and says so in the preview", async () => {
-    const plan = deterministicDeltaPlan(1);
+    const plan = structuredClone(deterministicDeltaPlan(1));
     // Allow an expanded block without asking to move any neighboring session.
     plan.sessions.forEach((session, index) => { session.scheduledFor = new Date(Date.UTC(2026, 8, 8 + index, 9)).toISOString(); });
     const { response, body, before } = await preview([{ op: "attach_source", topic_id: ETC, url: VIDEO }], { context: contextFor(plan) });
@@ -432,6 +432,9 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(firstSession(body.proposal.after, ETC).estimatedMinutes).toBeGreaterThan(firstSession(before, ETC).estimatedMinutes);
     expect(body.proposal.lines[0].after.join(" ")).toMatch(/study (?:this |the )?source.*practice/i);
     expect(body.proposal.lines[0].after.join(" ")).toContain(VIDEO);
+    const route = firstSession(body.proposal.after, ETC).studyRoute!;
+    expect(route.timing.durationSource).not.toBe("learner_override");
+    expect(route.provenance.ruleTrace.some(entry => /learner selected 45 minutes/i.test(entry.reason))).toBe(false);
   });
 
   it("reports limited source study time instead of silently consuming a neighboring block", async () => {
@@ -441,6 +444,23 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(body.proposal.capacity.explanation).toMatch(/source.*time|time.*source/i);
     expect(body.proposal.capacity.choices.map((choice: { label: string }) => choice.label)).toEqual(["Move a block", "Shorten scope", "Add time"]);
     assertUnchangedOtherSessions(before, body.proposal.after, [ETC]);
+  });
+
+  it("lets the learner edit the first new topic block before it has a persisted session ID", async () => {
+    const context = contextFor();
+    const operations = [{ op: "add_topic", title: "Fermentation comparison", description: "Compare fermentation with aerobic respiration after glycolysis.", after_topic_id: deltaTopicId(5) }];
+    const initial = await preview(operations, { context });
+    expect(initial.response.status).toBe(200);
+    const line = initial.body.proposal.lines[0];
+    const proposed = initial.body.proposal.after.sessions.find((session: LearningPlan["sessions"][number]) => session.id === line.sessionIds[0]);
+    const edited = await preview(operations, { context, controls: { excludedOperationIndexes: [], sessionEdits: [{ operationIndex: 0, scheduledFor: proposed.scheduledFor, durationMinutes: 10 }] } });
+    expect(edited.response.status, JSON.stringify(edited.body)).toBe(200);
+    expect(edited.body.proposal.canApply).toBe(true);
+    const updatedId = edited.body.proposal.lines[0].sessionIds[0];
+    const updated = edited.body.proposal.after.sessions.find((session: LearningPlan["sessions"][number]) => session.id === updatedId);
+    expect(updated.estimatedMinutes).toBe(10);
+    expect(updated.scheduledFor).toBe(proposed.scheduledFor);
+    assertUnchangedOtherSessions(context.plan, edited.body.proposal.after, [], true);
   });
 
   async function activePreview(operations: Operation[], mutate?: (plan: LearningPlan) => void) {

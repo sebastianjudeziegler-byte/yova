@@ -16,7 +16,7 @@ function build(delta = source, controls = empty, protections: RevisionSessionPro
 
 describe("reviewed edits remain protected across later topic revisions", () => {
   it("keeps explicit learner copy in the session and its canonical displayed route", async () => {
-    const plan = deterministicDeltaPlan(1);
+    const plan = structuredClone(deterministicDeltaPlan(1));
     const session = plan.sessions.find(item => item.topicIds?.includes(ETC))!;
     session.title = "My ETC cause-and-effect explanation";
     session.objective = "Connect my proton-gradient notes to ATP formation without losing the distinction.";
@@ -31,7 +31,7 @@ describe("reviewed edits remain protected across later topic revisions", () => {
   });
 
   it("excluding a line also excludes its method/time controls", async () => {
-    const plan = deterministicDeltaPlan(1);
+    const plan = structuredClone(deterministicDeltaPlan(1));
     const session = plan.sessions.find(item => item.topicIds?.includes(ETC))!;
     const proposal = await build(source, { excludedOperationIndexes: [0], sessionEdits: [{ sessionId: session.id, durationMinutes: 45 }] }, [], plan);
     expect(proposal.after.sessions).toEqual(plan.sessions);
@@ -39,7 +39,7 @@ describe("reviewed edits remain protected across later topic revisions", () => {
   });
 
   it("an explicitly selected time can move a pin out of a removed availability window", async () => {
-    const plan = deterministicDeltaPlan(1);
+    const plan = structuredClone(deterministicDeltaPlan(1));
     const session = plan.sessions.find(item => item.topicIds?.includes(ETC))!;
     const request = deltaFixture(1).request;
     // First let the same composer choose a valid replacement in the new window.

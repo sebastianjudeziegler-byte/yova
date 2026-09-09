@@ -38,7 +38,7 @@ export async function applyPlanRevision({ input, supabase, userId, developmentPr
   // unrelated work has since completed. The returned plan is always current.
   const prior = await supabase.from("plan_revisions").select("receipt").eq("id", proposal.id).eq("user_id", userId).maybeSingle();
   if (prior.error) throw new PlanRevisionRequestError("The saved revision could not be verified. Try again.", 503);
-  if (prior.data) return { status: "applied", plan: current.plan, receipt: prior.data.receipt };
+  if (prior.data) return { status: "applied", plan: current.plan, receipt: prior.data.receipt, changedSessionIds: sessionRevisionPatches(proposal.before as LearningPlan, proposal.after as LearningPlan).map(patch => patch.id) };
   if ((current.plan.revisionId ?? current.plan.id) !== proposal.baseRevisionId) throw new PlanRevisionRequestError("The plan changed after this preview. Review its latest revision.", 409);
   return persistAcceptedPlanRevision({ proposal, current, supabase, userId, now, receipt });
 }

@@ -10,9 +10,10 @@ describe.skipIf(!process.env.YOVA_DB_FIXTURE_PATH)("actual routed persistence fi
   it("emits the reviewed fixed-slot plan, not a hand-written substitute route", async () => {
     const fixture = deltaFixture(1);
     const before = commitPlanStudyRoutes({ ...deterministicDeltaPlan(1), status: "active" as const }, DELTA_NOW.toISOString());
+    const chosen = before.sessions.find(session => session.topicIds?.includes(deltaTopicId(4)))!;
     const proposal = await buildPlanRevision({ ...fixture, plan: before,
       delta: { operations: [{ op: "mark_covered", topic_id: deltaTopicId(4) }] },
-      controls: { excludedOperationIndexes: [], sessionEdits: [] }, protections: [], otherReservations: [], contextKind: "active",
+      controls: { excludedOperationIndexes: [], sessionEdits: [{ sessionId: chosen.id, durationMinutes: 15, scheduledFor: chosen.scheduledFor }] }, protections: [], otherReservations: [], contextKind: "active",
       fill: async input => buildNormalPlanFallbackFill(input),
     });
     expect(proposal.canApply).toBe(true);

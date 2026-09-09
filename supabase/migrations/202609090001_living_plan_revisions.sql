@@ -80,7 +80,8 @@ begin
   )),'[]'::jsonb)
   into sessions,fingerprints,protections
   from public.plan_sessions s left join public.study_routes r on r.route_revision_id=s.committed_route_revision_id
-  where s.plan_id=p.id and s.user_id=p.user_id;
+  where s.plan_id=p.id and s.user_id=p.user_id
+    and not (s.status='skipped' and (coalesce(s.step_data->>'revisionRetired','false')='true' or s.step_data ? 'routeAdjustmentRetiredAt'));
   select coalesce(jsonb_agg(jsonb_build_object('id',m.id,'name',m.filename,'mimeType',m.mime_type,'sizeBytes',m.byte_size,
     'processingStatus','ready','textContent',null,'understanding',m.metadata->'understanding')),'[]'::jsonb) into materials from public.materials m where m.learning_item_id=i.id and m.user_id=p.user_id;
   return jsonb_build_object('plan',jsonb_build_object(

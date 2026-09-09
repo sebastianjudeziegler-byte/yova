@@ -135,7 +135,7 @@ test("founder journey preserves completed work, previews two topic changes, save
   await expect(preview.getByRole("checkbox", { name: /Include/ })).toHaveCount(2);
   await expect(preview.getByRole("combobox", { name: /Target topic/ }).first()).toBeVisible();
   expect(await snapshot(page)).toEqual(before);
-  await page.screenshot({ path: testInfo.outputPath("02-preview.png"), fullPage: true });
+  await preview.screenshot({ path: testInfo.outputPath("02-preview.png") });
   await preview.getByRole("button", { name: "Confirm changes", exact: true }).click();
 
   const receipt = page.getByRole("status").filter({ hasText: "everything else unchanged" });
@@ -221,4 +221,24 @@ test("draft topic edits use the reviewed delta and keep the other sessions for a
     expect({ ...current, studyRoute: session.studyRoute }).toEqual(session);
   }
   expect(after.knowledgeMap!.placementCheck).toEqual(original!.knowledgeMap!.placementCheck);
+});
+
+
+test("the availability editor can replace a window without regenerating the draft", async ({ page }) => {
+  await createAndActivate(page, false);
+  await page.getByRole("button", { name: "Change schedule", exact: true }).click();
+  const editor = page.getByRole("region", { name: "Plan change preview" });
+  const oldWindows = editor.getByRole("checkbox", { name: /^Keep existing window/ });
+  expect(await oldWindows.count()).toBeGreaterThan(0);
+  for (const checkbox of await oldWindows.all()) await checkbox.uncheck();
+  await editor.getByLabel("Day", { exact: true }).selectOption("Monday");
+  await editor.getByLabel("Time window", { exact: true }).fill("20:00–22:00");
+  await editor.getByLabel("Minutes", { exact: true }).fill("120");
+  const previewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/plans/adjust" && response.request().postDataJSON()?.action === "preview");
+  await editor.getByRole("button", { name: "Preview change", exact: true }).click();
+  const body = await (await previewResponse).json();
+  expect(body.proposal.generationRequest.availability).toEqual([{ day: "Monday", window: "20:00–22:00", minutes: 120 }]);
+  await expect(page.getByRole("button", { name: "Use this plan" })).toBeDisabled();
+  await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Use this plan" })).toBeEnabled();
 });

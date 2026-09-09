@@ -47,6 +47,12 @@ select extensions.is((select to_jsonb(p)->>'current_revision_id' from public.pla
 insert into public.plan_sessions(id,user_id,plan_id,sequence,title,objective,method,method_rationale,estimated_minutes,status,step_data)
 values ('b1000000-0000-4000-8000-000000000012','b1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000003',2,'Undone added session','Removed by Undo','Feynman Technique','This row retains route history.',25,'skipped','{"revisionRetired":true}');
 select extensions.ok(not exists(select 1 from jsonb_array_elements(public.read_plan_revision_context('b1000000-0000-4000-8000-000000000003')->'plan'->'sessions') s where s->>'id'='b1000000-0000-4000-8000-000000000012'),'a session removed by Undo does not reappear in the learner plan after reload');
+-- Use an already claimed, owner-bound export as required by the existing API.
+select set_config('request.jwt.claims','{"sub":"b1000000-0000-4000-8000-000000000001","session_id":"b1000000-0000-4000-8000-000000000013"}',true);
+insert into public.account_data_exports(id,user_id,session_id,status,temp_storage_path,final_storage_path,prepare_expires_at)
+values('b1000000-0000-4000-8000-000000000014','b1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000013','finalizing',
+'b1000000-0000-4000-8000-000000000001/b1000000-0000-4000-8000-000000000014/device-state.json',
+'b1000000-0000-4000-8000-000000000001/b1000000-0000-4000-8000-000000000014/yova-data.json',now()+interval '10 minutes');
 select extensions.is(jsonb_array_length(public.export_yova_account_data()->'planRevisions'),1,'the learner account export includes their saved plan revision receipt');
 select * from extensions.finish();
 rollback;

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select extensions.plan(9);
+select extensions.plan(11);
 create temporary table fixture(data jsonb);
 insert into fixture values('__FIXTURE__'::jsonb);
 select set_config('request.jwt.claim.sub','b2000000-0000-4000-8000-000000000001',true);
@@ -30,5 +30,7 @@ select extensions.lives_ok(format('select public.read_plan_revision_context(%L::
 select extensions.is(public.read_plan_revision_context((data#>>'{before,id}')::uuid)#>>'{plan,revisionId}',data#>>'{proposal,revisionId}','readback carries the newly saved revision') from fixture;
 select extensions.throws_ok(format('select public.apply_plan_revision(%L::uuid,%L::jsonb)','b2000000-0000-4000-8000-000000000001',(payload||jsonb_build_object('operationId','b2000000-0000-4000-8000-000000000011'))::text),'40001','plan_revision_obsolete_preview','a stale preview cannot overwrite the first accepted change') from accepted_patch;
 select extensions.is((select count(*)::integer from public.plan_sessions where user_id='b2000000-0000-4000-8000-000000000001'),(select jsonb_array_length(data#>'{before,sessions}') from fixture),'one topic revision does not duplicate sessions');
+select extensions.ok((select (protection->>'pinnedTime')::boolean from fixture cross join lateral jsonb_array_elements(public.read_plan_revision_context((data#>>'{before,id}')::uuid)->'protections') protection where protection->>'sessionId'=data->>'changedId'),'an explicit preview time remains pinned for the next revision');
+select extensions.ok((select protection->'editedFields' ? 'estimatedMinutes' from fixture cross join lateral jsonb_array_elements(public.read_plan_revision_context((data#>>'{before,id}')::uuid)->'protections') protection where protection->>'sessionId'=data->>'changedId'),'the next revision preserves the learner-chosen duration');
 select * from extensions.finish();
 rollback;

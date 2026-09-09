@@ -35,6 +35,13 @@ export async function undoPlanRevision({ input, supabase, userId, developmentPre
   } else {
     if (!supabase || !userId) throw new PlanRevisionRequestError("Sign in before restoring a saved revision.", 401);
     active = await loadActiveRevisionContext(supabase, input.planId);
+    const previousUndo = await supabase.from("plan_revisions").select("receipt,proposal").eq("user_id", userId).eq("plan_id", input.planId).eq("id", inverseRevisionId(input.expectedRevisionId)).maybeSingle();
+    if (previousUndo.error) throw new PlanRevisionRequestError("The Undo receipt could not be checked. Try again.", 503);
+    if (previousUndo.data) {
+      const prior = PlanRevisionProposalSchema.safeParse(previousUndo.data.proposal);
+      return { status: "undone", plan: active.plan, receipt: previousUndo.data.receipt,
+        changedSessionIds: prior.success ? sessionRevisionPatches(prior.data.before as LearningPlan, prior.data.after as LearningPlan).map(patch => patch.id) : [] };
+    }
     const history = await supabase.from("plan_revisions").select("proposal").eq("user_id", userId).eq("plan_id", input.planId).eq("id", input.expectedRevisionId).maybeSingle();
     if (history.error || !history.data) throw new PlanRevisionRequestError("The revision to restore could not be loaded. Nothing was changed.", 409);
     original = PlanRevisionProposalSchema.parse(history.data.proposal);
@@ -74,9 +81,13 @@ export async function undoPlanRevision({ input, supabase, userId, developmentPre
     return { status: "undone", plan: restored, generationRequest, draftReceipt, receipt };
   }
   if (original.contextKind === "development") return { status: "undone", plan: commitPlanStudyRoutes(restored, now.toISOString()), receipt };
-  const hex = createHash("sha256").update(`undo-plan-revision:${original.id}`).digest("hex");
-  const id = `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-8${hex.slice(17,20)}-${hex.slice(20,32)}`;
+  const id = inverseRevisionId(original.id);
   const inverse = PlanRevisionProposalSchema.parse({ ...original, id, revisionId: original.baseRevisionId, baseRevisionId: original.revisionId,
     before: current, after: restored, generationRequest, sessionFingerprints: active!.sessionFingerprints });
   return persistAcceptedPlanRevision({ proposal: inverse, current: active!, supabase: supabase!, userId: userId!, now, receipt, undo: true });
+}
+
+function inverseRevisionId(revisionId: string) {
+  const hex = createHash("sha256").update(`undo-plan-revision:${revisionId}`).digest("hex");
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-8${hex.slice(17,20)}-${hex.slice(20,32)}`;
 }
