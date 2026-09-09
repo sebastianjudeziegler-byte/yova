@@ -43,6 +43,19 @@ jobs:
         if: always()
         continue-on-error: true
         run: pnpm lint 2>&1 | tee artifacts/brief-b-baseline/lint.txt
+      - name: Initialize isolated database
+        if: always()
+        run: pnpm exec supabase init
+      - name: Replay main migrations for the new persistence contract
+        if: always()
+        run: pnpm exec supabase db start
+      - name: Capture persistence baseline
+        if: always()
+        continue-on-error: true
+        run: pnpm exec supabase test db supabase/tests/database/20260909_living_plan_revision.test.sql --local 2>&1 | tee artifacts/brief-b-baseline/database.txt
+      - name: Stop isolated database
+        if: always()
+        run: pnpm exec supabase stop --no-backup
       - name: Describe the baseline accurately
         if: always()
         env:

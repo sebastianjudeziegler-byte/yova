@@ -382,7 +382,10 @@ describe("living-plan structured preview through the existing adjustment route",
     const { response, body, before } = await activePreview([{ op: "mark_covered", topic_id: ETC }]);
     expect(response.status, JSON.stringify(body)).toBe(200);
     expect(firstSession(body.proposal.after, ETC).learningMode).toBe("study");
-    assertUnchangedOtherSessions(before, body.proposal.after, [firstSession(before, ETC).id]);
+    assertUnchangedOtherSessions(before, body.proposal.after, [ETC]);
+    for (const later of before.sessions.filter(session => session.topicIds?.includes(ETC)).slice(1)) {
+      expect(body.proposal.after.sessions.find((session: LearningPlan["sessions"][number]) => session.id === later.id)).toEqual(later);
+    }
     expect(mocks.rpc.mock.calls.every(([name]) => name === "read_plan_revision_context")).toBe(true);
     expect(body).not.toHaveProperty("receipt");
   });
@@ -391,11 +394,12 @@ describe("living-plan structured preview through the existing adjustment route",
     const { response, body, before } = await activePreview([{ op: "mark_covered", topic_id: ETC }], plan => {
       plan.sessions[0]!.status = "complete";
       // Opaque current work must survive the revision boundary verbatim.
-      Object.assign(plan.sessions[1]!, { resource: { title: "My saved practice", learnerAnswer: "ATP transfers energy" } });
+      const unrelated = plan.sessions.find(session => session.status !== "complete" && !session.topicIds?.includes(ETC))!;
+      Object.assign(unrelated, { resource: { title: "My saved practice", learnerAnswer: "ATP transfers energy" } });
     });
     expect(response.status, JSON.stringify(body)).toBe(200);
     expect(body.proposal.after.sessions[0]).toEqual(before.sessions[0]);
-    expect(body.proposal.after.sessions[1]).toEqual(before.sessions[1]);
+    assertUnchangedOtherSessions(before, body.proposal.after, [ETC]);
     expect(firstSession(body.proposal.after, ETC).learningMode).toBe("study");
   });
 
