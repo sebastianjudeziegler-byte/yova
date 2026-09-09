@@ -1510,5 +1510,135 @@
       "correctAnswer": "The Sarajevo assassination",
       "feedback": "The assassination was the starting event; the other choices describe later war outcomes."
     }
+  },
+  "symbolic_relation": {
+    "context": {
+      "sessionArchitectureVersion": "streamed_teaching_v1",
+      "learningGoal": {
+        "title": "Calculus derivative unit",
+        "topic": "Derivative basics, product rule, chain rule, and implicit differentiation",
+        "kind": "test",
+        "deadline": null,
+        "sourceMode": "yova_generated",
+        "studyMode": "inside_yova",
+        "learningIntent": "study"
+      },
+      "planRationale": "Teach the confirmed product-rule and chain-rule gaps before returning to mixed derivative practice.",
+      "materials": [],
+      "knowledgeTopics": [
+        {
+          "id": "8ec325f4-0000-4000-8000-000000000003",
+          "title": "Product rule",
+          "description": "Differentiate products of functions with the two-term product rule.",
+          "subtopics": [],
+          "prerequisiteTopicIds": [],
+          "status": "not_started",
+          "initialEvidence": {
+            "source": "placement_check",
+            "outcome": "gap",
+            "observedAt": "2026-08-18T23:30:00.000Z"
+          },
+          "sourceReferences": [],
+          "origin": "ai_generated",
+          "deferred": null
+        },
+        {
+          "id": "8ec325f4-0000-4000-8000-000000000004",
+          "title": "Chain rule",
+          "description": "Differentiate composite functions by linking outer and inner derivatives.",
+          "subtopics": [],
+          "prerequisiteTopicIds": [],
+          "status": "not_started",
+          "initialEvidence": {
+            "source": "placement_check",
+            "outcome": "gap",
+            "observedAt": "2026-08-18T23:30:00.000Z"
+          },
+          "sourceReferences": [],
+          "origin": "ai_generated",
+          "deferred": null
+        }
+      ],
+      "session": {
+        "title": "Learn product rule and one connected topic",
+        "objective": "Build an accurate first mental model of the product rule and chain rule, connect each to its prerequisites, then apply them with less support.",
+        "method": "Closed-note retrieval",
+        "methodReason": "A short model followed by guided practice makes each derivative procedure visible before support fades.",
+        "estimatedMinutes": 25,
+        "learningMode": "learn",
+        "topicIds": [
+          "8ec325f4-0000-4000-8000-000000000003",
+          "8ec325f4-0000-4000-8000-000000000004"
+        ],
+        "contentTargets": [
+          "Product rule",
+          "Chain rule"
+        ],
+        "completionEvidence": [
+          "Explain when the product rule is required and apply it to one product",
+          "Explain how the chain rule follows a composite function and apply it once"
+        ],
+        "reviewConcept": null,
+        "reviewType": null
+      },
+      "learnerProfile": {
+        "commonBlocker": null,
+        "guidancePreference": null,
+        "explanationPreference": "Start with the big picture before details",
+        "focusFrequency": null,
+        "startingPattern": null,
+        "primaryImprovementGoal": null,
+        "memoryChallenge": "I understand it initially but forget it after a few days",
+        "supportPreference": "Break a stuck point into smaller steps",
+        "workspacePreference": "Show one step at a time"
+      },
+      "sessionAdjustment": null,
+      "recentResults": [],
+      "recentInterruptions": [],
+      "conceptSignals": [],
+      "scaffoldSignals": [],
+      "topicCalibrationSignals": []
+    },
+    "outputs": [
+      {},
+      {
+        "items": [
+          {
+            "essentialIdea": "Product rule: the derivative of a product equals first derivative times second plus first times second derivative.",
+            "concept": "product differentiation",
+            "check": {
+              "title": "Differentiate a product",
+              "prompt": "How do you differentiate a product of two differentiable functions?",
+              "referenceAnswer": "If y=f(x)g(x), then y'=f'(x)g(x)+f(x)g'(x).",
+              "feedback": "Differentiate each factor once and add the two resulting terms."
+            },
+            "independentCheck": null
+          },
+          {
+            "essentialIdea": "Chain rule: the derivative of a composite equals the outer derivative at the inner times the inner derivative.",
+            "concept": "composition differentiation",
+            "check": {
+              "title": "Differentiate a composition",
+              "prompt": "How do you differentiate a composite function like f(g(x))?",
+              "referenceAnswer": "Differentiate the outer function at the inner function, then multiply by g'(x): (f(g(x)))'=f'(g(x))g'(x).",
+              "feedback": "Apply the outer derivative to the inside expression, then multiply by the inner derivative."
+            },
+            "independentCheck": null
+          }
+        ],
+        "recognitionCheck": {
+          "title": "Identify the chain rule",
+          "prompt": "Which expression correctly gives the derivative of f(g(x))?",
+          "choices": [
+            "f'(g(x))g'(x)",
+            "f'(x)g(x)+f(x)g'(x)",
+            "f(g'(x))f'(x)",
+            "g'(f(x))f'(x)"
+          ],
+          "correctAnswer": "f'(g(x))g'(x)",
+          "feedback": "The chain rule multiplies the outer derivative evaluated at the inner function by the inner derivative."
+        }
+      }
+    ]
   }
 }

@@ -236,9 +236,9 @@ function canonicalActivityConcept(
 
 function meaningfulTokens(value: string) {
   const ignored = new Set(["a", "an", "and", "are", "as", "at", "be", "for", "from", "idea", "in", "is", "of", "on", "or", "startup", "that", "the", "this", "to", "what", "when", "with"]);
-  return unique([...mathematicalSubjectTerms(value), ...normalize(value).split(" ")
+  return unique([...mathematicalSubjectTerms(value), ...normalize(value).split(" ")]
     .map((token) => token.length > 3 && token.endsWith("s") ? token.slice(0, -1) : token)
-    .filter((token) => token.length > 2 && !ignored.has(token))]);
+    .filter((token) => token.length > 2 && !ignored.has(token)));
 }
 
 function ideaIsVisibleInQuestion(

@@ -10,11 +10,13 @@ export function learningContentKey(value: string) {
     .trim();
 }
 
-/** Prime notation is subject content, even when every variable is one letter. */
+/** Symbolic relations are subject content, even when variables are one letter. */
 export function mathematicalSubjectTerms(value: string): string[] {
-  return /(?:\b[a-z](?:\([a-z0-9]+\))?|\([a-z]{1,8}\))'/i.test(learningContentKey(value))
-    ? ["derivative"]
-    : [];
+  const notation = learningContentKey(value);
+  const terms: string[] = [];
+  if (/(?:\b[a-z](?:\([a-z0-9]+\))?|\([a-z]{1,8}\))'/i.test(notation)) terms.push("derivative");
+  if (/[a-z0-9)'\]]\+[(a-z0-9]/i.test(notation)) terms.push("plus");
+  return terms;
 }
 
 /** A formula-only target requires its complete equation, not shared variables. */

@@ -49,6 +49,15 @@ describe("Brief 0.5 preserved subject and notation boundaries", () => {
     expect(result.draft.activities.filter(activity => activity.type === "free_response").map(activity => activity.correctAnswer).join(" ")).toContain("f g' + g f'");
   });
 
+  it("keeps the captured product relation when its answer uses plus notation instead of prose", async () => {
+    supply(captures.symbolic_relation.outputs);
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(captures.symbolic_relation.context as SessionGenerationContext);
+    expect(result.draft.coverage.essentialIdeas).toHaveLength(2);
+    expect(result.draft.coverage.essentialIdeas[0]).toContain("plus");
+    expect(result.draft.activities.filter(activity => activity.type === "free_response").map(activity => activity.correctAnswer).join(" ")).toContain("f'(x)g(x)+f(x)g'(x)");
+  });
+
   it("recognizes a formula-only authoritative target while preserving different formulas", () => {
     expect(lessonIdeaSharesTargetSubject("The product rule states (fg)' equals f'g plus fg'.", "The formula (fg)' = f'g + fg'")).toBe(true);
     expect(lessonIdeaSharesTargetSubject("For a product fg, the derivative is f'g + fg'.", "The formula (fg)' = f'g + fg'")).toBe(true);
