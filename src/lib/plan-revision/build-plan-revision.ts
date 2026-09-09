@@ -186,7 +186,7 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     sessions = assignFutureSequence(sessions, protectedIds);
   }
   const revisionId = makeUuid();
-  const after = { ...plan, materials: applied.request.materials.map(material => ({ ...material, textContent: null })), revisionId, deadline: applied.request.deadline, knowledgeMap: nextMap, schedulePreferences: { timeZone: applied.request.timeZone, availability: applied.request.availability }, sessions };
+  const after = { ...plan, sourceMode: applied.request.materialMode === "upload" ? "user_materials" as const : "yova_generated" as const, materials: applied.request.materials.map(material => ({ ...material, textContent: null })), revisionId, deadline: applied.request.deadline, knowledgeMap: nextMap, schedulePreferences: { timeZone: applied.request.timeZone, availability: applied.request.availability }, sessions };
   const lines: RevisionLine[] = applied.lines.map(line => {
     const beforeSessions = plan.sessions.filter(session => line.topicId ? session.topicIds?.includes(line.topicId) && affected.has(session.id) : affected.has(session.id));
     const afterSessions = sessions.filter(session => line.topicId ? session.topicIds?.includes(line.topicId) && (affected.has(session.id) || addedSessions.some(added => added.id === session.id)) : affected.has(session.id));

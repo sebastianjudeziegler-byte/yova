@@ -2147,15 +2147,13 @@ test("learner text fields keep long pastes visible and block submission until tr
   await page.getByRole("button", { name: "Open goal" }).click();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
 
-  const adjustmentPanel = page.locator(".plan-adjustment-panel");
-  const planDirection = adjustmentPanel.getByLabel("What should be different?");
+  const adjustmentPanel = page.getByRole("region", { name: "Plan change preview" });
+  await adjustmentPanel.getByLabel("Change type").selectOption("add_topic");
+  const planDirection = adjustmentPanel.getByLabel("What should this topic cover?");
   await planDirection.fill(longPaste);
   await expect(planDirection).toHaveValue(longPaste);
   await expect(planDirection).toHaveAttribute("aria-invalid", "true");
-  await expect(adjustmentPanel.locator("#plan-adjustment-direction-limit")).toContainText(
-    "800/500 · 300 characters over the limit.",
-  );
-  await expect(adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" })).toBeDisabled();
+  await expect(adjustmentPanel.getByRole("button", { name: "Preview change", exact: true })).toBeDisabled();
 });
 
 test("an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged", async ({ page }) => {
@@ -2178,11 +2176,16 @@ test("an unverified topic rewrite leaves the learner's saved plan and completed 
   const savedPlan = () => page.evaluate(id => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.find((plan: LearningPlan) => plan.id === id), planId);
   const before = await savedPlan();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
-  const panel = page.locator(".plan-adjustment-panel");
-  await expect(panel).toContainText("Free-text topic changes are not available in an active plan.");
-  await panel.getByLabel("What should be different?").fill("Replace the next Link reaction session with photosynthesis and chloroplasts instead. Leave my completed Glycolysis session unchanged.");
-  await panel.getByRole("button", { name: "Approve and rebuild plan" }).click();
-  await expect(panel).toContainText("YOVA could not verify that content change. Your plan is unchanged.");
+  const panel = page.getByRole("region", { name: "Plan change preview" });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByLabel("What should be different?")).toHaveCount(0);
+  const rejected = await page.evaluate(async plan => {
+    const response = await fetch("/api/plans/adjust", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ planId: plan.id, direction: "Replace the next Link reaction session with photosynthesis and chloroplasts instead. Leave my completed Glycolysis session unchanged.", estimatedMinutes: 25, studyMode: "inside_yova", deadline: null }) });
+    return { status: response.status, body: await response.json() };
+  }, before);
+  expect(rejected.status).toBe(409);
+  expect(rejected.body.code).toBe("plan_direction_unverified");
+  expect(rejected.body.error).toContain("Your plan is unchanged");
   expect(await savedPlan()).toEqual(before);
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Respiration revision audit" })).toBeVisible();
@@ -2886,6 +2889,7 @@ test("finishing a shortened guided lesson keeps every deferred target as exact n
 });
 
 test("adjusting ordinary future work preserves the exact scheduled review contract", async ({ page }) => {
+  await freezePlanClock(page, new Date("2030-06-03T12:00:00.000Z"));
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
@@ -2910,6 +2914,11 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
       rationale: "Keep the delayed evidence check exact while resizing later content practice.",
       createdAt: "2026-08-20T12:00:00.000Z",
       materials: [],
+      schedulePreferences: { timeZone: "UTC", availability: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map(day => ({ day, window: "15:00–17:00", minutes: 120 })) },
+      knowledgeMap: { version: 1,
+        scopeJudgment: { band: "unit_or_exam", label: "Plate boundary evidence", minimumSessions: 1, recommendedSessions: 2, maximumSessions: 2, minimumTeachingSessions: 1, explanation: "Apply geological evidence and preserve the delayed review." },
+        topics: [{ id: topicId, title: "Plate boundary evidence", description: "Use geological evidence to compare convergent and divergent boundaries.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null }],
+        placementCheck: { status: "skipped", completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] } },
       sessions: [{
         id: "66000000-0000-4000-8000-000000000011",
         sequence: 1,
@@ -2954,18 +2963,12 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
   await planCard.getByRole("button", { name: "Open goal" }).click();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
 
-  const adjustmentPanel = page.locator(".plan-adjustment-panel");
-  const futureWindow = adjustmentPanel.getByRole("combobox", { name: "Future session window" });
-  // The first runnable row is a five-minute scheduled review. The adjustment
-  // control must take its default from ordinary content, not that review.
-  await expect(futureWindow).toHaveValue("25");
-  await expect(adjustmentPanel).toContainText(
-    "1 scheduled review keeps the original duration, concept, and return time.",
-  );
-  await futureWindow.selectOption("15");
-  await adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" }).click();
-
-  await expect(adjustmentPanel).toHaveCount(0);
+  const adjustmentPanel = page.getByRole("region", { name: "Plan change preview" });
+  await adjustmentPanel.getByLabel("Source URL").fill("https://example.com/plate-boundary-notes");
+  await adjustmentPanel.getByRole("button", { name: "Preview source attachment" }).click();
+  await expect(adjustmentPanel).toContainText("Study this source, then practice");
+  await adjustmentPanel.getByRole("button", { name: "Confirm changes" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
   await expect.poll(() => page.evaluate(() => {
     const stored = window.localStorage.getItem("yova.preview.v1");
     if (!stored) return null;
@@ -3025,14 +3028,9 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
     },
     ordinary: [{
       sequence: 2,
-      estimatedMinutes: 15,
+      estimatedMinutes: 45,
       status: "upcoming",
-      originSessionId: "66000000-0000-4000-8000-000000000012",
-    }, {
-      sequence: 3,
-      estimatedMinutes: 15,
-      status: "upcoming",
-      originSessionId: "66000000-0000-4000-8000-000000000012",
+      originSessionId: undefined,
     }],
   });
 
@@ -3040,8 +3038,10 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
   await expect(timeline).toContainText("Verify the mantle-convection relationship");
   await expect(timeline.locator(".timeline-row").filter({ hasText: "Verify the mantle-convection relationship" }))
     .toContainText("5 min");
-  await expect(timeline.locator(".timeline-row").filter({ hasText: "Apply evidence at contrasting plate boundaries" }))
-    .toHaveCount(2);
+  expect(await page.evaluate(() => {
+    const plan = JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.find((item: LearningPlan) => item.title === "Plate Boundary Evidence Plan");
+    return plan.knowledgeMap.topics[0].attachedSources;
+  })).toEqual([{ url: "https://example.com/plate-boundary-notes" }]);
 });
 
 test("scheduled-review setup stays fixed and opens the exact active or Study Now goal", async ({ page }) => {
@@ -3314,53 +3314,56 @@ test("a normal conceptual plan visibly moves from Learn to later Practice and co
   expect(activatedRoutes.every((session) => session.lifecycle === "committed")).toBe(true);
 });
 
-test("map revision cannot activate a stale draft and fresh placement uses the revised map", async ({ page }) => {
+test("map revision cannot activate a stale draft and reviewed starting level preserves placement", async ({ page }) => {
+  await freezePlanClock(page);
   let releaseUpdate: (() => void) | undefined;
   let updateStarted = false;
   let activated = 0;
-  let revisedMap: LearningPlan["knowledgeMap"];
-  const diagnosticMaps: unknown[] = [];
+  let previewBody: { proposal: { after: LearningPlan; before: LearningPlan } } | undefined;
+  let diagnosticRequests = 0;
   page.on("request", request => {
     if (new URL(request.url()).pathname === "/api/plans/activate") activated += 1;
+    if (request.url().includes("/api/plans/generate?mode=diagnostic")) diagnosticRequests += 1;
   });
-  await page.route("**/api/plans/generate*", async route => {
-    const url = new URL(route.request().url());
+  await page.route("**/api/plans/adjust", async route => {
     const input = route.request().postDataJSON();
-    if (url.searchParams.get("mode") === "diagnostic") diagnosticMaps.push(input.knowledgeMap);
-    if (input.mapCorrection && url.searchParams.get("mode") !== "diagnostic") {
+    if (input.action === "preview" && !updateStarted) {
       updateStarted = true;
       await new Promise<void>(resolve => { releaseUpdate = resolve; });
-      const response = await route.fetch();
-      const body = await response.json();
-      revisedMap = body.plan.knowledgeMap;
-      await route.fulfill({ response, json: body });
+      const response = await route.fetch(); previewBody = await response.json();
+      await route.fulfill({ response, json: previewBody });
     } else await route.continue();
   });
-  await createPreviewAccount(page);
-  await completeOnboarding(page);
-  await beginPlanFromAdd(page, "Build me a plan to understand cellular respiration from scratch.");
+  await createPreviewAccount(page); await completeOnboarding(page);
+  await beginPlanFromAdd(page, "Build me a plan to understand cellular respiration from scratch in three weeks.");
   await page.getByRole("button", { name: "45 minutes", exact: true }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
   await expect(page.getByText("Plan ready", { exact: true })).toBeVisible({ timeout: 30_000 });
-  await page.getByLabel("Requested topic map change").fill("Include a comparison of aerobic and anaerobic respiration.");
-  await page.getByRole("button", { name: "Update map and plan" }).click();
+  const priorDiagnostics = diagnosticRequests;
+  await page.getByRole("button", { name: "Change content", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Plan change preview" });
+  await panel.getByLabel("Topic title", { exact: true }).fill("Fermentation comparison");
+  await panel.getByLabel("What should this topic cover?").fill("Compare fermentation with aerobic respiration after glycolysis.");
+  await panel.getByRole("button", { name: "Preview change", exact: true }).click();
   await expect.poll(() => updateStarted).toBe(true);
   try {
     await expect(page.getByRole("button", { name: "Use this plan" })).toBeDisabled();
-    for (const name of ["Change content", "Change source", "Change schedule", "Change starting level"]) {
-      await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
-    }
+    for (const name of ["Change content", "Change source", "Change schedule", "Change starting level"]) await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
     expect(activated).toBe(0);
   } finally { releaseUpdate?.(); }
-  await expect(page.getByRole("status").filter({ hasText: "Map updated:" })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: "Change starting level" }).click();
-  await expect(page.getByRole("button", { name: "Skip for now" })).toBeVisible({ timeout: 30_000 });
-  expect(diagnosticMaps.length).toBe(2);
-  expect((diagnosticMaps[1] as NonNullable<LearningPlan["knowledgeMap"]>).topics.map(topic => topic.id))
-    .toEqual(revisedMap?.topics.map(topic => topic.id));
+  await expect(panel.getByRole("button", { name: "Confirm changes" })).toBeEnabled();
+  await panel.getByRole("button", { name: "Confirm changes" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
+  expect(previewBody!.proposal.after.knowledgeMap!.placementCheck).toEqual(previewBody!.proposal.before.knowledgeMap!.placementCheck);
+  await page.getByRole("button", { name: "Change starting level", exact: true }).click();
+  await expect(panel.getByLabel("Change type")).toHaveValue("mark_covered");
+  await expect(page.getByRole("button", { name: "Use this plan" })).toBeDisabled();
+  expect(diagnosticRequests).toBe(priorDiagnostics);
   expect(activated).toBe(0);
+  await panel.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Use this plan" })).toBeEnabled();
 });
 
 test("normal-plan review changes one offered method without regenerating or rewriting other routes", async ({ page }) => {
@@ -3755,11 +3758,13 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await expect(planContract).toContainText("YOUR SCHEDULE");
   await expect(page.locator(".generated-session-focus").first()).toContainText("Focus:");
   await page.getByRole("button", { name: "Change schedule" }).click();
-  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Skip for now" }).click();
-  await page.getByRole("button", { name: "Generate my plan" }).click();
-  await expect(page.getByText("Plan ready")).toBeVisible();
+  const schedulePreview = page.getByRole("region", { name: "Plan change preview" });
+  await expect(schedulePreview.getByLabel("Change type")).toHaveValue("set_availability");
+  await schedulePreview.getByLabel("Day", { exact: true }).selectOption("Sunday");
+  await schedulePreview.getByLabel("Time window", { exact: true }).fill("20:00–21:00");
+  await schedulePreview.getByRole("button", { name: "Preview change", exact: true }).click();
+  await schedulePreview.getByRole("button", { name: "Confirm changes" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
   const reviewedMethods = (await page.locator(
     ".generated-timeline article > div > p:not(.generated-session-focus)",
   ).allTextContents()).map((method) => method.trim());
@@ -3808,14 +3813,21 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   const initialSessionCount = await page.locator(".timeline-row").count();
   expect(initialSessionCount).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
-  await expect(page.getByText(/Time controls the size of each content slice/)).toBeVisible();
-  await page.getByRole("combobox", { name: /Future session window/ }).selectOption("15");
-  await page.getByRole("button", { name: "Approve and rebuild plan" }).click();
-
-  await expect.poll(async () => page.locator(".timeline-row").count()).toBeGreaterThan(initialSessionCount);
+  const activePreview = page.getByRole("region", { name: "Plan change preview" });
+  await activePreview.getByLabel("Change type").selectOption("set_availability");
+  const kept = activePreview.getByRole("checkbox", { name: /^Keep existing window/ });
+  for (let index = 0; index < await kept.count(); index += 1) await kept.nth(index).uncheck();
+  await activePreview.getByLabel("Day", { exact: true }).selectOption("Thursday");
+  await activePreview.getByLabel("Time window", { exact: true }).fill("18:00–18:15");
+  await activePreview.getByLabel("Minutes", { exact: true }).fill("15");
+  await activePreview.getByRole("button", { name: "Preview change", exact: true }).click();
+  // Capacity across the fixed deadline is explicit. An impossible reduction
+  // keeps the current plan and offers the existing degrade choices.
+  await expect(activePreview).toContainText(/Move a block|Shorten scope|Add time/);
+  await expect(activePreview.getByRole("button", { name: "Confirm changes" })).toBeDisabled();
+  await activePreview.getByRole("button", { name: "Cancel", exact: true }).click();
   const adjustedDurations = await page.locator(".timeline-row > span:last-child").allTextContents();
-  expect(adjustedDurations.length).toBeGreaterThan(initialSessionCount);
-  expect(adjustedDurations.every((duration) => Number.parseInt(duration, 10) <= 15)).toBe(true);
+  expect(adjustedDurations).toHaveLength(initialSessionCount);
   const planClock = await page.evaluate(() => {
     const snapshot = JSON.parse(window.localStorage.getItem("yova.preview.v1")!) as { plans: LearningPlan[] };
     const plan = snapshot.plans.at(-1)!;
@@ -4072,9 +4084,19 @@ async function rebuildLatestStudyNowPlanForMinutes(page: Page, minutes: number) 
   await latestPlan.getByRole("button", { name: "Open goal" }).click();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
 
-  const adjustmentPanel = page.locator(".plan-adjustment-panel");
-  await adjustmentPanel.getByRole("combobox", { name: "Future session window" }).selectOption(String(minutes));
-  await adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" }).click();
+  const adjustmentPanel = page.getByRole("region", { name: "Plan change preview" });
+  await adjustmentPanel.getByLabel("Change type").selectOption("set_availability");
+  const savedWindow = await page.evaluate(() => {
+    const plan = JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.at(-1);
+    return plan.schedulePreferences.availability[0];
+  });
+  const kept = adjustmentPanel.getByRole("checkbox", { name: /^Keep existing window/ });
+  for (let index = 0; index < await kept.count(); index += 1) await kept.nth(index).uncheck();
+  await adjustmentPanel.getByLabel("Day", { exact: true }).selectOption(savedWindow.day);
+  await adjustmentPanel.getByLabel("Time window", { exact: true }).fill(savedWindow.window);
+  await adjustmentPanel.getByLabel("Minutes", { exact: true }).fill(String(minutes));
+  await adjustmentPanel.getByRole("button", { name: "Preview change", exact: true }).click();
+  await adjustmentPanel.getByRole("button", { name: "Confirm changes" }).click();
   await expect(adjustmentPanel).toHaveCount(0);
   await page.getByRole("button", { name: "Start next session", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();

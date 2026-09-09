@@ -51,6 +51,7 @@ export async function previewPlanRevision({ input, supabase, userId, development
     profileSummary: "No established behavioral preferences yet.", diagnosticResponses: [], knowledgeMap: plan.knowledgeMap,
   });
   const verifiedMaterials = await authorizeRevisionSources({ plan, delta: input.delta, excluded: input.controls.excludedOperationIndexes, supabase, userId, now });
+  request.materialMode = verifiedMaterials.length ? "upload" : "none";
   request.materials = verifiedMaterials.map(material => ({ ...material, processingStatus: "ready" as const }));
   const authorized = await loadAuthorizedNormalDurationContext(developmentPreview ? { developmentPreview, now } : { supabase: supabase!, authenticatedUserId: userId!, now });
   const rolloutDecision = resolveServerPersonalizationRollout({ subjectKey: userId ?? (developmentPreview ? "development_preview" : null) });

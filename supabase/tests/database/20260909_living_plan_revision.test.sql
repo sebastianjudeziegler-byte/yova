@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
-select extensions.plan(20);
+select extensions.plan(21);
 
 insert into auth.users(id,email) values ('b1000000-0000-4000-8000-000000000001','living-plan-boundary@example.com');
 insert into public.learning_items(id,user_id,title,kind,topic,source_mode,study_mode)
@@ -69,5 +69,9 @@ select extensions.is((select filename from public.materials where id='b1000000-0
 select extensions.is((select count(*)::integer from public.material_uploads where id='b1000000-0000-4000-8000-000000000015'),0,'the attached file no longer expires as a staged upload');
 select extensions.is((select to_jsonb(s) from public.plan_sessions s where id='b1000000-0000-4000-8000-000000000005'),(select row from before_completed),'source attachment keeps completed work exact');
 select extensions.ok(not exists(select 1 from public.private_storage_cleanup_receipts where source_material_id='b1000000-0000-4000-8000-000000000015'),'promotion does not schedule deletion of the newly attached file');
+-- Exercise the inner activation writer used by the permit/route wrapper; its
+-- historical ACL remains closed to clients, so this fixture runs as postgres.
+select public.save_generated_plan('{"id":"b1000000-0000-4000-8000-000000000020","learningItemId":"b1000000-0000-4000-8000-000000000021","title":"Reviewed draft","topic":"Water polarity","kind":"topic","sourceMode":"yova_generated","studyMode":"inside_yova","status":"active","rationale":"Retain the chosen time and duration on activation.","sessions":[{"id":"b1000000-0000-4000-8000-000000000022","sequence":1,"title":"Practice water polarity","objective":"Explain partial charges.","method":"Feynman Technique","methodReason":"Use my worked example.","scheduledFor":"2030-06-03T15:00:00.000Z","estimatedMinutes":15,"status":"upcoming","amountLabel":"One explanation","learningMode":"study","revisionEditedFields":["scheduledFor","estimatedMinutes"]}]}'::jsonb);
+select extensions.is((select step_data->'revisionEditedFields' from public.plan_sessions where id='b1000000-0000-4000-8000-000000000022'),'["scheduledFor","estimatedMinutes"]'::jsonb,'draft activation retains reviewed time and duration protections');
 select * from extensions.finish();
 rollback;

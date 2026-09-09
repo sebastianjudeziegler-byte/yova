@@ -164,8 +164,8 @@ begin
       if not found or m.processing_status<>'ready' or m.expires_at<=now() then
         raise exception using errcode='40001',message='plan_revision_source_unavailable';
       end if;
-      insert into public.materials(id,user_id,learning_item_id,storage_bucket,storage_path,filename,mime_type,byte_size,processing_status,extracted_text,metadata)
-        values(m.id,m.user_id,p.learning_item_id,m.storage_bucket,m.storage_path,m.filename,m.mime_type,m.byte_size,m.processing_status,m.extracted_text,m.metadata);
+      insert into public.materials(id,user_id,learning_item_id,storage_path,filename,mime_type,byte_size,processing_status,extracted_text,metadata)
+        values(m.id,m.user_id,p.learning_item_id,m.storage_path,m.filename,m.mime_type,m.byte_size,m.processing_status,m.extracted_text,m.metadata);
       delete from public.material_uploads where id=m.id;
     end loop;
   end loop;
@@ -228,7 +228,8 @@ begin
     perform public.commit_study_route_revision(replacement->'studyRoute');
     perform public.assert_committed_study_route_projection(replacement->'studyRoute',p.id,(replacement->>'id')::uuid);
   end loop;
-  update public.learning_items set deadline=(payload->>'deadline')::timestamptz where id=p.learning_item_id and user_id=actor_user_id;
+  update public.learning_items set deadline=(payload->>'deadline')::timestamptz,
+    source_mode=case payload#>>'{generationRequest,materialMode}' when 'upload' then 'user_materials' when 'none' then 'yova_generated' else source_mode end where id=p.learning_item_id and user_id=actor_user_id;
   update public.plans set knowledge_map=payload->'knowledgeMap',current_revision_id=next_revision,
     generation_inputs=coalesce(generation_inputs,'{}'::jsonb)||coalesce(payload->'generationRequest','{}'::jsonb)
     where id=p.id and user_id=actor_user_id;
@@ -275,3 +276,8 @@ begin
   execute definition;
 end;
 $migration$;
+
+-- The retired wholesale APIs must not remain reachable as direct browser RPCs.
+-- Historical implementations stay available only inside privileged migrations/tests.
+revoke all on function public.adjust_learning_plan_with_routes(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.attach_materials_to_plan(jsonb) from public, anon, authenticated, service_role;

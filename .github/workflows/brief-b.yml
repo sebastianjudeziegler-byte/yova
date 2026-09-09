@@ -61,6 +61,14 @@ jobs:
         if: always()
         continue-on-error: true
         run: pnpm exec supabase test db /tmp/yova-living-plan-routed.test.sql --local 2>&1 | tee artifacts/brief-b-baseline/routed-database.txt
+      - name: Check the full migrated database suite
+        if: always()
+        continue-on-error: true
+        run: pnpm exec supabase test db --local 2>&1 | tee artifacts/brief-b-baseline/full-database.txt
+      - name: Lint migrated database
+        if: always()
+        continue-on-error: true
+        run: pnpm exec supabase db lint --local --level warning --fail-on error 2>&1 | tee artifacts/brief-b-baseline/database-lint.txt
       - name: Stop isolated database
         if: always()
         run: pnpm exec supabase stop --no-backup
@@ -101,12 +109,16 @@ jobs:
         env:
           YOVA_PERSONALIZATION_ROLLOUT_PERCENT: "100"
         run: pnpm exec playwright test e2e/living-plan.spec.ts --project=desktop-chromium --project=mobile-chromium --workers=1 --retries=0 2>&1 | tee artifacts/brief-b-baseline/browser.txt
+      - name: Preserve Brief B journey video and screenshots before compatibility checks
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/brief-b-baseline/living-plan-journey; fi
       - name: Capture existing edit-journey compatibility
         if: always()
         continue-on-error: true
         env:
           YOVA_PERSONALIZATION_ROLLOUT_PERCENT: "100"
-        run: pnpm exec playwright test e2e/core-learning-loop.spec.ts --grep 'unverified topic rewrite|map revision cannot activate|a multi-session plan carries|normal-plan review changes one offered method|adjusting ordinary future work' --project=desktop-chromium --project=mobile-chromium --workers=1 --retries=0 2>&1 | tee artifacts/brief-b-baseline/core-edit-compatibility.txt
+        run: pnpm exec playwright test e2e/core-learning-loop.spec.ts --grep 'unverified topic rewrite|map revision cannot activate|a multi-session plan carries|normal-plan review changes one offered method|adjusting ordinary future work|a visibly shortened inside recipe|a 10-minute outside teaching-first|learner text fields keep long pastes' --project=desktop-chromium --project=mobile-chromium --workers=1 --retries=0 2>&1 | tee artifacts/brief-b-baseline/core-edit-compatibility.txt
       - name: Describe the baseline accurately
         if: always()
         env:

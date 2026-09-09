@@ -8,6 +8,7 @@ import { normalizePlanDraftGenerationContract } from "@/lib/plan-generation/draf
 import { composeNormalPlanEnvelopes } from "@/lib/plan-generation/normal-plan-envelopes";
 import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-plan-pipeline";
 import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
+import { PlanActivationRequestSchema } from "@/lib/plan-generation/schema";
 import { issuePlanDraftReceipt } from "@/lib/server/plan-draft-receipt";
 
 vi.mock("server-only", () => ({}));
@@ -438,6 +439,8 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(topic(body.proposal.after, ETC).attachedSources).toEqual([{ material_id: materialId }]);
     expect(body.proposal.after.knowledgeMap.topics.map((item: { id: string }) => item.id)).toEqual(before.knowledgeMap!.topics.map(item => item.id));
     expect(body.proposal.lines[0].after.join(" ")).toContain("ETC notes.txt");
+    const activation = PlanActivationRequestSchema.safeParse({ plan: body.proposal.after, generationRequest: body.proposal.generationRequest, draftReceipt: "test-shape" });
+    expect(activation.success, JSON.stringify(activation)).toBe(true);
     const undo = await PATCH(new Request("http://localhost/api/plans/adjust", { method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "undo", planId: before.id, expectedRevisionId: body.proposal.revisionId, proposal: body.proposal, proposalReceipt: body.proposalReceipt }) }));
     const restored = await undo.json();
@@ -468,6 +471,32 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(body.proposal.capacity.explanation).toMatch(/source.*time|time.*source/i);
     expect(body.proposal.capacity.choices.map((choice: { label: string }) => choice.label)).toEqual(["Move a block", "Shorten scope", "Add time"]);
     assertUnchangedOtherSessions(before, body.proposal.after, [ETC]);
+  });
+
+  it("excluding one line excludes its controls even when another line changes the same topic", async () => {
+    const context = contextFor();
+    const session = firstSession(context.plan, ETC);
+    const result = await preview([{ op: "attach_source", topic_id: ETC, url: VIDEO }, { op: "mark_covered", topic_id: ETC }], { context,
+      controls: { excludedOperationIndexes: [0], sessionEdits: [{ sessionId: session.id, operationIndex: 0, durationMinutes: 45 }] } });
+    expect(result.response.status, JSON.stringify(result.body)).toBe(200);
+    expect(result.body.proposal.canApply).toBe(true);
+    const revised = firstSession(result.body.proposal.after, ETC);
+    expect(revised.learningMode).toBe("study");
+    expect(revised.estimatedMinutes).toBeLessThanOrEqual(session.estimatedMinutes);
+    expect(topic(result.body.proposal.after, ETC).attachedSources).toBeUndefined();
+  });
+
+  it("reviews a chosen calendar duration even when the availability windows stay the same", async () => {
+    const context = contextFor();
+    const session = firstSession(context.plan, ETC);
+    const result = await preview([{ op: "set_availability", availability: context.generationRequest.availability }], { context,
+      controls: { excludedOperationIndexes: [], sessionEdits: [{ sessionId: session.id, durationMinutes: 15 }] } });
+    expect(result.response.status, JSON.stringify(result.body)).toBe(200);
+    expect(result.body.proposal.canApply).toBe(true);
+    expect(result.body.proposal.lines[0].before.join(" ")).toContain("25 min");
+    expect(result.body.proposal.lines[0].after.join(" ")).toContain("15 min");
+    expect(result.body.proposal.after.sessions.find((item: { id: string }) => item.id === session.id).estimatedMinutes).toBe(15);
+    assertUnchangedOtherSessions(context.plan, result.body.proposal.after, [ETC]);
   });
 
   it("lets the learner edit the first new topic block before it has a persisted session ID", async () => {
@@ -512,6 +541,16 @@ describe("living-plan structured preview through the existing adjustment route",
     }
     expect(mocks.rpc.mock.calls.every(([name]) => name === "read_plan_revision_context")).toBe(true);
     expect(body).not.toHaveProperty("receipt");
+  });
+
+  it("lets an existing Study Now goal review its calendar through the same fixed-map pipeline", async () => {
+    const result = await activePreview([{ op: "attach_source", topic_id: ETC, url: VIDEO }], plan => {
+      plan.creationIntent = "study_now";
+      plan.sessions = [firstSession(plan, ETC)];
+    });
+    expect(result.response.status, JSON.stringify(result.body)).toBe(200);
+    expect(result.body.proposal.after.sessions).toHaveLength(1);
+    expect(result.body.proposal.lines[0].after.join(" ")).toContain(VIDEO);
   });
 
   it("keeps unrelated completed sessions and in-progress resources byte-identical in an active preview", async () => {
