@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import captures from "./__fixtures__/brief-0-5-validator-captures.json";
 import additionCapture from "./__fixtures__/brief-0-5-addition-capture.json";
 import equationCapture from "./__fixtures__/brief-0-5-equation-capture.json";
+import renamedProduct from "./__fixtures__/brief-0-5-renamed-product-capture.json";
+import { preservesTargetEquation } from "@/lib/session-generation/learning-notation";
 import type { SessionGenerationContext } from "./session-generator";
 import { StreamedGeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 import { lessonIdeaSharesTargetSubject } from "@/lib/session-generation/lesson-brief";
@@ -21,6 +23,37 @@ function supply(outputs: unknown[]) {
 
 describe("Brief 0.5 preserved subject and notation boundaries", () => {
   beforeEach(() => parse.mockReset());
+
+  it("delivers the captured renamed product rule after repairing the incorrect first answer", async () => {
+    supply(renamedProduct.outputs);
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(renamedProduct.context as SessionGenerationContext);
+    const independent = result.draft.activities.find(activity => activity.methodPhase === "independent_practice" && activity.type === "free_response")!;
+    expect(independent.body).toBe("If h(x)=u(x)v(x), what is h'(x)?");
+    expect(independent.correctAnswer).toBe("h'(x)=u'(x)v(x)+u(x)v'(x).");
+    expect(parse).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["(uv)'=u'v+uv'", "(ab)'=a'b+ab'"])("recognizes a complete consistently renamed product equation: %s", answer => {
+    expect(preservesTargetEquation(answer, "Meaning of (fg)' = f'g + fg'")).toBe(true);
+  });
+
+  it("binds a derivative result variable only through the question's explicit product definition", () => {
+    expect(preservesTargetEquation("h'(x)=u'(x)v(x)+u(x)v'(x)", "Meaning of (fg)' = f'g + fg'", "If h(x)=u(x)v(x), what is h'(x)?")).toBe(true);
+  });
+
+  it.each([
+    ["h'(x)=u'(x)v(x)+u(x)v'(x)", "Which derivative is correct?"],
+    ["q'(x)=u'(x)v(x)+u(x)v'(x)", "If h(x)=u(x)v(x), what is h'(x)?"],
+    ["h'(x)=u'(x)v(x)+u(x)v'(x)", "If h(x)=u(x)+v(x), what is h'(x)?"],
+    ["(uv)'=u'v'", "State the product rule."],
+    ["(uv)'=u'v+uv'+w", "State the product rule."],
+    ["(uv)'=u'(x)v(y)+u(x)v'(y)", "State the product rule."],
+    ["(uv)'=u'v+u'v", "State the product rule."],
+    ["Photosynthesis converts light into glucose.", "State the product rule."],
+  ])("still rejects unbound or incorrect renamed content: %s", (answer, question) => {
+    expect(preservesTargetEquation(answer, "Meaning of (fg)' = f'g + fg'", question)).toBe(false);
+  });
 
   it("delivers the captured complete symbolic equation without requesting a replacement lesson", async () => {
     supply(equationCapture.outputs);

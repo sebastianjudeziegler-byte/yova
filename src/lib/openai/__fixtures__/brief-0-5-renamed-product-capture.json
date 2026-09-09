@@ -1,0 +1,350 @@
+{
+  "source": "CI 34382989996 release-A15-1; unchanged normal/recovery responses and context. Initial answer is incorrect and must still require repair.",
+  "context": {
+    "sessionArchitectureVersion": "streamed_teaching_v1",
+    "learningGoal": {
+      "title": "Derivative Product Rule",
+      "topic": "Using the product rule to differentiate products of functions",
+      "kind": "skill",
+      "deadline": null,
+      "sourceMode": "yova_generated",
+      "studyMode": "inside_yova",
+      "learningIntent": "learn"
+    },
+    "planRationale": "This is a conceptual and problem-solving plan for learning the derivative product rule from scratch. It begins with one complete example and one visible step at a time, then moves to guided use, independent retrieval, and mixed application across four 15-minute sessions.",
+    "knowledgeTopics": [
+      {
+        "id": "2cda92e1-a0c6-408a-9a25-7c212b942490",
+        "title": "Why the Product Rule Works",
+        "description": "Build a clear model of the product rule and distinguish it from applying the power rule to each factor.",
+        "subtopics": [
+          "Meaning and structure of (fg)' = f'g + fg'"
+        ],
+        "prerequisiteTopicIds": [],
+        "status": "not_started",
+        "initialEvidence": null,
+        "sourceReferences": [],
+        "origin": "ai_generated",
+        "deferred": null,
+        "curriculumReference": null
+      }
+    ],
+    "journey": {
+      "currentSequence": 1,
+      "totalSessions": 4,
+      "previousSessions": [],
+      "nextSessions": [
+        {
+          "sequence": 2,
+          "title": "Use the Product Rule Step by Step",
+          "objective": "Carry out the product-rule procedure with guidance, then simplify the result.",
+          "contentTargets": [
+            "Selecting f and g, finding f' and g', substituting, and simplifying"
+          ]
+        },
+        {
+          "sequence": 3,
+          "title": "Retrieve and Apply the Rule",
+          "objective": "Use the product rule without a displayed procedure and repair any exposed gap.",
+          "contentTargets": [
+            "Independent recall and application of the product rule"
+          ]
+        },
+        {
+          "sequence": 4,
+          "title": "Independent Product-Rule Check",
+          "objective": "Recognize when the product rule is needed and use it independently alongside the familiar power rule.",
+          "contentTargets": [
+            "Choosing between the power rule and product rule",
+            "Independent product-rule differentiation"
+          ]
+        }
+      ]
+    },
+    "session": {
+      "title": "Why the Product Rule Works",
+      "objective": "Build a clear model of the product rule and distinguish it from applying the power rule to each factor.",
+      "method": "Worked Examples",
+      "methodReason": "Examples reduce unnecessary load while a novice builds a usable procedure; fading then checks whether the procedure can be performed independently. YOVA selected it because this session is problem solving work.",
+      "estimatedMinutes": 15,
+      "learningMode": "learn",
+      "topicIds": [
+        "2cda92e1-a0c6-408a-9a25-7c212b942490"
+      ],
+      "contentTargets": [
+        "Meaning and structure of (fg)' = f'g + fg'"
+      ],
+      "completionEvidence": [
+        "Explain what each term in the product-rule formula represents.",
+        "Apply the formula to one product of two simple functions."
+      ],
+      "reviewConcept": null,
+      "reviewType": null
+    },
+    "learnerProfile": {
+      "commonBlocker": null,
+      "guidancePreference": null,
+      "explanationPreference": "A concrete example first",
+      "focusFrequency": null,
+      "startingPattern": null,
+      "primaryImprovementGoal": null,
+      "functionalSupportNeed": null,
+      "processingPreference": "The big picture before the details",
+      "memoryChallenge": null,
+      "supportPreference": null,
+      "workspacePreference": "Show one step at a time",
+      "freeformContext": "The learner wants one complete example before trying a similar problem, prefers one visible step at a time, and often studies in 15-minute windows.",
+      "observationCorrection": null
+    },
+    "recentResults": [],
+    "recentInterruptions": [],
+    "conceptSignals": [],
+    "scaffoldSignals": [],
+    "topicCalibrationSignals": [],
+    "personalization": {
+      "decisions": [
+        {
+          "id": "decision:method_delivery:presentation:overview_first",
+          "artifact": "method_delivery",
+          "setting": "presentation",
+          "value": "overview_first",
+          "title": "Big picture first",
+          "explanation": "Show the overall relationship before the details.",
+          "signalIds": [
+            "signal:processing_entry"
+          ],
+          "evidenceLabel": "You told YOVA",
+          "methodCandidates": [],
+          "experimental": false
+        },
+        {
+          "id": "decision:workspace:layout:one_step",
+          "artifact": "workspace",
+          "setting": "layout",
+          "value": "one_step",
+          "title": "One step at a time",
+          "explanation": "Keep the current action prominent and make the full path optional.",
+          "signalIds": [
+            "signal:workspace_preference"
+          ],
+          "evidenceLabel": "You told YOVA",
+          "methodCandidates": [],
+          "experimental": false
+        }
+      ],
+      "canonicalProfile": {
+        "schemaVersion": "canonical_learner_profile_v1",
+        "questionnaireVersion": "canonical_profile_questionnaire_v1",
+        "signals": [
+          {
+            "signalId": "unfamiliar_entry",
+            "value": "big_picture",
+            "source": "legacy_deep_profile",
+            "sourceQuestionId": "deep_profile:q1",
+            "provenance": "compatible_migration"
+          },
+          {
+            "signalId": "workspace_structure",
+            "value": "one_step",
+            "source": "legacy_deep_profile",
+            "sourceQuestionId": "deep_profile:q4",
+            "provenance": "compatible_migration"
+          }
+        ]
+      },
+      "methodTie": {
+        "state": {
+          "controls": {
+            "experiments": false
+          },
+          "activeExperiment": null,
+          "experimentHistory": []
+        },
+        "signals": [
+          {
+            "id": "signal:processing_entry",
+            "key": "processing_entry",
+            "title": "How teaching begins",
+            "code": "big_picture",
+            "evidenceLabel": "You told YOVA",
+            "paused": false
+          },
+          {
+            "id": "signal:workspace_preference",
+            "key": "workspace_preference",
+            "title": "Preferred session view",
+            "code": "one_step",
+            "evidenceLabel": "You told YOVA",
+            "paused": false
+          }
+        ]
+      }
+    },
+    "materials": []
+  },
+  "outputs": [
+    {
+      "topicIds": [
+        "2cda92e1-a0c6-408a-9a25-7c212b942490"
+      ],
+      "rationale": "One novice-level concept with worked-example fading: teach the product rule idea, check recall with support removed, then test independent recognition. No deferred content.",
+      "coverage": {
+        "focus": "Meaning and structure of (fg)' = f'g + fg'",
+        "essentialIdeas": [
+          "The derivative of a product is the sum of two parts: first factor times the derivative of the second, plus the derivative of the first times the second."
+        ],
+        "completionEvidence": [
+          "State what each term in (fg)' = f'g + fg' represents.",
+          "Recognize the product rule as the correct rule for differentiating a product of two functions."
+        ],
+        "evidenceMap": [
+          {
+            "essentialIdea": "The derivative of a product is the sum of two parts: first factor times the derivative of the second, plus the derivative of the first times the second.",
+            "activityConcept": "Meaning and structure of (fg)' = f'g + fg'"
+          }
+        ],
+        "deferredContent": []
+      },
+      "methodBriefing": {
+        "learningMode": "learn",
+        "taskType": "problem_solving",
+        "methodId": "worked_example_fading",
+        "name": "Worked Examples",
+        "what": "Study one complete model of the product rule, then answer a reduced-support question, then a fully independent check.",
+        "why": "A complete example lowers load for a new rule and fading support shows whether the learner can use it, not just recognize it.",
+        "how": [
+          "Notice the whole structure first.",
+          "Match each term to its role in the product rule.",
+          "Answer with less support on the next question.",
+          "Finish with an independent check."
+        ],
+        "completion": "You can state the rule\u2019s structure and identify when it applies.",
+        "personalization": [
+          "Use one visible step at a time.",
+          "Keep the big picture visible before the details."
+        ]
+      },
+      "sourceGrounding": null,
+      "activities": [
+        {
+          "topicId": "2cda92e1-a0c6-408a-9a25-7c212b942490",
+          "methodPhase": "model",
+          "estimatedMinutes": 4,
+          "requiredForCompletion": true,
+          "label": "Product rule structure",
+          "title": "Product rule structure",
+          "body": "Study the rule pattern and its meaning. Then answer the check on the next screen.",
+          "teaching": null,
+          "lessonBrief": {
+            "version": 1,
+            "topicIds": [
+              "2cda92e1-a0c6-408a-9a25-7c212b942490"
+            ],
+            "essentialIdeas": [
+              "The derivative of a product is the sum of two parts: first factor times the derivative of the second, plus the derivative of the first times the second."
+            ],
+            "sourceChunks": [],
+            "knowledgeSource": "model_knowledge",
+            "evidenceContext": {
+              "confirmedGaps": [],
+              "secureKnowledge": [],
+              "priorMisconceptions": []
+            },
+            "contentRequirements": {
+              "teachEveryEssentialIdea": true,
+              "includeConcreteExample": true,
+              "includeCommonMixup": true,
+              "preservePrerequisiteOrder": true
+            }
+          },
+          "practiceIntent": null,
+          "misconceptionSummary": null,
+          "type": "instruction",
+          "concept": null,
+          "choices": [],
+          "correctAnswer": null,
+          "feedback": null
+        },
+        {
+          "topicId": "2cda92e1-a0c6-408a-9a25-7c212b942490",
+          "methodPhase": "guided_practice",
+          "estimatedMinutes": 4,
+          "requiredForCompletion": true,
+          "label": "Match each term",
+          "title": "Match each term",
+          "body": "Which part means first factor times the derivative of the second?",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "The derivative of a product is the sum of two parts: first factor times the derivative of the second, plus the derivatve",
+          "choices": [],
+          "correctAnswer": "f'g",
+          "feedback": "A complete answer names the term that keeps the first factor and differentiates the second factor. If needed, restate the full pattern from left to right."
+        },
+        {
+          "topicId": "2cda92e1-a0c6-408a-9a25-7c212b942490",
+          "methodPhase": "independent_practice",
+          "estimatedMinutes": 4,
+          "requiredForCompletion": true,
+          "label": "Identify the rule",
+          "title": "Identify the rule",
+          "body": "Pick the correct derivative rule for a product of two functions.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "multiple_choice",
+          "concept": "Meaning and structure of (fg)' = f'g + fg'",
+          "choices": [
+            "(fg)' = f'g + fg'",
+            "(f+g)' = f' + g'",
+            "(fg)' = f'g'",
+            "(fg)' = f + g"
+          ],
+          "correctAnswer": "(fg)' = f'g + fg'",
+          "feedback": "This rule uses two terms, one for each factor taking a turn being differentiated. The other choices confuse product with sum or drop one needed term."
+        }
+      ],
+      "targetAssignments": [
+        {
+          "essentialIdea": "The derivative of a product is the sum of two parts: first factor times the derivative of the second, plus the derivative of the first times the second.",
+          "targetId": "target_1"
+        }
+      ]
+    },
+    {
+      "items": [
+        {
+          "essentialIdea": "The product rule says (fg)' = f'g + fg' for differentiable f and g.",
+          "concept": "product rule",
+          "check": {
+            "title": "State the product rule",
+            "prompt": "What is the derivative of a product fg?",
+            "referenceAnswer": "(fg)' = f'g + fg'. The derivative of a product is the sum of f' times g and f times g'.",
+            "feedback": "It splits into two terms, not separate power rule derivatives."
+          },
+          "independentCheck": {
+            "title": "Differentiate a product",
+            "prompt": "If h(x)=u(x)v(x), what is h'(x)?",
+            "referenceAnswer": "h'(x)=u'(x)v(x)+u(x)v'(x).",
+            "feedback": "Differentiate one factor at a time and add the two results."
+          }
+        }
+      ],
+      "recognitionCheck": {
+        "title": "Recognize the product rule",
+        "prompt": "Which formula gives the derivative of a product fg?",
+        "choices": [
+          "(fg)' = f'g + fg'",
+          "(fg)' = f'g'",
+          "(fg)' = f' + g'",
+          "(fg)' = f'g + f'g"
+        ],
+        "correctAnswer": "(fg)' = f'g + fg'",
+        "feedback": "The product rule adds two terms, one for each factor being differentiated once."
+      }
+    }
+  ]
+}
