@@ -1,0 +1,37 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/answer-evaluation-quality.live.test.ts[2m > [22m[2mlive OpenAI answer evaluation quality[2m > [22m[2m'catches confident biology keyword soup'
+[22m[39m
+YOVA answer evaluation · catches confident biology keyword soup
+Expected · needs_review
+Received · uncertain
+Feedback · YOVA cannot reliably confirm the full key idea from this response alone. Compare it with the reference answer before deciding how your answer should change.
+Human label · The response uses relevant vocabulary but reverses causality and incorrectly describes organisms as choosing mutations.
+
+
+ [31m❯[39m src/evals/answer-evaluation-quality.live.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 2653[2mms[22m[39m
+     [32m✓[39m the requested case exists[32m 1[2mms[22m[39m
+[31m     [31m×[31m 'catches confident biology keyword soup'[39m[33m 1821[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/answer-evaluation-quality.live.test.ts[2m > [22mlive OpenAI answer evaluation quality[2m > [22m'catches confident biology keyword soup'
+[31m[1mAssertionError[22m: expected [ 'needs_review' ] to include 'uncertain'[39m
+[36m [2m❯[22m src/evals/answer-evaluation-quality.live.test.ts:[2m29:45[22m[39m
+    [90m 27|[39m     console[33m.[39m[34minfo[39m([32m`Human label · [39m[36m${[39mevaluationCase[33m.[39mhumanRationale[36m}[39m[32m\n`[39m)[33m;[39m
+    [90m 28|[39m
+    [90m 29|[39m     [34mexpect[39m(evaluationCase[33m.[39mexpectedVerdicts)[33m.[39m[34mtoContain[39m(result[33m.[39mverdict)[33m;[39m
+    [90m   |[39m                                             [31m^[39m
+    [90m 30|[39m     [34mexpect[39m(result[33m.[39mfeedback)[33m.[39mnot[33m.[39m[34mtoMatch[39m(forbiddenClaims)[33m;[39m
+    [90m 31|[39m     [34mexpect[39m(result[33m.[39mfeedback[33m.[39mlength)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m15[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 10:14:13
+[2m   Duration [22m 2.84s[2m (transform 584ms, setup 43ms, import 19ms, tests 2.65s, environment 0ms)[22m
+
+JSON report written to /home/runner/work/yova/yova/test-results/release-observations/release-misconception-1.json

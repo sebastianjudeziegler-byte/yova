@@ -114,7 +114,9 @@ function calibrateAssessment(draft: z.infer<typeof AssessedAnswerSchema>): Answe
   const unclear = required.some(criterion => criterion.status === "unclear");
   const missingIdeas = required.filter(criterion => ["missing", "incorrect"].includes(criterion.status)).map(criterion => criterion.idea).slice(0, 3);
   const matchedIdeas = required.filter(criterion => criterion.status === "established").map(criterion => criterion.idea).slice(0, 4);
-  const verdict = unclear ? "uncertain" : missingIdeas.length > 0 ? "needs_review" : "secure";
+  // With sufficient context, a definite required correction remains useful
+  // even when another part of the answer cannot yet be judged.
+  const verdict = missingIdeas.length > 0 ? "needs_review" : unclear ? "uncertain" : "secure";
   // Repair contradictions without another provider request. In particular, a
   // secure verdict cannot coexist with a claim that optional detail is missing.
   const consistent = draft.verdict === verdict

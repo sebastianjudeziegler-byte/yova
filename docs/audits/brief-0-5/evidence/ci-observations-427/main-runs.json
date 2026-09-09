@@ -1,0 +1,137 @@
+[
+  {
+    "source": "main",
+    "case": "A15",
+    "run": 1,
+    "exitCode": 1,
+    "result": "main-A15-1.json",
+    "capture": "main-A15-1.jsonl",
+    "log": "main-A15-1.txt"
+  },
+  {
+    "source": "main",
+    "case": "A27",
+    "run": 1,
+    "exitCode": 1,
+    "result": "main-A27-1.json",
+    "capture": "main-A27-1.jsonl",
+    "log": "main-A27-1.txt"
+  },
+  {
+    "source": "main",
+    "case": "misconception",
+    "run": 1,
+    "exitCode": 0,
+    "result": "main-misconception-1.json",
+    "capture": "main-misconception-1.jsonl",
+    "log": "main-misconception-1.txt"
+  },
+  {
+    "source": "main",
+    "case": "recall",
+    "run": 1,
+    "exitCode": 0,
+    "result": "main-recall-1.json",
+    "capture": "main-recall-1.jsonl",
+    "log": "main-recall-1.txt"
+  },
+  {
+    "source": "main",
+    "case": "A09",
+    "run": 1,
+    "exitCode": 0,
+    "result": "main-A09-1.json",
+    "capture": "main-A09-1.jsonl",
+    "log": "main-A09-1.txt"
+  },
+  {
+    "source": "main",
+    "case": "A15",
+    "run": 2,
+    "exitCode": 1,
+    "result": "main-A15-2.json",
+    "capture": "main-A15-2.jsonl",
+    "log": "main-A15-2.txt"
+  },
+  {
+    "source": "main",
+    "case": "A27",
+    "run": 2,
+    "exitCode": 0,
+    "result": "main-A27-2.json",
+    "capture": "main-A27-2.jsonl",
+    "log": "main-A27-2.txt"
+  },
+  {
+    "source": "main",
+    "case": "misconception",
+    "run": 2,
+    "exitCode": 0,
+    "result": "main-misconception-2.json",
+    "capture": "main-misconception-2.jsonl",
+    "log": "main-misconception-2.txt"
+  },
+  {
+    "source": "main",
+    "case": "recall",
+    "run": 2,
+    "exitCode": 1,
+    "result": "main-recall-2.json",
+    "capture": "main-recall-2.jsonl",
+    "log": "main-recall-2.txt"
+  },
+  {
+    "source": "main",
+    "case": "A09",
+    "run": 2,
+    "exitCode": 0,
+    "result": "main-A09-2.json",
+    "capture": "main-A09-2.jsonl",
+    "log": "main-A09-2.txt"
+  },
+  {
+    "source": "main",
+    "case": "A15",
+    "run": 3,
+    "exitCode": 1,
+    "result": "main-A15-3.json",
+    "capture": "main-A15-3.jsonl",
+    "log": "main-A15-3.txt"
+  },
+  {
+    "source": "main",
+    "case": "A27",
+    "run": 3,
+    "exitCode": 0,
+    "result": "main-A27-3.json",
+    "capture": "main-A27-3.jsonl",
+    "log": "main-A27-3.txt"
+  },
+  {
+    "source": "main",
+    "case": "misconception",
+    "run": 3,
+    "exitCode": 0,
+    "result": "main-misconception-3.json",
+    "capture": "main-misconception-3.jsonl",
+    "log": "main-misconception-3.txt"
+  },
+  {
+    "source": "main",
+    "case": "recall",
+    "run": 3,
+    "exitCode": 0,
+    "result": "main-recall-3.json",
+    "capture": "main-recall-3.jsonl",
+    "log": "main-recall-3.txt"
+  },
+  {
+    "source": "main",
+    "case": "A09",
+    "run": 3,
+    "exitCode": 0,
+    "result": "main-A09-3.json",
+    "capture": "main-A09-3.jsonl",
+    "log": "main-A09-3.txt"
+  }
+]

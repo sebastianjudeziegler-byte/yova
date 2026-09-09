@@ -1,0 +1,257 @@
+{
+  "draft": {
+    "topicIds": [
+      "6b723919-f823-460e-987d-65a01b953a0c",
+      "6b143343-34a8-4ac5-9c02-4c6449769ec8"
+    ],
+    "rationale": "This session stays narrow and task-led: first retrieve the stage order and glycolysis location from memory, then build and verify the links, then repair only what the attempt exposes.",
+    "coverage": {
+      "focus": "Cellular respiration stage order and glycolysis location.",
+      "essentialIdeas": [
+        "The stages of cellular respiration go in this order: glycolysis, Krebs cycle, electron transport chain.",
+        "Glycolysis occurs in the cytoplasm or cytosol and is the first stage."
+      ],
+      "completionEvidence": [
+        "Attempt each target without notes and correct any exposed gap"
+      ],
+      "evidenceMap": [
+        {
+          "essentialIdea": "The stages of cellular respiration go in this order: glycolysis, Krebs cycle, electron transport chain.",
+          "activityConcept": "Order of cellular respiration stages"
+        },
+        {
+          "essentialIdea": "Glycolysis occurs in the cytoplasm or cytosol and is the first stage.",
+          "activityConcept": "Glycolysis location"
+        }
+      ],
+      "deferredContent": []
+    },
+    "methodBriefing": {
+      "learningMode": "study",
+      "taskType": "conceptual_learning",
+      "methodId": "concept_mapping",
+      "name": "Concept Mapping",
+      "what": "You will first answer from memory, then connect the respiration stages and glycolysis location with explicit relationships, then check the evidence and repair any gap.",
+      "why": "This fits a short conceptual-learning review because the task is to recall linked facts and verify the exact relationships, not to study a full unit.",
+      "how": [
+        "Answer the first check with no notes.",
+        "Build the concept links using the named terms.",
+        "Compare your answer to the reference relationship.",
+        "Fix only the specific gap that showed up."
+      ],
+      "completion": "The session is complete when both required questions are attempted and any revealed gap is corrected.",
+      "personalization": [
+        "YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."
+      ]
+    },
+    "sourceGrounding": null,
+    "activities": [
+      {
+        "topicId": "6b723919-f823-460e-987d-65a01b953a0c",
+        "methodPhase": "retrieve",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "Try",
+        "title": "Stage order from memory",
+        "body": "Without notes, name the stages in order.",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": null,
+        "type": "free_response",
+        "concept": "Order of cellular respiration stages",
+        "choices": [],
+        "correctAnswer": "Glycolysis first, Krebs cycle second, electron transport chain third.",
+        "feedback": "Check the full sequence in order from first to last, not just one stage."
+      },
+      {
+        "topicId": "6b143343-34a8-4ac5-9c02-4c6449769ec8",
+        "methodPhase": "connect",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "Map",
+        "title": "Connect the stage and location",
+        "body": "Link each term to its correct relationship.",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": {
+          "kind": "concept_map",
+          "instructions": "Connect the named concepts using the exact relationship phrase each link needs.",
+          "nodes": [
+            {
+              "id": "glycolysis",
+              "label": "Glycolysis"
+            },
+            {
+              "id": "cytoplasm",
+              "label": "Cytoplasm or cytosol"
+            },
+            {
+              "id": "first_stage",
+              "label": "First stage of cellular respiration"
+            },
+            {
+              "id": "krebs",
+              "label": "Krebs cycle"
+            },
+            {
+              "id": "etc",
+              "label": "Electron transport chain"
+            }
+          ],
+          "connections": [
+            {
+              "fromId": "glycolysis",
+              "toId": "cytoplasm",
+              "prompt": "Where does glycolysis occur?",
+              "expectedRelationship": "occurs in the cytoplasm or cytosol"
+            },
+            {
+              "fromId": "glycolysis",
+              "toId": "first_stage",
+              "prompt": "What is glycolysis in the pathway?",
+              "expectedRelationship": "is the first stage of cellular respiration"
+            },
+            {
+              "fromId": "first_stage",
+              "toId": "krebs",
+              "prompt": "What comes after the first stage?",
+              "expectedRelationship": "is followed by the Krebs cycle"
+            },
+            {
+              "fromId": "krebs",
+              "toId": "etc",
+              "prompt": "What comes after the Krebs cycle?",
+              "expectedRelationship": "is followed by the electron transport chain"
+            }
+          ]
+        },
+        "type": "free_response",
+        "concept": "Glycolysis location",
+        "choices": [],
+        "correctAnswer": "occurs in the cytoplasm or cytosol is the first stage of cellular respiration is followed by the Krebs cycle is followed by the electron transport chain",
+        "feedback": "The key links are location plus order, so the map should show both where glycolysis happens and what stage comes next."
+      },
+      {
+        "topicId": "6b723919-f823-460e-987d-65a01b953a0c",
+        "methodPhase": "evidence_match",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "Check",
+        "title": "Which statement matches the evidence?",
+        "body": "Pick the statement that matches the correct pathway order.",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": null,
+        "type": "multiple_choice",
+        "concept": "Order of cellular respiration stages",
+        "choices": [
+          "Krebs cycle, glycolysis, electron transport chain",
+          "Glycolysis, Krebs cycle, electron transport chain",
+          "Electron transport chain, Krebs cycle, glycolysis",
+          "Glycolysis, electron transport chain, Krebs cycle"
+        ],
+        "correctAnswer": "Glycolysis, Krebs cycle, electron transport chain",
+        "feedback": "The correct pathway keeps the stages in their biological sequence, starting with glycolysis and ending with the electron transport chain."
+      },
+      {
+        "topicId": "6b143343-34a8-4ac5-9c02-4c6449769ec8",
+        "methodPhase": "repair",
+        "estimatedMinutes": 3,
+        "requiredForCompletion": true,
+        "label": "Repair",
+        "title": "Fix the location if needed",
+        "body": "If you missed the location, answer again in one sentence.",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": null,
+        "type": "free_response",
+        "concept": "Glycolysis location",
+        "choices": [],
+        "correctAnswer": "Glycolysis occurs in the cytoplasm or cytosol.",
+        "feedback": "Use the cell location, not the mitochondrion, and keep the answer short and exact."
+      }
+    ]
+  },
+  "model": "gpt-5.4-mini-2026-03-17",
+  "responseId": "resp_00b734a69ea52483016aa192e8934487d09b5d422daaf3c309",
+  "routingContext": {
+    "taskType": "conceptual_learning",
+    "knowledgeStage": "novice"
+  },
+  "supportPlan": {
+    "level": "independent_start",
+    "title": "Start without support",
+    "explanation": "YOVA needs a genuine attempt before showing the answer so the session can establish what is already available from memory.",
+    "evidenceLabel": "Establishing a baseline",
+    "concept": null
+  },
+  "deliveryPolicy": {
+    "schemaVersion": 1,
+    "evidenceStatus": "baseline",
+    "presentation": {
+      "mode": "task_aligned",
+      "label": "Task-led presentation",
+      "instruction": "Follow the selected method's opening phase. When support is needed, present the content in the sequence best supported by the current task."
+    },
+    "repair": {
+      "mode": "task_aligned",
+      "label": "Evidence-led repair",
+      "instruction": "Choose the smallest repair that addresses the demonstrated gap without lowering the target."
+    },
+    "retention": {
+      "mode": "task_aligned",
+      "label": "Task-led evidence",
+      "instruction": "Use the memory or application check that best matches the current task."
+    },
+    "workspace": {
+      "mode": "task_aligned",
+      "label": "Focused workspace",
+      "instruction": "Show one obvious current action with the session path available nearby."
+    },
+    "pacing": {
+      "firstActionMinutes": 4,
+      "maximumActivities": 4,
+      "reason": "There is not enough repeated behavior evidence to change the normal session size."
+    },
+    "activityCadence": {
+      "mode": "task_aligned",
+      "label": "Task-aligned cadence",
+      "instruction": "Change activities only when the selected teaching method and current objective call for it."
+    },
+    "attemptSafety": {
+      "mode": "task_aligned",
+      "label": "Task-aligned attempts",
+      "instruction": "Use the attempt and feedback format best supported by the current task and selected method."
+    },
+    "knowledgeCheck": {
+      "mode": "task_aligned",
+      "label": "Task-aligned knowledge check",
+      "instruction": "Use the knowledge check required by the selected method and current learning objective."
+    },
+    "learnerFacingReasons": [
+      "YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."
+    ],
+    "signalsUsed": []
+  },
+  "generationStats": {
+    "elapsedMs": 6252,
+    "attempts": 1,
+    "firstAttemptPassed": true,
+    "failedValidator": null,
+    "repairAttempted": false,
+    "repairSucceeded": null,
+    "repairReason": "none",
+    "repairDetail": null,
+    "inputTokens": 10359,
+    "cachedInputTokens": 0,
+    "cacheWriteTokens": 0,
+    "outputTokens": 1316,
+    "validationIssueCode": null,
+    "strategy": "full",
+    "stage": "complete"
+  }
+}

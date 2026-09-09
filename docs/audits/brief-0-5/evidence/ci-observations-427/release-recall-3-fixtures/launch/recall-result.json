@@ -1,0 +1,273 @@
+{
+  "draft": {
+    "topicIds": [
+      "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+      "962e831c-13a1-44e1-a46f-23cc6c48a116"
+    ],
+    "rationale": "This session keeps the committed 15 minute Concept Mapping route and uses the current objective as a tight novice check. The work stays on the order and locations of the three cellular respiration stages, with one memory attempt, one map connection, one evidence check, and one repair.",
+    "coverage": {
+      "focus": "Order and locations of glycolysis, the Krebs cycle, and the electron transport chain in cellular respiration.",
+      "essentialIdeas": [
+        "The stages of cellular respiration go glycolysis, then the Krebs cycle, then the electron transport chain.",
+        "Glycolysis happens in the cytoplasm, the Krebs cycle happens in the mitochondrial matrix, and the electron transport chain happens on the inner mitochondrial membrane."
+      ],
+      "completionEvidence": [
+        "Attempt each target without notes and correct any exposed gap"
+      ],
+      "evidenceMap": [
+        {
+          "essentialIdea": "The stages of cellular respiration go glycolysis, then the Krebs cycle, then the electron transport chain.",
+          "activityConcept": "Order of the main stages of cellular respiration"
+        },
+        {
+          "essentialIdea": "Glycolysis happens in the cytoplasm, the Krebs cycle happens in the mitochondrial matrix, and the electron transport chain happens on the inner mitochondrial membrane.",
+          "activityConcept": "Locations of glycolysis, the Krebs cycle, and the electron transport chain"
+        }
+      ],
+      "deferredContent": [
+        "Order of the main stages of cellular respiration"
+      ]
+    },
+    "methodBriefing": {
+      "learningMode": "study",
+      "taskType": "conceptual_learning",
+      "methodId": "concept_mapping",
+      "name": "Concept Mapping",
+      "what": "You will first try to recall the stages and locations from memory, then connect them with exact relationship phrases, check the evidence, and repair any gap.",
+      "why": "This fits a novice conceptual-learning check because it exposes whether the sequence and cell locations are linked correctly, not just recognized separately.",
+      "how": [
+        "Answer the first prompt without notes.",
+        "Build the named concept links using the location of each stage.",
+        "Check the evidence prompt against the completed answer.",
+        "Repair only the part that is wrong, then restate the corrected relation."
+      ],
+      "completion": "The session is complete when you have attempted the required retrieval, made the concept connections, answered the evidence check, and finished the repair attempt if needed.",
+      "personalization": [
+        "YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."
+      ]
+    },
+    "sourceGrounding": null,
+    "activities": [
+      {
+        "topicId": "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+        "methodPhase": "retrieve",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "Try",
+        "title": "Order from memory",
+        "body": "Without notes, name the three main stages in order.",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": null,
+        "type": "free_response",
+        "concept": "Order of the main stages of cellular respiration",
+        "choices": [],
+        "correctAnswer": "Glycolysis, then the Krebs cycle, then the electron transport chain.",
+        "feedback": "Check the sequence, not the locations. The key idea is the flow from glucose breakdown to later ATP production."
+      },
+      {
+        "topicId": "962e831c-13a1-44e1-a46f-23cc6c48a116",
+        "methodPhase": "connect",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "Map",
+        "title": "Connect each stage to its location",
+        "body": "Link the stages to their cell locations.",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": {
+          "kind": "concept_map",
+          "instructions": "Connect the named concepts with relationship phrases.",
+          "nodes": [
+            {
+              "id": "glycolysis",
+              "label": "Glycolysis"
+            },
+            {
+              "id": "krebs",
+              "label": "Krebs cycle"
+            },
+            {
+              "id": "etc",
+              "label": "Electron transport chain"
+            },
+            {
+              "id": "cytoplasm",
+              "label": "Cytoplasm"
+            },
+            {
+              "id": "matrix",
+              "label": "Mitochondrial matrix"
+            },
+            {
+              "id": "inner_membrane",
+              "label": "Inner mitochondrial membrane"
+            }
+          ],
+          "connections": [
+            {
+              "fromId": "glycolysis",
+              "toId": "cytoplasm",
+              "prompt": "Where does glycolysis happen?",
+              "expectedRelationship": "Glycolysis happens in the cytoplasm."
+            },
+            {
+              "fromId": "krebs",
+              "toId": "matrix",
+              "prompt": "Where does the Krebs cycle happen?",
+              "expectedRelationship": "The Krebs cycle happens in the mitochondrial matrix."
+            },
+            {
+              "fromId": "etc",
+              "toId": "inner_membrane",
+              "prompt": "Where does the electron transport chain happen?",
+              "expectedRelationship": "The electron transport chain happens on the inner mitochondrial membrane."
+            }
+          ]
+        },
+        "type": "free_response",
+        "concept": "Locations of glycolysis, the Krebs cycle, and the electron transport chain",
+        "choices": [],
+        "correctAnswer": "Glycolysis happens in the cytoplasm. The Krebs cycle happens in the mitochondrial matrix. The electron transport chain happens on the inner mitochondrial membrane.",
+        "feedback": "Use exact location phrases for each stage. The decisive link is stage plus where it occurs inside the cell."
+      },
+      {
+        "topicId": "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+        "methodPhase": "evidence_match",
+        "estimatedMinutes": 3,
+        "requiredForCompletion": true,
+        "label": "Check",
+        "title": "Match the evidence",
+        "body": "Which claim matches the required retrieval evidence for this session?",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": null,
+        "type": "multiple_choice",
+        "concept": "Order of the main stages of cellular respiration",
+        "choices": [
+          "Say the three stages in order from memory.",
+          "Name only where glycolysis happens.",
+          "Explain why mitochondria make ATP.",
+          "List the reactants of glycolysis."
+        ],
+        "correctAnswer": "Say the three stages in order from memory.",
+        "feedback": "The completion evidence is a closed-note recall of the sequence, so the correct choice must name the stages in order rather than only identify one stage."
+      },
+      {
+        "topicId": null,
+        "methodPhase": "repair",
+        "estimatedMinutes": 2,
+        "requiredForCompletion": true,
+        "label": "Repair",
+        "title": "Fix one gap",
+        "body": "If any part was off, rewrite just the corrected stage or location.",
+        "teaching": {
+          "keyIdea": "Repair should target only the exposed gap.",
+          "explanation": "If the order was wrong, correct only the sequence. If a location was wrong, correct only that stage-location pair. Keep the rest unchanged so the final answer shows the repaired link clearly.",
+          "example": {
+            "setup": "A learner says the Krebs cycle comes before glycolysis.",
+            "steps": [
+              "Identify the wrong relationship.",
+              "Replace it with glycolysis first, then the Krebs cycle, then the electron transport chain.",
+              "Keep the location claims the same if they were already correct."
+            ],
+            "takeaway": "Repair the specific error, not the whole topic."
+          },
+          "commonMistake": {
+            "mistake": "Changing every part of the answer after one miss.",
+            "correction": "Keep the correct parts and fix only the broken link or stage."
+          }
+        },
+        "practiceIntent": null,
+        "misconceptionSummary": null,
+        "methodRuntime": null,
+        "type": "instruction",
+        "concept": null,
+        "choices": [],
+        "correctAnswer": null,
+        "feedback": null
+      }
+    ]
+  },
+  "model": "gpt-5.4-mini-2026-03-17",
+  "responseId": "resp_04b188afbbbaf7b0016aa194975eb087d0a7e22055f0f32d89",
+  "routingContext": {
+    "taskType": "conceptual_learning",
+    "knowledgeStage": "novice"
+  },
+  "supportPlan": {
+    "level": "independent_start",
+    "title": "Start without support",
+    "explanation": "YOVA needs a genuine attempt before showing the answer so the session can establish what is already available from memory.",
+    "evidenceLabel": "Establishing a baseline",
+    "concept": null
+  },
+  "deliveryPolicy": {
+    "schemaVersion": 1,
+    "evidenceStatus": "baseline",
+    "presentation": {
+      "mode": "task_aligned",
+      "label": "Task-led presentation",
+      "instruction": "Follow the selected method's opening phase. When support is needed, present the content in the sequence best supported by the current task."
+    },
+    "repair": {
+      "mode": "task_aligned",
+      "label": "Evidence-led repair",
+      "instruction": "Choose the smallest repair that addresses the demonstrated gap without lowering the target."
+    },
+    "retention": {
+      "mode": "task_aligned",
+      "label": "Task-led evidence",
+      "instruction": "Use the memory or application check that best matches the current task."
+    },
+    "workspace": {
+      "mode": "task_aligned",
+      "label": "Focused workspace",
+      "instruction": "Show one obvious current action with the session path available nearby."
+    },
+    "pacing": {
+      "firstActionMinutes": 4,
+      "maximumActivities": 4,
+      "reason": "There is not enough repeated behavior evidence to change the normal session size."
+    },
+    "activityCadence": {
+      "mode": "task_aligned",
+      "label": "Task-aligned cadence",
+      "instruction": "Change activities only when the selected teaching method and current objective call for it."
+    },
+    "attemptSafety": {
+      "mode": "task_aligned",
+      "label": "Task-aligned attempts",
+      "instruction": "Use the attempt and feedback format best supported by the current task and selected method."
+    },
+    "knowledgeCheck": {
+      "mode": "task_aligned",
+      "label": "Task-aligned knowledge check",
+      "instruction": "Use the knowledge check required by the selected method and current learning objective."
+    },
+    "learnerFacingReasons": [
+      "YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."
+    ],
+    "signalsUsed": []
+  },
+  "generationStats": {
+    "elapsedMs": 7306,
+    "attempts": 1,
+    "firstAttemptPassed": true,
+    "failedValidator": null,
+    "repairAttempted": false,
+    "repairSucceeded": null,
+    "repairReason": "none",
+    "repairDetail": null,
+    "inputTokens": 10465,
+    "cachedInputTokens": 5888,
+    "cacheWriteTokens": 0,
+    "outputTokens": 1483,
+    "validationIssueCode": null,
+    "strategy": "full",
+    "stage": "complete"
+  }
+}

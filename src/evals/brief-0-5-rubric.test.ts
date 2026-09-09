@@ -1,9 +1,36 @@
 import { expect, it } from "vitest";
 import captures from "./brief-0-5-rubric-captures.json";
+import productForm from "./brief-0-5-product-form-capture.json";
 import { evaluateSessionDraft } from "./session-rubric";
 import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 import { StreamedGeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 import type { SessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
+
+it("counts the captured product-of-functions prerequisite as mathematical teaching", () => {
+  const draft = StreamedGeneratedSessionDraftSchema.parse(productForm.draft);
+  const result = evaluateSessionDraft(draft, productForm.context as SessionGenerationContext,
+    "problem_solving", [], productForm.deliveryPolicy as SessionDeliveryPolicy);
+  expect(result.checks.find(check => check.id === "task_alignment")?.passed).toBe(true);
+  expect(draft.coverage.essentialIdeas.join(" ")).toContain("two function factors multiplied together");
+  expect(draft.activities.find(activity => activity.type === "multiple_choice")?.correctAnswer).toBe("Two function factors are multiplied together.");
+});
+
+it("does not count unrelated prose as mathematical teaching even with a mathematical concept label", () => {
+  const draft = StreamedGeneratedSessionDraftSchema.parse(productForm.draft);
+  const unrelated = "Photosynthesis converts sunlight into chemical energy inside chloroplasts.";
+  for (const activity of draft.activities) {
+    activity.label = "Learn";
+    activity.title = unrelated;
+    activity.body = unrelated;
+    activity.concept = "Product of two functions";
+    activity.correctAnswer = activity.correctAnswer ? unrelated : null;
+    activity.feedback = activity.feedback ? unrelated : null;
+    activity.choices = activity.choices.map(() => unrelated);
+    if (activity.lessonBrief) activity.lessonBrief.essentialIdeas = [unrelated];
+  }
+  const result = evaluateSessionDraft(draft, productForm.context as SessionGenerationContext, "problem_solving");
+  expect(result.checks.find(check => check.id === "task_alignment")?.passed).toBe(false);
+});
 
 it.each(["product", "javascript"] as const)("scores captured %s learner content against its current session contract", name => {
   const capture = captures[name];

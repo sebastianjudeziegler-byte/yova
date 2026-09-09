@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import captures from "./__fixtures__/brief-0-5-validator-captures.json";
 import additionCapture from "./__fixtures__/brief-0-5-addition-capture.json";
+import equationCapture from "./__fixtures__/brief-0-5-equation-capture.json";
 import type { SessionGenerationContext } from "./session-generator";
 import { StreamedGeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 import { lessonIdeaSharesTargetSubject } from "@/lib/session-generation/lesson-brief";
@@ -20,6 +21,16 @@ function supply(outputs: unknown[]) {
 
 describe("Brief 0.5 preserved subject and notation boundaries", () => {
   beforeEach(() => parse.mockReset());
+
+  it("delivers the captured complete symbolic equation without requesting a replacement lesson", async () => {
+    supply(equationCapture.outputs);
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(equationCapture.context as SessionGenerationContext);
+    expect(result.draft.coverage.essentialIdeas).toEqual(["(fg)' = f'g + fg'"]);
+    expect(result.draft.activities.find(activity => activity.type === "multiple_choice")?.correctAnswer).toBe("A product of two functions");
+    expect(result.generationStats.attempts).toBe(1);
+    expect(parse).toHaveBeenCalledTimes(1);
+  });
 
   it("delivers the captured membrane claims and their typed checks without lending the transport target", async () => {
     supply(captures.membrane.outputs);

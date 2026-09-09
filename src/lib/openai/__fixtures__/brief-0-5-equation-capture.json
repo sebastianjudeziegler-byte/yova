@@ -1,0 +1,360 @@
+{
+  "source": "CI 34381102335 release-A15-2; unchanged normal response and generation context",
+  "context": {
+    "sessionArchitectureVersion": "streamed_teaching_v1",
+    "learningGoal": {
+      "title": "Use the Product Rule Independently",
+      "topic": "Calculus product rule",
+      "kind": "skill",
+      "deadline": null,
+      "sourceMode": "yova_generated",
+      "studyMode": "inside_yova",
+      "learningIntent": "learn"
+    },
+    "planRationale": "This problem-solving plan starts with one complete example because the product rule is new, while using the familiar power rule within each derivative. Four short sessions fit the available 15-minute windows. Guidance fades from explicit steps to independent selection, application, and correction.",
+    "knowledgeTopics": [
+      {
+        "id": "1eadff93-6701-4bb8-bd91-f69e9d29ae4d",
+        "title": "Understand the Product Rule",
+        "description": "Recognize products of functions and understand the two-term derivative rule through a complete example.",
+        "subtopics": [
+          "Product rule structure: (fg)' = f'g + fg'",
+          "Identifying the two factors in a product"
+        ],
+        "prerequisiteTopicIds": [],
+        "status": "not_started",
+        "initialEvidence": null,
+        "sourceReferences": [],
+        "origin": "ai_generated",
+        "deferred": null,
+        "curriculumReference": null
+      }
+    ],
+    "journey": {
+      "currentSequence": 1,
+      "totalSessions": 4,
+      "previousSessions": [],
+      "nextSessions": [
+        {
+          "sequence": 2,
+          "title": "Apply the Rule With Guidance",
+          "objective": "Use the product rule step by step on a polynomial product.",
+          "contentTargets": [
+            "Substituting f, g, f', and g' into the product rule",
+            "Using the power rule inside a product-rule solution"
+          ]
+        },
+        {
+          "sequence": 3,
+          "title": "Use the Rule Independently",
+          "objective": "Choose and apply the product rule without step prompts.",
+          "contentTargets": [
+            "Independent product-rule setup and calculation"
+          ]
+        },
+        {
+          "sequence": 4,
+          "title": "Check and Repair Product-Rule Use",
+          "objective": "Demonstrate reliable rule selection and correct common setup errors.",
+          "contentTargets": [
+            "Distinguishing product-rule problems from power-rule problems",
+            "Detecting missing or incorrectly differentiated terms"
+          ]
+        }
+      ]
+    },
+    "session": {
+      "title": "Understand the Product Rule",
+      "objective": "Recognize products of functions and understand the two-term derivative rule through a complete example.",
+      "method": "Feynman Technique",
+      "methodReason": "Connecting steps, causes, and prior knowledge can expose shallow understanding and build a more useful mental model. YOVA selected it because this session is conceptual learning work.",
+      "estimatedMinutes": 15,
+      "learningMode": "learn",
+      "topicIds": [
+        "1eadff93-6701-4bb8-bd91-f69e9d29ae4d"
+      ],
+      "contentTargets": [
+        "Product rule structure: (fg)' = f'g + fg'",
+        "Identifying the two factors in a product"
+      ],
+      "completionEvidence": [
+        "Explain why differentiating a product produces two terms",
+        "Classify a given expression as requiring or not requiring the product rule"
+      ],
+      "reviewConcept": null,
+      "reviewType": null
+    },
+    "learnerProfile": {
+      "commonBlocker": null,
+      "guidancePreference": null,
+      "explanationPreference": "A concrete example first",
+      "focusFrequency": null,
+      "startingPattern": null,
+      "primaryImprovementGoal": null,
+      "functionalSupportNeed": null,
+      "processingPreference": "The big picture before the details",
+      "memoryChallenge": null,
+      "supportPreference": null,
+      "workspacePreference": "Show one step at a time",
+      "freeformContext": "The learner wants one complete example before trying a similar problem, prefers one visible step at a time, and often studies in 15-minute windows.",
+      "observationCorrection": null
+    },
+    "recentResults": [],
+    "recentInterruptions": [],
+    "conceptSignals": [],
+    "scaffoldSignals": [],
+    "topicCalibrationSignals": [],
+    "personalization": {
+      "decisions": [
+        {
+          "id": "decision:method_delivery:presentation:overview_first",
+          "artifact": "method_delivery",
+          "setting": "presentation",
+          "value": "overview_first",
+          "title": "Big picture first",
+          "explanation": "Show the overall relationship before the details.",
+          "signalIds": [
+            "signal:processing_entry"
+          ],
+          "evidenceLabel": "You told YOVA",
+          "methodCandidates": [],
+          "experimental": false
+        },
+        {
+          "id": "decision:workspace:layout:one_step",
+          "artifact": "workspace",
+          "setting": "layout",
+          "value": "one_step",
+          "title": "One step at a time",
+          "explanation": "Keep the current action prominent and make the full path optional.",
+          "signalIds": [
+            "signal:workspace_preference"
+          ],
+          "evidenceLabel": "You told YOVA",
+          "methodCandidates": [],
+          "experimental": false
+        }
+      ],
+      "canonicalProfile": {
+        "schemaVersion": "canonical_learner_profile_v1",
+        "questionnaireVersion": "canonical_profile_questionnaire_v1",
+        "signals": [
+          {
+            "signalId": "unfamiliar_entry",
+            "value": "big_picture",
+            "source": "legacy_deep_profile",
+            "sourceQuestionId": "deep_profile:q1",
+            "provenance": "compatible_migration"
+          },
+          {
+            "signalId": "workspace_structure",
+            "value": "one_step",
+            "source": "legacy_deep_profile",
+            "sourceQuestionId": "deep_profile:q4",
+            "provenance": "compatible_migration"
+          }
+        ]
+      },
+      "methodTie": {
+        "state": {
+          "controls": {
+            "experiments": false
+          },
+          "activeExperiment": null,
+          "experimentHistory": []
+        },
+        "signals": [
+          {
+            "id": "signal:processing_entry",
+            "key": "processing_entry",
+            "title": "How teaching begins",
+            "code": "big_picture",
+            "evidenceLabel": "You told YOVA",
+            "paused": false
+          },
+          {
+            "id": "signal:workspace_preference",
+            "key": "workspace_preference",
+            "title": "Preferred session view",
+            "code": "one_step",
+            "evidenceLabel": "You told YOVA",
+            "paused": false
+          }
+        ]
+      }
+    },
+    "materials": []
+  },
+  "outputs": [
+    {
+      "topicIds": [
+        "1eadff93-6701-4bb8-bd91-f69e9d29ae4d"
+      ],
+      "rationale": "One concise product-rule claim is enough for this novice first session. The sequence teaches the rule, checks recall with free response, repairs the gap, and ends with independent explanation plus one recognition check.",
+      "coverage": {
+        "focus": "Product rule structure",
+        "essentialIdeas": [
+          "(fg)' = f'g + fg'"
+        ],
+        "completionEvidence": [
+          "State the product rule from memory",
+          "Explain the two-term structure in plain language",
+          "Recognize when the product rule applies"
+        ],
+        "evidenceMap": [
+          {
+            "essentialIdea": "(fg)' = f'g + fg'",
+            "activityConcept": "(fg)' = f'g + fg'"
+          }
+        ],
+        "deferredContent": [
+          "Identifying the two factors in a product"
+        ]
+      },
+      "methodBriefing": {
+        "learningMode": "learn",
+        "taskType": "conceptual_learning",
+        "methodId": "self_explanation",
+        "name": "Feynman Technique",
+        "what": "Study one accurate model, explain it in your own words, repair any gap, then explain it again.",
+        "why": "It builds a clear mental model before independent use.",
+        "how": [
+          "Read the model carefully once.",
+          "Say the rule in plain language from memory.",
+          "Compare your explanation with the model and fix missing parts.",
+          "Explain it again without copying the wording."
+        ],
+        "completion": "You can state the rule accurately and explain the two-term structure clearly.",
+        "personalization": [
+          "Use the concrete example first.",
+          "Keep one visible step at a time."
+        ]
+      },
+      "sourceGrounding": null,
+      "activities": [
+        {
+          "topicId": "1eadff93-6701-4bb8-bd91-f69e9d29ae4d",
+          "methodPhase": "model",
+          "estimatedMinutes": 4,
+          "requiredForCompletion": true,
+          "label": "Product rule structure",
+          "title": "What the product rule says",
+          "body": "Read the model and watch the example structure.",
+          "teaching": null,
+          "lessonBrief": {
+            "version": 1,
+            "topicIds": [
+              "1eadff93-6701-4bb8-bd91-f69e9d29ae4d"
+            ],
+            "essentialIdeas": [
+              "(fg)' = f'g + fg'"
+            ],
+            "sourceChunks": [],
+            "knowledgeSource": "model_knowledge",
+            "evidenceContext": {
+              "confirmedGaps": [],
+              "secureKnowledge": [],
+              "priorMisconceptions": []
+            },
+            "contentRequirements": {
+              "teachEveryEssentialIdea": true,
+              "includeConcreteExample": true,
+              "includeCommonMixup": true,
+              "preservePrerequisiteOrder": true
+            }
+          },
+          "practiceIntent": null,
+          "misconceptionSummary": null,
+          "type": "instruction",
+          "concept": null,
+          "choices": [],
+          "correctAnswer": null,
+          "feedback": null
+        },
+        {
+          "topicId": "1eadff93-6701-4bb8-bd91-f69e9d29ae4d",
+          "methodPhase": "explain",
+          "estimatedMinutes": 3,
+          "requiredForCompletion": true,
+          "label": "Say the rule aloud",
+          "title": "Explain the rule in your words",
+          "body": "Write the rule from memory in one or two sentences.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "(fg)' = f'g + fg'",
+          "choices": [],
+          "correctAnswer": "The derivative of a product is the derivative of the first factor times the second, plus the first factor times the derivative of the second.",
+          "feedback": "A complete answer states the two-term structure and the plus sign between the terms."
+        },
+        {
+          "topicId": "1eadff93-6701-4bb8-bd91-f69e9d29ae4d",
+          "methodPhase": "repair",
+          "estimatedMinutes": 3,
+          "requiredForCompletion": true,
+          "label": "Fix the missing part",
+          "title": "Repair the rule",
+          "body": "Revise your answer if any part was missing or out of order.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "supported_recheck",
+          "misconceptionSummary": "The rule is just the derivative of one factor times the other factor.",
+          "type": "free_response",
+          "concept": "(fg)' = f'g + fg'",
+          "choices": [],
+          "correctAnswer": "The product rule is (fg)' = f'g + fg', so both factors stay in the answer and each factor gets differentiated once.",
+          "feedback": "The repair is to include both terms, not just one derivative times one original factor."
+        },
+        {
+          "topicId": "1eadff93-6701-4bb8-bd91-f69e9d29ae4d",
+          "methodPhase": "reexplain",
+          "estimatedMinutes": 3,
+          "requiredForCompletion": true,
+          "label": "Explain it again",
+          "title": "Explain it again without copying",
+          "body": "Say the rule again in plain language.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "independent_transfer",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "(fg)' = f'g + fg'",
+          "choices": [],
+          "correctAnswer": "When two functions are multiplied, the derivative is the first derivative times the second, plus the first times the second derivative.",
+          "feedback": "This shows the rule in plain language without relying on the exact formula wording."
+        },
+        {
+          "topicId": "1eadff93-6701-4bb8-bd91-f69e9d29ae4d",
+          "methodPhase": "transfer",
+          "estimatedMinutes": 2,
+          "requiredForCompletion": true,
+          "label": "Recognize the rule",
+          "title": "Which expressions need it?",
+          "body": "Choose the option that needs the product rule.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "multiple_choice",
+          "concept": "(fg)' = f'g + fg'",
+          "choices": [
+            "A product of two functions",
+            "A single polynomial with no multiplication of functions",
+            "A constant number",
+            "A quotient of two functions"
+          ],
+          "correctAnswer": "A product of two functions",
+          "feedback": "The product rule applies when two functions are multiplied, not for a single polynomial, a constant, or a quotient."
+        }
+      ],
+      "targetAssignments": [
+        {
+          "essentialIdea": "(fg)' = f'g + fg'",
+          "targetId": "target_1"
+        }
+      ]
+    }
+  ]
+}

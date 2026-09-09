@@ -1,22 +1,16 @@
-name: YOVA quality — focused release diagnosis
-
+name: YOVA quality — release boundary red
 on:
   pull_request:
   push:
     branches: [main]
-
 concurrency:
   group: yova-quality-${{ github.ref }}
   cancel-in-progress: true
-
-# Temporary capture only. Restore the complete quality workflow before merge.
+# Temporary red/green evidence only. Restore the full gate before merge.
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
-    env:
-      TZ: America/Los_Angeles
-      DO_NOT_TRACK: "1"
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -28,52 +22,21 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Prepare pass-through capture
+      - name: Verify mixed-criterion grader green
         run: |
-          mkdir -p tmp/brief-0-5 test-results/release-observations
-          cp docs/audits/brief-0-5/evidence/harness/ci-capture.ts.txt tmp/brief-0-5/capture.ts
-          cp docs/audits/brief-0-5/evidence/harness/vitest.config.mts.txt tmp/release-capture.config.mts
-          cp docs/audits/brief-0-5/evidence/harness/new-observations.py.txt tmp/new-observations.py
-          cp -a src/lib /tmp/yova-release-lib
-          cp src/evals/session-rubric.ts /tmp/yova-release-session-rubric.ts
-          cp src/evals/plan-rubric.ts /tmp/yova-release-plan-rubric.ts
-      - name: Establish mixed-criterion grader red with uncertainty negatives
+          mkdir -p test-results/release-boundaries
+          pnpm exec vitest run src/lib/openai/answer-evaluator.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-boundaries/grader-green.json
+      - name: Establish equation, allocation and rubric red with negatives
+        if: ${{ !cancelled() }}
         run: |
           result=0
-          pnpm exec vitest run src/lib/openai/answer-evaluator.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-observations/grader-red.json || result=$?
+          pnpm exec vitest run src/lib/session-generation/lesson-brief.test.ts src/lib/openai/streamed-validator-calibration.test.ts src/evals/brief-0-5-rubric.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-boundaries/validator-red.json || result=$?
           test "$result" -eq 1
-          node -e 'const r=require("./test-results/release-observations/grader-red.json"); if(r.numFailedTests !== 3 || r.numPassedTests < 5) process.exit(1)'
-      - name: Capture the five observations on unchanged main
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          git fetch origin e03a082659f51172c0b06bf84daffdd5599ac773 d108e890e3f64e4393f617fe821ac0eb3b7b3c8e
-          mkdir -p /tmp/yova-main-source
-          git archive e03a082659f51172c0b06bf84daffdd5599ac773 src/lib | tar -x -C /tmp/yova-main-source
-          rm -rf src/lib
-          cp -a /tmp/yova-main-source/src/lib src/lib
-          git show d108e890e3f64e4393f617fe821ac0eb3b7b3c8e:src/evals/session-rubric.ts > src/evals/session-rubric.ts
-          git show d108e890e3f64e4393f617fe821ac0eb3b7b3c8e:src/evals/plan-rubric.ts > src/evals/plan-rubric.ts
-          git diff --exit-code e03a082659f51172c0b06bf84daffdd5599ac773 -- src/lib
-          python3 tmp/new-observations.py main
-      - name: Restore release and capture the same five observations
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          rm -rf src/lib
-          cp -a /tmp/yova-release-lib src/lib
-          cp /tmp/yova-release-session-rubric.ts src/evals/session-rubric.ts
-          cp /tmp/yova-release-plan-rubric.ts src/evals/plan-rubric.ts
-          git diff --exit-code HEAD -- src/lib src/evals/session-rubric.ts src/evals/plan-rubric.ts
-          python3 tmp/new-observations.py release
-      - name: Upload capture and comparison evidence
+          node -e 'const r=require("./test-results/release-boundaries/validator-red.json"); if(r.numFailedTests !== 7 || r.numPassedTests < 30) process.exit(1)'
+      - name: Upload per-test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: release-observations-${{ github.run_id }}
-          path: test-results/release-observations
+          name: release-boundaries-${{ github.run_id }}
+          path: test-results/release-boundaries
           retention-days: 30

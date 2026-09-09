@@ -1,0 +1,54 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstderr[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'recall'
+[22m[39mrecall SessionGenerationFailure: OpenAI did not return a complete, safe guided session after the bounded repair attempts. concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.
+    at generateProductionSessionWithOpenAI [90m(/home/runner/work/yova/yova/[39msrc/lib/openai/session-generation-strategy.ts:100:13[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90m/home/runner/work/yova/yova/[39mtmp/brief-0-5/capture.ts:26:26 {
+  generationStats: {
+    elapsedMs: [33m14732[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'session_method_fidelity'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mfalse[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m'concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair. Follow-up repair failure: concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.'[39m,
+    inputTokens: [33m20682[39m,
+    cachedInputTokens: [33m11776[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m2643[39m,
+    validationIssueCode: [1mnull[22m,
+    stage: [32m'validation'[39m,
+    cause: [32m'semantic_validation'[39m,
+    strategy: [32m'full'[39m
+  },
+  structuralDiagnostic: [90mundefined[39m
+}
+
+ [31m❯[39m src/evals/launch-session-journeys.live.test.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 18466[2mms[22m[39m
+[31m     [31m×[31m 'recall'[39m[33m 18018[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/launch-session-journeys.live.test.ts[2m > [22mlaunch session journeys with committed recipes[2m > [22m'recall'
+[31m[1mSessionGenerationFailure[22m: OpenAI did not return a complete, safe guided session after the bounded repair attempts. concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.[39m
+[36m [2m❯[22m generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:[2m100:13[22m[39m
+    [90m 98|[39m     [35mif[39m (error [35minstanceof[39m [33mSessionGenerationFailure[39m) {
+    [90m 99|[39m       [35mconst[39m stats [33m=[39m error[33m.[39mgenerationStats[33m;[39m
+    [90m100|[39m       [35mthrow[39m [35mnew[39m [33mSessionGenerationFailure[39m(
+    [90m   |[39m             [31m^[39m
+    [90m101|[39m         error[33m.[39mmessage[33m,[39m
+    [90m102|[39m         {
+[90m [2m❯[22m tmp/brief-0-5/capture.ts:[2m26:26[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m   Start at [22m 10:11:25
+[2m   Duration [22m 19.26s[2m (transform 791ms, setup 43ms, import 624ms, tests 18.47s, environment 0ms)[22m
+
+JSON report written to /home/runner/work/yova/yova/test-results/release-observations/main-recall-2.json
