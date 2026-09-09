@@ -1,3 +1,5 @@
+import { applyPlanRevision } from "@/lib/plan-revision/apply-service";
+import { RevisionConflict } from "@/lib/plan-revision/revision-patch";
 import { deferredTopicSessionFields } from "@/lib/learning/deferred-topic-session";
 import { NextResponse } from "next/server";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
@@ -25,7 +27,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readPlanSchedulePreferences } from "@/lib/scheduling/plan-schedule-preferences";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { PlanRevisionPreviewRequestSchema } from "@/lib/plan-revision/revision-schema";
+import { PlanRevisionPreviewRequestSchema, PlanRevisionApplyRequestSchema } from "@/lib/plan-revision/revision-schema";
 import { previewPlanRevision, PlanRevisionRequestError } from "@/lib/plan-revision/preview-service";
 import { MapDeltaError } from "@/lib/plan-revision/map-delta";
 
@@ -49,12 +51,16 @@ export async function PATCH(request: Request) {
   }
 
   if (body && typeof body === "object" && "action" in body) {
-    const revision = PlanRevisionPreviewRequestSchema.safeParse(body);
+    const revision = body.action === "apply" ? PlanRevisionApplyRequestSchema.safeParse(body) : PlanRevisionPreviewRequestSchema.safeParse(body);
     if (!revision.success) return NextResponse.json({ error: "Review the topic changes and preview controls." }, { status: 422 });
     try {
-      const result = await previewPlanRevision({ input: revision.data, supabase, userId: user?.id ?? null, developmentPreview, now: new Date() });
+      const dependencies = { supabase, userId: user?.id ?? null, developmentPreview, now: new Date() };
+      const result = revision.data.action === "apply"
+        ? await applyPlanRevision({ input: revision.data, ...dependencies })
+        : await previewPlanRevision({ input: revision.data, ...dependencies });
       return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
+      if (error instanceof RevisionConflict) return NextResponse.json({ error: error.message }, { status: 409 });
       if (error instanceof MapDeltaError || error instanceof PlanRevisionRequestError) return NextResponse.json({ error: error.message }, { status: error instanceof PlanRevisionRequestError ? error.status : 422 });
       console.error("Structured plan revision preview failed", error);
       return NextResponse.json({ error: "YOVA could not prepare that change. Your plan has not changed." }, { status: 503 });

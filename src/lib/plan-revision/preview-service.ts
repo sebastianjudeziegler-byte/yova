@@ -1,3 +1,4 @@
+import { loadActiveRevisionContext } from "@/lib/plan-revision/active-context";
 import "server-only";
 import type { z } from "zod";
 import type { LearningPlan } from "@/lib/domain";
@@ -5,7 +6,7 @@ import { PlanActivationRequestSchema, PlanGenerationRequestSchema } from "@/lib/
 import { normalizePlanDraftGenerationContract } from "@/lib/plan-generation/draft-contract";
 import { verifyPlanDraftReceipt } from "@/lib/server/plan-draft-receipt";
 import { issuePlanRevisionProposalReceipt } from "@/lib/plan-revision/proposal-receipt";
-import { PlanRevisionPreviewRequestSchema } from "@/lib/plan-revision/revision-schema";
+import { PlanRevisionPreviewRequestSchema, PlanRevisionProposalSchema } from "@/lib/plan-revision/revision-schema";
 import { buildPlanRevision } from "@/lib/plan-revision/build-plan-revision";
 import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
 import { generateNormalPlanFillWithOpenAI } from "@/lib/openai/normal-plan-fill-generator";
@@ -28,7 +29,8 @@ export async function previewPlanRevision({ input, supabase, userId, development
 }) {
   const context = input.context;
   if (context.kind === "development" && !developmentPreview) throw new PlanRevisionRequestError("A local snapshot cannot authorize a saved plan change.");
-  if (context.kind === "active") throw new PlanRevisionRequestError("The saved revision boundary is not yet available.", 503);
+  const active = context.kind === "active" && supabase && userId ? await loadActiveRevisionContext(supabase, context.planId) : null;
+  if (context.kind === "active" && !active) throw new PlanRevisionRequestError("Sign in before changing a saved plan.", 401);
   let draftReceiptWindow: { issuedAt: string; expiresAt: string } | undefined;
   if (context.kind === "draft" && !developmentPreview) {
     const draft = PlanActivationRequestSchema.parse({ plan: context.plan, generationRequest: context.generationRequest, draftReceipt: context.draftReceipt });
@@ -38,9 +40,9 @@ export async function previewPlanRevision({ input, supabase, userId, development
     if (!verification.ok) throw new PlanRevisionRequestError("This draft no longer matches the signed version. Review a fresh draft.");
     draftReceiptWindow = verification.metadata;
   }
-  const plan = context.plan as LearningPlan;
-  if (context.kind === "development" && (plan.revisionId ?? plan.id) !== context.expectedRevisionId) throw new PlanRevisionRequestError("Review the latest plan revision before changing it.", 409);
-  const request = PlanGenerationRequestSchema.parse(context.generationRequest ?? {
+  const plan = (active?.plan ?? (context.kind !== "active" ? context.plan : null)) as LearningPlan;
+  if (context.kind !== "draft" && (plan.revisionId ?? plan.id) !== context.expectedRevisionId) throw new PlanRevisionRequestError("Review the latest plan revision before changing it.", 409);
+  const request = PlanGenerationRequestSchema.parse(active?.generationRequest ?? (context.kind !== "active" ? context.generationRequest : null) ?? {
     intent: "plan", learningIntent: plan.learningIntent, goal: plan.title.length >= 10 ? plan.title : `Study ${plan.title} in this plan`,
     materialMode: plan.sourceMode === "user_materials" ? "upload" : "none", materials: plan.materials ?? [],
     studyMode: plan.studyMode === "outside_yova" ? "outside" : "inside", deadline: plan.deadline,
@@ -56,7 +58,8 @@ export async function previewPlanRevision({ input, supabase, userId, development
   // never establishes the account's occupied time.
   const rows = supabase && !developmentPreview ? await supabase.from("plans").select("id").eq("user_id", userId!).eq("status", "active") : null;
   if (rows?.error) throw new PlanRevisionRequestError("Your other plans could not be checked. Nothing was changed.", 503);
-  const reserved = rows?.data?.length ? await supabase!.from("plan_sessions").select("scheduled_for,estimated_minutes,status").eq("user_id", userId!).in("plan_id", rows.data.map(row => row.id)).in("status", ["ready", "upcoming"]) : null;
+  const otherPlanIds = (rows?.data ?? []).filter(row => row.id !== plan.id).map(row => row.id);
+  const reserved = otherPlanIds.length ? await supabase!.from("plan_sessions").select("scheduled_for,estimated_minutes,status").eq("user_id", userId!).in("plan_id", otherPlanIds).in("status", ["ready", "upcoming"]) : null;
   if (reserved?.error) throw new PlanRevisionRequestError("Your other study blocks could not be checked. Nothing was changed.", 503);
   const otherReservations = [
     ...input.fixedEvents,
@@ -64,10 +67,10 @@ export async function previewPlanRevision({ input, supabase, userId, development
     ...(reserved?.data ?? []).map(row => ({ startsAt: row.scheduled_for, endsAt: new Date(Date.parse(row.scheduled_for) + row.estimated_minutes * 60_000).toISOString() })),
   ];
   let claimed = false;
-  const proposal = await buildPlanRevision({ plan,
+  const built = await buildPlanRevision({ plan,
     request: { ...request, knowledgeMap: plan.knowledgeMap, profileSummary: authorized.profileSummary ?? request.profileSummary },
     delta: input.delta, controls: input.controls, now, contextKind: context.kind, draftReceiptWindow,
-    protections: [], otherReservations,
+    protections: active?.protections ?? [], otherReservations,
     durationContext: { profileVersion: authorized.profileVersion, profile: rolloutDecision.personalizationEnabled ? authorized.profile : buildAuthorizedNormalDurationProfile([]), recentOutcomes: rolloutDecision.personalizationEnabled ? authorized.recentOutcomes : [] },
     methodContext: { profileVersion: authorized.methodProfileVersion, personalization, observedEvidence: authorized.methodEvidence.observedEvidence, rolloutDecision },
     fill: async fixed => {
@@ -81,6 +84,7 @@ export async function previewPlanRevision({ input, supabase, userId, development
       return (await generateNormalPlanFillWithOpenAI(fixed)).fill;
     },
   });
+  const proposal = PlanRevisionProposalSchema.parse({ ...built, sessionFingerprints: active?.sessionFingerprints ?? {}, fixedEvents: input.fixedEvents });
   const signed = proposal.canApply ? issuePlanRevisionProposalReceipt({ proposal, userId, developmentPreview, now, originalDraftExpiresAt: draftReceiptWindow?.expiresAt }) : null;
   return { status: "preview", proposal, proposalReceipt: signed?.receipt ?? null };
 }

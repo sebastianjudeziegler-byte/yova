@@ -12,7 +12,7 @@ const map: PlanKnowledgeMap = {
   version: 1,
   scopeJudgment: { band: "unit_or_exam", label: "AP Biology foundations", minimumSessions: 8, recommendedSessions: 8, maximumSessions: 8, minimumTeachingSessions: 4, explanation: "Build each foundation separately, then check it in independent practice." },
   topics: [
-    ["Orientation: ATP and cellular energy", "Explain why ATP hydrolysis can provide energy for cellular work."],
+    ["Cellular respiration sequence", "Explain how glycolysis, the Krebs cycle and electron transport contribute to cellular respiration."],
     ["1.1 Water polarity", "Explain water's partial charges and how they cause hydrogen bonding."],
     ["1.2 Hydrogen bonding", "Connect hydrogen bonds to cohesion and water's thermal properties."],
     ["1.3 Carbon and functional groups", "Explain how carbon bonding and functional groups shape biological molecules."],
@@ -45,7 +45,7 @@ async function createAndActivate(page: Page) {
   }
   await page.getByRole("button", { name: "Open YOVA" }).click();
   await page.getByRole("button", { name: /New plan|Build my first plan|Create another plan/ }).first().click();
-  await page.getByPlaceholder(/I have a biology test/).fill("Teach me AP Biology foundations from scratch for my exam in three weeks: ATP, water polarity, hydrogen bonding, carbon and functional groups. I can study Monday, Wednesday and Friday evenings for 60 minutes.");
+  await page.getByPlaceholder(/I have a biology test/).fill("Teach me AP Biology foundations from scratch for my exam in three weeks: cellular respiration, water polarity, hydrogen bonding, carbon and functional groups. I can study Monday, Wednesday and Friday evenings for 60 minutes.");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();

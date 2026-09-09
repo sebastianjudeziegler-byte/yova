@@ -54,6 +54,8 @@ export const PlanRevisionProposalSchema = z.object({
   delta: MapDeltaSchema, controls: RevisionControlsSchema,
   lines: z.array(RevisionLineSchema).max(40), capacity: RevisionCapacitySchema, canApply: z.boolean(),
   issuedAt: z.string().datetime({ offset: true }),
+  sessionFingerprints: z.record(z.string(), z.string()).default({}),
+  fixedEvents: z.array(RevisionFixedEventSchema).max(500).default([]),
   draftReceiptIssuedAt: z.string().datetime({ offset: true }).optional(),
   draftReceiptExpiresAt: z.string().datetime({ offset: true }).optional(),
 }).strict();
