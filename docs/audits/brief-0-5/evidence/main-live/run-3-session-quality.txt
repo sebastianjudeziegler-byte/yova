@@ -1,0 +1,134 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'
+
+YOVA session evaluation · Mapped product-rule and chain-rule first lesson · 90/100
+Generation · gpt-5.4-mini-2026-03-17 · 12.3s · 2 attempts · 6,912 cached input tokens
+Repair trigger · The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Product rule”; “Chain rule”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_1; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.
+instruction      none · Differentiate a product
+free_response    Product rule differentiates a product as f'g+fg' for two functions. · Differentiate a product
+free_response    Chain rule differentiates a composite by multiplying outer and inner derivatives. · Differentiate a composite
+free_response    Product rule differentiates a product as f'g+fg' for two functions. · Repair the first explanation
+free_response    Product rule differentiates a product as f'g+fg' for two functions. · Explain the corrected relationship again
+multiple_choice  Recognition transfer: Chain rule differentiates a composite by multiplying outer and inner derivatives. · Identify the chain rule
+reflection       none · Check today's ideas again later
+
+FAIL  Activity count fits the session (0/10) · 6/5 maximum focused activities for 25 minutes
+PASS  Session requires active learner effort (15/15) · 5 retrieval or knowledge-check activities
+PASS  Questions include usable answers and feedback (15/15) · 5 question activities inspected
+PASS  Activities fit the learning task (15/15) · 6 of 7 activities align with problem solving
+PASS  Session moves from support into practice (10/10) · Checked teaching and question order
+PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+PASS  Known review concepts are addressed (10/10) · No prior review signal
+PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+PASS  Method briefing explains what, why, how, and done (0/0) · self_explanation for conceptual_learning
+PASS  Activities actually execute the named learning method (0/0) · Required self_explanation phases appear in order
+PASS  The session starts with the method's correct first action (0/0) · self_explanation starts with model
+PASS  Required content fits the stated time window (0/0) · 17 required and 26 total minutes inside a 25-minute window
+PASS  Every target idea has required learning evidence (0/0) · 2 essential ideas mapped to 3 required checks
+PASS  Every question includes the context needed to answer (0/0) · 5 self-contained questions inspected
+PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+PASS  Learning sessions teach before they test (0/0) · 1 modeled or streamed teaching activities inspected
+PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 3 learner-facing adjustment explanations inspected
+PASS  The session explains why it is structured this way (5/5) · 218 rationale characters
+PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+
+stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Beginner JavaScript with fading suppo…'
+
+YOVA session evaluation · Beginner JavaScript with fading support · 100/100
+Generation · gpt-5.4-mini-2026-03-17 · 11.4s · 2 attempts · 5,888 cached input tokens
+Repair trigger · The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: none. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. Every distinct active explanatory claim needs its own mapped required knowledge check. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.
+instruction      none · Choose map correctly
+free_response    map transforms each array element and returns a same-length array. · Choose map correctly
+instruction      none · Choose filter correctly
+free_response    filter keeps only elements that satisfy a condition and may shorten the array. · Choose filter correctly
+multiple_choice  Recognition transfer: filter keeps only elements that satisfy a condition and may shorten the array. · Pick the reduce method
+
+PASS  Activity count fits the session (10/10) · 5/5 maximum focused activities for 30 minutes
+PASS  Session requires active learner effort (15/15) · 3 retrieval or knowledge-check activities
+PASS  Questions include usable answers and feedback (15/15) · 3 question activities inspected
+PASS  Activities fit the learning task (15/15) · 5 of 5 activities align with coding
+PASS  Session moves from support into practice (10/10) · Checked teaching and question order
+PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+PASS  Known review concepts are addressed (10/10) · No prior review signal
+PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+PASS  Method briefing explains what, why, how, and done (0/0) · worked_example_fading for programming
+PASS  Activities actually execute the named learning method (0/0) · Required worked_example_fading phases appear in order
+PASS  The session starts with the method's correct first action (0/0) · worked_example_fading starts with model
+PASS  Required content fits the stated time window (0/0) · 30 required and 30 total minutes inside a 30-minute window
+PASS  Every target idea has required learning evidence (0/0) · 2 essential ideas mapped to 3 required checks
+PASS  Every question includes the context needed to answer (0/0) · 3 self-contained questions inspected
+PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+PASS  Learning sessions teach before they test (0/0) · 2 modeled or streamed teaching activities inspected
+PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 1 learner-facing adjustment explanations inspected
+PASS  The session explains why it is structured this way (5/5) · 169 rationale characters
+PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+
+ ❯ src/evals/session-quality.live.test.ts (20 tests | 2 failed | 17 skipped) 36839ms
+     ↓ the requested case exists
+     ↓ 'Biology teaching from learner notes'
+     ↓ 'Bioenergetics multi-target retrieval …'
+     ↓ 'Fifteen-minute temperature and reacti…'
+     ↓ 'Fifteen-minute first product-rule les…'
+     × 'Mapped product-rule and chain-rule fi…' 12327ms
+     ↓ 'Production-shaped derivative-foundati…'
+     ↓ 'World War I teaching for a complete b…'
+     ↓ 'Mapped 45-minute World War I baseline…'
+     ↓ 'Calculus repair after a weak check'
+     ↓ 'Self-contained delayed calculus review'
+     ↓ 'History writing outside YOVA'
+     ✓ 'Beginner JavaScript with fading suppo…'  11367ms
+     ↓ 'General-learning finance application'
+     ↓ 'Fifteen-minute vocabulary review'
+     ↓ 'Startup funding foundations for a new…'
+     ↓ 'History reasoning from a primary-sour…'
+     ↓ 'Literature close reading from a short…'
+     × 'Spanish conversation with supported t…' 12799ms
+     ↓ 'Teaching from a thin biology study gu…'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'
+AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Activity count fits the session",
++ ]
+
+ ❯ src/evals/session-quality.live.test.ts:41:37
+     39|     }
+     40|
+     41|     expect(result.requiredFailures).toEqual([]);
+       |                                     ^
+     42|     expect(result.score).toBeGreaterThanOrEqual(80);
+     43|     if (evaluationCase.expectedGroundingMode) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Spanish conversation with supported t…'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ tmp/brief-0-5/capture.ts:16:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed | 17 skipped (20)
+   Start at  08:25:46
+   Duration  37.04s (transform 295ms, setup 18ms, import 102ms, tests 36.84s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/main-live/run-3-session-quality.json
+
+Exit code: 1

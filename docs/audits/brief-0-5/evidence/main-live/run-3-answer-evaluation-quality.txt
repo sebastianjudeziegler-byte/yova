@@ -1,0 +1,84 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'
+
+YOVA answer evaluation · accepts a correct biology paraphrase
+Expected · secure
+Received · secure
+Feedback · You identified oxygen as the final electron acceptor and explained that electron flow must continue for oxidative phosphorylation to keep producing ATP.
+Human label · The answer states oxygen's essential role and the consequence even though it does not copy the reference wording.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a concise programming explana…'
+
+YOVA answer evaluation · accepts a concise programming explanation
+Expected · secure
+Received · secure
+Feedback · You correctly explained that the base case stops the recursive calls. Your note about preventing stack overflow also shows the purpose of that stopping condition.
+Human label · The response correctly states that the base case terminates recursive calls and prevents unbounded recursion.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'
+
+YOVA answer evaluation · admits uncertainty when the prompt lacks necessary context
+Expected · uncertain
+Received · secure
+Feedback · You correctly linked the rate change to a change in conditions. The response does not name a specific condition, but it does capture the causal idea required here.
+Human label · Neither the prompt nor the reference identifies what process changed, so several interpretations are defensible.
+
+
+ ❯ src/evals/answer-evaluation-quality.live.test.ts (8 tests | 2 failed | 5 skipped) 6612ms
+     ↓ the requested case exists
+     ✓ 'accepts a correct biology paraphrase'  2304ms
+     ↓ 'catches confident biology keyword soup'
+     ↓ 'marks a materially incomplete causal …'
+     ↓ 'accepts equivalent mathematical notat…'
+     ↓ 'does not reward a true statement that…'
+     × 'accepts a concise programming explana…' 1802ms
+     × 'admits uncertainty when the prompt la…' 2109ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a concise programming explana…'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Earlier recursive calls return after the base case",
++ ]
+
+ ❯ src/evals/answer-evaluation-quality.live.test.ts:34:35
+     32|
+     33|     if (result.verdict === "secure") {
+     34|       expect(result.missingIdeas).toEqual([]);
+       |                                   ^
+     35|       expect(result.matchedIdeas.length).toBeGreaterThan(0);
+     36|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'
+AssertionError: expected [ 'uncertain' ] to include 'secure'
+ ❯ src/evals/answer-evaluation-quality.live.test.ts:29:45
+     27|     console.info(`Human label · ${evaluationCase.humanRationale}\n`);
+     28|
+     29|     expect(evaluationCase.expectedVerdicts).toContain(result.verdict);
+       |                                             ^
+     30|     expect(result.feedback).not.toMatch(forbiddenClaims);
+     31|     expect(result.feedback.length).toBeGreaterThanOrEqual(15);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed | 5 skipped (8)
+   Start at  08:25:23
+   Duration  6.72s (transform 279ms, setup 18ms, import 9ms, tests 6.61s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/main-live/run-3-answer-evaluation-quality.json
+
+Exit code: 1

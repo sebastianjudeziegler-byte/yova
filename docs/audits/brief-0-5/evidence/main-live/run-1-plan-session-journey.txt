@@ -1,0 +1,40 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/plan-session-journey.live.test.ts (5 tests | 1 failed | 4 skipped) 40271ms
+     ↓ the requested journey exists
+     × 'One product-rule skill in short sessi…' 40204ms
+     ↓ 'World War I unit guide in short sessi…'
+     ↓ 'Full beginner calculus pathway'
+     ↓ 'History essay using outside sources'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+OpenAIPlanGenerationError: The OpenAI request failed.
+ ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:210:11
+    208|       ? ` The first draft was rejected because: ${lastValidationIssue}`
+    209|       : "";
+    210|     throw new OpenAIPlanGenerationError(
+       |           ^
+    211|       `The OpenAI request failed.${priorIssue}`,
+    212|       "provider_error",
+ ❯ src/evals/plan-session-journey.live.test.ts:31:27
+
+Caused by: Error: Request timed out.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:434:23
+ ❯ Responses.<anonymous> tmp/brief-0-5/capture.ts:19:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { status: undefined, headers: undefined, requestID: undefined, error: undefined, code: undefined, param: undefined }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 skipped (5)
+   Start at  08:21:48
+   Duration  40.71s (transform 398ms, setup 18ms, import 344ms, tests 40.27s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/main-live/run-1-plan-session-journey.json
+
+Exit code: 1

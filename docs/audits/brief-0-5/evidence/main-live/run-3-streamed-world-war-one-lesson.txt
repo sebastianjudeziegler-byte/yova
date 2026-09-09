@@ -1,0 +1,66 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+WWI streamed lesson metrics {
+  skeletonElapsedMs: 19372,
+  skeletonAttempts: 2,
+  lessonElapsedMs: 9832,
+  latencyToFirstTokenMs: 3313,
+  wordCount: 246,
+  inputTokens: 1009,
+  outputTokens: 386
+}
+
+ ❯ src/evals/streamed-world-war-one-lesson.live.test.ts (1 test | 1 failed) 29429ms
+     × delivers substantive teaching from the first generated lesson brief 29227ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+AssertionError: expected '# Alliance Blocs Before 1914\n\n## Th…' to match /Sarajevo|Franz Ferdinand/i
+
+- Expected:
+/Sarajevo|Franz Ferdinand/i
+
++ Received:
+"# Alliance Blocs Before 1914
+
+## The big picture
+
+Before 1914, tensions and alliances divided Europe into two rival blocs. An **alliance** was an agreement through which countries promised one another support, particularly in a conflict. These agreements made governments feel less isolated, but they also connected disputes involving individual countries to wider European rivalries.
+
+The main blocs were:
+
+- **Triple Alliance:** Germany, Austria-Hungary, and Italy
+- **Triple Entente:** Britain, France, and Russia
+
+This division mattered because each major power could expect backing from partners while viewing the opposing bloc as a potential threat. Military planning increasingly reflected this split. For example, Germany faced France in the west and France’s partner Russia in the east, so German leaders prepared for the possibility of war on two fronts.
+
+Existing tensions made the blocs more dangerous. France and Germany were rivals, Russia and Austria-Hungary competed for influence in the Balkans, and Britain was concerned by Germany’s growing power. Alliances linked these separate tensions together, increasing the risk that one crisis could involve several powers.
+
+## A common mix-up
+
+The alliances did **not** mean that every member automatically entered any war under all circumstances. Their terms and political decisions still mattered. Italy, although a member of the Triple Alliance before 1914, did not join Germany and Austria-Hungary when war began in 1914.
+
+So alliances did not single-handedly cause the First World War. They created the divided structure through which an initial conflict could expand into a much larger war."
+
+ ❯ src/evals/streamed-world-war-one-lesson.live.test.ts:95:28
+     93|     expect(lessonResult.wordCount).toBeLessThanOrEqual(lessonBudget.ma…
+     94|     expect(lessonMarkdown).toMatch(/alliance/i);
+     95|     expect(lessonMarkdown).toMatch(/Sarajevo|Franz Ferdinand/i);
+       |                            ^
+     96|     expect(lessonMarkdown).toMatch(/1914/);
+     97|     expect(lessonMarkdown).toMatch(/mobiliz|declaration of war/i);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  08:26:53
+   Duration  29.74s (transform 292ms, setup 19ms, import 213ms, tests 29.43s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/main-live/run-3-streamed-world-war-one-lesson.json
+
+Exit code: 1
