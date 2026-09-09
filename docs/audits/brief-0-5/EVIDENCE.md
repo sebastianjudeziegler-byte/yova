@@ -331,3 +331,110 @@ The incomplete attempt was cancelled and its [raw partial artifacts retained](ev
 Attempt 2 (`102577671749`) reproduced the **same expected and received Google apt hashes** at browser installation. It again skipped unit/lint/build/core/auth; the failed setup is not a product result. After requesting cancellation, the workflow now temporarily moves only a Google-Chrome-only apt source out of the hosted runner's source directory during Playwright library installation, and restores it on exit. Mixed-repository files are rejected rather than modified. Ubuntu sources, the locked Playwright Chromium version, provider keys and all integrity verification remain unchanged. This is a CI environment repair following two failed setup attempts; its green result is pending. No production configuration or local verification is involved.
 
 [Attempt 2 raw artifacts](evidence/ci-full-587-attempt2-unavailable/) preserve the repeated setup failure, unavailable phone checks and partial live output before cancellation. The next commit changes only CI setup and audit evidence; the grader/validator product source remains `a7f3d7a`.
+
+
+## Release decision under the founder's regression rule
+
+Recorded 2026-09-09 after the founder replaced the prior merge rule. **No further local checks or full-gate rerun were performed for this decision.** The last completed full gate is [34370432851](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34370432851), head `2098e66`, 76 cases × 3 samples. Product source subsequently reached `a7f3d7a`; `587f114` and `8f1dbad` change CI/evidence only. The running Chromium/setup follow-up is not a merge prerequisite and was not awaited. The new [release policy](../../RELEASE-POLICY.md) supersedes every historical “merge held until three full passes” statement above.
+
+**Decision: no outstanding observed case-level regression on the release source using the retained full run plus already-completed main/branch and correction captures.** This is not a claim that every failure reason is proven pre-existing. The biology misconception was a real regression at `2098e66` and `427d335`; its captured correction is green in all three current-product samples. A09's original main failures were stale, so they cannot prove its later progression failure pre-existing: corrected main and the later paired branch both passed 3/3, with no intervening legacy progression-code change. Recall's original baseline was 3/3, but fresh main was 2/3, the paired release 3/3, and the later partial phase-order rejection matches main. The separate absent-reference reason remains open. These intermittent observations are retained, not erased or relabeled as fixes.
+
+The table includes **all 76 cases**, a superset of every case that failed in any retained live sample. P = pass, F = semantic/assertion failure, U = unavailable (neither red nor green). Original main expectations, fresh scoped main, and corrected remote main are shown separately. No best-of-three selection: each sample set keeps its order. The [machine-readable comparison](evidence/release-decision/comparison.json) links prior failure observations to raw reports; all original captures remain unchanged. The old transport-affected local report retains wrapper failures whose underlying transport classification was incomplete; its raw totals are not a new semantic baseline.
+
+Sources: [original main classification](../brief-0/evidence/classification.json), [scoped main/branch](evidence/scoped-comparison.json), [last full](evidence/ci-combined-2098/actual-outcomes.md), [paired remote main/branch](evidence/ci-observations-427/), [corrected A07/A28 main](evidence/ci-main-comparison/), [current-product focused green](evidence/ci-renamed-green-a7/). The two incomplete `587f114` attempts are setup unavailable/unfinished, not full results. Pending observations are not counted as semantic failures in this decision.
+
+| Case / test | Main e03a082: original baseline; additional saved samples | Last complete branch 2098e66 | Later saved branch evidence | Release disposition |
+| --- | --- | --- | --- | --- |
+| X02 — launch session journeys with committed recipes > 'calculus' | F/P/P | F/P/P | — | Existing FLAKY quarantine retained. |
+| osmosis — launch session journeys with committed recipes > 'osmosis' | P/P/P; fresh local P/P/F | P/P/P | — | Latest full 3/3. Earlier failure retained; fresh local main P/P/F reproduced intermittent subject rejection. |
+| recall — launch session journeys with committed recipes > 'recall' | P/P/P; remote P/F/P | P/P/F | 427 paired: P/P/P; 587 partial: F (phase order) | FLAKY quarantine. Remote main 2/3, paired branch 3/3. Later partial branch phase-order F matches main; full-run absent-reference reason remains unresolved, not proven pre-existing. |
+| X01 — launch lesson delivery > streams the validated calculus teaching | U/P/P | U/P/P | — | Full-run U is missing dependent calculus fixture, not a provider timeout; two passes. Keep U separate. |
+| launch lesson delivery > streams the validated osmosis teaching | P/P/P | P/P/P | — | Last full P/P/P. |
+| live OpenAI answer evaluation quality > the requested case exists | P/P/P | P/P/P | — | Last full P/P/P. |
+| A01 — live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase' | F/F/F; scoped F/P/P | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| misconception — live OpenAI answer evaluation quality > 'catches confident biology keyword soup' | P/P/P; remote P/P/P | F/P/P | a7 current product: P/P/P | Earlier pass-to-fail regression corrected: captured precedence red/green; current a7 3/3. Retain its full-run F, do not quarantine this correction. |
+| live OpenAI answer evaluation quality > 'marks a materially incomplete causal …' | P/P/P | P/P/P | — | Last full P/P/P. |
+| live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…' | P/P/P | P/P/P | — | Last full P/P/P. |
+| live OpenAI answer evaluation quality > 'does not reward a true statement that…' | P/P/P | P/P/P | — | Last full P/P/P. |
+| A02 — live OpenAI answer evaluation quality > 'accepts a concise programming explana…' | F/F/F; scoped F/F/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A03 — live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…' | F/F/F; scoped F/F/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| live grader calibration across subjects > complete: 'accepts a correct biology paraphrase' | Not in original cohort; pre-change canary F/F/F | P/P/P | — | Last full P/P/P. |
+| live grader calibration across subjects > complete: 'accepts a concise programming explana…' | Not in original cohort; pre-change canary F/F/F | P/P/P | — | Last full P/P/P. |
+| live grader calibration across subjects > complete: 'history: complete-history' | Not in original cohort; pre-change canary P/P/P | P/P/P | — | Last full P/P/P. |
+| live grader calibration across subjects > insufficient: 'biology: underspecified-biology' | Not in original cohort; pre-change canary P/P/P | P/P/P | — | Last full P/P/P. |
+| live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…' | Not in original cohort; pre-change canary P/P/P | P/P/P | — | Last full P/P/P. |
+| live grader calibration across subjects > insufficient: 'history: underspecified-history' | Not in original cohort; pre-change canary P/P/P | P/P/P | — | Last full P/P/P. |
+| live grader calibration across subjects > insufficient: 'biology: missing-context-biology' | Not in original cohort; pre-change canary F/F/F | P/P/P | — | Last full P/P/P. |
+| live grader calibration across subjects > insufficient: 'programming: missing-context-programm…' | Not in original cohort; pre-change canary F/F/F | P/P/P | — | Last full P/P/P. |
+| live grader calibration across subjects > insufficient: 'history: missing-context-history' | Not in original cohort; pre-change canary F/F/F | P/P/P | — | Last full P/P/P. |
+| live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it | P/P/P | P/P/P | — | Last full P/P/P. |
+| live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check | P/P/P | P/P/P | — | Last full P/P/P. |
+| X05 — live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window | F/P/P | P/P/P | — | Existing FLAKY quarantine retained. |
+| A04 — live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly | F/P/F | P/P/P | — | Existing FLAKY quarantine retained. |
+| Brief A real-provider personalization delta > writes two distinct learner plans inside fixed slots using the real provider | Not in original cohort | P/P/P | — | Last full P/P/P. |
+| A05 — live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP | F/F/F | P/U/P | — | Unavailable sample retained; no new semantic failure in last full run. |
+| live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic | P/P/P | P/P/P | — | Last full P/P/P. |
+| live OpenAI plan quality > the requested case exists | P/P/P | P/P/P | — | Last full P/P/P. |
+| A06 — live OpenAI plan quality > 'Biology test with learner notes' | F/F/F | P/P/U | — | Unavailable sample retained; no new semantic failure in last full run. |
+| A07 — live OpenAI plan quality > 'Calculus problem-solving plan' | F/F/F; corrected remote F/P/P | U/P/P | — | Latest full U/P/P; earlier capacity F reproduced on corrected main F/P/P. No capacity fix; provider U remains neither red nor green. |
+| live OpenAI plan quality > 'Calculus unit with mixed placement ev…' | P/P/P | P/P/P | — | Last full P/P/P. |
+| A08 — live OpenAI plan quality > 'One product-rule skill in short sessi…' | U/F/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A09 — live OpenAI plan quality > 'World War I unit guide in short sessi…' | F/F/F; remote P/P/P | P/F/P | 427 paired: P/P/P | FLAKY quarantine. Original main failures were stale expectations. Corrected main AND later paired branch 3/3; prior branch progression failures remain open. No progression-code change. |
+| A10 — live OpenAI plan quality > 'Full beginner calculus pathway' | F/F/F | P/U/P | — | Unavailable sample retained; no new semantic failure in last full run. |
+| A11 — live OpenAI plan quality > 'General-learning startup funding path…' | F/F/F | P/U/P | — | Unavailable sample retained; no new semantic failure in last full run. |
+| A12 — live OpenAI plan quality > 'History essay using outside sources' | U/U/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A13 — live OpenAI plan quality > 'Beginner JavaScript practice' | F/F/U | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A14 — live OpenAI plan quality > 'General-learning finance pathway' | F/F/F; fresh local P/P/P | P/P/P | — | Latest full 3/3; earlier progression F retained. Fresh local main 3/3; no claim that the earlier failure was fixed. |
+| live plan-to-session journeys > the requested journey exists | P/P/P | P/P/P | — | Last full P/P/P. |
+| A15 — live plan-to-session journeys > 'One product-rule skill in short sessi…' | F/U/F; scoped U/F/F; remote F/F/F | P/F/P | a7 current product: P/P/P | FLAKY quarantine: last full 2/3; current a7 focused 3/3. Main scoped U/F/F, later F/F/F. Do not claim a new full-suite 3/3. |
+| A16 — live plan-to-session journeys > 'World War I unit guide in short sessi…' | F/F/F | P/F/F | — | FLAKY quarantine, 1/3 versus original main 0/3. Legacy source mapping/task failure deferred; no material fix. |
+| A17 — live plan-to-session journeys > 'Full beginner calculus pathway' | F/F/F | P/F/P | — | FLAKY quarantine, 2/3 versus original main 0/3. Broad-calculus task-alignment intent question deferred. |
+| A18 — live plan-to-session journeys > 'History essay using outside sources' | F/F/F | U/P/P | — | Unavailable sample retained; no new semantic failure in last full run. |
+| live OpenAI session quality > the requested case exists | P/P/P | P/P/P | — | Last full P/P/P. |
+| A19 — live OpenAI session quality > 'Biology teaching from learner notes' | F/F/F | F/F/F | — | REAL, deferred: 0/3 on main and last full branch. Source mapping/legacy-material handling; no repair in this release. |
+| live OpenAI session quality > 'Bioenergetics multi-target retrieval …' | P/P/P | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A20 — live OpenAI session quality > 'Fifteen-minute temperature and reacti…' | F/F/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A21 — live OpenAI session quality > 'Fifteen-minute first product-rule les…' | F/P/F | P/P/P | — | Existing FLAKY quarantine retained. |
+| A22 — live OpenAI session quality > 'Mapped product-rule and chain-rule fi…' | F/F/F; scoped F/F/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A23 — live OpenAI session quality > 'Production-shaped derivative-foundati…' | P/F/P | P/F/P | — | Existing FLAKY quarantine retained. |
+| A24 — live OpenAI session quality > 'World War I teaching for a complete b…' | F/F/F | F/F/F | — | REAL, deferred: 0/3 on main and last full branch. Source mapping/legacy-material handling; no repair in this release. |
+| A25 — live OpenAI session quality > 'Mapped 45-minute World War I baseline…' | P/F/P | P/P/P | — | Existing FLAKY quarantine retained. |
+| A26 — live OpenAI session quality > 'Calculus repair after a weak check' | F/F/P | P/P/P | — | Existing FLAKY quarantine retained. |
+| live OpenAI session quality > 'Self-contained delayed calculus review' | P/P/P | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| live OpenAI session quality > 'History writing outside YOVA' | P/P/P | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A27 — live OpenAI session quality > 'Beginner JavaScript with fading suppo…' | F/F/F; scoped P/P/P; remote F/P/P | P/P/F | a7 current product: P/P/P | FLAKY quarantine: last full 2/3; current a7 focused 3/3. Fresh local main was 3/3; remote main 2/3. Current scoped result is not lower than either. |
+| A28 — live OpenAI session quality > 'General-learning finance application' | F/F/F; corrected remote P/P/P | P/P/P | — | Latest full 3/3; corrected main 3/3. Earlier missing-claim failure remains backlogged; exact reason not reproduced on main. |
+| live OpenAI session quality > 'Fifteen-minute vocabulary review' | P/P/P | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A29 — live OpenAI session quality > 'Startup funding foundations for a new…' | F/F/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A30 — live OpenAI session quality > 'History reasoning from a primary-sour…' | F/F/F | F/F/F | — | REAL, deferred: 0/3 on main and last full branch. Source mapping/legacy-material handling; no repair in this release. |
+| A31 — live OpenAI session quality > 'Literature close reading from a short…' | F/F/F | F/F/F | — | REAL, deferred: 0/3 on main and last full branch. Source mapping/legacy-material handling; no repair in this release. |
+| A32 — live OpenAI session quality > 'Spanish conversation with supported t…' | F/F/F; scoped F/F/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A33 — live OpenAI session quality > 'Teaching from a thin biology study gu…' | F/F/F | F/F/F | — | REAL, deferred: 0/3 on main and last full branch. Source mapping/legacy-material handling; no repair in this release. |
+| X06 — live streamed AP Biology session > builds a topic-specific teaching skeleton | F/F/F; scoped F/P/P | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session | P/P/P | P/P/P | — | Last full P/P/P. |
+| A34 — live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton | F/F/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A35 — live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief | F/F/F; scoped F/F/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| A36 — live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session | F/F/F; scoped F/F/F | P/P/P | — | Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence. |
+| live streamed World War I session skeleton > reliably creates a valid subject-specific session outline | P/P/P | P/P/P | — | Last full P/P/P. |
+| X07 — live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase | P/P/F | P/P/P | — | Existing FLAKY quarantine retained. |
+| X03 — live map diagnostic generation > generates from a material map and reports latency | U/P/F | P/F/P | — | Existing FLAKY quarantine retained. |
+| X04 — live map diagnostic generation > generates from a ai_generated map and reports latency | F/P/P | P/U/P | — | Existing FLAKY quarantine retained. |
+| A37 — a live-generated deadline lesson streams, finishes unrated and preserves completion on reload | P/P/F | P/P/P | — | Existing FLAKY quarantine retained. |
+| A38 — a live-generated deadline lesson streams, finishes unrated and preserves completion on reload | P/P/F | P/P/P | — | Existing FLAKY quarantine retained. |
+
+### Honest baseline carried into merged main
+
+| Evidence basis | Pass | Fail | Flaky | Unavailable |
+| --- | ---: | ---: | ---: | ---: |
+| Original last-complete runner labels, 228 observations | 162 | 23 | 35 | 8 |
+| Same 228 observations after the six documented quarantines | 151 | 16 | 53 | 8 |
+| Last-complete run grouped into 76 cases | 45 | 6 | 18 | 7 |
+| Carried case baseline including the already-completed current-product grader correction | 46 | 5 | 18 | 7 |
+
+The last row is an **evidence roll-up across named revisions, not a new full run on the merge SHA**. A case with an unavailable sample and no semantic failure/quarantine is in unavailable; quarantine takes precedence over unavailable at case level, so X04 remains flaky while its unavailable sample remains visible in observation totals. A15/A27 stay quarantined despite their later 3/3 correction captures because the last full sample was 2/3. The original full run's actual outcomes remain **194 P / 26 F / 8 U**; quarantine does not convert failed executions into passes.
+
+New quarantines: **A15, A27, A09, A16, A17, R01 (launch recall)**. The existing 12 quarantines remain, and every quarantined test still executes. The five consistently failing cases are **A19, A24, A30, A31, A33**; they remain REAL/deferred and visible as failures. No validator/product code was changed for this release decision. `pnpm test:live` can therefore still exit nonzero for known REAL failures; that raw result alone is not a merge veto under the founder's new comparison rule. No runner redesign or blanket failure suppression is included.
+
+All nine grader canaries, Brief A's live personalization delta, and both actual live browser journeys passed 3/3 in the last complete run. That run also passed 3,950 unit + 12 runner checks, lint, TypeScript/build, migration/database checks, 265 desktop/mobile core and 15 auth journeys, and the main/branch Study Profile phone comparison. The later focused current-product checks passed 104 validator/eval + 12 grader checks. No additional full-gate result is claimed.
+
+After merge, only the ordinary public deployment smoke is authorized once, with read-only confirmation of Vercel Ready, the production commit, invitation-only access and rollout 0%. Brief B and further validator work are explicitly stopped.

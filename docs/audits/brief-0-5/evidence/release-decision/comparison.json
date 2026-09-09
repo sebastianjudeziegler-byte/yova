@@ -1,0 +1,3051 @@
+{
+  "lastCompleteRun": 34370432851,
+  "lastCompleteHead": "2098e66d57cd21b37113d329a603bfacc2ae8cf1",
+  "currentProductHead": "a7f3d7aa83958106df59b20cdbbbd3c4a4cb0c1f",
+  "newQuarantines": [
+    "A09",
+    "A15",
+    "A16",
+    "A17",
+    "A27",
+    "recall"
+  ],
+  "observationCountsAfterQuarantine": {
+    "flaky": 53,
+    "pass": 151,
+    "unavailable": 8,
+    "fail": 16
+  },
+  "caseCountsLastComplete": {
+    "flaky": 18,
+    "pass": 45,
+    "unavailable": 7,
+    "fail": 6
+  },
+  "carriedCaseCounts": {
+    "flaky": 18,
+    "pass": 46,
+    "unavailable": 7,
+    "fail": 5
+  },
+  "cases": [
+    {
+      "case": "X02",
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'calculus'",
+      "name": "launch session journeys with committed recipes > 'calculus'",
+      "main": "F/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "FAIL",
+          "policy": "flaky",
+          "detail": "failed; baseline 2/3. OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. Required content needs 11 minutes, but the session allows 10. Reduce the current content slice and defer the remainder.",
+          "log": "run-1-launch-session-journeys.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-2-launch-session-journeys.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-3-launch-session-journeys.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "failed; baseline 2/3. YOVA could not build the knowledge map.",
+          "log": "run-1-launch-session-journeys.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 1,
+          "detail": "failed; baseline 2/3. OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. Required content needs 11 minutes, but the session allows 10. Reduce the current content slice and defer the remainder.",
+          "log": "run-1-launch-session-journeys.txt"
+        }
+      ]
+    },
+    {
+      "case": "osmosis",
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'osmosis'",
+      "name": "launch session journeys with committed recipes > 'osmosis'",
+      "main": "P/P/P; fresh local P/P/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-launch-session-journeys.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-launch-session-journeys.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-launch-session-journeys.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Latest full 3/3. Earlier failure retained; fresh local main P/P/F reproduced intermittent subject rejection.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane as a selective barrier”; “Osmosis”; “Osmosis in a simple cell example”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim.",
+          "log": "run-1-launch-session-journeys.txt"
+        },
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build the knowledge map.",
+          "log": "run-1-launch-session-journeys.txt"
+        }
+      ]
+    },
+    {
+      "case": "recall",
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'recall'",
+      "name": "launch session journeys with committed recipes > 'recall'",
+      "main": "P/P/P; remote P/F/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-launch-session-journeys.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-launch-session-journeys.txt"
+        },
+        {
+          "run": 3,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "OpenAI did not return a complete, safe guided session after the bounded repair attempts. The completion map references “The Krebs cycle comes second and the electron transport chain comes last in cellular respiration.,” which is not one of this session's essential ideas.",
+          "log": "run-3-launch-session-journeys.txt"
+        }
+      ],
+      "laterBranch": "427 paired: P/P/P; 587 partial: F (phase order)",
+      "disposition": "FLAKY quarantine. Remote main 2/3, paired branch 3/3. Later partial branch phase-order F matches main; full-run absent-reference reason remains unresolved, not proven pre-existing.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-full-587-attempt1-unavailable/partial/report.json",
+          "run": 1,
+          "detail": "OpenAI did not return a complete, safe guided session after the bounded repair attempts. concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.",
+          "log": "run-1-launch-session-journeys.txt"
+        },
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build the knowledge map.",
+          "log": "run-1-launch-session-journeys.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 3,
+          "detail": "OpenAI did not return a complete, safe guided session after the bounded repair attempts. The completion map references “The Krebs cycle comes second and the electron transport chain comes last in cellular respiration.,” which is not one of this session's essential ideas.",
+          "log": "run-3-launch-session-journeys.txt"
+        }
+      ]
+    },
+    {
+      "case": "X01",
+      "id": "src/evals/launch-lesson-streams.live.test.ts::launch lesson delivery > streams the validated calculus teaching",
+      "name": "launch lesson delivery > streams the validated calculus teaching",
+      "main": "U/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "UNAVAILABLE",
+          "policy": "unavailable",
+          "detail": "Required test fixture or browser is unavailable",
+          "log": "run-1-launch-lesson-streams.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-launch-lesson-streams.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-launch-lesson-streams.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Full-run U is missing dependent calculus fixture, not a provider timeout; two passes. Keep U separate.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/launch-lesson-streams.live.test.ts::launch lesson delivery > streams the validated osmosis teaching",
+      "name": "launch lesson delivery > streams the validated osmosis teaching",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-launch-lesson-streams.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-launch-lesson-streams.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-launch-lesson-streams.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > the requested case exists",
+      "name": "live OpenAI answer evaluation quality > the requested case exists",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-answer-evaluation-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A01",
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'",
+      "name": "live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'",
+      "main": "F/F/F; scoped F/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-answer-evaluation-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "misconception",
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'catches confident biology keyword soup'",
+      "name": "live OpenAI answer evaluation quality > 'catches confident biology keyword soup'",
+      "main": "P/P/P; remote P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "expected [ 'needs_review' ] to include 'uncertain' Received: [\"needs_review\"]",
+          "log": "run-1-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-answer-evaluation-quality.txt"
+        }
+      ],
+      "laterBranch": "a7 current product: P/P/P",
+      "disposition": "Earlier pass-to-fail regression corrected: captured precedence red/green; current a7 3/3. Retain its full-run F, do not quarantine this correction.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 1,
+          "detail": "expected [ 'needs_review' ] to include 'uncertain' Received: [\"needs_review\"]",
+          "log": "run-1-answer-evaluation-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "—",
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'marks a materially incomplete causal …'",
+      "name": "live OpenAI answer evaluation quality > 'marks a materially incomplete causal …'",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-answer-evaluation-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…'",
+      "name": "live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…'",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-answer-evaluation-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'does not reward a true statement that…'",
+      "name": "live OpenAI answer evaluation quality > 'does not reward a true statement that…'",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-answer-evaluation-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A02",
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts a concise programming explana…'",
+      "name": "live OpenAI answer evaluation quality > 'accepts a concise programming explana…'",
+      "main": "F/F/F; scoped F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-answer-evaluation-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A03",
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'",
+      "name": "live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'",
+      "main": "F/F/F; scoped F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-answer-evaluation-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-answer-evaluation-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'",
+      "name": "live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'",
+      "main": "Not in original cohort; pre-change canary F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-grader-calibration.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-grader-calibration.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-grader-calibration.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'accepts a concise programming explana…'",
+      "name": "live grader calibration across subjects > complete: 'accepts a concise programming explana…'",
+      "main": "Not in original cohort; pre-change canary F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-grader-calibration.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-grader-calibration.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-grader-calibration.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'history: complete-history'",
+      "name": "live grader calibration across subjects > complete: 'history: complete-history'",
+      "main": "Not in original cohort; pre-change canary P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-grader-calibration.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-grader-calibration.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-grader-calibration.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'biology: underspecified-biology'",
+      "name": "live grader calibration across subjects > insufficient: 'biology: underspecified-biology'",
+      "main": "Not in original cohort; pre-change canary P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-grader-calibration.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-grader-calibration.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-grader-calibration.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…'",
+      "name": "live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…'",
+      "main": "Not in original cohort; pre-change canary P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-grader-calibration.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-grader-calibration.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-grader-calibration.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: underspecified-history'",
+      "name": "live grader calibration across subjects > insufficient: 'history: underspecified-history'",
+      "main": "Not in original cohort; pre-change canary P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-grader-calibration.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-grader-calibration.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-grader-calibration.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'biology: missing-context-biology'",
+      "name": "live grader calibration across subjects > insufficient: 'biology: missing-context-biology'",
+      "main": "Not in original cohort; pre-change canary F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-grader-calibration.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-grader-calibration.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-grader-calibration.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'",
+      "name": "live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'",
+      "main": "Not in original cohort; pre-change canary F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-grader-calibration.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-grader-calibration.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-grader-calibration.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: missing-context-history'",
+      "name": "live grader calibration across subjects > insufficient: 'history: missing-context-history'",
+      "main": "Not in original cohort; pre-change canary F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-grader-calibration.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-grader-calibration.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-grader-calibration.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/lesson-tutor.live.test.ts::live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it",
+      "name": "live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-lesson-tutor.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-lesson-tutor.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-lesson-tutor.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/lesson-tutor.live.test.ts::live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check",
+      "name": "live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-lesson-tutor.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-lesson-tutor.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-lesson-tutor.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "X05",
+      "id": "src/evals/material-osmosis-session.live.test.ts::live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window",
+      "name": "live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window",
+      "main": "F/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-1-material-osmosis-session.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-2-material-osmosis-session.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-3-material-osmosis-session.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "failed; baseline 2/3. YOVA could not prepare the bounded material session from a trustworthy source.",
+          "log": "run-1-material-osmosis-session.txt"
+        }
+      ]
+    },
+    {
+      "case": "A04",
+      "id": "src/evals/outside-teaching-reliability.live.test.ts::live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly",
+      "name": "live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly",
+      "main": "F/P/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-1-outside-teaching-reliability.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-2-outside-teaching-reliability.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-3-outside-teaching-reliability.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-release/full-live-gate/report.json",
+          "run": 1,
+          "detail": "failed; baseline 1/3. expected [ { run: 1, …(1) } ] to deeply equal [] Received: [\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 6912,\n      \"cause\": \"semantic_validation\",\n      \"elapsedMs\": 17647,\n      \"failedValidator\": \"session_method_runtime\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 24095,\n      \"outputTokens\": 3562,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The evidence map is inaccurate: \\\"Supply curve versus quantity supplied\\\" does not test \\\"The direction of a shift depends on whether the change raises or lowers buyers' desire or sellers' willingness to sell.\\\". Rebuild every evidence-map entry and its required question together so each prompt, answer, and feedback directly tests the one essential idea it claims. Follow-up repair failure: The session produced a error_repair runtime, but self_explanation does not use a method runtime.\",\n      \"repairReason\": \"semantic_validation\",\n      \"repairSucceeded\": false,\n      \"stage\": \"validation\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 1,\n  },\n] Expected: []",
+          "log": "run-1-outside-teaching-reliability.txt"
+        },
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "failed; baseline 1/3. expected [ { run: 1, …(1) }, …(2) ] to deeply equal [] Received: [\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 0,\n      \"cause\": \"provider_request\",\n      \"elapsedMs\": 52,\n      \"failedValidator\": \"session_provider_request\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 0,\n      \"outputTokens\": 0,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.\",\n      \"repairReason\": \"none\",\n      \"repairSucceeded\": null,\n      \"stage\": \"provider\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 1,\n  },\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 0,\n      \"cause\": \"provider_request\",\n      \"elapsedMs\": 12,\n      \"failedValidator\": \"session_provider_request\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 0,\n      \"outputTokens\": 0,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.\",\n      \"repairReason\": \"none\",\n      \"repairSucceeded\": null,\n      \"stage\": \"provider\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 2,\n  },\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 0,\n      \"cause\": \"provider_request\",\n      \"elapsedMs\": 12,\n      \"failedValidator\": \"session_provider_request\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 0,\n      \"outputTokens\": 0,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.\",\n      \"repairReason\": \"none\",\n      \"repairSucceeded\": null,\n      \"stage\": \"provider\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 3,\n  },\n] Expected: []",
+          "log": "run-1-outside-teaching-reliability.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 1,
+          "detail": "failed; baseline 1/3. expected [ { run: 2, …(1) } ] to deeply equal [] Received: [\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 18432,\n      \"cause\": \"semantic_validation\",\n      \"elapsedMs\": 19978,\n      \"failedValidator\": \"session_method_fidelity\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 24047,\n      \"outputTokens\": 3262,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The session produced a error_repair runtime, but self_explanation does not use a method runtime. Follow-up repair failure: self_explanation is missing required learning phase: repair.\",\n      \"repairReason\": \"semantic_validation\",\n      \"repairSucceeded\": false,\n      \"stage\": \"validation\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 2,\n  },\n] Expected: []",
+          "log": "run-1-outside-teaching-reliability.txt"
+        }
+      ]
+    },
+    {
+      "case": "—",
+      "id": "src/evals/personalization-delta.live.test.ts::Brief A real-provider personalization delta > writes two distinct learner plans inside fixed slots using the real provider",
+      "name": "Brief A real-provider personalization delta > writes two distinct learner plans inside fixed slots using the real provider",
+      "main": "Not in original cohort",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-personalization-delta.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-personalization-delta.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-personalization-delta.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A05",
+      "id": "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP",
+      "name": "live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-creation-blockers.txt"
+        },
+        {
+          "run": 2,
+          "actual": "UNAVAILABLE",
+          "policy": "unavailable",
+          "detail": "Provider request could not run or complete",
+          "log": "run-2-plan-creation-blockers.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-creation-blockers.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Unavailable sample retained; no new semantic failure in last full run.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "At least one placement question has an ambiguous or unsupported answer. Skip this optional check or try again.",
+          "log": "run-1-plan-creation-blockers.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "At least one placement question has an ambiguous or unsupported answer. Skip this optional check or try again.",
+          "log": "run-2-plan-creation-blockers.txt"
+        }
+      ]
+    },
+    {
+      "case": "—",
+      "id": "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic",
+      "name": "live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-creation-blockers.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-creation-blockers.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-creation-blockers.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > the requested case exists",
+      "name": "live OpenAI plan quality > the requested case exists",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A06",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Biology test with learner notes'",
+      "name": "live OpenAI plan quality > 'Biology test with learner notes'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "UNAVAILABLE",
+          "policy": "unavailable",
+          "detail": "Provider unavailable: timeout",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Unavailable sample retained; no new semantic failure in last full run.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A07",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus problem-solving plan'",
+      "name": "live OpenAI plan quality > 'Calculus problem-solving plan'",
+      "main": "F/F/F; corrected remote F/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "UNAVAILABLE",
+          "policy": "unavailable",
+          "detail": "Provider unavailable: timeout",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Latest full U/P/P; earlier capacity F reproduced on corrected main F/P/P. No capacity fix; provider U remains neither red nor green.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "The OpenAI request failed.",
+          "log": "run-2-plan-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "—",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus unit with mixed placement ev…'",
+      "name": "live OpenAI plan quality > 'Calculus unit with mixed placement ev…'",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A08",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'One product-rule skill in short sessi…'",
+      "name": "live OpenAI plan quality > 'One product-rule skill in short sessi…'",
+      "main": "U/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A09",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'World War I unit guide in short sessi…'",
+      "name": "live OpenAI plan quality > 'World War I unit guide in short sessi…'",
+      "main": "F/F/F; remote P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "expected [ Array(1) ] to deeply equal [] Received: [\n  \"Plan progresses toward retrieval or application\",\n] Expected: []",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "427 paired: P/P/P",
+      "disposition": "FLAKY quarantine. Original main failures were stale expectations. Corrected main AND later paired branch 3/3; prior branch progression failures remain open. No progression-code change.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 1,
+          "detail": "expected [ Array(1) ] to deeply equal [] Received: [\n  \"Plan progresses toward retrieval or application\",\n] Expected: []",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 3,
+          "detail": "expected [ Array(1) ] to deeply equal [] Received: [\n  \"Plan progresses toward retrieval or application\",\n] Expected: []",
+          "log": "run-3-plan-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "expected [ Array(1) ] to deeply equal [] Received: [\n  \"Plan progresses toward retrieval or application\",\n] Expected: []",
+          "log": "run-2-plan-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A10",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Full beginner calculus pathway'",
+      "name": "live OpenAI plan quality > 'Full beginner calculus pathway'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "UNAVAILABLE",
+          "policy": "unavailable",
+          "detail": "Provider unavailable: timeout",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Unavailable sample retained; no new semantic failure in last full run.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A11",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'General-learning startup funding path…'",
+      "name": "live OpenAI plan quality > 'General-learning startup funding path…'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "UNAVAILABLE",
+          "policy": "unavailable",
+          "detail": "Provider unavailable: timeout",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Unavailable sample retained; no new semantic failure in last full run.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A12",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'History essay using outside sources'",
+      "name": "live OpenAI plan quality > 'History essay using outside sources'",
+      "main": "U/U/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A13",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Beginner JavaScript practice'",
+      "name": "live OpenAI plan quality > 'Beginner JavaScript practice'",
+      "main": "F/F/U",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A14",
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'General-learning finance pathway'",
+      "name": "live OpenAI plan quality > 'General-learning finance pathway'",
+      "main": "F/F/F; fresh local P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Latest full 3/3; earlier progression F retained. Fresh local main 3/3; no claim that the earlier failure was fixed.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "expected [ Array(1) ] to deeply equal [] Received: [\n  \"Plan progresses toward retrieval or application\",\n] Expected: []",
+          "log": "run-1-plan-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "—",
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > the requested journey exists",
+      "name": "live plan-to-session journeys > the requested journey exists",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-session-journey.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-session-journey.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A15",
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "name": "live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "main": "F/U/F; scoped U/F/F; remote F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "expected [ 'Activities fit the learning task' ] to deeply equal [] Received: [\n  \"Activities fit the learning task\",\n] Expected: []",
+          "log": "run-2-plan-session-journey.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-session-journey.txt"
+        }
+      ],
+      "laterBranch": "a7 current product: P/P/P",
+      "disposition": "FLAKY quarantine: last full 2/3; current a7 focused 3/3. Main scoped U/F/F, later F/F/F. Do not claim a new full-suite 3/3.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "expected [ 'Activities fit the learning task' ] to deeply equal [] Received: [\n  \"Activities fit the learning task\",\n] Expected: []",
+          "log": "run-2-plan-session-journey.txt"
+        }
+      ]
+    },
+    {
+      "case": "A16",
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "name": "live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "expected [ …(2) ] to deeply equal [] Received: [\n  \"Activities fit the learning task\",\n  \"Learner materials remain the factual anchor\",\n] Expected: []",
+          "log": "run-2-plan-session-journey.txt"
+        },
+        {
+          "run": 3,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-plan-session-journey.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "FLAKY quarantine, 1/3 versus original main 0/3. Legacy source mapping/task failure deferred; no material fix.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-release/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-plan-session-journey.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 3,
+          "detail": "expected [ Array(1) ] to deeply equal [] Received: [\n  \"Learner materials remain the factual anchor\",\n] Expected: []",
+          "log": "run-3-plan-session-journey.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "expected [ …(2) ] to deeply equal [] Received: [\n  \"Activities fit the learning task\",\n  \"Learner materials remain the factual anchor\",\n] Expected: []",
+          "log": "run-2-plan-session-journey.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 3,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-plan-session-journey.txt"
+        }
+      ]
+    },
+    {
+      "case": "A17",
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "name": "live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "expected [ 'Activities fit the learning task' ] to deeply equal [] Received: [\n  \"Activities fit the learning task\",\n] Expected: []",
+          "log": "run-2-plan-session-journey.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-session-journey.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "FLAKY quarantine, 2/3 versus original main 0/3. Broad-calculus task-alignment intent question deferred.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 1,
+          "detail": "The model could not create a valid learning plan after one repair attempt. The plan makes an unsupported fixed learning-style, brain-type, or diagnosis claim.",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.",
+          "log": "run-2-plan-session-journey.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "expected [ 'Activities fit the learning task' ] to deeply equal [] Received: [\n  \"Activities fit the learning task\",\n] Expected: []",
+          "log": "run-2-plan-session-journey.txt"
+        }
+      ]
+    },
+    {
+      "case": "A18",
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'History essay using outside sources'",
+      "name": "live plan-to-session journeys > 'History essay using outside sources'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "UNAVAILABLE",
+          "policy": "unavailable",
+          "detail": "Provider unavailable: timeout",
+          "log": "run-1-plan-session-journey.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-plan-session-journey.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-plan-session-journey.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Unavailable sample retained; no new semantic failure in last full run.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > the requested case exists",
+      "name": "live OpenAI session quality > the requested case exists",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A19",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Biology teaching from learner notes'",
+      "name": "live OpenAI session quality > 'Biology teaching from learner notes'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "REAL, deferred: 0/3 on main and last full branch. Source mapping/legacy-material handling; no repair in this release.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-release/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 3,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 3,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "—",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Bioenergetics multi-target retrieval …'",
+      "name": "live OpenAI session quality > 'Bioenergetics multi-target retrieval …'",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "OpenAI did not return a complete, safe guided session after the bounded study attempts.",
+          "log": "run-1-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A20",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute temperature and reacti…'",
+      "name": "live OpenAI session quality > 'Fifteen-minute temperature and reacti…'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A21",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute first product-rule les…'",
+      "name": "live OpenAI session quality > 'Fifteen-minute first product-rule les…'",
+      "main": "F/P/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A22",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'",
+      "name": "live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'",
+      "main": "F/F/F; scoped F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 1,
+          "detail": "OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_missing:scope_input:ideas_1_assignments_1_targets_2_represented_1). Stage: finalize.",
+          "log": "run-1-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A23",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Production-shaped derivative-foundati…'",
+      "name": "live OpenAI session quality > 'Production-shaped derivative-foundati…'",
+      "main": "P/F/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "flaky",
+          "detail": "failed; baseline 2/3. OpenAI did not return a complete, safe guided session after the bounded repair attempts. independent_practice is attached to an activity type that cannot perform that learning phase.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "failed; baseline 2/3. OpenAI could not prepare the guided session.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "failed; baseline 2/3. OpenAI did not return a complete, safe guided session after the bounded repair attempts. independent_practice is attached to an activity type that cannot perform that learning phase.",
+          "log": "run-2-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A24",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'World War I teaching for a complete b…'",
+      "name": "live OpenAI session quality > 'World War I teaching for a complete b…'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "expected 'materials_only' to be 'materials_plus_ai' // Object.is equality Received: materials_only Expected: materials_plus_ai",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "REAL, deferred: 0/3 on main and last full branch. Source mapping/legacy-material handling; no repair in this release.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-release/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "expected 'materials_only' to be 'materials_plus_ai' // Object.is equality Received: materials_only Expected: materials_plus_ai",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 1,
+          "detail": "expected 'materials_only' to be 'materials_plus_ai' // Object.is equality Received: materials_only Expected: materials_plus_ai",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "expected [ 'Activities fit the learning task' ] to deeply equal [] Received: [\n  \"Activities fit the learning task\",\n] Expected: []",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 3,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 3,
+          "detail": "expected 'materials_only' to be 'materials_plus_ai' // Object.is equality Received: materials_only Expected: materials_plus_ai",
+          "log": "run-3-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A25",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped 45-minute World War I baseline…'",
+      "name": "live OpenAI session quality > 'Mapped 45-minute World War I baseline…'",
+      "main": "P/F/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "failed; baseline 2/3. OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not pass the complete session validator (session_question_context: The quantitative question \"When did the war end\" lists numeric answers without supplying enough values or an equation to solve it.).",
+          "log": "run-1-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A26",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Calculus repair after a weak check'",
+      "name": "live OpenAI session quality > 'Calculus repair after a weak check'",
+      "main": "F/F/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "failed; baseline 1/3. OpenAI did not return a complete subject lesson after one repair attempt.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "failed; baseline 1/3. OpenAI did not return a complete subject lesson after one repair attempt.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "failed; baseline 1/3. OpenAI did not return a complete subject lesson after one repair attempt.",
+          "log": "run-2-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "—",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Self-contained delayed calculus review'",
+      "name": "live OpenAI session quality > 'Self-contained delayed calculus review'",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "OpenAI did not return a safe scheduled retrieval after one repair attempt. The scheduled-retrieval provider request failed before YOVA received a usable result.",
+          "log": "run-1-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "—",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History writing outside YOVA'",
+      "name": "live OpenAI session quality > 'History writing outside YOVA'",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "OpenAI could not prepare the guided session.",
+          "log": "run-1-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A27",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Beginner JavaScript with fading suppo…'",
+      "name": "live OpenAI session quality > 'Beginner JavaScript with fading suppo…'",
+      "main": "F/F/F; scoped P/P/P; remote F/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not pass the complete session validator (streamed_lesson_scope: The active idea “map returns a new array by transforming each element.” appears in more than one teaching block. Give each streamed lesson a distinct content assignment instead of repeating material to fill time.).",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "a7 current product: P/P/P",
+      "disposition": "FLAKY quarantine: last full 2/3; current a7 focused 3/3. Fresh local main was 3/3; remote main 2/3. Current scoped result is not lower than either.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 3,
+          "detail": "OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not pass the complete session validator (streamed_lesson_scope: The active idea “map returns a new array by transforming each element.” appears in more than one teaching block. Give each streamed lesson a distinct content assignment instead of repeating material to fill time.).",
+          "log": "run-3-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A28",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'General-learning finance application'",
+      "name": "live OpenAI session quality > 'General-learning finance application'",
+      "main": "F/F/F; corrected remote P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Latest full 3/3; corrected main 3/3. Earlier missing-claim failure remains backlogged; exact reason not reproduced on main.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not pass the complete session validator (streamed_lesson_scope: This 30-minute lesson needs 2 distinct explanatory claims so the selected time is filled with real teaching and questions instead of stretching one idea.).",
+          "log": "run-2-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "—",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute vocabulary review'",
+      "name": "live OpenAI session quality > 'Fifteen-minute vocabulary review'",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "OpenAI did not return a complete subject lesson after one repair attempt.",
+          "log": "run-1-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A29",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Startup funding foundations for a new…'",
+      "name": "live OpenAI session quality > 'Startup funding foundations for a new…'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A30",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History reasoning from a primary-sour…'",
+      "name": "live OpenAI session quality > 'History reasoning from a primary-sour…'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "REAL, deferred: 0/3 on main and last full branch. Source mapping/legacy-material handling; no repair in this release.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-release/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 3,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 3,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A31",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Literature close reading from a short…'",
+      "name": "live OpenAI session quality > 'Literature close reading from a short…'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "REAL, deferred: 0/3 on main and last full branch. Source mapping/legacy-material handling; no repair in this release.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-release/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 3,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 3,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "A32",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Spanish conversation with supported t…'",
+      "name": "live OpenAI session quality > 'Spanish conversation with supported t…'",
+      "main": "F/F/F; scoped F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A33",
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Teaching from a thin biology study gu…'",
+      "name": "live OpenAI session quality > 'Teaching from a thin biology study gu…'",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "run": 3,
+          "actual": "FAIL",
+          "policy": "fail",
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "REAL, deferred: 0/3 on main and last full branch. Source mapping/legacy-material handling; no repair in this release.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-release/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/full-live-gate-at-10b5fc4/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 3,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 1,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-1-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-2-session-quality.txt"
+        },
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 3,
+          "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "log": "run-3-session-quality.txt"
+        }
+      ]
+    },
+    {
+      "case": "X06",
+      "id": "src/evals/streamed-ap-biology.live.test.ts::live streamed AP Biology session > builds a topic-specific teaching skeleton",
+      "name": "live streamed AP Biology session > builds a topic-specific teaching skeleton",
+      "main": "F/F/F; scoped F/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-streamed-ap-biology.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-streamed-ap-biology.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-streamed-ap-biology.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/streamed-melatonin-skeleton.live.test.ts::live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session",
+      "name": "live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-streamed-melatonin-skeleton.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-streamed-melatonin-skeleton.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-streamed-melatonin-skeleton.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A34",
+      "id": "src/evals/streamed-rayleigh.live.test.ts::live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton",
+      "name": "live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton",
+      "main": "F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-streamed-rayleigh.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-streamed-rayleigh.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-streamed-rayleigh.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "A35",
+      "id": "src/evals/streamed-world-war-one-lesson.live.test.ts::live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief",
+      "name": "live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief",
+      "main": "F/F/F; scoped F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-streamed-world-war-one-lesson.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-streamed-world-war-one-lesson.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-streamed-world-war-one-lesson.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-release/full-live-gate/report.json",
+          "run": 1,
+          "detail": "expected '# Rival Blocs in Europe\\n\\nBefore the…' to match /prewar|before (?:1914|World War I)/i Received: \"# Rival Blocs in Europe\n\nBefore the First World War, Europe was divided into two rival power blocs. Alliances were intended to protect countries, but they also connected separate disputes and increased suspicion between the major powers.\n\n## The two blocs\n\nThe **Triple Alliance** consisted of:\n\n- Germany\n- Austria-Hungary\n- Italy\n\nThe opposing **Triple Entente** linked:\n\n- Britain\n- France\n- Russia\n\nAn entente was an understanding rather than exactly the same kind of formal military alliance. However, both groupings encouraged governments to expect support from friendly powers and to prepare for conflict with the rival bloc.\n\nSeveral tensions reinforced this division. France resented Germany after losing Alsace-Lorraine in an earlier war. Germany’s growing military and naval strength worried Britain. Austria-Hungary and Russia competed for influence in the Balkans. These disputes made the alliances feel increasingly necessary, while the alliances themselves deepened fear and military planning.\n\n## How the danger grew\n\nA cause map can show the relationship:\n\n$$\\\\text{existing tensions} \\\\rightarrow \\\\text{rival alliances} \\\\rightarrow \\\\text{greater suspicion and wider war risk}$$\n\nFor example, a confrontation involving Austria-Hungary and Russia would not necessarily remain a dispute between two empires. Germany might support Austria-Hungary, while France might support Russia. Britain could then become involved alongside France and Russia. Alliances therefore created a route by which a local crisis could spread across Europe.\n\nA common mix-up is to say that alliances alone caused the war. They did not automatically produce conflict. Instead, they divided Europe and made an existing crisis more likely to expand into a general war.\" Expected: /prewar|before (?:1914|World War I)/i",
+          "log": "run-1-streamed-world-war-one-lesson.txt"
+        },
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 2,
+          "detail": "OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not pass the complete session validator (session_question_context: The quantitative question \"World War I ending date\" lists numeric answers without supplying enough values or an equation to solve it.).",
+          "log": "run-2-streamed-world-war-one-lesson.txt"
+        }
+      ]
+    },
+    {
+      "case": "A36",
+      "id": "src/evals/streamed-world-war-one-skeleton.live.test.ts::live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session",
+      "name": "live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session",
+      "main": "F/F/F; scoped F/F/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-streamed-world-war-one-skeleton.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-streamed-world-war-one-skeleton.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-streamed-world-war-one-skeleton.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P; prior reds and scoped/stale corrections remain in the linked evidence.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "—",
+      "id": "src/evals/streamed-world-war-one-skeleton.live.test.ts::live streamed World War I session skeleton > reliably creates a valid subject-specific session outline",
+      "name": "live streamed World War I session skeleton > reliably creates a valid subject-specific session outline",
+      "main": "P/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-1-streamed-world-war-one-skeleton.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-2-streamed-world-war-one-skeleton.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "pass",
+          "detail": "",
+          "log": "run-3-streamed-world-war-one-skeleton.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Last full P/P/P.",
+      "earlierFailureObservations": []
+    },
+    {
+      "case": "X07",
+      "id": "src/evals/teaching-assessment-contract.live.test.ts::live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase",
+      "name": "live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase",
+      "main": "P/P/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-1-teaching-assessment-contract.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-2-teaching-assessment-contract.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-3-teaching-assessment-contract.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/full-live-gate/report.json",
+          "run": 1,
+          "detail": "failed; baseline 2/3. The lesson stream could not be completed.",
+          "log": "run-1-teaching-assessment-contract.txt"
+        }
+      ]
+    },
+    {
+      "case": "X03",
+      "id": "src/lib/diagnostics/map-diagnostic.live.test.ts::live map diagnostic generation > generates from a material map and reports latency",
+      "name": "live map diagnostic generation > generates from a material map and reports latency",
+      "main": "U/P/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-1-map-diagnostic.txt"
+        },
+        {
+          "run": 2,
+          "actual": "FAIL",
+          "policy": "flaky",
+          "detail": "failed; baseline 1/3. The placement check did not cover its assigned questions safely.",
+          "log": "run-2-map-diagnostic.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 1/3. ",
+          "log": "run-3-map-diagnostic.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-combined-2098/full-live-gate/report.json",
+          "run": 2,
+          "detail": "failed; baseline 1/3. The placement check did not cover its assigned questions safely.",
+          "log": "run-2-map-diagnostic.txt"
+        }
+      ]
+    },
+    {
+      "case": "X04",
+      "id": "src/lib/diagnostics/map-diagnostic.live.test.ts::live map diagnostic generation > generates from a ai_generated map and reports latency",
+      "name": "live map diagnostic generation > generates from a ai_generated map and reports latency",
+      "main": "F/P/P",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-1-map-diagnostic.txt"
+        },
+        {
+          "run": 2,
+          "actual": "UNAVAILABLE",
+          "policy": "unavailable",
+          "detail": "Provider request could not run or complete",
+          "log": "run-2-map-diagnostic.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-3-map-diagnostic.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-stability/report.json",
+          "run": 3,
+          "detail": "failed; baseline 2/3. At least one placement question has an ambiguous or unsupported answer. Skip this optional check or try again.",
+          "log": "run-3-map-diagnostic.txt"
+        }
+      ]
+    },
+    {
+      "case": "A37",
+      "id": "e2e/plan-launch-live.spec.ts::desktop-chromium::a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+      "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+      "main": "P/P/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-1-browser.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-2-browser.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-3-browser.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-release/full-live-gate/report.json",
+          "run": 1,
+          "detail": "failed; baseline 2/3. TimeoutError: locator.click: Timeout 60000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'I got the key idea', exact: true })\u001b[22m\n\n\n  58 |       await written.fill(current?.correctAnswer??\"ATP hydrolysis forms ADP and inorganic phosphate. This reaction releases free energy that can be coupled to cellular work.\");\n  59 |       await page.getByRole(\"button\",{name:\"Check my answer\",exact:true}).click();\n> 60 |       await page.getByRole(\"button\",{name:\"I got the key idea\",exact:true}).click({timeout:60_000});\n     |                                                                             ^\n  61 |     } else if(current?.correctAnswer && await page.locator(\".answer-grid\").isVisible()) {\n  62 |       await page.locator(\".answer-grid\").getByRole(\"button\",{name:current.correctAnswer,exact:true}).click();\n  63 |     }\n    at /home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts:60:77",
+          "log": "run-1-browser.txt"
+        }
+      ]
+    },
+    {
+      "case": "A38",
+      "id": "e2e/plan-launch-live.spec.ts::mobile-chromium::a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+      "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+      "main": "P/P/F",
+      "lastCompleteBranch": [
+        {
+          "run": 1,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-1-browser.txt"
+        },
+        {
+          "run": 2,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-2-browser.txt"
+        },
+        {
+          "run": 3,
+          "actual": "PASS",
+          "policy": "flaky",
+          "detail": "passed; baseline 2/3. ",
+          "log": "run-3-browser.txt"
+        }
+      ],
+      "laterBranch": "—",
+      "disposition": "Existing FLAKY quarantine retained.",
+      "earlierFailureObservations": [
+        {
+          "artifact": "evidence/ci-release/full-live-gate/report.json",
+          "run": 1,
+          "detail": "failed; baseline 2/3. TimeoutError: locator.click: Timeout 60000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'I got the key idea', exact: true })\u001b[22m\n\n\n  58 |       await written.fill(current?.correctAnswer??\"ATP hydrolysis forms ADP and inorganic phosphate. This reaction releases free energy that can be coupled to cellular work.\");\n  59 |       await page.getByRole(\"button\",{name:\"Check my answer\",exact:true}).click();\n> 60 |       await page.getByRole(\"button\",{name:\"I got the key idea\",exact:true}).click({timeout:60_000});\n     |                                                                             ^\n  61 |     } else if(current?.correctAnswer && await page.locator(\".answer-grid\").isVisible()) {\n  62 |       await page.locator(\".answer-grid\").getByRole(\"button\",{name:current.correctAnswer,exact:true}).click();\n  63 |     }\n    at /home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts:60:77",
+          "log": "run-1-browser.txt"
+        }
+      ]
+    }
+  ]
+}
