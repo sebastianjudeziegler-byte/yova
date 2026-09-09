@@ -1,7 +1,7 @@
 import "server-only";
 import type { z } from "zod";
 import type { LearningPlan } from "@/lib/domain";
-import { PlanRevisionApplyRequestSchema } from "@/lib/plan-revision/revision-schema";
+import { PlanRevisionApplyRequestSchema, type PlanRevisionProposal } from "@/lib/plan-revision/revision-schema";
 import { PlanRevisionRequestError } from "@/lib/plan-revision/preview-service";
 import { verifyPlanRevisionProposalReceipt } from "@/lib/plan-revision/proposal-receipt";
 import { issuePlanDraftReceipt } from "@/lib/server/plan-draft-receipt";
@@ -40,10 +40,19 @@ export async function applyPlanRevision({ input, supabase, userId, developmentPr
   if (prior.error) throw new PlanRevisionRequestError("The saved revision could not be verified. Try again.", 503);
   if (prior.data) return { status: "applied", plan: current.plan, receipt: prior.data.receipt };
   if ((current.plan.revisionId ?? current.plan.id) !== proposal.baseRevisionId) throw new PlanRevisionRequestError("The plan changed after this preview. Review its latest revision.", 409);
+  return persistAcceptedPlanRevision({ proposal, current, supabase, userId, now, receipt });
+}
+
+/** Shared atomic writer for an accepted delta and its authenticated inverse. */
+export async function persistAcceptedPlanRevision({ proposal, current, supabase, userId, now, receipt, undo = false }: {
+  proposal: PlanRevisionProposal; current: Awaited<ReturnType<typeof loadActiveRevisionContext>>;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>; userId: string; now: Date;
+  receipt: { revisionId: string; previousRevisionId: string; message: string }; undo?: boolean;
+}) {
   const patches = sessionRevisionPatches(proposal.before as LearningPlan, proposal.after as LearningPlan);
   const sessions = applySessionRevisionPatches({ current: current.plan.sessions as LearningPlan["sessions"], patches,
-    protectedSessionIds: new Set(current.protections.filter(item => item.savedWork).map(item => item.sessionId)) });
-  const knowledgeMap = mergeRevisionMapChanges({ before: proposal.before.knowledgeMap!, after: proposal.after.knowledgeMap!, current: current.plan.knowledgeMap! });
+    protectedSessionIds: new Set(current.protections.filter(item => item.savedWork && !(undo && current.plan.sessions.find(session => session.id === item.sessionId)?.status === "skipped")).map(item => item.sessionId)) });
+  const knowledgeMap = mergeRevisionMapChanges({ before: proposal.before.knowledgeMap!, after: proposal.after.knowledgeMap!, current: current.plan.knowledgeMap!, undoAddedTopics: undo });
   if (proposal.before.deadline !== proposal.after.deadline && current.plan.deadline !== proposal.before.deadline) throw new PlanRevisionRequestError("The deadline changed after this preview. Review it again.", 409);
   const next = commitPlanStudyRoutes({ ...current.plan, revisionId: proposal.revisionId, knowledgeMap, sessions,
     deadline: proposal.after.deadline, schedulePreferences: proposal.after.schedulePreferences } as LearningPlan, now.toISOString());
@@ -57,5 +66,5 @@ export async function applyPlanRevision({ input, supabase, userId, developmentPr
   } });
   if (result.error) throw new PlanRevisionRequestError("The change could not be saved. Your saved work has been kept; refresh the preview or retry.", result.error.code === "40001" ? 409 : 503);
   const saved = await loadActiveRevisionContext(supabase, proposal.planId);
-  return { status: "applied", plan: saved.plan, receipt };
+  return { status: "applied", plan: saved.plan, receipt, changedSessionIds: patches.map(patch => patch.id) };
 }

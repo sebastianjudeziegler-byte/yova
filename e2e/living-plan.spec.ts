@@ -157,7 +157,7 @@ test("founder journey preserves completed work, previews two topic changes, save
       expect(current.studyRoute!.target).toEqual(prior.studyRoute!.target);
     }
   }
-  expect(restored).toHaveProperty("revisionId", (before as LearningPlan & { revisionId: string }).revisionId);
+  expect(restored).toHaveProperty("revisionId", before.revisionId ?? before.id);
   expect(restored.knowledgeMap).toEqual(before.knowledgeMap);
   expect(restored.sessions[0]!.status).toBe("complete");
   await page.screenshot({ path: testInfo.outputPath("04-undone.png"), fullPage: true });

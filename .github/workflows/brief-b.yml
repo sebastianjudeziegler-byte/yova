@@ -56,11 +56,48 @@ jobs:
       - name: Stop isolated database
         if: always()
         run: pnpm exec supabase stop --no-backup
+      - name: Install isolated browser
+        run: |
+          # The hosted image includes a Google Chrome apt source unrelated to
+          # Playwright's pinned Chromium download. Its inconsistent metadata
+          # must not prevent installing Ubuntu browser libraries. Temporarily
+          # isolate only that source; never bypass package integrity checks.
+          quarantine="$RUNNER_TEMP/yova-browser-apt-sources"
+          mkdir -p "$quarantine"
+          restore_sources() {
+            for source in "$quarantine"/*; do
+              if test -f "$source"; then sudo mv "$source" /etc/apt/sources.list.d/; fi
+            done
+          }
+          trap restore_sources EXIT
+          sudo python3 - "$quarantine" <<'PYTHON'
+          import re, shutil, sys
+          from pathlib import Path
+          for source in Path('/etc/apt/sources.list.d').iterdir():
+              if source.suffix not in ('.list', '.sources'):
+                  continue
+              active = '\n'.join(line for line in source.read_text().splitlines() if not line.lstrip().startswith('#'))
+              urls = re.findall(r'https?://[^\s#]+', active)
+              if not any('dl.google.com/linux/chrome-stable' in url for url in urls):
+                  continue
+              if not all(url.startswith(('https://dl.google.com/linux/chrome-stable', 'http://dl.google.com/linux/chrome-stable')) for url in urls):
+                  raise RuntimeError('The Chrome source shares a file with another repository; cannot isolate it safely.')
+              print(f'Temporarily isolating hosted-image source: {source.name}')
+              shutil.move(str(source), str(Path(sys.argv[1]) / source.name))
+          PYTHON
+          pnpm exec playwright install --with-deps chromium
+
+      - name: Capture Brief B desktop and mobile journey
+        if: always()
+        continue-on-error: true
+        env:
+          YOVA_PERSONALIZATION_ROLLOUT_PERCENT: "100"
+        run: pnpm exec playwright test e2e/living-plan.spec.ts --project=desktop-chromium --project=mobile-chromium --workers=1 --retries=0 2>&1 | tee artifacts/brief-b-baseline/browser.txt
       - name: Describe the baseline accurately
         if: always()
         env:
           ROUTE_OUTCOME: ${{ steps.route.outcome }}
-          BROWSER_OUTCOME: not-run-in-unit-slice
+          BROWSER_OUTCOME: see-browser-artifact
         run: |
           printf 'Pre-implementation evidence only; this is not a release gate.\n\nRoute contract: %s\n\nBrowser contract: %s\n' "$ROUTE_OUTCOME" "$BROWSER_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload baseline evidence

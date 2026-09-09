@@ -1,3 +1,4 @@
+import { undoPlanRevision } from "@/lib/plan-revision/undo-service";
 import { applyPlanRevision } from "@/lib/plan-revision/apply-service";
 import { RevisionConflict } from "@/lib/plan-revision/revision-patch";
 import { deferredTopicSessionFields } from "@/lib/learning/deferred-topic-session";
@@ -27,7 +28,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readPlanSchedulePreferences } from "@/lib/scheduling/plan-schedule-preferences";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { PlanRevisionPreviewRequestSchema, PlanRevisionApplyRequestSchema } from "@/lib/plan-revision/revision-schema";
+import { PlanRevisionPreviewRequestSchema, PlanRevisionApplyRequestSchema, PlanRevisionUndoRequestSchema } from "@/lib/plan-revision/revision-schema";
 import { previewPlanRevision, PlanRevisionRequestError } from "@/lib/plan-revision/preview-service";
 import { MapDeltaError } from "@/lib/plan-revision/map-delta";
 
@@ -51,11 +52,13 @@ export async function PATCH(request: Request) {
   }
 
   if (body && typeof body === "object" && "action" in body) {
-    const revision = body.action === "apply" ? PlanRevisionApplyRequestSchema.safeParse(body) : PlanRevisionPreviewRequestSchema.safeParse(body);
+    const revision = body.action === "undo" ? PlanRevisionUndoRequestSchema.safeParse(body) : body.action === "apply" ? PlanRevisionApplyRequestSchema.safeParse(body) : PlanRevisionPreviewRequestSchema.safeParse(body);
     if (!revision.success) return NextResponse.json({ error: "Review the topic changes and preview controls." }, { status: 422 });
     try {
       const dependencies = { supabase, userId: user?.id ?? null, developmentPreview, now: new Date() };
-      const result = revision.data.action === "apply"
+      const result = revision.data.action === "undo"
+        ? await undoPlanRevision({ input: revision.data, ...dependencies })
+        : revision.data.action === "apply"
         ? await applyPlanRevision({ input: revision.data, ...dependencies })
         : await previewPlanRevision({ input: revision.data, ...dependencies });
       return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });

@@ -14,6 +14,7 @@ export type SessionRevisionPatch = Readonly<{
   after: LearningPlanSession | null;
 }>;
 
+const pendingProjection = (session: LearningPlanSession | null) => session && ["ready", "upcoming"].includes(session.status) ? { ...session, status: "unstarted" } : session;
 const same = (left: unknown, right: unknown) => canonical(left) === canonical(right);
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -48,12 +49,15 @@ export function applySessionRevisionPatches({ current, patches, protectedSession
     if (existing && (protectedSessionIds.has(patch.id) || existing.status === "complete" || existing.resource)) {
       throw new RevisionConflict("saved_work", "A changed session now has saved work. Review a new preview; that work has been kept.");
     }
-    if (!same(existing, patch.before)) {
+    if (!same(pendingProjection(existing), pendingProjection(patch.before))) {
       throw new RevisionConflict("stale_session", "A changed session no longer matches this preview. Review its latest version.");
     }
   }
   for (const patch of patches) {
-    if (patch.after) byId.set(patch.id, structuredClone(patch.after));
+    if (patch.after) {
+      const existing = byId.get(patch.id);
+      byId.set(patch.id, { ...structuredClone(patch.after), ...(existing && ["ready", "upcoming"].includes(existing.status) && ["ready", "upcoming"].includes(patch.after.status) ? { status: existing.status } : {}) });
+    }
     else byId.delete(patch.id);
   }
   return [...byId.values()].sort((a, b) => a.sequence - b.sequence);
@@ -61,17 +65,21 @@ export function applySessionRevisionPatches({ current, patches, protectedSession
 
 /** Only fields that the authorized proposal actually changes are restored.
  * A later unrelated completion's measured topic status is never rolled back. */
-export function mergeRevisionMapChanges({ before, after, current }: {
+export function mergeRevisionMapChanges({ before, after, current, undoAddedTopics = false }: {
   before: PlanKnowledgeMap;
   after: PlanKnowledgeMap;
   current: PlanKnowledgeMap;
+  undoAddedTopics?: boolean;
 }): PlanKnowledgeMap {
   const result = structuredClone(current);
   const oldTopics = new Map(before.topics.map(topic => [topic.id, topic]));
   const currentTopics = new Map(result.topics.map(topic => [topic.id, topic]));
   const nextIds = new Set(after.topics.map(topic => topic.id));
-  if (before.topics.some(topic => !nextIds.has(topic.id))) {
+  if (!undoAddedTopics && before.topics.some(topic => !nextIds.has(topic.id))) {
     throw new RevisionConflict("stale_map", "A revision must keep removed topics as history, not erase them.");
+  }
+  for (const removed of before.topics.filter(topic => !nextIds.has(topic.id))) {
+    if (!same(removed, currentTopics.get(removed.id))) throw new RevisionConflict("stale_map", "The added topic now has newer information. Undo has kept it.");
   }
   for (const next of after.topics) {
     const old = oldTopics.get(next.id);

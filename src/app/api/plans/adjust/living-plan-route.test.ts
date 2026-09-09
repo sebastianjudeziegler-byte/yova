@@ -406,6 +406,13 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(await undo.json()).not.toHaveProperty("receipt");
   });
 
+  it("rejects a file reference that is not owned, ready and available before requesting provider copy", async () => {
+    const { response, body } = await preview([{ op: "attach_source", topic_id: ETC, material_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd" }]);
+    expect(response.status, JSON.stringify(body)).toBe(410);
+    expect(body).not.toHaveProperty("proposalReceipt");
+    expect(mocks.fill).not.toHaveBeenCalled();
+  });
+
   async function activePreview(operations: Operation[], mutate?: (plan: LearningPlan) => void) {
     const plan = commitPlanStudyRoutes({ ...deterministicDeltaPlan(1), status: "active" as const }, DELTA_NOW.toISOString());
     mutate?.(plan);
