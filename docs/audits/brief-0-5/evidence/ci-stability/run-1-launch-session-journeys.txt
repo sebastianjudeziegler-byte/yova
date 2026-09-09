@@ -1,0 +1,73 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'calculus'
+[22m[39mcalculus {
+  elapsedMs: [33m6513[39m,
+  attempts: [33m1[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'session_practice_variation'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m'YOVA restored 3 evidence-derived practice-intent labels without changing question content or learning phases.'[39m,
+  inputTokens: [33m8604[39m,
+  cachedInputTokens: [33m0[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1255[39m,
+  validationIssueCode: [32m'session_practice_metadata'[39m,
+  strategy: [32m'streamed'[39m,
+  stage: [32m'complete'[39m
+} self_explanation
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'osmosis'
+[22m[39mosmosis {
+  elapsedMs: [33m8918[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'streamed_lesson_scope'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Membranes and water concentration”; “Osmosis as water movement”. Later targets that must remain exact entries in deferredContent: “Simple cell example and prediction”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+  inputTokens: [33m9974[39m,
+  cachedInputTokens: [33m3840[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1672[39m,
+  validationIssueCode: [32m'streamed_target_missing'[39m,
+  recoveryMode: [32m'safe_learn'[39m,
+  strategy: [32m'streamed'[39m,
+  stage: [32m'complete'[39m
+} self_explanation
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'recall'
+[22m[39mrecall {
+  elapsedMs: [33m16212[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'session_method_fidelity'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m'concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.'[39m,
+  inputTokens: [33m20712[39m,
+  cachedInputTokens: [33m5888[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m2775[39m,
+  validationIssueCode: [1mnull[22m,
+  strategy: [32m'full'[39m,
+  stage: [32m'complete'[39m
+} concept_mapping
+
+ [32m✓[39m src/evals/launch-session-journeys.live.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 45193[2mms[22m[39m
+     [33m[2m✓[22m[39m 'calculus' [33m 11460[2mms[22m[39m
+     [33m[2m✓[22m[39m 'osmosis' [33m 12987[2mms[22m[39m
+     [33m[2m✓[22m[39m 'recall' [33m 20744[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 07:09:23
+[2m   Duration [22m 46.06s[2m (transform 840ms, setup 0ms, import 734ms, tests 45.19s, environment 0ms)[22m
+
+
+Exit code: 0

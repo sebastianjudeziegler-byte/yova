@@ -1,0 +1,20 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/lib/diagnostics/map-diagnostic.live.test.ts[2m > [22m[2mlive map diagnostic generation[2m > [22m[2mgenerates from a material map and reports latency
+[22m[39mDIAGNOSTIC_TELEMETRY origin=material elapsedMs=15227 inputTokens=1544 outputTokens=1182 questions=8
+
+[90mstdout[2m | src/lib/diagnostics/map-diagnostic.live.test.ts[2m > [22m[2mlive map diagnostic generation[2m > [22m[2mgenerates from a ai_generated map and reports latency
+[22m[39mDIAGNOSTIC_TELEMETRY origin=ai_generated elapsedMs=20613 inputTokens=1567 outputTokens=1514 questions=8
+
+ [32m✓[39m src/lib/diagnostics/map-diagnostic.live.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 36129[2mms[22m[39m
+     [33m[2m✓[22m[39m generates from a material map and reports latency [33m 15513[2mms[22m[39m
+     [33m[2m✓[22m[39m generates from a ai_generated map and reports latency [33m 20614[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 07:26:44
+[2m   Duration [22m 36.40s[2m (transform 181ms, setup 0ms, import 122ms, tests 36.13s, environment 0ms)[22m
+
+
+Exit code: 0

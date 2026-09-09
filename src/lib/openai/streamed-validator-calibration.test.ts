@@ -112,6 +112,20 @@ describe("Brief 0.5 preserved subject and notation boundaries", () => {
     await expect(generateStreamedTeachingSkeletonWithOpenAI(captures.history_answer.context as SessionGenerationContext)).rejects.toThrow(/streamed_target_subject/);
   });
 
+  it("delivers factual date recall through complete validation using equivalent question wording", async () => {
+    const outputs = structuredClone(captures.history_answer.outputs);
+    const recovery = outputs[1] as typeof outputs[1] & { recognitionCheck: { title: string; prompt: string } };
+    recovery.recognitionCheck.title = "World War I ending date";
+    recovery.recognitionCheck.prompt = "When did World War I end?";
+    supply(outputs);
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(captures.history_answer.context as SessionGenerationContext);
+    const question = result.draft.activities.find(activity => activity.type === "multiple_choice")!;
+    expect(question.title).toBe("World War I ending date");
+    expect(question.body).toBe("When did World War I end?");
+    expect(question.correctAnswer).toBe("1918");
+  });
+
   it("accepts a complete on-topic check without treating its four choices as one short claim", () => {
     const surface = "Use the product rule. Which derivative correctly differentiates the product f(x)g(x)? The product rule gives f'(x)g(x) + f(x)g'(x). Keep both derivative terms rather than multiplying the derivatives together.";
     expect(lessonIdeaSharesTargetSubject(surface, "Product rule", "check")).toBe(true);

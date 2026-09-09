@@ -1,0 +1,231 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/streamed-world-war-one-skeleton.live.test.ts[2m > [22m[2mlive exact World War I baseline skeleton[2m > [22m[2mcreates the production 45-minute streamed teaching session
+[22m[39mExact WWI baseline skeleton {
+  generationStats: {
+    elapsedMs: [33m15036[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'streamed_lesson_scope'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mtrue[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”; “Sequence from the Sarajevo assassination to declarations of war”; “Basic chronology from 1914 to 1918”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_1; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+    inputTokens: [33m8382[39m,
+    cachedInputTokens: [33m7424[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m2046[39m,
+    validationIssueCode: [32m'streamed_target_missing'[39m,
+    recoveryMode: [32m'safe_learn'[39m,
+    strategy: [32m'streamed'[39m,
+    stage: [32m'complete'[39m
+  },
+  coverage: {
+    focus: [32m'Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.'[39m,
+    essentialIdeas: [
+      [32m'Prewar European alliances linked Germany, Austria-Hungary, Italy, and the Triple Entente.'[39m,
+      [32m"The Sarajevo assassination of Archduke Franz Ferdinand triggered Austria-Hungary's ultimatum to Serbia and the war crisis."[39m,
+      [32m'World War I began in 1914 and ended in 1918 with the armistice.'[39m
+    ],
+    completionEvidence: [
+      [32m'Describe the main alliance blocs and at least three prewar tensions using the example provided'[39m,
+      [32m'Place Sarajevo, the July Crisis, the start of the war, U.S. entry, and the armistice in order'[39m
+    ],
+    evidenceMap: [ [36m[Object][39m, [36m[Object][39m, [36m[Object][39m ],
+    deferredContent: []
+  },
+  activities: [
+    {
+      type: [32m'instruction'[39m,
+      phase: [32m'model'[39m,
+      concept: [1mnull[22m,
+      minutes: [33m3[39m,
+      ideas: [36m[Array][39m
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'explain'[39m,
+      concept: [32m'Prewar European alliances linked Germany, Austria-Hungary, Italy, and the Triple Entente.'[39m,
+      minutes: [33m6[39m,
+      ideas: []
+    },
+    {
+      type: [32m'instruction'[39m,
+      phase: [32m'model'[39m,
+      concept: [1mnull[22m,
+      minutes: [33m8[39m,
+      ideas: [36m[Array][39m
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'explain'[39m,
+      concept: [32m"The Sarajevo assassination of Archduke Franz Ferdinand triggered Austria-Hungary's ultimatum to"[39m,
+      minutes: [33m6[39m,
+      ideas: []
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'explain'[39m,
+      concept: [32m'World War I began in 1914 and ended in 1918 with the armistice.'[39m,
+      minutes: [33m6[39m,
+      ideas: []
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'repair'[39m,
+      concept: [32m'Prewar European alliances linked Germany, Austria-Hungary, Italy, and the Triple Entente.'[39m,
+      minutes: [33m6[39m,
+      ideas: []
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'reexplain'[39m,
+      concept: [32m'Prewar European alliances linked Germany, Austria-Hungary, Italy, and the Triple Entente.'[39m,
+      minutes: [33m6[39m,
+      ideas: []
+    },
+    {
+      type: [32m'multiple_choice'[39m,
+      phase: [32m'transfer'[39m,
+      concept: [32m'Recognition transfer: World War I began in 1914 and ended in 1918 with the armistice.'[39m,
+      minutes: [33m4[39m,
+      ideas: []
+    },
+    {
+      type: [32m'reflection'[39m,
+      phase: [32m'schedule_return'[39m,
+      concept: [1mnull[22m,
+      minutes: [33m1[39m,
+      ideas: []
+    }
+  ]
+}
+
+[90mstdout[2m | src/evals/streamed-world-war-one-skeleton.live.test.ts[2m > [22m[2mlive streamed World War I session skeleton[2m > [22m[2mreliably creates a valid subject-specific session outline
+[22m[39mWWI streamed skeleton run {
+  run: [33m1[39m,
+  elapsedMs: [33m9153[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  failedValidator: [32m'streamed_lesson_scope'[39m,
+  repairDetail: [32m'The active idea “Prewar European alliances and tensions” is only a topic label. Rewrite it as a concise explanatory claim that states what the learner should understand. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.'[39m,
+  requiredMinutes: [33m9[39m,
+  activeIdeas: [
+    [32m'Prewar European alliances and tensions divided Europe into rival blocs before 1914.'[39m
+  ],
+  deferredContent: [
+    [32m'Basic chronology from 1914 to 1918'[39m,
+    [32m'Sequence from the Sarajevo assassination to declarations of war'[39m
+  ]
+}
+
+[90mstdout[2m | src/evals/streamed-world-war-one-skeleton.live.test.ts[2m > [22m[2mlive streamed World War I session skeleton[2m > [22m[2mreliably creates a valid subject-specific session outline
+[22m[39mWWI streamed skeleton run {
+  run: [33m2[39m,
+  elapsedMs: [33m12672[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  failedValidator: [32m'streamed_lesson_scope'[39m,
+  repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A post-teaching recognition check still contains deferred-session substance in its prompt, answer, feedback, or choices. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+  requiredMinutes: [33m9[39m,
+  activeIdeas: [
+    [32m'Prewar European alliances and tensions linked rival states into opposing blocs before war.'[39m
+  ],
+  deferredContent: [
+    [32m'Basic chronology from 1914 to 1918'[39m,
+    [32m'Sequence from the Sarajevo assassination to declarations of war'[39m
+  ]
+}
+
+[90mstdout[2m | src/evals/streamed-world-war-one-skeleton.live.test.ts[2m > [22m[2mlive streamed World War I session skeleton[2m > [22m[2mreliably creates a valid subject-specific session outline
+[22m[39mWWI streamed skeleton run {
+  run: [33m3[39m,
+  elapsedMs: [33m12519[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  failedValidator: [32m'streamed_lesson_scope'[39m,
+  repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+  requiredMinutes: [33m9[39m,
+  activeIdeas: [
+    [32m'Prewar European alliances and tensions split major powers into rival military blocs before 1914.'[39m
+  ],
+  deferredContent: [
+    [32m'Basic chronology from 1914 to 1918'[39m,
+    [32m'Sequence from the Sarajevo assassination to declarations of war'[39m
+  ]
+}
+WWI streamed skeleton reliability [
+  {
+    run: [33m1[39m,
+    elapsedMs: [33m9153[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mtrue[39m,
+    failedValidator: [32m'streamed_lesson_scope'[39m,
+    repairDetail: [32m'The active idea “Prewar European alliances and tensions” is only a topic label. Rewrite it as a concise explanatory claim that states what the learner should understand. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.'[39m,
+    requiredMinutes: [33m9[39m,
+    activeIdeas: [
+      [32m'Prewar European alliances and tensions divided Europe into rival blocs before 1914.'[39m
+    ],
+    deferredContent: [
+      [32m'Basic chronology from 1914 to 1918'[39m,
+      [32m'Sequence from the Sarajevo assassination to declarations of war'[39m
+    ]
+  },
+  {
+    run: [33m2[39m,
+    elapsedMs: [33m12672[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mtrue[39m,
+    failedValidator: [32m'streamed_lesson_scope'[39m,
+    repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A post-teaching recognition check still contains deferred-session substance in its prompt, answer, feedback, or choices. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+    requiredMinutes: [33m9[39m,
+    activeIdeas: [
+      [32m'Prewar European alliances and tensions linked rival states into opposing blocs before war.'[39m
+    ],
+    deferredContent: [
+      [32m'Basic chronology from 1914 to 1918'[39m,
+      [32m'Sequence from the Sarajevo assassination to declarations of war'[39m
+    ]
+  },
+  {
+    run: [33m3[39m,
+    elapsedMs: [33m12519[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mtrue[39m,
+    failedValidator: [32m'streamed_lesson_scope'[39m,
+    repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+    requiredMinutes: [33m9[39m,
+    activeIdeas: [
+      [32m'Prewar European alliances and tensions split major powers into rival military blocs before 1914.'[39m
+    ],
+    deferredContent: [
+      [32m'Basic chronology from 1914 to 1918'[39m,
+      [32m'Sequence from the Sarajevo assassination to declarations of war'[39m
+    ]
+  }
+]
+
+ [32m✓[39m src/evals/streamed-world-war-one-skeleton.live.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 49493[2mms[22m[39m
+     [33m[2m✓[22m[39m creates the production 45-minute streamed teaching session [33m 15143[2mms[22m[39m
+     [33m[2m✓[22m[39m reliably creates a valid subject-specific session outline [33m 34349[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 07:25:44
+[2m   Duration [22m 50.48s[2m (transform 613ms, setup 0ms, import 851ms, tests 49.49s, environment 0ms)[22m
+
+
+Exit code: 0

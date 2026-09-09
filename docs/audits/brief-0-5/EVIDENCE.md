@@ -225,3 +225,26 @@ The [full live artifact](evidence/ci-release/full-live-gate/report.md) reports *
 Both browser screenshots show the existing uncertain-answer comparison with an enabled Continue button and an explicit statement that no correct/incorrect evidence was recorded. The test unconditionally waits for `I got the key idea`, which is deliberately absent in that state. This behavior was introduced in `1fe44f62` on 2026-08-31 (`yova-prototype.tsx`, the `semanticEvaluationHasNoEvidence` branch). The test must wait for either the comparison controls or that explicit no-evidence receipt, assert the correct state, then continue; it must not fabricate a learner rating. The final unrated-completion, saved-completion, answer-count and successful live-lesson assertions remain. This is a correction to test expectations only. Three fresh full live runs will execute serially in GitHub Actions; no local verification is authorized.
 
 The live browser's answer lookup also selected the earlier instruction when instruction and recall shared a title (already reproduced on both branches and documented in BACKLOG under Brief A). Restrict that fixture lookup to question activities. The explicit uncertain-result branch remains necessary and asserted; passing does not depend on inventing a self-rating.
+
+### Combined release stability sample — two remaining scoped failures
+
+[GitHub Actions run 34357438000](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34357438000) tested merge `d8e29b21178be12a83c493ca19b67d3e639215ef`, release head `122f2bd`, against main `e03a082`. The [complete three-run artifact](evidence/ci-stability/report.md) records 228 observations: **159 pass / 27 fail / 36 quarantined flaky / 6 unavailable**. These are observations, not 228 distinct tests. The policy labels remain unchanged.
+
+| Scoped case | Run 1 | Run 2 | Run 3 |
+| --- | --- | --- | --- |
+| A03, A01, A02 — grader | PASS | PASS | PASS |
+| X06 — membrane subject | PASS | PASS | PASS |
+| A22 — product/chain rule | FAIL | PASS | PASS |
+| A15 — short product rule | PASS | PASS | PASS |
+| A35 — WWI streamed lesson | PASS | FAIL | PASS |
+| A36 — WWI skeleton | PASS | PASS | PASS |
+| A27 — JavaScript claims | PASS | PASS | PASS |
+| A32 — Spanish claims | PASS | PASS | PASS |
+
+All nine permanent grader canaries and Brief A's live delta passed 3/3. Both live browser journeys actually passed 3/3, while retaining their historical FLAKY policy labels. The previous lexical A35 test correction therefore passes when generation succeeds. Ordinary gates passed: dependency audit, configuration, migration replay/database checks, 3,937 unit tests and 12 runner checks, lint/build, 265 desktop/mobile journeys, 15 authentication journeys, and the exact main/release phone-width comparison. No local verification was performed.
+
+**Root-cause memo before further product edits:** A35's failing question is titled “World War I ending date”; `question-context.ts` still recognizes factual dates only through the literal “what/which year” or “year did/was/were/of” forms. This is an incomplete V4 correction: equivalent factual date recall is incorrectly treated as arithmetic. Add alternative date-recall wording with four year choices, and retain negatives for missing arithmetic data, hidden questions, and date calculations. The original live response was not captured, so a derived wording fixture must not be described as the exact provider response.
+
+A22 fails at `scope_input` with one idea/assignment remaining for two active targets, after the complete initial assignment validation succeeded. That locates the loss inside completion reconciliation, consistent with V1, but the aggregate log does not establish which valid representation was lost. Capture the same fixture through a pass-through CI harness before selecting a correction. Preserve the missing-target invariant, off-topic/deferred-topic negatives, duplicate checks, and the existing provider-call limit. No product change is justified solely by the failure count.
+
+A temporary focused CI workflow will collect this diagnostic evidence and the new date-recall red test. It is explicitly **not** the full gate; the complete workflow will be restored before release verification and merge.

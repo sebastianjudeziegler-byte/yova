@@ -1,0 +1,79 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/outside-teaching-reliability.live.test.ts[2m > [22m[2mlive outside-YOVA teaching reliability[2m > [22m[2mbuilds an arbitrary three-target teaching-first session repeatedly
+[22m[39mOutside teaching generation {
+  run: [33m1[39m,
+  generationStats: {
+    elapsedMs: [33m9472[39m,
+    attempts: [33m1[39m,
+    firstAttemptPassed: [33mtrue[39m,
+    failedValidator: [1mnull[22m,
+    repairAttempted: [33mfalse[39m,
+    repairSucceeded: [1mnull[22m,
+    repairReason: [32m'none'[39m,
+    repairDetail: [1mnull[22m,
+    inputTokens: [33m11980[39m,
+    cachedInputTokens: [33m6912[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m1580[39m,
+    validationIssueCode: [1mnull[22m,
+    strategy: [32m'full'[39m,
+    stage: [32m'complete'[39m
+  }
+}
+
+[90mstdout[2m | src/evals/outside-teaching-reliability.live.test.ts[2m > [22m[2mlive outside-YOVA teaching reliability[2m > [22m[2mbuilds an arbitrary three-target teaching-first session repeatedly
+[22m[39mOutside teaching generation {
+  run: [33m2[39m,
+  generationStats: {
+    elapsedMs: [33m8192[39m,
+    attempts: [33m1[39m,
+    firstAttemptPassed: [33mtrue[39m,
+    failedValidator: [1mnull[22m,
+    repairAttempted: [33mfalse[39m,
+    repairSucceeded: [1mnull[22m,
+    repairReason: [32m'none'[39m,
+    repairDetail: [1mnull[22m,
+    inputTokens: [33m11980[39m,
+    cachedInputTokens: [33m11520[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m1541[39m,
+    validationIssueCode: [1mnull[22m,
+    strategy: [32m'full'[39m,
+    stage: [32m'complete'[39m
+  }
+}
+
+[90mstdout[2m | src/evals/outside-teaching-reliability.live.test.ts[2m > [22m[2mlive outside-YOVA teaching reliability[2m > [22m[2mbuilds an arbitrary three-target teaching-first session repeatedly
+[22m[39mOutside teaching generation {
+  run: [33m3[39m,
+  generationStats: {
+    elapsedMs: [33m9241[39m,
+    attempts: [33m1[39m,
+    firstAttemptPassed: [33mtrue[39m,
+    failedValidator: [1mnull[22m,
+    repairAttempted: [33mfalse[39m,
+    repairSucceeded: [1mnull[22m,
+    repairReason: [32m'none'[39m,
+    repairDetail: [1mnull[22m,
+    inputTokens: [33m11980[39m,
+    cachedInputTokens: [33m11520[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m1492[39m,
+    validationIssueCode: [1mnull[22m,
+    strategy: [32m'full'[39m,
+    stage: [32m'complete'[39m
+  }
+}
+
+ [32m✓[39m src/evals/outside-teaching-reliability.live.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 27816[2mms[22m[39m
+     [33m[2m✓[22m[39m builds an arbitrary three-target teaching-first session repeatedly [33m 27814[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m   Start at [22m 07:49:40
+[2m   Duration [22m 27.98s[2m (transform 598ms, setup 0ms, import 33ms, tests 27.82s, environment 0ms)[22m
+
+
+Exit code: 0
