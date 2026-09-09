@@ -76,6 +76,7 @@ function buildPlanPersistencePayload(
   request: PlanGenerationRequest,
 ) {
   const generationInputs = {
+    planRevisionId: plan.revisionId ?? plan.id,
     intent: request.intent,
     learningIntent: request.learningIntent,
     sessionArchitectureVersion: resolveSessionArchitectureVersion(plan, plan.knowledgeMap),

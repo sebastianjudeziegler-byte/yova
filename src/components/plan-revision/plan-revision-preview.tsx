@@ -13,6 +13,7 @@ type Props = {
   plan: LearningPlan;
   initialDelta: MapDelta;
   initialTopicId?: string;
+  initialType?: MapDeltaOperation["op"];
   onPreview: (delta: MapDelta, controls: RevisionControls) => Promise<SignedPreview>;
   // Parent persists and updates the plan before resolving. Receipt/Undo live
   // outside this editor so closing it cannot discard the durable result.
@@ -39,7 +40,7 @@ export function PlanRevisionPreview(props: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(props.initialDelta.operations.length === 0);
-  const [newType, setNewType] = useState<MapDeltaOperation["op"]>("attach_source");
+  const [newType, setNewType] = useState<MapDeltaOperation["op"]>(props.initialType ?? "attach_source");
   const [newTopic, setNewTopic] = useState(props.initialTopicId ?? props.plan.knowledgeMap?.topics.find(topic => !topic.removed)?.id ?? "");
   const [sourceUrl, setSourceUrl] = useState("");
   const [stagedFile, setStagedFile] = useState<{ materialId: string; name: string } | null>(null);

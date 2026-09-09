@@ -21,6 +21,8 @@ import { BrandMark } from "@/components/brand-mark";
 import { GoalClarification } from "@/components/goal-clarification";
 import { MaterialFileDropzone } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
+import { LivingPlanRevision } from "@/components/plan-revision/living-plan-revision";
+import type { MapDelta, MapDeltaOperation } from "@/lib/plan-revision/map-delta";
 import { PlanGenerationNotice } from "@/components/plan-generation-notice";
 import { StudyRouteRecipeCard } from "@/components/study-route-recipe-card";
 import { makeId, type LearningMaterial, type LearningPlan } from "@/lib/domain";
@@ -116,6 +118,8 @@ export function PlanCreator({
   previewCanonicalProfile = null,
   seed = null,
   initialSeedStep = "schedule",
+  revisionAccountId = "preview",
+  activePlans = [],
 }: {
   onExit: () => void;
   onFinish: (plan: LearningPlan) => void;
@@ -125,6 +129,8 @@ export function PlanCreator({
   previewCanonicalProfile?: Readonly<CanonicalLearnerProfile> | null;
   seed?: AddIntakeSeed | null;
   initialSeedStep?: "source" | "schedule";
+  revisionAccountId?: string;
+  activePlans?: LearningPlan[];
 }) {
   const scheduleRecommendation = recommendStudySchedule(profileSummary);
   const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -187,11 +193,9 @@ export function PlanCreator({
   const [methodUpdatingSessionId, setMethodUpdatingSessionId] = useState<string | null>(null);
   const [methodChoiceError, setMethodChoiceError] = useState<{ sessionId: string; message: string } | null>(null);
   const [methodChoiceNotice, setMethodChoiceNotice] = useState<{ sessionId: string; message: string } | null>(null);
-  const [mapCorrection, setMapCorrection] = useState("");
-  const [mapUpdating, setMapUpdating] = useState(false);
-  const [mapCorrectionError, setMapCorrectionError] = useState<string | null>(null);
-  const [mapRevisionNotice, setMapRevisionNotice] = useState<string | null>(null);
-  const draftBusy = mapUpdating || activating || Boolean(methodUpdatingSessionId);
+  const [draftRevision, setDraftRevision] = useState<{ key: string; delta: MapDelta; type?: MapDeltaOperation["op"]; topicId?: string } | null>(null);
+  const [revisionReviewPending, setRevisionReviewPending] = useState(false);
+  const draftBusy = revisionReviewPending || activating || Boolean(methodUpdatingSessionId);
   const availability = availabilityChoices
     .filter((choice) => choice.enabled)
     .map(({ day, window, minutes }) => ({ day, window, minutes }));
@@ -232,6 +236,7 @@ export function PlanCreator({
   const totalSteps = skipsPlacementDiagnostic ? 4 : 5;
 
   const back = () => {
+    if (generatedPlan) { reviseGeneratedPlan("goal"); return; }
     if (step === "confirm" && skipsPlacementDiagnostic) {
       setStep("schedule");
       return;
@@ -270,9 +275,8 @@ export function PlanCreator({
     setMethodEditorSessionId(null);
     setMethodChoiceError(null);
     setMethodChoiceNotice(null);
-    setMapCorrection("");
-    setMapRevisionNotice(null);
-    setMapCorrectionError(null);
+    setDraftRevision(null);
+    setRevisionReviewPending(false);
   };
 
   const changeGoal = (nextGoal: string) => {
@@ -567,79 +571,16 @@ export function PlanCreator({
     }
   };
 
-  const reviseGeneratedPlan = (target: "goal" | "source" | "schedule" | "diagnostic") => {
-    if (draftBusy) return;
-    setGeneratedPlan(null);
-    setGeneratedFrom(null);
-    setGenerationError(null);
-    setScheduleCapacityError(null);
+  const openDraftRevision = (type: MapDeltaOperation["op"], topicId?: string) => {
+    if (draftBusy || !generatedPlan) return;
+    setRevisionReviewPending(true);
     setActivationError(null);
-    // Opening an editor preserves accepted scope. Actual goal/source edits invalidate it.
-    if (target === "diagnostic") {
-      void prepareDiagnostic();
-      return;
-    }
-    setStep(target);
+    setDraftRevision({ key: makeId(), type, topicId,
+      delta: { operations: type === "mark_covered" && topicId ? [{ op: "mark_covered", topic_id: topicId }] : [] } });
   };
-
-  const updateTopicMapAndPlan = async () => {
-    const correction = mapCorrection.trim();
-    if (!correction || draftBusy) return;
-    setMapUpdating(true);
-    setMapCorrectionError(null);
-    try {
-      const planRequest = buildGenerationRequest({
-        knowledgeMap: generatedPlan?.plan.knowledgeMap ?? diagnosticMap ?? undefined,
-        knowledgeMapReceipt: generatedPlan?.generation.knowledgeMapReceipt ?? knowledgeMapReceipt ?? undefined,
-        diagnosticResponses: [],
-        mapCorrection: correction,
-      });
-      const { response, body } = await fetchClientJson("/api/plans/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
-        },
-        body: JSON.stringify(planRequest),
-      }, {
-        timeoutMs: GENERATION_REQUEST_TIMEOUT_MS,
-        timeoutMessage: "The topic-map update took too long. Your current draft is unchanged.",
-        invalidResponseMessage: "The topic-map service returned an invalid response.",
-      });
-      if (!response.ok) {
-        const capacityGuidance = planScheduleCapacityGuidance(body);
-        if (capacityGuidance) {
-          setMapCorrectionError(`${capacityGuidance} Use Change schedule below to revise the available time.`);
-          return;
-        }
-        throw new Error(readApiError(body) ?? "YOVA could not update this topic map yet.");
-      }
-      const parsed = PlanGenerationResponseSchema.safeParse(body);
-      if (!parsed.success || !parsed.data.plan.knowledgeMap) throw new Error("The updated map came back in an unsafe format.");
-      setGeneratedPlan(parsed.data);
-      setGeneratedFrom({ ...planRequest, knowledgeMap: parsed.data.plan.knowledgeMap });
-      setDiagnosticMap(parsed.data.plan.knowledgeMap);
-      setKnowledgeMapReceipt(parsed.data.generation.knowledgeMapReceipt ?? null);
-      setDiagnosticQuestions([]);
-      setDiagnosticAnswers([]);
-      setDiagnosticResponses([]);
-      setDiagnosticLatencyMs(null);
-      setDiagnosticIndex(0);
-      setMethodEditorSessionId(null);
-      setMethodChoiceNotice(null);
-      const beforeTitles = new Set(generatedPlan?.plan.knowledgeMap?.topics.map((topic) => topic.title) ?? []);
-      const afterTitles = new Set(parsed.data.plan.knowledgeMap.topics.map((topic) => topic.title));
-      const added = [...afterTitles].filter((title) => !beforeTitles.has(title)).length;
-      const removed = [...beforeTitles].filter((title) => !afterTitles.has(title)).length;
-      const retainedIds = new Set(parsed.data.plan.knowledgeMap.topics.map(topic => topic.id));
-      const removedDemonstrated = generatedPlan?.plan.knowledgeMap?.topics.filter(topic => topic.initialEvidence?.outcome === "demonstrated" && !retainedIds.has(topic.id)).map(topic => topic.title) ?? [];
-      setMapRevisionNotice(`Map updated: ${added} topic names added, ${removed} removed. Review all ${parsed.data.plan.sessions.length} rebuilt sessions and their methods. Verified starting knowledge is preserved for unchanged topics. Old questions were cleared; use Change starting level for a fresh check.${removedDemonstrated.length ? ` Previously demonstrated topics removed or changed: ${removedDemonstrated.join(", ")}. Their earlier evidence does not apply to new scope.` : ""}`);
-      setMapCorrection("");
-    } catch (error) {
-      setMapCorrectionError(userFacingErrorMessage(error, "YOVA could not update this topic map yet."));
-    } finally {
-      setMapUpdating(false);
-    }
+  const reviseGeneratedPlan = (target: "goal" | "source" | "schedule" | "diagnostic") => {
+    const types = { goal: "add_topic", source: "attach_source", schedule: "set_availability", diagnostic: "mark_covered" } as const;
+    openDraftRevision(types[target]);
   };
 
   const chooseFrequency = (frequency: StudyFrequency) => {
@@ -939,20 +880,24 @@ export function PlanCreator({
               const teachesTopic = generatedPlan.plan.sessions.some((session) => session.topicIds?.includes(topic.id) && session.learningMode === "learn");
               const previouslyChecked = topic.initialEvidence?.outcome === "demonstrated";
               const state = topic.deferred ? previouslyChecked ? "Previously checked · not scheduled" : "Deferred" : workProductCopy ? workProductCopy.topicMapState : teachesTopic ? "Teach and check" : previouslyChecked ? "Quick verification" : "Practice and check";
-              return <li className={topic.deferred ? "deferred" : ""} key={topic.id}><span>{index + 1}</span><div><strong>{topicDisplayLabel(topic.title, workProductCopy ? "This part" : "This topic")}</strong><p>{topic.description}</p>{topic.subtopics.length > 0 && <small>{topic.subtopics.slice(0, 4).map((subtopic) => topicDisplayLabel(subtopic, workProductCopy ? "This part" : "This topic")).join(" · ")}</small>}{topic.deferred && <p>{previouslyChecked ? "Your placement result is kept. A follow-up check is saved for later" : "Saved for later"}: {topic.deferred.reason}</p>}</div><em>{state}{!topic.deferred ? ` · ${sessionCount} ${sessionCount === 1 ? "session" : "sessions"}` : ""}</em></li>;
+              return <li className={topic.deferred ? "deferred" : ""} key={topic.id} data-topic-id={topic.id}><span>{index + 1}</span><div><strong>{topicDisplayLabel(topic.title, workProductCopy ? "This part" : "This topic")}</strong><p>{topic.description}</p>{topic.subtopics.length > 0 && <small>{topic.subtopics.slice(0, 4).map((subtopic) => topicDisplayLabel(subtopic, workProductCopy ? "This part" : "This topic")).join(" · ")}</small>}{topic.deferred && <p>{previouslyChecked ? "Your placement result is kept. A follow-up check is saved for later" : "Saved for later"}: {topic.deferred.reason}</p>}</div><em>{state}{!topic.deferred ? ` · ${sessionCount} ${sessionCount === 1 ? "session" : "sessions"}` : ""}</em>{!topic.removed && <button type="button" className="button ghost" disabled={draftBusy} onClick={() => openDraftRevision("mark_covered", topic.id)}>I already learned this</button>}</li>;
             })}</ol>
-            <div className="topic-map-correction">
-              <div><strong>Something is off?</strong><p>{workProductCopy ? "Tell YOVA which required part is missing, outside the brief, already complete, or needs a different emphasis. The draft changes only after you update and review the plan." : "Tell YOVA what is missing, outside your goal, or needs a different emphasis. Saying you know something changes the plan only after a quick verification. It never creates evidence by itself."}</p></div>
-              <div className="topic-map-prompts" aria-label="Common topic map changes">
-                {(workProductCopy ? ["A required part is missing: ", "This part is already complete: ", "This is outside the brief: ", "Change the emphasis toward: "] : ["A topic is missing: ", "I already know this and want a quick verification: ", "This is outside my goal: ", "Change the emphasis toward: "]).map((prompt) => <button type="button" disabled={draftBusy} key={prompt} onClick={() => setMapCorrection(prompt)}>{prompt.replace(/:\s*$/, "")}</button>)}
-              </div>
-              <textarea disabled={draftBusy} aria-label="Requested topic map change" rows={3} maxLength={800} value={mapCorrection} placeholder="Example: Include the causes of World War I, but leave detailed military technology outside this plan." onChange={(event) => setMapCorrection(event.target.value)} />
-              <p>Updating the map rebuilds the sessions and chooses their methods again. Review any methods you previously customized.</p>
-              {mapRevisionNotice && <p role="status">{mapRevisionNotice}</p>}
-              {mapCorrectionError && <p className="plan-activation-error"><AlertCircle size={16} /> {mapCorrectionError}</p>}
-              <button type="button" className="button secondary" disabled={!mapCorrection.trim() || draftBusy} onClick={() => void updateTopicMapAndPlan()}>{mapUpdating ? <><span className="button-spinner" /> Updating map…</> : <>Update map and plan <ArrowRight size={17} /></>}</button>
-            </div>
+            <div className="topic-map-correction"><strong>Change this topic map</strong><p>Add or remove a topic, attach a source, or change the order. Review only the affected sessions; your placement results and chosen methods are kept.</p><button className="button secondary" disabled={draftBusy} onClick={() => openDraftRevision("add_topic")}>Review topic changes</button></div>
           </section>}
+          {draftRevision && mappedGeneratedFrom && <LivingPlanRevision key={draftRevision.key}
+            plan={generatedPlan.plan} initialDelta={draftRevision.delta} initialType={draftRevision.type} initialTopicId={draftRevision.topicId}
+            draft={{ generationRequest: mappedGeneratedFrom, draftReceipt: generatedPlan.generation.draftReceipt ?? null }}
+            client={{ developmentPreview: browserPreviewMode, accountId: revisionAccountId, plans: activePlans, profileSummary,
+              previewCanonicalProfile, onSaved: () => {}, onOpenCalendar: () => {} }}
+            onDraftSaved={(plan, request, receipt) => {
+              setGeneratedPlan(PlanGenerationResponseSchema.parse({ ...generatedPlan, plan, generation: { ...generatedPlan.generation, draftReceipt: receipt } }));
+              setGeneratedFrom(request);
+              setDiagnosticMap(plan.knowledgeMap ?? null);
+              setMaterials(plan.materials ?? []);
+              setMethodEditorSessionId(null);
+            }}
+            onReviewed={() => setRevisionReviewPending(false)}
+            onClose={() => { setDraftRevision(null); setRevisionReviewPending(false); }} />}
           <PlanGenerationNotice generation={generatedPlan.generation} onRetry={() => void generatePlan()} retryDisabled={draftBusy} />
           <div className="generated-roadmap" aria-label="Learning roadmap">{generatedPhases.map((phase) => <section className="generated-phase" key={`${phase.key}-${phase.number}`}><header><div><span>{phase.number}</span><div><small>PLAN PHASE</small><h2>{phase.label}</h2></div></div><p>{phase.description}</p></header><div className="generated-timeline">{phase.sessions.map((session) => {
             const route = session.studyRoute;
@@ -970,7 +915,7 @@ export function PlanCreator({
             }}>{editing ? "Keep current method" : "Change method"}</button>{editing && route && <div className="draft-method-options" role="group" aria-label={`Other methods that also fit for ${session.title}`}>{alternatives.map((alternative) => <button type="button" key={alternative.alternativeId} aria-pressed={false} disabled={draftBusy} onClick={() => void changeDraftSessionMethod(session.id, route.identity.routeRevisionId, alternative.primaryMethodId)}><strong>{alternative.visibleMethodName}</strong><span>{alternative.tradeoff}</span></button>)}</div>}{updating && <p className="draft-method-status" role="status"><span className="button-spinner" /> Updating this recipe…</p>}{methodChoiceError?.sessionId === session.id && <p className="draft-method-error" role="alert">{methodChoiceError.message}</p>}{methodChoiceNotice?.sessionId === session.id && <p className="draft-method-status" role="status">{methodChoiceNotice.message}</p>}</div>}</details><p className="generated-session-focus">Focus: {(session.contentTargets ?? []).map((target) => topicDisplayLabel(target, "This target")).join("; ")}</p></div><strong>{session.amountLabel}</strong></article>;
           })}</div></section>)}</div>
           <section className="plan-alignment-check" aria-labelledby="plan-alignment-title">
-            <div className="plan-alignment-heading"><span className="step-label">BEFORE YOVA SAVES THIS</span><h2 id="plan-alignment-title">Does this plan match what you need?</h2><p>Check the content, starting approach, source, and pace. If one part is wrong, change that input and YOVA will rebuild the draft.</p></div>
+            <div className="plan-alignment-heading"><span className="step-label">BEFORE YOVA SAVES THIS</span><h2 id="plan-alignment-title">Does this plan match what you need?</h2><p>Check the content, starting approach, source, and pace. Change only the part you need. Review its preview before saving; everything else stays unchanged.</p></div>
             <div className="plan-alignment-facts">
               <div><span>{workProductCopy ? "WORK PRODUCT" : "CONTENT"}</span><strong>{topicDisplayLabel(generatedPlan.plan.topic)}</strong></div>
               <div><span>STARTING APPROACH</span><strong>{workProductCopy?.startingApproach ?? (generatedPlan.plan.sessions[0]?.learningMode === "learn" ? "Teach first, then remove support" : "Practice first, then repair gaps")}</strong></div>

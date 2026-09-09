@@ -29,6 +29,12 @@ import { POST } from "@/app/api/materials/attach/route";
 import { MaterialAttachmentResponseSchema } from "@/lib/materials/attachment-schema";
 
 describe("active-plan material attachment route", () => {
+  it("requires a topic and reviewed revision instead of globally replacing sources", async () => {
+    const response = await POST(new Request("http://localhost/api/materials/attach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ planId: PLAN_ID, materialIds: [MATERIAL_ID] }) }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "plan_revision_preview_required", error: expect.stringContaining("topic") });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.sessionStepData = { topicIds: [PLAN_TOPIC_ID] };

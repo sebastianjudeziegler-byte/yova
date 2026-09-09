@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { LearningPlan } from "@/lib/domain";
 import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
-import type { MapDelta } from "@/lib/plan-revision/map-delta";
+import type { MapDelta, MapDeltaOperation } from "@/lib/plan-revision/map-delta";
 import { RevisionPlanSchema, PlanRevisionProposalSchema, type RevisionControls } from "@/lib/plan-revision/revision-schema";
 import { PlanRevisionPreview, type SignedPreview } from "@/components/plan-revision/plan-revision-preview";
 import { CORE_METHOD_CATALOG, CORE_METHOD_IDS } from "@/lib/learning/method-catalog";
@@ -12,7 +12,10 @@ import { loadCalendarPrototypeState } from "@/lib/calendar/persistence";
 import { expandRecurringEvent } from "@/lib/calendar/recurrence";
 import { uploadMaterialFiles } from "@/lib/materials/intake";
 
+export type RevisionLaunch = { key: string; planId: string; delta: MapDelta; type?: MapDeltaOperation["op"]; topicId?: string };
 export type RevisionClient = {
+  launch?: RevisionLaunch | null;
+  onReviewClosed?: () => void;
   developmentPreview: boolean;
   accountId: string;
   plans: LearningPlan[];
@@ -22,10 +25,11 @@ export type RevisionClient = {
   onOpenCalendar: () => void;
 };
 type DraftAuthority = { generationRequest: PlanGenerationRequest; draftReceipt: string | null };
-export function LivingPlanRevision({ plan, initialDelta, initialTopicId, client, draft, onDraftSaved, onClose }: {
-  plan: LearningPlan; initialDelta: MapDelta; initialTopicId?: string; client: RevisionClient;
+export function LivingPlanRevision({ plan, initialDelta, initialTopicId, initialType, client, draft, onDraftSaved, onReviewed, onClose }: {
+  plan: LearningPlan; initialDelta: MapDelta; initialTopicId?: string; initialType?: MapDeltaOperation["op"]; client: RevisionClient;
   draft?: DraftAuthority;
   onDraftSaved?: (plan: LearningPlan, request: PlanGenerationRequest, receipt: string | null) => void;
+  onReviewed?: () => void;
   onClose: () => void;
 }) {
   const [applied, setApplied] = useState<SignedPreview | null>(null);
@@ -67,6 +71,7 @@ export function LivingPlanRevision({ plan, initialDelta, initialTopicId, client,
     if (draft && onDraftSaved) onDraftSaved(saved, result.generationRequest, result.draftReceipt);
     else await client.onSaved(saved, previous, result.changedSessionIds);
     setMessage(result.receipt.message);
+    onReviewed?.();
   }
   async function apply(preview: SignedPreview) {
     const result = await request({ action: "apply", ...preview });
@@ -90,7 +95,7 @@ export function LivingPlanRevision({ plan, initialDelta, initialTopicId, client,
     <div role="status"><p>{message}</p>{!undone && <button className="button secondary" disabled={undoing} onClick={() => void undo()}>{undoing ? "Restoring…" : "Undo"}</button>}</div>
     {error && <p role="alert">{error}</p>}
   </div>;
-  return <PlanRevisionPreview plan={plan} initialDelta={initialDelta} initialTopicId={initialTopicId} onPreview={preview} onApply={apply} onCancel={onClose}
+  return <PlanRevisionPreview plan={plan} initialDelta={initialDelta} initialTopicId={initialTopicId} initialType={initialType} onPreview={preview} onApply={apply} onCancel={onClose}
     onStageFile={async file => {
       const { accepted, errors } = await uploadMaterialFiles([file], plan.materials ?? []);
       if (!accepted[0]) throw new Error(errors[0] ?? "The source could not be uploaded.");

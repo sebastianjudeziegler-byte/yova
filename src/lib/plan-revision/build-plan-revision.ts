@@ -109,7 +109,11 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     const revisionContext: NormalPlanRevisionContext = { reservations: [...reservations], earliestStart: selectedTime ?? new Date(earliest).toISOString(), priorSessions };
     const chosenMethod = edit?.methodId ?? (unit!.original?.studyRoute?.agency.selectedBy === "learner" ? unit!.original.studyRoute.approach.primaryMethodId : undefined);
     const scopedMethodContext = { ...methodContext, ...(chosenMethod ? { methodChoicesBySequence: { 1: { methodId: chosenMethod, evidenceRef: `learner-choice:plan-revision:${plan.id}:${unit!.original!.id}:${chosenMethod}` } } } : {}) };
-    const requestedDuration = edit?.durationMinutes ?? (protection?.editedFields.includes("estimatedMinutes") ? unit!.original!.estimatedMinutes : undefined);
+    const sourceAdded = delta.operations.some((operation, index) => !controls.excludedOperationIndexes.includes(index) && operation.op === "attach_source" && operation.topic_id === topic.id);
+    const sourceBudget = sourceAdded && unit!.original
+      ? [10, 15, 25, 45, 60].find(minutes => minutes >= unit!.original!.estimatedMinutes + 5) ?? 60
+      : undefined;
+    const requestedDuration = edit?.durationMinutes ?? (protection?.editedFields.includes("estimatedMinutes") ? unit!.original!.estimatedMinutes : sourceBudget);
     const selectedDuration = requestedDuration === undefined ? undefined : z.union([z.literal(10), z.literal(15), z.literal(25), z.literal(45), z.literal(60)]).parse(requestedDuration);
     try {
       const composition = composeNormalPlanEnvelopes({
@@ -168,7 +172,11 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
   const lines: RevisionLine[] = applied.lines.map(line => {
     const beforeSessions = plan.sessions.filter(session => line.topicId ? session.topicIds?.includes(line.topicId) && affected.has(session.id) : affected.has(session.id));
     const afterSessions = sessions.filter(session => line.topicId ? session.topicIds?.includes(line.topicId) && (affected.has(session.id) || addedSessions.some(added => added.id === session.id)) : affected.has(session.id));
-    return { ...line, before: beforeSessions.map(sessionDescription), after: afterSessions.filter(session => session.status !== "skipped").map(sessionDescription), sessionIds: afterSessions.map(session => session.id), blockedReason: blockers.find(blocker => blocker.topicId === line.topicId)?.message ?? null };
+    return { ...line, before: beforeSessions.map(sessionDescription), after: afterSessions.filter(session => session.status !== "skipped").map(session => {
+      const operation = delta.operations[line.operationIndex];
+      const source = operation?.op === "attach_source" ? operation.url ?? applied.request.materials.find(material => material.id === operation.material_id)?.name ?? "Attached file" : null;
+      return `${sessionDescription(session)}${source ? ` · Study this source, then practice: ${source}` : ""}`;
+    }), sessionIds: afterSessions.map(session => session.id), blockedReason: blockers.find(blocker => blocker.topicId === line.topicId)?.message ?? null };
   });
   return {
     id: revisionId, planId: plan.id, baseRevisionId: plan.revisionId ?? plan.id, revisionId, contextKind,

@@ -36,7 +36,7 @@ jobs:
           YOVA_DB_FIXTURE_PATH: /tmp/yova-living-plan-routed.test.sql
         id: route
         continue-on-error: true
-        run: pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.test.ts src/lib/knowledge-map/topic-evidence-regressions.test.ts src/evals/personalization-delta.test.ts src/lib/plan-revision/database-contract.fixture.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-b-baseline/routes.json
+        run: pnpm exec vitest run --reporter=default --reporter=json --outputFile=artifacts/brief-b-baseline/routes.json
       - name: Capture typecheck
         if: always()
         continue-on-error: true

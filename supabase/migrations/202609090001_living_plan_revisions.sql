@@ -2,6 +2,18 @@
 -- browser can read its own history, but cannot supply a session write payload.
 alter table public.plans add column current_revision_id uuid;
 
+-- Activation retains the signed draft's revision, including any reviewed edits.
+create function public.initialize_plan_revision_id()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  new.current_revision_id := coalesce(new.current_revision_id, nullif(new.generation_inputs->>'planRevisionId','')::uuid, new.id);
+  return new;
+end;
+$$;
+revoke all on function public.initialize_plan_revision_id() from public, anon, authenticated;
+create trigger plans_initial_revision before insert on public.plans
+for each row execute function public.initialize_plan_revision_id();
+
 create table public.plan_revisions (
   id uuid primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
