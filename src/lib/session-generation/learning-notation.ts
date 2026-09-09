@@ -1,6 +1,7 @@
 /** Compare learner content without discarding operators, primes, or accents. */
-export function learningContentKey(value: string) {
-  return value.normalize("NFC").toLocaleLowerCase()
+export function learningContentKey(value: string, preserveCase = false) {
+  const normalized = value.normalize("NFC");
+  return (preserveCase ? normalized : normalized.toLocaleLowerCase())
     .replace(/[‘’′]/g, "'")
     .replace(/[−–]/g, "-")
     .replace(/[×⋅·]/g, "*")
@@ -8,6 +9,11 @@ export function learningContentKey(value: string) {
     .replace(/\s+/g, " ")
     .replace(/[.!?]+$/g, "")
     .trim();
+}
+
+export function hasDistinctLearningChoices(choices: string[]) {
+  // Case can distinguish code identifiers and mathematical functions.
+  return new Set(choices.map(choice => learningContentKey(choice, true))).size === choices.length;
 }
 
 /** Symbolic relations are subject content, even when variables are one letter. */

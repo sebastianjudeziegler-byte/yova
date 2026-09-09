@@ -1640,5 +1640,547 @@
         }
       }
     ]
+  },
+  "duplicate_normal": {
+    "context": {
+      "sessionArchitectureVersion": "streamed_teaching_v1",
+      "learningGoal": {
+        "title": "Use the Product Rule Independently",
+        "topic": "Differentiating products of functions",
+        "kind": "skill",
+        "deadline": null,
+        "sourceMode": "yova_generated",
+        "studyMode": "inside_yova",
+        "learningIntent": "learn"
+      },
+      "planRationale": "This is a focused conceptual and problem-solving plan. It starts with the product rule and one complete example because the rule is new, then moves through guided use, independent retrieval, and mixed application. Each 15-minute session keeps one action prominent and uses attempts to determine where support is needed.",
+      "knowledgeTopics": [
+        {
+          "id": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+          "title": "Understand the Product Rule",
+          "description": "Build a clear model of when and how the product rule works.",
+          "subtopics": [
+            "Recognize a product of two functions and apply (fg)' = f'g + fg'."
+          ],
+          "prerequisiteTopicIds": [],
+          "status": "not_started",
+          "initialEvidence": null,
+          "sourceReferences": [],
+          "origin": "ai_generated",
+          "deferred": null,
+          "curriculumReference": null
+        }
+      ],
+      "journey": {
+        "currentSequence": 1,
+        "totalSessions": 4,
+        "previousSessions": [],
+        "nextSessions": [
+          {
+            "sequence": 2,
+            "title": "Apply the Rule Step by Step",
+            "objective": "Use the product rule with decreasing guidance.",
+            "contentTargets": [
+              "Differentiate products of polynomial functions and simplify the result."
+            ]
+          },
+          {
+            "sequence": 3,
+            "title": "Retrieve and Use the Rule Independently",
+            "objective": "Recall the product rule and carry out the full procedure without prompts.",
+            "contentTargets": [
+              "Retrieve and independently execute the product-rule procedure."
+            ]
+          },
+          {
+            "sequence": 4,
+            "title": "Choose and Apply the Correct Rule",
+            "objective": "Distinguish product-rule problems from power-rule problems and solve accurately.",
+            "contentTargets": [
+              "Choose between the product rule and power rule, then justify and apply the choice."
+            ]
+          }
+        ]
+      },
+      "session": {
+        "title": "Understand the Product Rule",
+        "objective": "Build a clear model of when and how the product rule works.",
+        "method": "Feynman Technique",
+        "methodReason": "Connecting steps, causes, and prior knowledge can expose shallow understanding and build a more useful mental model. YOVA selected it because this session is conceptual learning work.",
+        "estimatedMinutes": 15,
+        "learningMode": "learn",
+        "topicIds": [
+          "87ef2aea-536b-4524-bdda-d59f61f8e4fe"
+        ],
+        "contentTargets": [
+          "Recognize a product of two functions and apply (fg)' = f'g + fg'."
+        ],
+        "completionEvidence": [
+          "Explain why differentiating each factor separately and multiplying the results is incorrect.",
+          "Apply the rule to a problem closely matching the worked example."
+        ],
+        "reviewConcept": null,
+        "reviewType": null
+      },
+      "learnerProfile": {
+        "commonBlocker": null,
+        "guidancePreference": null,
+        "explanationPreference": "A concrete example first",
+        "focusFrequency": null,
+        "startingPattern": null,
+        "primaryImprovementGoal": null,
+        "functionalSupportNeed": null,
+        "processingPreference": "The big picture before the details",
+        "memoryChallenge": null,
+        "supportPreference": null,
+        "workspacePreference": "Show one step at a time",
+        "freeformContext": "The learner wants one complete example before trying a similar problem, prefers one visible step at a time, and often studies in 15-minute windows.",
+        "observationCorrection": null
+      },
+      "recentResults": [],
+      "recentInterruptions": [],
+      "conceptSignals": [],
+      "scaffoldSignals": [],
+      "topicCalibrationSignals": [],
+      "personalization": {
+        "decisions": [
+          {
+            "id": "decision:method_delivery:presentation:overview_first",
+            "artifact": "method_delivery",
+            "setting": "presentation",
+            "value": "overview_first",
+            "title": "Big picture first",
+            "explanation": "Show the overall relationship before the details.",
+            "signalIds": [
+              "signal:processing_entry"
+            ],
+            "evidenceLabel": "You told YOVA",
+            "methodCandidates": [],
+            "experimental": false
+          },
+          {
+            "id": "decision:workspace:layout:one_step",
+            "artifact": "workspace",
+            "setting": "layout",
+            "value": "one_step",
+            "title": "One step at a time",
+            "explanation": "Keep the current action prominent and make the full path optional.",
+            "signalIds": [
+              "signal:workspace_preference"
+            ],
+            "evidenceLabel": "You told YOVA",
+            "methodCandidates": [],
+            "experimental": false
+          }
+        ],
+        "canonicalProfile": {
+          "schemaVersion": "canonical_learner_profile_v1",
+          "questionnaireVersion": "canonical_profile_questionnaire_v1",
+          "signals": [
+            {
+              "signalId": "unfamiliar_entry",
+              "value": "big_picture",
+              "source": "legacy_deep_profile",
+              "sourceQuestionId": "deep_profile:q1",
+              "provenance": "compatible_migration"
+            },
+            {
+              "signalId": "workspace_structure",
+              "value": "one_step",
+              "source": "legacy_deep_profile",
+              "sourceQuestionId": "deep_profile:q4",
+              "provenance": "compatible_migration"
+            }
+          ]
+        },
+        "methodTie": {
+          "state": {
+            "controls": {
+              "experiments": false
+            },
+            "activeExperiment": null,
+            "experimentHistory": []
+          },
+          "signals": [
+            {
+              "id": "signal:processing_entry",
+              "key": "processing_entry",
+              "title": "How teaching begins",
+              "code": "big_picture",
+              "evidenceLabel": "You told YOVA",
+              "paused": false
+            },
+            {
+              "id": "signal:workspace_preference",
+              "key": "workspace_preference",
+              "title": "Preferred session view",
+              "code": "one_step",
+              "evidenceLabel": "You told YOVA",
+              "paused": false
+            }
+          ]
+        }
+      },
+      "materials": []
+    },
+    "badDraft": {
+      "topicIds": [
+        "87ef2aea-536b-4524-bdda-d59f61f8e4fe"
+      ],
+      "rationale": "One-target learn session with a single product-rule claim, taught first, then checked with explanation, repair, reexplanation, and one final recognition check.",
+      "coverage": {
+        "focus": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+        "essentialIdeas": [
+          "Recognize a product of two functions and apply (fg)' = f'g + fg'."
+        ],
+        "completionEvidence": [
+          "Demonstrate Recognize a product of two functions and apply (fg)' = f'g + fg'."
+        ],
+        "evidenceMap": [
+          {
+            "essentialIdea": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+            "activityConcept": "Recognize a product of two functions and apply (fg)' = f'g + fg'."
+          }
+        ],
+        "deferredContent": []
+      },
+      "methodBriefing": {
+        "learningMode": "learn",
+        "taskType": "conceptual_learning",
+        "methodId": "self_explanation",
+        "name": "Feynman Technique",
+        "what": "Study one accurate model, explain the rule in your own words, repair any gap, then explain it again without copying.",
+        "why": "It fits a new concept best when you want the big picture first and a concrete example before independent use.",
+        "how": [
+          "Study the model and example.",
+          "Explain the rule in plain language.",
+          "Compare your explanation with the model and fix any gap.",
+          "Explain it again from memory."
+        ],
+        "completion": "You can state the relationship accurately, repair a gap, and reexplain the rule clearly.",
+        "personalization": [
+          "Show the overall relationship before the details.",
+          "Keep the current action prominent and make the full path optional.",
+          "You asked for the big picture first, so YOVA will establish the overall model before the details."
+        ]
+      },
+      "sourceGrounding": null,
+      "activities": [
+        {
+          "topicId": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+          "methodPhase": "model",
+          "estimatedMinutes": 4,
+          "requiredForCompletion": true,
+          "label": "Product rule model",
+          "title": "The product rule",
+          "body": "Read the explanation, then answer the next question from memory.",
+          "teaching": null,
+          "lessonBrief": {
+            "version": 1,
+            "topicIds": [
+              "87ef2aea-536b-4524-bdda-d59f61f8e4fe"
+            ],
+            "essentialIdeas": [
+              "Recognize a product of two functions and apply (fg)' = f'g + fg'."
+            ],
+            "sourceChunks": [],
+            "knowledgeSource": "model_knowledge",
+            "evidenceContext": {
+              "confirmedGaps": [],
+              "secureKnowledge": [],
+              "priorMisconceptions": []
+            },
+            "contentRequirements": {
+              "teachEveryEssentialIdea": true,
+              "includeConcreteExample": true,
+              "includeCommonMixup": true,
+              "preservePrerequisiteOrder": true
+            }
+          },
+          "practiceIntent": null,
+          "misconceptionSummary": null,
+          "type": "instruction",
+          "concept": null,
+          "choices": [],
+          "correctAnswer": null,
+          "feedback": null
+        },
+        {
+          "topicId": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+          "methodPhase": "explain",
+          "estimatedMinutes": 3,
+          "requiredForCompletion": true,
+          "label": "Explain the rule",
+          "title": "Explain the product rule",
+          "body": "In your own words, state what happens to each factor. Keep it short.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+          "choices": [],
+          "correctAnswer": "The derivative of a product is f' times g plus f times g'.",
+          "feedback": "A complete answer says each factor gets one derivative turn and the results are added. A common gap is to differentiate only one factor or multiply the two derivatives."
+        },
+        {
+          "topicId": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+          "methodPhase": "repair",
+          "estimatedMinutes": 3,
+          "requiredForCompletion": true,
+          "label": "Repair the mistake",
+          "title": "Fix the product rule gap",
+          "body": "Correct the mistake from your last answer and restate the rule once more.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+          "choices": [],
+          "correctAnswer": "You do not multiply the derivatives. The derivative of fg is f'g + fg'.",
+          "feedback": "The correction is to add two terms, not to multiply derivatives. A correct repair names both terms and shows that each original factor stays in one term."
+        },
+        {
+          "topicId": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+          "methodPhase": "reexplain",
+          "estimatedMinutes": 3,
+          "requiredForCompletion": true,
+          "label": "Reexplain the rule",
+          "title": "Say it again in plain words",
+          "body": "Explain the rule again without copying the model. Use a product you choose.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+          "choices": [],
+          "correctAnswer": "For a product, take the derivative of the first times the second, then the first times the derivative of the second, and add them.",
+          "feedback": "This should sound like your own explanation and still keep the two-term structure. If one factor is missing or the derivatives are multiplied, the rule is not yet secure."
+        },
+        {
+          "topicId": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+          "methodPhase": "transfer",
+          "estimatedMinutes": 2,
+          "requiredForCompletion": true,
+          "label": "Choose the right derivative",
+          "title": "Pick the correct rule",
+          "body": "Choose the correct derivative of x^2(x+3).",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "multiple_choice",
+          "concept": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+          "choices": [
+            "2x(x+3)+x^2",
+            "2x(x+3)+x^2",
+            "x^2+3x",
+            "2x^2+x+3"
+          ],
+          "correctAnswer": "2x(x+3)+x^2",
+          "feedback": "The correct choice uses the product rule: derivative of the first times the second, plus the first times the derivative of the second. The other choices miss one term or use an unrelated rule."
+        }
+      ]
+    },
+    "outputs": [
+      {
+        "topicIds": [
+          "87ef2aea-536b-4524-bdda-d59f61f8e4fe"
+        ],
+        "rationale": "One-target learn session with a single product-rule claim, taught first, then checked with explanation, repair, reexplanation, and one final recognition check.",
+        "coverage": {
+          "focus": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+          "essentialIdeas": [
+            "Recognize a product of two functions and apply (fg)' = f'g + fg'."
+          ],
+          "completionEvidence": [
+            "State the product rule in your own words.",
+            "Apply the product rule to a new product and get the correct derivative.",
+            "Distinguish the correct rule from the mistake of differentiating only one factor."
+          ],
+          "evidenceMap": [
+            {
+              "essentialIdea": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+              "activityConcept": "Recognize a product of two functions and apply (fg)' = f'g + fg'."
+            }
+          ],
+          "deferredContent": []
+        },
+        "methodBriefing": {
+          "learningMode": "learn",
+          "taskType": "conceptual_learning",
+          "methodId": "self_explanation",
+          "name": "Feynman Technique",
+          "what": "Study one accurate model, explain the rule in your own words, repair any gap, then explain it again without copying.",
+          "why": "It fits a new concept best when you want the big picture first and a concrete example before independent use.",
+          "how": [
+            "Study the model and example.",
+            "Explain the rule in plain language.",
+            "Compare your explanation with the model and fix any gap.",
+            "Explain it again from memory."
+          ],
+          "completion": "You can state the relationship accurately, repair a gap, and reexplain the rule clearly.",
+          "personalization": [
+            "Use one visible step at a time.",
+            "Start with the whole picture, then the steps.",
+            "Use a concrete example before the abstract rule."
+          ]
+        },
+        "sourceGrounding": null,
+        "activities": [
+          {
+            "topicId": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+            "methodPhase": "model",
+            "estimatedMinutes": 4,
+            "requiredForCompletion": true,
+            "label": "Product rule model",
+            "title": "Product rule idea",
+            "body": "Study the rule and one example. Keep the example in view while you work.",
+            "teaching": null,
+            "lessonBrief": {
+              "version": 1,
+              "topicIds": [
+                "87ef2aea-536b-4524-bdda-d59f61f8e4fe"
+              ],
+              "essentialIdeas": [
+                "Recognize a product of two functions and apply (fg)' = f'g + fg'."
+              ],
+              "sourceChunks": [],
+              "knowledgeSource": "model_knowledge",
+              "evidenceContext": {
+                "confirmedGaps": [],
+                "secureKnowledge": [],
+                "priorMisconceptions": []
+              },
+              "contentRequirements": {
+                "teachEveryEssentialIdea": true,
+                "includeConcreteExample": true,
+                "includeCommonMixup": true,
+                "preservePrerequisiteOrder": true
+              }
+            },
+            "practiceIntent": null,
+            "misconceptionSummary": null,
+            "type": "instruction",
+            "concept": null,
+            "choices": [],
+            "correctAnswer": null,
+            "feedback": null
+          },
+          {
+            "topicId": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+            "methodPhase": "explain",
+            "estimatedMinutes": 3,
+            "requiredForCompletion": true,
+            "label": "Explain the rule",
+            "title": "Explain the product rule",
+            "body": "In your own words, state what happens to each factor. Keep it short.",
+            "teaching": null,
+            "lessonBrief": null,
+            "practiceIntent": "baseline",
+            "misconceptionSummary": null,
+            "type": "free_response",
+            "concept": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+            "choices": [],
+            "correctAnswer": "The derivative of a product is f' times g plus f times g'.",
+            "feedback": "A complete answer says each factor gets one derivative turn and the results are added. A common gap is to differentiate only one factor or multiply the two derivatives."
+          },
+          {
+            "topicId": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+            "methodPhase": "repair",
+            "estimatedMinutes": 3,
+            "requiredForCompletion": true,
+            "label": "Repair the mistake",
+            "title": "Fix the product rule gap",
+            "body": "Correct the mistake from your last answer and restate the rule once more.",
+            "teaching": null,
+            "lessonBrief": null,
+            "practiceIntent": "supported_recheck",
+            "misconceptionSummary": "Differentiating each factor separately and multiplying the results is incorrect.",
+            "type": "free_response",
+            "concept": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+            "choices": [],
+            "correctAnswer": "You do not multiply the derivatives. The derivative of fg is f'g + fg'.",
+            "feedback": "The correction is to add two terms, not to multiply derivatives. A correct repair names both terms and shows that each original factor stays in one term."
+          },
+          {
+            "topicId": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+            "methodPhase": "reexplain",
+            "estimatedMinutes": 3,
+            "requiredForCompletion": true,
+            "label": "Reexplain the rule",
+            "title": "Say it again in plain words",
+            "body": "Explain the rule again without copying the model. Use a product you choose.",
+            "teaching": null,
+            "lessonBrief": null,
+            "practiceIntent": "independent_transfer",
+            "misconceptionSummary": null,
+            "type": "free_response",
+            "concept": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+            "choices": [],
+            "correctAnswer": "For a product, take the derivative of the first times the second, then the first times the derivative of the second, and add them.",
+            "feedback": "This should sound like your own explanation and still keep the two-term structure. If one factor is missing or the derivatives are multiplied, the rule is not yet secure."
+          },
+          {
+            "topicId": "87ef2aea-536b-4524-bdda-d59f61f8e4fe",
+            "methodPhase": "transfer",
+            "estimatedMinutes": 2,
+            "requiredForCompletion": true,
+            "label": "Choose the right derivative",
+            "title": "Pick the correct rule",
+            "body": "Choose the correct derivative of x^2(x+3).",
+            "teaching": null,
+            "lessonBrief": null,
+            "practiceIntent": "light_verification",
+            "misconceptionSummary": null,
+            "type": "multiple_choice",
+            "concept": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+            "choices": [
+              "2x(x+3)+x^2",
+              "2x(x+3)+x^2",
+              "x^2+3x",
+              "2x^2+x+3"
+            ],
+            "correctAnswer": "2x(x+3)+x^2",
+            "feedback": "The correct choice uses the product rule: derivative of the first times the second, plus the first times the derivative of the second. The other choices miss one term or use an unrelated rule."
+          }
+        ],
+        "targetAssignments": [
+          {
+            "essentialIdea": "Recognize a product of two functions and apply (fg)' = f'g + fg'.",
+            "targetId": "target_1"
+          }
+        ]
+      },
+      {
+        "items": [
+          {
+            "essentialIdea": "The product rule states (fg)' = f'g + fg', adding both derivative terms.",
+            "concept": "product rule",
+            "check": {
+              "title": "State the product rule",
+              "prompt": "How do you differentiate the product of two functions f and g?",
+              "referenceAnswer": "The product rule gives (fg)' = f'g + fg', adding the derivative of each factor times the other.",
+              "feedback": "Add the two terms, keeping each unchanged factor in the term that differentiates the other."
+            },
+            "independentCheck": null
+          }
+        ],
+        "recognitionCheck": {
+          "title": "Recognize the product rule",
+          "prompt": "Which expression states the derivative of the product fg?",
+          "choices": [
+            "(fg)' = f'g + fg'",
+            "(fg)' = f'g'",
+            "(fg)' = f + g",
+            "(fg)' = fg"
+          ],
+          "correctAnswer": "(fg)' = f'g + fg'",
+          "feedback": "The product rule adds two derivative terms, one for each factor."
+        }
+      }
+    ]
   }
 }

@@ -1,4 +1,4 @@
-import { learningContentKey } from "@/lib/session-generation/learning-notation";
+import { hasDistinctLearningChoices, learningContentKey } from "@/lib/session-generation/learning-notation";
 import "server-only";
 
 import { createHash } from "node:crypto";
@@ -138,7 +138,7 @@ const CompactStreamedRecoveryRecognitionCheckSchema = z.object({
       message: "The recognition answer must exactly match one supplied choice.",
     });
   }
-  if (new Set(check.choices.map(normalizeRecoveryQuestion)).size !== check.choices.length) {
+  if (!hasDistinctLearningChoices(check.choices)) {
     context.addIssue({
       code: "custom",
       path: ["choices"],

@@ -106,6 +106,26 @@ describe("Brief 0.5 preserved subject and notation boundaries", () => {
     }
   });
 
+  it("rejects duplicate choices on the normal path and recovers to distinct learner choices", async () => {
+    expect(StreamedGeneratedSessionDraftSchema.safeParse(captures.duplicate_normal.badDraft).success).toBe(false);
+    supply(captures.duplicate_normal.outputs);
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(captures.duplicate_normal.context as SessionGenerationContext);
+    const question = result.draft.activities.find(activity => activity.type === "multiple_choice")!;
+    expect(question.title).toBe("Recognize the product rule");
+    expect(new Set(question.choices).size).toBe(4);
+    expect(question.correctAnswer).toBe("(fg)' = f'g + fg'");
+  });
+
+  it("keeps case-sensitive code choices distinct at the shared choice boundary", () => {
+    const draft = structuredClone(captures.duplicate_normal.badDraft);
+    const question = draft.activities.find(activity => activity.type === "multiple_choice")!;
+    question.choices = ["values.map(fn)", "values.Map(fn)", "values.filter(fn)", "values.reduce(fn)"];
+    question.correctAnswer = question.choices[0]!;
+    const parsed = StreamedGeneratedSessionDraftSchema.parse(draft);
+    expect(parsed.activities.find(activity => activity.type === "multiple_choice")?.choices).toEqual(question.choices);
+  });
+
   it("does not let an on-topic recognition heading authorize an off-topic answer and explanation", async () => {
     const outputs = structuredClone(captures.product_chain.outputs);
     const recovery = outputs[1] as typeof captures.product_chain.outputs[1] & { recognitionCheck: { choices: string[]; correctAnswer: string; feedback: string } };

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hasDistinctLearningChoices } from "./learning-notation";
 import { CORE_METHOD_IDS, LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import { CALIBRATION_PATTERNS } from "@/lib/learning/confidence-calibration";
 import {
@@ -657,6 +658,9 @@ const StreamedMultipleChoiceActivitySchema = z.object({
   correctAnswer: z.string().trim().min(1).max(220),
   feedback: z.string().trim().min(20).max(500),
 }).superRefine((activity, context) => {
+  if (!hasDistinctLearningChoices(activity.choices)) {
+    context.addIssue({ code: "custom", path: ["choices"], message: "Every recognition choice must be distinct." });
+  }
   if (!activity.choices.includes(activity.correctAnswer)) {
     context.addIssue({ code: "custom", path: ["correctAnswer"], message: "The correct answer must exactly match one choice." });
   }

@@ -14,6 +14,7 @@ import { validateSessionCompletionContract } from "@/lib/session-generation/comp
 import { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
 import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
 import { validateSessionContentSpecificity } from "@/lib/session-generation/content-specificity";
+import { hasDistinctLearningChoices } from "@/lib/session-generation/learning-notation";
 import {
   buildSessionDeliveryPolicy,
   type SessionDeliveryPolicy,
@@ -102,7 +103,7 @@ export function evaluateSessionDraft(
   const questionIntegrity = questions.every((activity) => {
     if (!activity.concept || !activity.correctAnswer || !activity.feedback || activity.feedback.length < 20) return false;
     if (activity.type === "free_response") return activity.correctAnswer.trim().length > 0 && activity.choices.length === 0;
-    return new Set(activity.choices.map(normalize)).size === activity.choices.length
+    return hasDistinctLearningChoices(activity.choices)
       && activity.choices.includes(activity.correctAnswer);
   });
   const alignedActivities = activityText.filter((text) => TASK_PATTERNS[taskFamily].test(text)).length;
@@ -259,10 +260,6 @@ export function evaluateSessionDraft(
   const score = checks.reduce((total, item) => total + item.earned, 0);
   const requiredFailures = checks.filter((item) => item.required && !item.passed).map((item) => item.label);
   return { score, passed: score >= 80 && requiredFailures.length === 0, checks, requiredFailures };
-}
-
-function normalize(value: string) {
-  return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function check(id: string, label: string, passed: boolean, points: number, required: boolean, detail: string): SessionQualityCheck {
