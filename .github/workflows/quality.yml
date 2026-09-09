@@ -33,7 +33,7 @@ jobs:
           mkdir -p tmp/brief-0-5 test-results/release-repro
           cp docs/audits/brief-0-5/evidence/harness/ci-capture.ts.txt tmp/brief-0-5/capture.ts
           cp docs/audits/brief-0-5/evidence/harness/vitest.config.mts.txt tmp/release-capture.config.mts
-      - name: Date-recall green and addition red with negative checks
+      - name: Verify date recall and captured addition with negative checks
         run: pnpm exec vitest run src/lib/session-generation/question-context.test.ts src/lib/openai/streamed-validator-calibration.test.ts src/lib/session-generation/completion-contract.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-repro/date-recall.json
       - name: Capture three unchanged mapped-calculus attempts
         if: ${{ !cancelled() }}
@@ -51,12 +51,14 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          YOVA_RUN_LIVE_PLAN_EVALS: "1"
+          YOVA_RUN_LIVE_EVALS: "1"
           YOVA_RUN_LIVE_SESSION_EVALS: "1"
         run: |
           git fetch origin e03a082659f51172c0b06bf84daffdd5599ac773
+          git fetch origin d108e890e3f64e4393f617fe821ac0eb3b7b3c8e
           mkdir -p /tmp/yova-baseline-evals
-          cp src/evals/plan-rubric.ts src/evals/session-rubric.ts /tmp/yova-baseline-evals/
+          git show d108e890e3f64e4393f617fe821ac0eb3b7b3c8e:src/evals/plan-rubric.ts > /tmp/yova-baseline-evals/plan-rubric.ts
+          git show d108e890e3f64e4393f617fe821ac0eb3b7b3c8e:src/evals/session-rubric.ts > /tmp/yova-baseline-evals/session-rubric.ts
           git archive HEAD src > /tmp/yova-branch-src.tar
           restore_source() { rm -rf src; tar -xf /tmp/yova-branch-src.tar; }
           trap restore_source EXIT

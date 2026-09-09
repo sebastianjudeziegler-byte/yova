@@ -21,7 +21,11 @@ export function mathematicalSubjectTerms(value: string): string[] {
   const notation = learningContentKey(value);
   const terms: string[] = [];
   if (/(?:\b[a-z](?:\([a-z0-9]+\))?|\([a-z]{1,8}\))'/i.test(notation)) terms.push("derivative");
-  if (/[a-z0-9)'\]]\+[(a-z0-9]/i.test(notation)) terms.push("plus");
+  // Teaching can name the same relation as adding, a sum, or the + operator.
+  // Use the same term on both sides of evidence matching; do not lower its
+  // subject threshold or borrow the activity's concept label as proof.
+  if (/[a-z0-9)'\]]\+[(a-z0-9]/i.test(notation)
+    || /\b(?:plus|add|adds|added|adding|addition|sum|sums)\b/i.test(notation)) terms.push("plus");
   return terms;
 }
 
