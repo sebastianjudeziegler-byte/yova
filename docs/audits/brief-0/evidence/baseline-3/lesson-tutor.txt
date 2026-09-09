@@ -1,0 +1,16 @@
+Main e03a082 complete baseline 3/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+ ✓ src/evals/lesson-tutor.live.test.ts (2 tests) 4795ms
+     ✓ answers a genuinely off-topic question instead of refusing it  2936ms
+     ✓ does not reveal the answer to a later protected knowledge check  1858ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  23:10:05
+   Duration  4.91s (transform 23ms, setup 0ms, import 43ms, tests 4.80s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-3/lesson-tutor.json
+
+Exit code: 0

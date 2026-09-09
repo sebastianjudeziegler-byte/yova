@@ -1,0 +1,24 @@
+Supplemental single-case verification after complete gate. Does not replace its result.
+Command: ["node", "--env-file=.env.local", "node_modules/vitest/vitest.mjs", "run", "src/evals/plan-session-journey.live.test.ts", "--maxWorkers=1", "--retry=0", "--testNamePattern", "'History\\ essay\\ using\\ outside\\ sources'", "--reporter=default", "--reporter=./scripts/live-gate/vitest-reporter.mjs"]
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+
+YOVA connected journey · History essay using outside sources
+Plan · 3 sessions · 100/100 · 20.5s
+First session · learn · Outline from Memory · 30 min
+Lesson · 4 activities · 100/100 · 8.4s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+ ✓ src/evals/plan-session-journey.live.test.ts (5 tests | 4 skipped) 29101ms
+     ✓ 'History essay using outside sources'  29101ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 4 skipped (5)
+   Start at  23:52:06
+   Duration  29.52s (transform 374ms, setup 0ms, import 341ms, tests 29.10s, environment 0ms)
+
+
+Exit code: 0

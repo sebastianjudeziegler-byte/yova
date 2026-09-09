@@ -1,0 +1,45 @@
+{
+  "cases": [
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > the requested journey exists",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > the requested journey exists",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'History essay using outside sources'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'History essay using outside sources'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 29100.561291
+    }
+  ],
+  "errors": []
+}

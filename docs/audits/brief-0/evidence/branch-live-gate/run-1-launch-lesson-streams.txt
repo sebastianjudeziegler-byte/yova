@@ -1,0 +1,14 @@
+
+ RUN  v4.1.10 <repo>
+
+ ✓ src/evals/launch-lesson-streams.live.test.ts (2 tests) 18758ms
+     ✓ streams the validated calculus teaching  7601ms
+     ✓ streams the validated osmosis teaching  11155ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  23:33:20
+   Duration  19.08s (transform 167ms, setup 0ms, import 239ms, tests 18.76s, environment 0ms)
+
+
+Exit code: 0

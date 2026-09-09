@@ -1,0 +1,323 @@
+Command: node node_modules/vitest/vitest.mjs run --maxWorkers=1 --reporter=dot
+TZ=America/Los_Angeles
+
+ RUN  v4.1.10 <repo>
+
+----------------------------------------------------------------··stdout | src/app/api/plans/generate/route.test.ts > plan generation route > offers a priority card when only 1 minutes remain, without claiming a lesson was completed
+{"case":"1-minute-priority","status":200,"visible":{"kind":"deadline_priority","priority":{"topicId":"11111111-1111-4111-8111-111111111111","title":"Focus on Product rule","minutes":1,"startsAt":"2026-09-07T19:00:00.000Z","action":"Find one worked example of Product rule in your notes or a trusted source. Read the key step, then write the one question you most need answered. Stop when this window ends.","explanation":"Your remaining windows before the deadline are too short for a ten-minute lesson. Use this quick priority now; the full topic and the rest of your goal still need learning and practice.","remainingTopics":[],"progressCredit":false}}}
+
+stdout | src/app/api/plans/generate/route.test.ts > plan generation route > offers a priority card when only 4 minutes remain, without claiming a lesson was completed
+{"case":"4-minute-priority","status":200,"visible":{"kind":"deadline_priority","priority":{"topicId":"11111111-1111-4111-8111-111111111111","title":"Focus on Product rule","minutes":4,"startsAt":"2026-09-07T19:00:00.000Z","action":"Find one worked example of Product rule in your notes or a trusted source. Read the key step, then write the one question you most need answered. Stop when this window ends.","explanation":"Your remaining windows before the deadline are too short for a ten-minute lesson. Use this quick priority now; the full topic and the rest of your goal still need learning and practice.","remainingTopics":[],"progressCredit":false}}}
+
+stdout | src/app/api/plans/generate/route.test.ts > plan generation route > offers a priority card when only 5 minutes remain, without claiming a lesson was completed
+{"case":"5-minute-priority","status":200,"visible":{"kind":"deadline_priority","priority":{"topicId":"11111111-1111-4111-8111-111111111111","title":"Focus on Product rule","minutes":5,"startsAt":"2026-09-07T19:00:00.000Z","action":"Find one worked example of Product rule in your notes or a trusted source. Read the key step, then write the one question you most need answered. Stop when this window ends.","explanation":"Your remaining windows before the deadline are too short for a ten-minute lesson. Use this quick priority now; the full topic and the rest of your goal still need learning and practice.","remainingTopics":[],"progressCredit":false}}}
+
+stdout | src/app/api/plans/generate/route.test.ts > plan generation route > offers a priority card when only 9 minutes remain, without claiming a lesson was completed
+{"case":"9-minute-priority","status":200,"visible":{"kind":"deadline_priority","priority":{"topicId":"11111111-1111-4111-8111-111111111111","title":"Focus on Product rule","minutes":9,"startsAt":"2026-09-07T19:00:00.000Z","action":"Find one worked example of Product rule in your notes or a trusted source. Read the key step, then write the one question you most need answered. Stop when this window ends.","explanation":"Your remaining windows before the deadline are too short for a ten-minute lesson. Use this quick priority now; the full topic and the rest of your goal still need learning and practice.","remainingTopics":[],"progressCredit":false}}}
+
+····································································································································stdout | src/lib/openai/session-generator.test.ts > session content-volume validation > does not defer a parent target that has explicit mapped assessment evidence
+{"case":"speech-parent-target-completion","learnerResult":{"requiredSteps":"4 of 4","evidenceChecks":"3 of 3","nextAction":"Finish and continue","evidence":["Write a specific audience-focused claim independently"]}}
+
+··········································································stdout | src/evals/plan-creation-blockers.test.ts > consolidated audit: learner-visible launch blockers > uses the remaining time when the learner opens YOVA during an available window
+{"case":"half-used-window","title":"Build ATP and energy transfer","objective":"Session 1 builds an accurate explanation of ATP and energy transfer, uses one concrete example, and ends with an independent check.","rationale":"Your deadline leaves time for one focused first step. Learn and check this priority now; the remaining topics and later practice are saved for after the deadline."}
+
+stdout | src/evals/plan-creation-blockers.test.ts > consolidated audit: learner-visible launch blockers > offers useful work with 11 days left and a 25-minute focus profile
+{"case":"deadline-11-focus-25","learnerView":{"title":"Teach Me Cellular Respiration From Scratch for My Test, Including ATP…","rationale":"YOVA fixed this sequence from the accepted topic map, current evidence, available time, and session limits. Each session has one bounded purpose and observable completion evidence.","sessions":[{"title":"Build ATP and energy transfer","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 1 builds an accurate explanation of ATP and energy transfer, uses one concrete example, and ends with an independent check.","evidence":["Explain ATP and energy transfer in evidence check 1 in your own words after the model is hidden"],"minutes":25,"date":"2026-09-07T19:00:00.000Z"},{"title":"Build Glycolysis","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 2 builds an accurate explanation of Glycolysis, uses one concrete example, and ends with an independent check.","evidence":["Explain Glycolysis in evidence check 1 in your own words after the model is hidden"],"minutes":15,"date":"2026-09-07T19:30:00.000Z"},{"title":"Build Link reaction","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 3 builds an accurate explanation of Link reaction, uses one concrete example, and ends with an independent check.","evidence":["Explain Link reaction in evidence check 1 in your own words after the model is hidden"],"minutes":25,"date":"2026-09-09T19:00:00.000Z"},{"title":"Build Krebs cycle","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 4 builds an accurate explanation of Krebs cycle, uses one concrete example, and ends with an independent check.","evidence":["Explain Krebs cycle in evidence check 1 in your own words after the model is hidden"],"minutes":15,"date":"2026-09-09T19:30:00.000Z"},{"title":"Build Electron transport chain","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 5 builds an accurate explanation of Electron transport chain, uses one concrete example, and ends with an independent check.","evidence":["Explain Electron transport chain in evidence check 1 in your own words after the model is hidden"],"minutes":25,"date":"2026-09-11T19:00:00.000Z"},{"title":"Build Chemiosmosis","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 6 builds an accurate explanation of Chemiosmosis, uses one concrete example, and ends with an independent check.","evidence":["Explain Chemiosmosis in evidence check 1 in your own words after the model is hidden"],"minutes":15,"date":"2026-09-11T19:30:00.000Z"},{"title":"Retrieve ATP and energy transfer, Glycolysis","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 7 retrieves and applies ATP and energy transfer, Glycolysis without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply ATP and energy transfer in evidence check 1 in one new example without initial support and correct any exposed error","Apply Glycolysis in evidence check 2 in one new example without initial support and correct any exposed error"],"minutes":25,"date":"2026-09-14T19:00:00.000Z"},{"title":"Retrieve Link reaction","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 8 retrieves and applies Link reaction without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Link reaction in evidence check 1 in one new example without initial support and correct any exposed error"],"minutes":15,"date":"2026-09-14T19:30:00.000Z"},{"title":"Retrieve Krebs cycle, Electron transport chain","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 9 retrieves and applies Krebs cycle, Electron transport chain without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Krebs cycle in evidence check 1 in one new example without initial support and correct any exposed error","Apply Electron transport chain in evidence check 2 in one new example without initial support and correct any exposed error"],"minutes":25,"date":"2026-09-16T19:00:00.000Z"},{"title":"Retrieve Chemiosmosis","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 10 retrieves and applies Chemiosmosis without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Chemiosmosis in evidence check 1 in one new example without initial support and correct any exposed error"],"minutes":15,"date":"2026-09-16T19:30:00.000Z"},{"title":"Apply ATP and energy transfer, Glycolysis","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 11 transfers ATP and energy transfer, Glycolysis to a different example, then corrects the exact gap or error the attempt exposes.","evidence":["Apply ATP and energy transfer in evidence check 1 in one new example without initial support and correct any exposed error","Apply Glycolysis in evidence check 2 in one new example without initial support and correct any exposed error"],"minutes":25,"date":"2026-09-18T19:00:00.000Z"},{"title":"Apply Link reaction","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 12 transfers Link reaction to a different example, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Link reaction in evidence check 1 in one new example without initial support and correct any exposed error"],"minutes":15,"date":"2026-09-18T19:30:00.000Z"}],"deferred":[]}}
+
+stdout | src/evals/plan-creation-blockers.test.ts > consolidated audit: learner-visible launch blockers > offers useful work with 11 days left and a 60-minute focus profile
+{"case":"deadline-11-focus-60","learnerView":{"title":"Teach Me Cellular Respiration From Scratch for My Test, Including ATP…","rationale":"Your deadline needs shorter sessions. Included new topics keep a separate practice attempt, and demonstrated topics start with verification. Your usual focus preference stays unchanged.","sessions":[{"title":"Build ATP and energy transfer","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 1 builds an accurate explanation of ATP and energy transfer, uses one concrete example, and ends with an independent check.","evidence":["Explain ATP and energy transfer in evidence check 1 in your own words after the model is hidden"],"minutes":25,"date":"2026-09-07T19:00:00.000Z"},{"title":"Build Glycolysis","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 2 builds an accurate explanation of Glycolysis, uses one concrete example, and ends with an independent check.","evidence":["Explain Glycolysis in evidence check 1 in your own words after the model is hidden"],"minutes":15,"date":"2026-09-07T19:30:00.000Z"},{"title":"Build Link reaction","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 3 builds an accurate explanation of Link reaction, uses one concrete example, and ends with an independent check.","evidence":["Explain Link reaction in evidence check 1 in your own words after the model is hidden"],"minutes":25,"date":"2026-09-09T19:00:00.000Z"},{"title":"Build Krebs cycle","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 4 builds an accurate explanation of Krebs cycle, uses one concrete example, and ends with an independent check.","evidence":["Explain Krebs cycle in evidence check 1 in your own words after the model is hidden"],"minutes":15,"date":"2026-09-09T19:30:00.000Z"},{"title":"Build Electron transport chain","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 5 builds an accurate explanation of Electron transport chain, uses one concrete example, and ends with an independent check.","evidence":["Explain Electron transport chain in evidence check 1 in your own words after the model is hidden"],"minutes":25,"date":"2026-09-11T19:00:00.000Z"},{"title":"Build Chemiosmosis","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 6 builds an accurate explanation of Chemiosmosis, uses one concrete example, and ends with an independent check.","evidence":["Explain Chemiosmosis in evidence check 1 in your own words after the model is hidden"],"minutes":15,"date":"2026-09-11T19:30:00.000Z"},{"title":"Retrieve ATP and energy transfer, Glycolysis","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 7 retrieves and applies ATP and energy transfer, Glycolysis without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply ATP and energy transfer in evidence check 1 in one new example without initial support and correct any exposed error","Apply Glycolysis in evidence check 2 in one new example without initial support and correct any exposed error"],"minutes":25,"date":"2026-09-14T19:00:00.000Z"},{"title":"Retrieve Link reaction","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 8 retrieves and applies Link reaction without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Link reaction in evidence check 1 in one new example without initial support and correct any exposed error"],"minutes":15,"date":"2026-09-14T19:30:00.000Z"},{"title":"Retrieve Krebs cycle, Electron transport chain","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 9 retrieves and applies Krebs cycle, Electron transport chain without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Krebs cycle in evidence check 1 in one new example without initial support and correct any exposed error","Apply Electron transport chain in evidence check 2 in one new example without initial support and correct any exposed error"],"minutes":25,"date":"2026-09-16T19:00:00.000Z"},{"title":"Retrieve Chemiosmosis","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 10 retrieves and applies Chemiosmosis without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Chemiosmosis in evidence check 1 in one new example without initial support and correct any exposed error"],"minutes":15,"date":"2026-09-16T19:30:00.000Z"},{"title":"Apply ATP and energy transfer, Glycolysis","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 11 transfers ATP and energy transfer, Glycolysis to a different example, then corrects the exact gap or error the attempt exposes.","evidence":["Apply ATP and energy transfer in evidence check 1 in one new example without initial support and correct any exposed error","Apply Glycolysis in evidence check 2 in one new example without initial support and correct any exposed error"],"minutes":25,"date":"2026-09-18T19:00:00.000Z"},{"title":"Apply Link reaction","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 12 transfers Link reaction to a different example, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Link reaction in evidence check 1 in one new example without initial support and correct any exposed error"],"minutes":15,"date":"2026-09-18T19:30:00.000Z"}],"deferred":[]}}
+
+···stdout | src/evals/plan-creation-blockers.test.ts > consolidated audit: learner-visible launch blockers > offers useful work with 3 days left and a 25-minute focus profile
+{"case":"deadline-3-focus-25","learnerView":{"title":"Teach Me Cellular Respiration From Scratch for My Test, Including ATP…","rationale":"Your deadline leaves time for part of the unit. Start with the included topics and check the final teaching session independently; the remaining topics are saved for later.","sessions":[{"title":"Build ATP and energy transfer","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 1 builds an accurate explanation of ATP and energy transfer, uses one concrete example, and ends with an independent check.","evidence":["Explain ATP and energy transfer in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-07T19:00:00.000Z"},{"title":"Build Glycolysis","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 2 builds an accurate explanation of Glycolysis, uses one concrete example, and ends with an independent check.","evidence":["Explain Glycolysis in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-07T19:15:00.000Z"},{"title":"Build Link reaction","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 3 builds an accurate explanation of Link reaction, uses one concrete example, and ends with an independent check.","evidence":["Explain Link reaction in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-07T19:30:00.000Z"},{"title":"Build Krebs cycle","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 4 builds an accurate explanation of Krebs cycle, uses one concrete example, and ends with an independent check.","evidence":["Explain Krebs cycle in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-09T19:00:00.000Z"},{"title":"Build Electron transport chain","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 5 builds an accurate explanation of Electron transport chain, uses one concrete example, and ends with an independent check.","evidence":["Explain Electron transport chain in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-09T19:15:00.000Z"},{"title":"Retrieve Electron transport chain","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 6 retrieves and applies Electron transport chain without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Electron transport chain in evidence check 1 in one new example without initial support and correct any exposed error"],"minutes":10,"date":"2026-09-09T19:30:00.000Z"}],"deferred":[{"title":"Chemiosmosis","reason":"The learner's remaining availability before the deadline cannot hold another coherent normal session."}]}}
+
+stdout | src/evals/plan-creation-blockers.test.ts > consolidated audit: learner-visible launch blockers > offers useful work with 3 days left and a 60-minute focus profile
+{"case":"deadline-3-focus-60","learnerView":{"title":"Teach Me Cellular Respiration From Scratch for My Test, Including ATP…","rationale":"Your deadline leaves time for part of the unit. Start with the included topics and check the final teaching session independently; the remaining topics are saved for later.","sessions":[{"title":"Build ATP and energy transfer","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 1 builds an accurate explanation of ATP and energy transfer, uses one concrete example, and ends with an independent check.","evidence":["Explain ATP and energy transfer in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-07T19:00:00.000Z"},{"title":"Build Glycolysis","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 2 builds an accurate explanation of Glycolysis, uses one concrete example, and ends with an independent check.","evidence":["Explain Glycolysis in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-07T19:15:00.000Z"},{"title":"Build Link reaction","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 3 builds an accurate explanation of Link reaction, uses one concrete example, and ends with an independent check.","evidence":["Explain Link reaction in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-07T19:30:00.000Z"},{"title":"Build Krebs cycle","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 4 builds an accurate explanation of Krebs cycle, uses one concrete example, and ends with an independent check.","evidence":["Explain Krebs cycle in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-09T19:00:00.000Z"},{"title":"Build Electron transport chain","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 5 builds an accurate explanation of Electron transport chain, uses one concrete example, and ends with an independent check.","evidence":["Explain Electron transport chain in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-09T19:15:00.000Z"},{"title":"Retrieve Electron transport chain","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 6 retrieves and applies Electron transport chain without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Electron transport chain in evidence check 1 in one new example without initial support and correct any exposed error"],"minutes":10,"date":"2026-09-09T19:30:00.000Z"}],"deferred":[{"title":"Chemiosmosis","reason":"The learner's remaining availability before the deadline cannot hold another coherent normal session."}]}}
+
+stdout | src/evals/plan-creation-blockers.test.ts > consolidated audit: learner-visible launch blockers > offers useful work with 1 days left and a 25-minute focus profile
+{"case":"deadline-1-focus-25","learnerView":{"title":"Teach Me Cellular Respiration From Scratch for My Test, Including ATP…","rationale":"Your deadline leaves time for part of the unit. Start with the included topics and check the final teaching session independently; the remaining topics are saved for later.","sessions":[{"title":"Build ATP and energy transfer","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 1 builds an accurate explanation of ATP and energy transfer, uses one concrete example, and ends with an independent check.","evidence":["Explain ATP and energy transfer in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-07T19:00:00.000Z"},{"title":"Build Glycolysis","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 2 builds an accurate explanation of Glycolysis, uses one concrete example, and ends with an independent check.","evidence":["Explain Glycolysis in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-07T19:15:00.000Z"},{"title":"Retrieve Glycolysis","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 3 retrieves and applies Glycolysis without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Glycolysis in evidence check 1 in one new example without initial support and correct any exposed error"],"minutes":10,"date":"2026-09-07T19:30:00.000Z"}],"deferred":[{"title":"Link reaction","reason":"The learner's remaining availability before the deadline cannot hold another coherent normal session."},{"title":"Krebs cycle","reason":"The learner's remaining availability before the deadline cannot hold another coherent normal session."},{"title":"Electron transport chain","reason":"The learner's remaining availability before the deadline cannot hold another coherent normal session."},{"title":"Chemiosmosis","reason":"The learner's remaining availability before the deadline cannot hold another coherent normal session."}]}}
+
+stdout | src/evals/plan-creation-blockers.test.ts > consolidated audit: learner-visible launch blockers > offers useful work with 1 days left and a 60-minute focus profile
+{"case":"deadline-1-focus-60","learnerView":{"title":"Teach Me Cellular Respiration From Scratch for My Test, Including ATP…","rationale":"Your deadline leaves time for part of the unit. Start with the included topics and check the final teaching session independently; the remaining topics are saved for later.","sessions":[{"title":"Build ATP and energy transfer","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 1 builds an accurate explanation of ATP and energy transfer, uses one concrete example, and ends with an independent check.","evidence":["Explain ATP and energy transfer in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-07T19:00:00.000Z"},{"title":"Build Glycolysis","method":"Feynman Technique","why":"Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.","objective":"Session 2 builds an accurate explanation of Glycolysis, uses one concrete example, and ends with an independent check.","evidence":["Explain Glycolysis in evidence check 1 in your own words after the model is hidden"],"minutes":10,"date":"2026-09-07T19:15:00.000Z"},{"title":"Retrieve Glycolysis","method":"Concept Mapping","why":"Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.","objective":"Session 3 retrieves and applies Glycolysis without initial support, then corrects the exact gap or error the attempt exposes.","evidence":["Apply Glycolysis in evidence check 1 in one new example without initial support and correct any exposed error"],"minutes":10,"date":"2026-09-07T19:30:00.000Z"}],"deferred":[{"title":"Link reaction","reason":"The learner's remaining availability before the deadline cannot hold another coherent normal session."},{"title":"Krebs cycle","reason":"The learner's remaining availability before the deadline cannot hold another coherent normal session."},{"title":"Electron transport chain","reason":"The learner's remaining availability before the deadline cannot hold another coherent normal session."},{"title":"Chemiosmosis","reason":"The learner's remaining availability before the deadline cannot hold another coherent normal session."}]}}
+
+stdout | src/evals/plan-creation-blockers.test.ts > consolidated audit: learner-visible launch blockers > refuses to turn a source-free mapping failure into nonsense learning topics
+{"case":"mapping-failure","visibleResult":"YOVA could not map this learning goal yet. Try again in a moment."}
+
+·····································································································································································································································································································································································································stdout | src/app/api/sessions/generate/route-route-revision.test.ts > guided-session route revision boundary > carries the requested route through cache metadata, the response, and the resource
+YOVA guided-session generation completed {
+  requestId: 'ee568b92-70fd-40d0-9afb-38af1e6b96f9',
+  model: 'route-revision-test-model',
+  persistence: 'browser',
+  elapsedMs: 12,
+  attempts: 1,
+  repairAttempted: false,
+  repairReason: 'none',
+  recoveryMode: 'none',
+  degradedMode: 'none',
+  strategy: 'unknown',
+  stage: 'complete',
+  cause: 'none',
+  validationIssueCode: 'none',
+  inputTokens: 120,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+  outputTokens: 240
+}
+
+stdout | src/app/api/sessions/generate/route-route-revision.test.ts > guided-session route revision boundary > keeps requests without a route revision compatible with legacy responses
+YOVA guided-session generation completed {
+  requestId: 'ef6dddc2-80b3-4d53-bd83-9dae028c10cb',
+  model: 'route-revision-test-model',
+  persistence: 'browser',
+  elapsedMs: 12,
+  attempts: 1,
+  repairAttempted: false,
+  repairReason: 'none',
+  recoveryMode: 'none',
+  degradedMode: 'none',
+  strategy: 'unknown',
+  stage: 'complete',
+  cause: 'none',
+  validationIssueCode: 'none',
+  inputTokens: 120,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+  outputTokens: 240
+}
+
+stdout | src/app/api/sessions/generate/route-route-revision.test.ts > guided-session route revision boundary > keeps normal-envelope provider display prose out of the preview generation context
+YOVA guided-session generation completed {
+  requestId: '7fdd29c3-d137-4d79-a870-d463862c36b5',
+  model: 'route-revision-test-model',
+  persistence: 'browser',
+  elapsedMs: 12,
+  attempts: 1,
+  repairAttempted: false,
+  repairReason: 'none',
+  recoveryMode: 'none',
+  degradedMode: 'none',
+  strategy: 'unknown',
+  stage: 'complete',
+  cause: 'none',
+  validationIssueCode: 'none',
+  inputTokens: 120,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+  outputTokens: 240
+}
+
+stdout | src/app/api/sessions/generate/route-route-revision.test.ts > guided-session route revision boundary > reuses only the exact routed cache and rejects a successor route
+YOVA guided-session generation completed {
+  requestId: 'a58add71-944f-48c0-954b-05769225e5c9',
+  model: 'route-revision-test-model',
+  persistence: 'browser',
+  elapsedMs: 12,
+  attempts: 1,
+  repairAttempted: false,
+  repairReason: 'none',
+  recoveryMode: 'none',
+  degradedMode: 'none',
+  strategy: 'unknown',
+  stage: 'complete',
+  cause: 'none',
+  validationIssueCode: 'none',
+  inputTokens: 120,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+  outputTokens: 240
+}
+
+stdout | src/app/api/sessions/generate/route-route-revision.test.ts > guided-session route revision boundary > lets a legacy request reuse a legacy cache but never assigns that cache to a route
+YOVA guided-session generation completed {
+  requestId: 'e323cb43-e149-4eb0-9c28-b60a99e24322',
+  model: 'route-revision-test-model',
+  persistence: 'browser',
+  elapsedMs: 12,
+  attempts: 1,
+  repairAttempted: false,
+  repairReason: 'none',
+  recoveryMode: 'none',
+  degradedMode: 'none',
+  strategy: 'unknown',
+  stage: 'complete',
+  cause: 'none',
+  validationIssueCode: 'none',
+  inputTokens: 120,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+  outputTokens: 240
+}
+
+stdout | src/app/api/sessions/generate/route-route-revision.test.ts > guided-session route revision boundary > keeps an authorized exact cache usable when optional personalization history is unavailable
+YOVA guided-session generation completed {
+  requestId: '665a76a6-8b6a-4a45-b78f-4fda0575c4ff',
+  model: 'route-revision-test-model',
+  persistence: 'browser',
+  elapsedMs: 12,
+  attempts: 1,
+  repairAttempted: false,
+  repairReason: 'none',
+  recoveryMode: 'none',
+  degradedMode: 'none',
+  strategy: 'unknown',
+  stage: 'complete',
+  cause: 'none',
+  validationIssueCode: 'none',
+  inputTokens: 120,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+  outputTokens: 240
+}
+
+stderr | src/app/api/sessions/generate/route-route-revision.test.ts > guided-session route revision boundary > rejects browser output that claims a committed route but changes its method
+YOVA browser guided-session route validation failed {
+  requestId: '96d1ecb4-9ef1-4bec-8123-4af71f053bf4',
+  strategy: 'unknown',
+  stage: 'validation',
+  cause: 'route_conflict',
+  attempts: 1
+}
+
+stdout | src/app/api/sessions/generate/route-route-revision.test.ts > guided-session route revision boundary > accepts a source-grounded degraded lesson that preserves route identity and explicitly defers the unsupported target
+YOVA guided-session generation completed {
+  requestId: 'ac9f4986-990e-4f83-a209-c306cd9a8b49',
+  model: 'route-revision-test-model',
+  persistence: 'browser',
+  elapsedMs: 12,
+  attempts: 1,
+  repairAttempted: true,
+  repairReason: 'none',
+  recoveryMode: 'none',
+  degradedMode: 'source_grounded',
+  strategy: 'unknown',
+  stage: 'fallback',
+  cause: 'provider_request',
+  validationIssueCode: 'none',
+  inputTokens: 120,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+  outputTokens: 240
+}
+
+stdout | src/app/api/sessions/generate/route-route-revision.test.ts > guided-session route revision boundary > accepts the same route-coherent mixed-source degradation for a signed-in persisted session
+YOVA guided-session generation completed {
+  requestId: 'a2ad446d-361f-492f-a8d5-a11b6aea5dde',
+  model: 'route-revision-test-model',
+  persistence: 'supabase',
+  elapsedMs: 12,
+  attempts: 1,
+  repairAttempted: true,
+  repairReason: 'none',
+  recoveryMode: 'none',
+  degradedMode: 'source_grounded',
+  strategy: 'unknown',
+  stage: 'fallback',
+  cause: 'provider_request',
+  validationIssueCode: 'none',
+  inputTokens: 120,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+  outputTokens: 240
+}
+
+stdout | src/app/api/sessions/generate/route-route-revision.test.ts > guided-session route revision boundary > uses filled V15 consistently for a committed Learn route whose selected method is not streamed
+YOVA guided-session generation completed {
+  requestId: '9fd9e683-ea58-4c38-a62a-31f9af97277b',
+  model: 'route-revision-test-model',
+  persistence: 'browser',
+  elapsedMs: 12,
+  attempts: 1,
+  repairAttempted: false,
+  repairReason: 'none',
+  recoveryMode: 'none',
+  degradedMode: 'none',
+  strategy: 'unknown',
+  stage: 'complete',
+  cause: 'none',
+  validationIssueCode: 'none',
+  inputTokens: 120,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+  outputTokens: 240
+}
+
+···························································································································································································stdout | src/lib/knowledge-map/generate-plan-map.test.ts > plan knowledge-map generation > keeps demonstrated knowledge visible when a correction adds a different topic
+{"case":"kept-placement-after-map-correction","visible":[{"title":"The product rule","action":"Quick verification"},{"title":"The chain rule","action":"Teach and check"}]}
+
+stdout | src/lib/knowledge-map/generate-plan-map.test.ts > plan knowledge-map generation > does not misapply placement evidence after changed scope
+{"case":"changed scope","title":"The chain rule","action":"Teach and check","removedDemonstratedTopic":"The product rule"}
+
+stdout | src/lib/knowledge-map/generate-plan-map.test.ts > plan knowledge-map generation > does not misapply placement evidence after removed topic
+{"case":"removed topic","title":"The chain rule","action":"Teach and check","removedDemonstratedTopic":"The product rule"}
+
+···································stderr | src/app/api/sessions/lesson/route.test.ts > streamed lesson route recovery > replaces partial output and completes when the provider times out
+YOVA streamed lesson generation failed {
+  requestId: '77777777-7777-4777-8777-777777777777',
+  failureKind: 'runtime_timeout',
+  initialFailureKind: 'none',
+  attempts: 1,
+  elapsedMs: 105000,
+  latencyToFirstTokenMs: 100,
+  wordCount: 8,
+  model: 'configured-lesson-model'
+}
+
+stderr | src/app/api/sessions/lesson/route.test.ts > streamed lesson route recovery > replaces a completed but insubstantial lesson with the validated brief
+YOVA streamed lesson generation failed {
+  requestId: '77777777-7777-4777-8777-777777777777',
+  failureKind: 'content_below_substance_threshold',
+  initialFailureKind: 'none',
+  attempts: 1,
+  elapsedMs: 500,
+  latencyToFirstTokenMs: 80,
+  wordCount: 13,
+  model: 'configured-lesson-model'
+}
+
+·····················································································································································································································································································································································································································································································································································································stderr | src/app/api/materials/route.test.ts > material staging expiration boundaries > requires cancel and re-stage when the exact Storage path already conflicts
+YOVA same-origin material upload failed {
+  requestId: '3a388044-e916-4192-8af3-ce564df46577',
+  reason: 'object-conflict'
+}
+
+····································································································stderr | src/app/api/sessions/ai-usage-lifecycle.route.test.ts > answer evaluation and repair allowance lifecycle > consumes the exact evaluation reservation after provider work fails
+YOVA answer evaluation failed { requestId: 'd9a66b0f-07c4-4c22-b83e-00023a93f284', reason: 'Error' }
+
+stderr | src/app/api/sessions/ai-usage-lifecycle.route.test.ts > answer evaluation and repair allowance lifecycle > returns a valid evaluation when settlement cannot be confirmed
+YOVA could not settle a successful answer-checking allowance claim { requestId: 'bdc2114e-a6a1-49ef-8588-e5b8c5f3e90c' }
+
+stderr | src/app/api/sessions/ai-usage-lifecycle.route.test.ts > answer evaluation and repair allowance lifecycle > consumes failed repair generation before returning the system fallback
+YOVA runtime repair generation failed { requestId: 'e732ca81-3585-418a-9325-13b598f34a83', reason: 'Error' }
+
+stderr | src/app/api/sessions/ai-usage-lifecycle.route.test.ts > answer evaluation and repair allowance lifecycle > returns a valid repair when settlement cannot be confirmed
+YOVA could not settle a successful repair allowance claim { requestId: 'a6c3eddf-8e89-4260-b320-401cc578e27c' }
+
+·············stderr | src/app/api/tutor/route.test.ts > tutor plan visibility > consumes the paid attempt when a generated exchange fails response validation
+YOVA tutor request failed {
+  requestId: '94c75e79-6f6f-4b5c-b50e-7ee3d0d6711c',
+  reason: 'ZodError'
+}
+
+stderr | src/app/api/tutor/route.test.ts > tutor plan visibility > returns a valid tutor answer when settlement cannot be confirmed
+YOVA could not settle a successful tutor allowance claim { requestId: '19a49ac6-d490-419c-bc1e-a94557995794' }
+
+···············································································································································································stderr | src/app/api/study-profile/waitlist/route.test.ts > Study Profile landing waitlist route > masks a provider failure with the same generic accepted receipt
+Study Profile landing confirmation delivery failed. Error
+
+····································································································································································································································································································································································································································································································································································stdout | src/lib/openai/plan-redirector.test.ts > direction revision topic integrity > moves topic identity with revised content, preserving session and calendar identities
+{"case":"revised-fractions-progress","lessonTitle":"Learn Fractions","objective":"Clear fractions and solve the equation.","evidence":["Solve a new Fractions problem independently."],"visibleMapChange":[{"topicId":"22222222-2222-4222-8222-222222222222","title":"Fractions","from":"not_started","to":"evidenced"}]}
+
+···························································································stderr | src/app/api/study-profile/responses/route.test.ts > Study Profile response confirmation gate > withholds the report when synchronous confirmation delivery fails
+Study Profile report-unlock confirmation delivery failed. Error
+
+·············································································stderr | src/app/api/teaching-visual/route.test.ts > teaching visual allowance lifecycle > returns a usable image when settlement cannot be confirmed
+YOVA could not settle a successful teaching-visual allowance claim { requestId: '775e449c-15b8-4b94-b15e-d9c5f3febbe4' }
+
+·························································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································································-----------
+
+ Test Files  444 passed | 18 skipped (462)
+      Tests  3888 passed | 75 skipped (3963)
+   Start at  15:54:22
+   Duration  53.86s (transform 3.48s, setup 0ms, import 18.67s, tests 8.05s, environment 19ms)
+
+
+Exit code: 0

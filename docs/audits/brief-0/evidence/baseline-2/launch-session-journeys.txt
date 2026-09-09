@@ -1,0 +1,76 @@
+Main e03a082 complete baseline 2/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'calculus'
+calculus {
+  elapsedMs: 6674,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'session_method_fidelity',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: 'worked_example_fading is missing required learning phase: independent_practice. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.',
+  inputTokens: 9111,
+  cachedInputTokens: 3840,
+  cacheWriteTokens: 0,
+  outputTokens: 1267,
+  validationIssueCode: null,
+  recoveryMode: 'safe_learn',
+  strategy: 'streamed',
+  stage: 'complete'
+} worked_example_fading
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'osmosis'
+osmosis {
+  elapsedMs: 7338,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'session_required_typed_recall',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: 'A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.',
+  inputTokens: 9922,
+  cachedInputTokens: 3840,
+  cacheWriteTokens: 0,
+  outputTokens: 1652,
+  validationIssueCode: null,
+  recoveryMode: 'safe_learn',
+  strategy: 'streamed',
+  stage: 'complete'
+} self_explanation
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'recall'
+recall {
+  elapsedMs: 7388,
+  attempts: 1,
+  firstAttemptPassed: true,
+  failedValidator: null,
+  repairAttempted: false,
+  repairSucceeded: null,
+  repairReason: 'none',
+  repairDetail: null,
+  inputTokens: 10003,
+  cachedInputTokens: 5888,
+  cacheWriteTokens: 0,
+  outputTokens: 1521,
+  validationIssueCode: null,
+  strategy: 'full',
+  stage: 'complete'
+} concept_mapping
+
+ ✓ src/evals/launch-session-journeys.live.test.ts (3 tests) 33058ms
+     ✓ 'calculus'  10527ms
+     ✓ 'osmosis'  10591ms
+     ✓ 'recall'  11940ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  22:54:25
+   Duration  33.45s (transform 369ms, setup 0ms, import 314ms, tests 33.06s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-2/launch-session-journeys.json
+
+Exit code: 0

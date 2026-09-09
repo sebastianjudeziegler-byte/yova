@@ -1,0 +1,19 @@
+Fresh-server replay after full-suite server memory restarts. No assertion, timeout, or heap-setting changes.
+Command: ["node", "node_modules/@playwright/test/cli.js", "test", "e2e/core-learning-loop.spec.ts", "--project", "mobile-chromium", "--grep", "a\\ saved\\ first\\-step\\ recall\\ round\\ resumes\\ at\\ the\\ next\\ prompt\\ without\\ persisting\\ draft\\ text|spent\\ allowance\\ still\\ permits\\ a\\ saved\\ session\\ to\\ continue|legacy\\ split\\ work\\ reopens\\ as\\ an\\ active\\ plan\\ with\\ runnable\\ ten\\-minute\\ sessions|a\\ normal\\ conceptual\\ plan\\ visibly\\ moves\\ from\\ Learn\\ to\\ later\\ Practice\\ and\\ commits\\ both\\ route\\ modes", "--config", "playwright.brief0-verification.config.ts"]
+[WebServer] (node:87099) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:87100) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 1 worker
+
+(node:87121) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1784:5 › a saved first-step recall round resumes at the next prompt without persisting draft text (12.0s)
+  ✓  2 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2356:5 › spent allowance still permits a saved session to continue (7.0s)
+  ✓  3 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2613:5 › legacy split work reopens as an active plan with runnable ten-minute sessions (4.2s)
+  ✓  4 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3255:5 › a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes (3.2s)
+
+  4 passed (39.0s)
+
+Exit code: 0

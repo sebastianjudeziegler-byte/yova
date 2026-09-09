@@ -1,0 +1,86 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'Full beginner calculus pathway'
+
+YOVA connected journey · Full beginner calculus pathway
+Plan · 2 sessions · 100/100 · 16.8s
+First session · learn · Worked Examples · 25 min
+Lesson · 5 activities · 100/100 · 9.7s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+stdout | src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+
+YOVA connected journey · History essay using outside sources
+Plan · 3 sessions · 100/100 · 17.0s
+First session · learn · Outline from Memory · 30 min
+Lesson · 4 activities · 100/100 · 9.5s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+ ❯ src/evals/plan-session-journey.live.test.ts (5 tests | 4 failed) 113242ms
+     ✓ the requested journey exists 1ms
+     × 'One product-rule skill in short sessi…' 25957ms
+     × 'World War I unit guide in short sessi…' 34336ms
+     × 'Full beginner calculus pathway' 26482ms
+     × 'History essay using outside sources' 26465ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/plan-session-journey.live.test.ts:58:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'World War I unit guide in short sessi…'
+SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/plan-session-journey.live.test.ts:58:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'Full beginner calculus pathway'
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "The learner can see a concrete evidence-linked delivery adjustment",
++ ]
+
+ ❯ src/evals/plan-session-journey.live.test.ts:75:44
+     73|     expect(planResult.requiredFailures).toEqual([]);
+     74|     expect(planResult.score).toBeGreaterThanOrEqual(80);
+     75|     expect(sessionResult.requiredFailures).toEqual([]);
+       |                                            ^
+     76|     expect(sessionResult.score).toBeGreaterThanOrEqual(80);
+     77|     expect(generatedSession.draft.methodBriefing.learningMode).toBe(fi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 1 passed (5)
+   Start at  23:39:41
+   Duration  113.67s (transform 366ms, setup 0ms, import 356ms, tests 113.24s, environment 0ms)
+
+
+Exit code: 1

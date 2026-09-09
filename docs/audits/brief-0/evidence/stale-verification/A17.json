@@ -1,0 +1,52 @@
+{
+  "cases": [
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > the requested journey exists",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > the requested journey exists",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "AssertionError",
+          "message": "expected [ 'Activities fit the learning task' ] to deeply equal []",
+          "actual": "[\n  \"Activities fit the learning task\",\n]",
+          "expected": "[]"
+        }
+      ],
+      "durationMs": 45537.101875
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'History essay using outside sources'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'History essay using outside sources'",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    }
+  ],
+  "errors": []
+}

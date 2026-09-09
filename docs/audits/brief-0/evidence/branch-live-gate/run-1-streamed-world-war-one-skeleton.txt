@@ -1,0 +1,257 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+Exact WWI baseline skeleton {
+  generationStats: {
+    elapsedMs: 17082,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'session_required_typed_recall',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: 'A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.',
+    inputTokens: 8323,
+    cachedInputTokens: 7424,
+    cacheWriteTokens: 0,
+    outputTokens: 2109,
+    validationIssueCode: null,
+    recoveryMode: 'safe_learn',
+    strategy: 'streamed',
+    stage: 'complete'
+  },
+  coverage: {
+    focus: 'Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.',
+    essentialIdeas: [
+      'Prewar European alliances and tensions divided Europe into rival armed blocs before 1914.',
+      'The Sarajevo assassination triggered Austria-Hungary, then alliance commitments widened the war.',
+      'Basic chronology from 1914 to 1918 places World War I from outbreak to armistice.'
+    ],
+    completionEvidence: [
+      'Describe the main alliance blocs and at least three prewar tensions using the example provided',
+      'Place Sarajevo, the July Crisis, the start of the war, U.S. entry, and the armistice in order'
+    ],
+    evidenceMap: [ [Object], [Object], [Object] ],
+    deferredContent: []
+  },
+  activities: [
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 3,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'Prewar European alliances and tensions divided Europe into rival armed blocs before 1914.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 8,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'The Sarajevo assassination triggered Austria-Hungary, then alliance commitments widened the war.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'Basic chronology from 1914 to 1918 places World War I from outbreak to armistice.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'repair',
+      concept: 'Prewar European alliances and tensions divided Europe into rival armed blocs before 1914.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'reexplain',
+      concept: 'Prewar European alliances and tensions divided Europe into rival armed blocs before 1914.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'multiple_choice',
+      phase: 'transfer',
+      concept: 'Recognition transfer: Basic chronology from 1914 to 1918 places World War I from outbreak to armistice.',
+      minutes: 4,
+      ideas: []
+    },
+    {
+      type: 'reflection',
+      phase: 'schedule_return',
+      concept: null,
+      minutes: 1,
+      ideas: []
+    }
+  ]
+}
+Exact WWI baseline generation failure {
+  message: 'expected [ { …(16) }, { …(16) } ] to have a length of 3 but got 2',
+  generationStats: null
+}
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live streamed World War I session skeleton > reliably creates a valid subject-specific session outline
+WWI streamed skeleton run {
+  run: 1,
+  elapsedMs: 10882,
+  attempts: 2,
+  firstAttemptPassed: false,
+  repairAttempted: true,
+  repairSucceeded: true,
+  failedValidator: 'streamed_lesson_scope',
+  repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The claim assigned to target_1 does not preserve that target's subject terms. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+  requiredMinutes: 9,
+  activeIdeas: [
+    'Prewar European alliances divided powers into rival blocs that hardened tensions before war.'
+  ],
+  deferredContent: [
+    'Basic chronology from 1914 to 1918',
+    'Sequence from the Sarajevo assassination to declarations of war'
+  ]
+}
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live streamed World War I session skeleton > reliably creates a valid subject-specific session outline
+WWI streamed skeleton run {
+  run: 2,
+  elapsedMs: 8383,
+  attempts: 1,
+  firstAttemptPassed: false,
+  repairAttempted: true,
+  repairSucceeded: true,
+  failedValidator: 'session_practice_variation',
+  repairDetail: 'YOVA restored 3 evidence-derived practice-intent labels without changing question content or learning phases.',
+  requiredMinutes: 15,
+  activeIdeas: [
+    'Prewar European alliances and rivalries made a local crisis more likely to widen into a larger war.'
+  ],
+  deferredContent: [
+    'Basic chronology from 1914 to 1918',
+    'Sequence from the Sarajevo assassination to declarations of war'
+  ]
+}
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live streamed World War I session skeleton > reliably creates a valid subject-specific session outline
+WWI streamed skeleton run {
+  run: 3,
+  elapsedMs: 9703,
+  attempts: 1,
+  firstAttemptPassed: false,
+  repairAttempted: true,
+  repairSucceeded: true,
+  failedValidator: 'session_practice_variation',
+  repairDetail: 'YOVA restored 2 evidence-derived practice-intent labels without changing question content or learning phases.',
+  requiredMinutes: 15,
+  activeIdeas: [
+    'Prewar European alliances and tensions made the July Crisis more dangerous because rival power blocs and military suspicion turned a local event into a wider threat.'
+  ],
+  deferredContent: [
+    'Basic chronology from 1914 to 1918',
+    'Sequence from the Sarajevo assassination to declarations of war'
+  ]
+}
+WWI streamed skeleton reliability [
+  {
+    run: 1,
+    elapsedMs: 10882,
+    attempts: 2,
+    firstAttemptPassed: false,
+    repairAttempted: true,
+    repairSucceeded: true,
+    failedValidator: 'streamed_lesson_scope',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The claim assigned to target_1 does not preserve that target's subject terms. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+    requiredMinutes: 9,
+    activeIdeas: [
+      'Prewar European alliances divided powers into rival blocs that hardened tensions before war.'
+    ],
+    deferredContent: [
+      'Basic chronology from 1914 to 1918',
+      'Sequence from the Sarajevo assassination to declarations of war'
+    ]
+  },
+  {
+    run: 2,
+    elapsedMs: 8383,
+    attempts: 1,
+    firstAttemptPassed: false,
+    repairAttempted: true,
+    repairSucceeded: true,
+    failedValidator: 'session_practice_variation',
+    repairDetail: 'YOVA restored 3 evidence-derived practice-intent labels without changing question content or learning phases.',
+    requiredMinutes: 15,
+    activeIdeas: [
+      'Prewar European alliances and rivalries made a local crisis more likely to widen into a larger war.'
+    ],
+    deferredContent: [
+      'Basic chronology from 1914 to 1918',
+      'Sequence from the Sarajevo assassination to declarations of war'
+    ]
+  },
+  {
+    run: 3,
+    elapsedMs: 9703,
+    attempts: 1,
+    firstAttemptPassed: false,
+    repairAttempted: true,
+    repairSucceeded: true,
+    failedValidator: 'session_practice_variation',
+    repairDetail: 'YOVA restored 2 evidence-derived practice-intent labels without changing question content or learning phases.',
+    requiredMinutes: 15,
+    activeIdeas: [
+      'Prewar European alliances and tensions made the July Crisis more dangerous because rival power blocs and military suspicion turned a local event into a wider threat.'
+    ],
+    deferredContent: [
+      'Basic chronology from 1914 to 1918',
+      'Sequence from the Sarajevo assassination to declarations of war'
+    ]
+  }
+]
+
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts (2 tests | 1 failed) 46116ms
+     × creates the production 45-minute streamed teaching session 17140ms
+     ✓ reliably creates a valid subject-specific session outline  28975ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+AssertionError: expected [ { …(16) }, { …(16) } ] to have a length of 3 but got 2
+
+- Expected
++ Received
+
+- 3
++ 2
+
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts:37:11
+     35|       expect(focusedActivities.filter((activity) => (
+     36|         activity.type === "instruction" && activity.lessonBrief
+     37|       ))).toHaveLength(3);
+       |           ^
+     38|       expect(focusedActivities.filter((activity) => (
+     39|         activity.requiredForCompletion
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  23:46:43
+   Duration  46.61s (transform 298ms, setup 0ms, import 412ms, tests 46.12s, environment 0ms)
+
+
+Exit code: 1

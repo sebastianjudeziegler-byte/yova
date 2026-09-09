@@ -1,0 +1,43 @@
+[
+  {
+    "name": "browser-replay-1",
+    "file": "e2e/accessibility-regression.spec.ts",
+    "project": "mobile-chromium",
+    "titles": [
+      "the initial HTML provides useful public content without waiting for JavaScript",
+      "form placeholder text keeps AA contrast on public surfaces"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "browser-replay-2",
+    "file": "e2e/add-to-yova.spec.ts",
+    "project": "mobile-chromium",
+    "titles": [
+      "a deadline can live in Calendar, be completed, and stay out of Learning"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "browser-replay-3",
+    "file": "e2e/core-learning-loop.spec.ts",
+    "project": "mobile-chromium",
+    "titles": [
+      "a saved first-step recall round resumes at the next prompt without persisting draft text",
+      "spent allowance still permits a saved session to continue",
+      "legacy split work reopens as an active plan with runnable ten-minute sessions",
+      "a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "browser-replay-4",
+    "file": "e2e/plan-schedule-date.spec.ts",
+    "project": "mobile-chromium",
+    "titles": [
+      "an overfull plan returns to its schedule and recovers without a client crash",
+      "changing the goal through Back replaces the old placement map"
+    ],
+    "exitCode": 0
+  }
+]

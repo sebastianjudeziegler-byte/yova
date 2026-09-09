@@ -1,0 +1,244 @@
+Main e03a082 complete baseline 1/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+Exact WWI baseline skeleton {
+  generationStats: {
+    elapsedMs: 7764,
+    attempts: 1,
+    firstAttemptPassed: false,
+    failedValidator: 'session_practice_variation',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: 'YOVA restored 3 evidence-derived practice-intent labels without changing question content or learning phases.',
+    inputTokens: 7530,
+    cachedInputTokens: 7424,
+    cacheWriteTokens: 0,
+    outputTokens: 1687,
+    validationIssueCode: 'session_practice_metadata',
+    strategy: 'streamed',
+    stage: 'complete'
+  },
+  coverage: {
+    focus: 'World War I cause map',
+    essentialIdeas: [
+      'Prewar European alliances and tensions split Europe into rival blocs and made a local crisis more dangerous.',
+      'The Sarajevo assassination set off the July Crisis, and alliance commitments helped turn that crisis into declarations of war.',
+      'From 1914 to 1918, the war moved from outbreak to wider conflict, U.S. entry, and the armistice.'
+    ],
+    completionEvidence: [
+      'Describe the main alliance blocs and at least three prewar tensions using the example provided',
+      'Place Sarajevo, the July Crisis, the start of the war, U.S. entry, and the armistice in order'
+    ],
+    evidenceMap: [ [Object], [Object], [Object] ],
+    deferredContent: []
+  },
+  activities: [
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 5,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'Prewar European alliances and tensions',
+      minutes: 9,
+      ideas: []
+    },
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 10,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'repair',
+      concept: 'Sequence from the Sarajevo assassination to declarations of war',
+      minutes: 8,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'reexplain',
+      concept: 'Basic chronology from 1914 to 1918',
+      minutes: 8,
+      ideas: []
+    },
+    {
+      type: 'multiple_choice',
+      phase: 'transfer',
+      concept: 'Basic chronology from 1914 to 1918',
+      minutes: 5,
+      ideas: []
+    },
+    {
+      type: 'reflection',
+      phase: 'schedule_return',
+      concept: null,
+      minutes: 1,
+      ideas: []
+    }
+  ]
+}
+Exact WWI baseline generation failure {
+  message: 'expected [ { …(16) }, { …(16) } ] to have a length of 3 but got 2',
+  generationStats: null
+}
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live streamed World War I session skeleton > reliably creates a valid subject-specific session outline
+WWI streamed skeleton run {
+  run: 1,
+  elapsedMs: 9736,
+  attempts: 2,
+  firstAttemptPassed: false,
+  repairAttempted: true,
+  repairSucceeded: true,
+  failedValidator: 'streamed_lesson_scope',
+  repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+  requiredMinutes: 9,
+  activeIdeas: [
+    'Prewar European alliances and tensions split Europe into rival armed blocs before 1914.'
+  ],
+  deferredContent: [
+    'Basic chronology from 1914 to 1918',
+    'Sequence from the Sarajevo assassination to declarations of war'
+  ]
+}
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live streamed World War I session skeleton > reliably creates a valid subject-specific session outline
+WWI streamed skeleton run {
+  run: 2,
+  elapsedMs: 9388,
+  attempts: 2,
+  firstAttemptPassed: false,
+  repairAttempted: true,
+  repairSucceeded: true,
+  failedValidator: 'streamed_lesson_scope',
+  repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+  requiredMinutes: 9,
+  activeIdeas: [
+    'Prewar European alliances and tensions split Europe into rival blocs and raised war danger.'
+  ],
+  deferredContent: [
+    'Basic chronology from 1914 to 1918',
+    'Sequence from the Sarajevo assassination to declarations of war'
+  ]
+}
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live streamed World War I session skeleton > reliably creates a valid subject-specific session outline
+WWI streamed skeleton run {
+  run: 3,
+  elapsedMs: 7588,
+  attempts: 1,
+  firstAttemptPassed: false,
+  repairAttempted: true,
+  repairSucceeded: true,
+  failedValidator: 'session_practice_variation',
+  repairDetail: 'YOVA restored 3 evidence-derived practice-intent labels without changing question content or learning phases.',
+  requiredMinutes: 15,
+  activeIdeas: [
+    'Prewar European alliances and tensions shaped the July Crisis by making each major power watch for threats from rival blocs.'
+  ],
+  deferredContent: [
+    'Basic chronology from 1914 to 1918',
+    'Sequence from the Sarajevo assassination to declarations of war'
+  ]
+}
+WWI streamed skeleton reliability [
+  {
+    run: 1,
+    elapsedMs: 9736,
+    attempts: 2,
+    firstAttemptPassed: false,
+    repairAttempted: true,
+    repairSucceeded: true,
+    failedValidator: 'streamed_lesson_scope',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+    requiredMinutes: 9,
+    activeIdeas: [
+      'Prewar European alliances and tensions split Europe into rival armed blocs before 1914.'
+    ],
+    deferredContent: [
+      'Basic chronology from 1914 to 1918',
+      'Sequence from the Sarajevo assassination to declarations of war'
+    ]
+  },
+  {
+    run: 2,
+    elapsedMs: 9388,
+    attempts: 2,
+    firstAttemptPassed: false,
+    repairAttempted: true,
+    repairSucceeded: true,
+    failedValidator: 'streamed_lesson_scope',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+    requiredMinutes: 9,
+    activeIdeas: [
+      'Prewar European alliances and tensions split Europe into rival blocs and raised war danger.'
+    ],
+    deferredContent: [
+      'Basic chronology from 1914 to 1918',
+      'Sequence from the Sarajevo assassination to declarations of war'
+    ]
+  },
+  {
+    run: 3,
+    elapsedMs: 7588,
+    attempts: 1,
+    firstAttemptPassed: false,
+    repairAttempted: true,
+    repairSucceeded: true,
+    failedValidator: 'session_practice_variation',
+    repairDetail: 'YOVA restored 3 evidence-derived practice-intent labels without changing question content or learning phases.',
+    requiredMinutes: 15,
+    activeIdeas: [
+      'Prewar European alliances and tensions shaped the July Crisis by making each major power watch for threats from rival blocs.'
+    ],
+    deferredContent: [
+      'Basic chronology from 1914 to 1918',
+      'Sequence from the Sarajevo assassination to declarations of war'
+    ]
+  }
+]
+
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts (2 tests | 1 failed) 34546ms
+     × creates the production 45-minute streamed teaching session 7824ms
+     ✓ reliably creates a valid subject-specific session outline  26719ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+AssertionError: expected [ { …(16) }, { …(16) } ] to have a length of 3 but got 2
+
+- Expected
++ Received
+
+- 3
++ 2
+
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts:37:11
+     35|       expect(focusedActivities.filter((activity) => (
+     36|         activity.type === "instruction" && activity.lessonBrief
+     37|       ))).toHaveLength(3);
+       |           ^
+     38|       expect(focusedActivities.filter((activity) => (
+     39|         activity.requiredForCompletion
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  22:52:28
+   Duration  35.01s (transform 293ms, setup 0ms, import 395ms, tests 34.55s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-1/streamed-world-war-one-skeleton.json
+
+Exit code: 1

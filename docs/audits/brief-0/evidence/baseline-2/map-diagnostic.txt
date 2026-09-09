@@ -1,0 +1,22 @@
+Main e03a082 complete baseline 2/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/lib/diagnostics/map-diagnostic.live.test.ts > live map diagnostic generation > generates from a material map and reports latency
+DIAGNOSTIC_TELEMETRY origin=material elapsedMs=13865 inputTokens=1603 outputTokens=1328 questions=8
+
+stdout | src/lib/diagnostics/map-diagnostic.live.test.ts > live map diagnostic generation > generates from a ai_generated map and reports latency
+DIAGNOSTIC_TELEMETRY origin=ai_generated elapsedMs=15196 inputTokens=1550 outputTokens=1330 questions=8
+
+ ✓ src/lib/diagnostics/map-diagnostic.live.test.ts (2 tests) 29188ms
+     ✓ generates from a material map and reports latency  13988ms
+     ✓ generates from a ai_generated map and reports latency  15199ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  23:07:44
+   Duration  29.31s (transform 79ms, setup 0ms, import 50ms, tests 29.19s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-2/map-diagnostic.json
+
+Exit code: 0

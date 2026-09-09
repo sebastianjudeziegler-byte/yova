@@ -1,0 +1,4 @@
+Command: node node_modules/eslint/bin/eslint.js .
+TZ=America/Los_Angeles
+
+Exit code: 0

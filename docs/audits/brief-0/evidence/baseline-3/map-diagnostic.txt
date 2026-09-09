@@ -1,0 +1,33 @@
+Main e03a082 complete baseline 3/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+stderr | src/lib/diagnostics/map-diagnostic.live.test.ts > live map diagnostic generation > generates from a material map and reports latency
+DIAGNOSTIC_LIVE_ERROR undefined
+
+stdout | src/lib/diagnostics/map-diagnostic.live.test.ts > live map diagnostic generation > generates from a ai_generated map and reports latency
+DIAGNOSTIC_TELEMETRY origin=ai_generated elapsedMs=14346 inputTokens=1587 outputTokens=1300 questions=8
+
+ ❯ src/lib/diagnostics/map-diagnostic.live.test.ts (2 tests | 1 failed) 19922ms
+     × generates from a material map and reports latency 5572ms
+     ✓ generates from a ai_generated map and reports latency  14349ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/diagnostics/map-diagnostic.live.test.ts > live map diagnostic generation > generates from a material map and reports latency
+MapDiagnosticGenerationError: The placement check did not cover its assigned questions safely.
+ ❯ generateMapDiagnostic src/lib/diagnostics/map-diagnostic.ts:122:43
+
+ ❯ src/lib/diagnostics/map-diagnostic.live.test.ts:44:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  23:23:27
+   Duration  20.04s (transform 75ms, setup 0ms, import 50ms, tests 19.92s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-3/map-diagnostic.json
+
+Exit code: 1

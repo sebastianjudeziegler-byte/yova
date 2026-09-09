@@ -1,0 +1,12 @@
+Command: node node_modules/vitest/vitest.mjs run src/evals/plan-rubric.test.ts src/evals/session-rubric.test.ts src/evals/live-fixtures.test.ts --maxWorkers=1
+
+ RUN  v4.1.10 <repo>
+
+
+ Test Files  3 passed (3)
+      Tests  11 passed (11)
+   Start at  23:29:32
+   Duration  511ms (transform 168ms, setup 0ms, import 307ms, tests 31ms, environment 0ms)
+
+
+Exit code: 0

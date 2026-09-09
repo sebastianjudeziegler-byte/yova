@@ -1,0 +1,30 @@
+Supplemental single-case verification after complete gate. Does not replace its result.
+Command: ["node", "--env-file=.env.local", "node_modules/vitest/vitest.mjs", "run", "src/evals/plan-quality.live.test.ts", "--maxWorkers=1", "--retry=0", "--testNamePattern", "'Biology\\ test\\ with\\ learner\\ notes'", "--reporter=default", "--reporter=./scripts/live-gate/vitest-reporter.mjs"]
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'Biology test with learner notes'
+
+YOVA plan evaluation · Biology test with learner notes · 100/100
+PASS  Plan size fits the requested scope (10/10) · 3 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 30/30 min; Saturday: 40/40 min; Monday: 25/25 min
+PASS  No work is scheduled after the deadline (15/15) · Deadline: 2026-09-15T23:00:00.000Z
+PASS  Methods fit each session's actual task (20/20) · 3 of 3 sessions pass YOVA's task-to-method router (conceptual evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested study; session sequence: study → study → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 3 distinct objectives across 3 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · Source-grounded rationale reviewed
+
+ ✓ src/evals/plan-quality.live.test.ts (11 tests | 10 skipped) 18691ms
+     ✓ 'Biology test with learner notes'  18690ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 10 skipped (11)
+   Start at  23:50:14
+   Duration  18.92s (transform 123ms, setup 0ms, import 156ms, tests 18.69s, environment 0ms)
+
+
+Exit code: 0

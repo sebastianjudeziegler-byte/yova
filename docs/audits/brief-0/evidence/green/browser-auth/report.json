@@ -1,0 +1,682 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "<repo>/node_modules/@playwright/test/cli.js",
+      "test",
+      "e2e/public-auth.spec.ts",
+      "e2e/cloud-sync-recovery.spec.ts",
+      "--config",
+      "playwright.brief0-verification.config.ts"
+    ],
+    "configFile": "<repo>/playwright.brief0-verification.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/tmp/yova-brief-0/green/browser-auth/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/tmp/yova-brief-0/green/browser-auth/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "/tmp/yova-brief-0/green/browser-auth/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": false,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "cloud-sync-recovery.spec.ts",
+      "file": "cloud-sync-recovery.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Retry retires two permanently rejected terminal events without losing their recovery export",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3997,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:12.867Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-005dfe0da7f207d4a975",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 43,
+          "column": 5
+        },
+        {
+          "title": "startup retires a stale routed completion from a ready session using cloud route authority",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1957,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:17.126Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-67d87402f61625d2baf9",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 78,
+          "column": 5
+        },
+        {
+          "title": "cloud-only private-export metadata keeps AA text contrast",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1740,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:19.088Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-f2e3df8b9bee1abe950a",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 114,
+          "column": 5
+        },
+        {
+          "title": "Retry retires two permanently rejected terminal events without losing their recovery export",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4684,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:28.510Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-0218e8ca7d212ddab933",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 43,
+          "column": 5
+        },
+        {
+          "title": "startup retires a stale routed completion from a ready session using cloud route authority",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1883,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:33.392Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-c9dcb5daac30623d6b5a",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 78,
+          "column": 5
+        },
+        {
+          "title": "cloud-only private-export metadata keeps AA text contrast",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1942,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:35.280Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-2cb2d36ff748638722d3",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 114,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "public-auth.spec.ts",
+      "file": "public-auth.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "presents public signup without a private-alpha gate",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2196,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:20.842Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-e06da38890386784000a",
+          "file": "public-auth.spec.ts",
+          "line": 9,
+          "column": 5
+        },
+        {
+          "title": "creates a public password account with consent and a security token",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1990,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:23.044Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-70bce63e15115b6c59b8",
+          "file": "public-auth.spec.ts",
+          "line": 16,
+          "column": 5
+        },
+        {
+          "title": "keeps password errors generic and password recovery non-enumerating",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1874,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:25.040Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-b388204751a3412d5f9c",
+          "file": "public-auth.spec.ts",
+          "line": 57,
+          "column": 5
+        },
+        {
+          "title": "keeps the standalone email-confirmation page at AA text contrast",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1168,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:26.921Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-17bcf1a4c709e3377752",
+          "file": "public-auth.spec.ts",
+          "line": 85,
+          "column": 5
+        },
+        {
+          "title": "fits the public account form on a phone-sized viewport",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Mobile-only layout assertion.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 127,
+                    "column": 8
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "skipped",
+                  "duration": 93,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:28.095Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Mobile-only layout assertion.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 127,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-42b42b9998f6148652c4",
+          "file": "public-auth.spec.ts",
+          "line": 126,
+          "column": 5
+        },
+        {
+          "title": "presents public signup without a private-alpha gate",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1127,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:37.233Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-49f995502f4fa7e0b0ec",
+          "file": "public-auth.spec.ts",
+          "line": 9,
+          "column": 5
+        },
+        {
+          "title": "creates a public password account with consent and a security token",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1340,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:38.365Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-51d8951874a1afaf8712",
+          "file": "public-auth.spec.ts",
+          "line": 16,
+          "column": 5
+        },
+        {
+          "title": "keeps password errors generic and password recovery non-enumerating",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2092,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:39.711Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-49f283e48b8a693eb5ee",
+          "file": "public-auth.spec.ts",
+          "line": 57,
+          "column": 5
+        },
+        {
+          "title": "keeps the standalone email-confirmation page at AA text contrast",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 143,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:41.808Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-ed959b1d9c8d714fc8c5",
+          "file": "public-auth.spec.ts",
+          "line": 85,
+          "column": 5
+        },
+        {
+          "title": "fits the public account form on a phone-sized viewport",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1702,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T00:00:41.956Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-f548f6b644f66cd5d833",
+          "file": "public-auth.spec.ts",
+          "line": 126,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-09T00:00:08.143Z",
+    "duration": 35662.07,
+    "expected": 15,
+    "skipped": 1,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

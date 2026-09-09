@@ -1,0 +1,130 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-melatonin-skeleton.live.test.ts > live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session
+Melatonin streamed skeleton run {
+  run: 1,
+  generationStats: {
+    elapsedMs: 11697,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'streamed_lesson_scope',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Darkness and circadian timing”. Later targets that must remain exact entries in deferredContent: “Pineal melatonin release”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+    inputTokens: 7804,
+    cachedInputTokens: 3840,
+    cacheWriteTokens: 0,
+    outputTokens: 1667,
+    validationIssueCode: 'streamed_deferred_content',
+    recoveryMode: 'safe_learn',
+    strategy: 'streamed',
+    stage: 'complete'
+  },
+  deliveryModes: {
+    presentation: 'overview_first',
+    repair: 'smaller_steps',
+    retention: 'delayed_retrieval',
+    firstActionMinutes: 2,
+    maximumActivities: 5
+  },
+  phases: [
+    'model',
+    'explain',
+    'repair',
+    'reexplain',
+    'transfer',
+    'schedule_return'
+  ],
+  focusedMinutes: 15
+}
+
+stdout | src/evals/streamed-melatonin-skeleton.live.test.ts > live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session
+Melatonin streamed skeleton run {
+  run: 2,
+  generationStats: {
+    elapsedMs: 9786,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'streamed_lesson_scope',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Darkness and circadian timing”. Later targets that must remain exact entries in deferredContent: “Pineal melatonin release”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+    inputTokens: 7804,
+    cachedInputTokens: 6912,
+    cacheWriteTokens: 0,
+    outputTokens: 1500,
+    validationIssueCode: 'streamed_deferred_content',
+    recoveryMode: 'safe_learn',
+    strategy: 'streamed',
+    stage: 'complete'
+  },
+  deliveryModes: {
+    presentation: 'overview_first',
+    repair: 'smaller_steps',
+    retention: 'delayed_retrieval',
+    firstActionMinutes: 2,
+    maximumActivities: 5
+  },
+  phases: [
+    'model',
+    'explain',
+    'repair',
+    'reexplain',
+    'transfer',
+    'schedule_return'
+  ],
+  focusedMinutes: 15
+}
+
+stdout | src/evals/streamed-melatonin-skeleton.live.test.ts > live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session
+Melatonin streamed skeleton run {
+  run: 3,
+  generationStats: {
+    elapsedMs: 10301,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'streamed_lesson_scope',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Darkness and circadian timing”. Later targets that must remain exact entries in deferredContent: “Pineal melatonin release”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+    inputTokens: 7804,
+    cachedInputTokens: 6912,
+    cacheWriteTokens: 0,
+    outputTokens: 1532,
+    validationIssueCode: 'streamed_deferred_content',
+    recoveryMode: 'safe_learn',
+    strategy: 'streamed',
+    stage: 'complete'
+  },
+  deliveryModes: {
+    presentation: 'overview_first',
+    repair: 'smaller_steps',
+    retention: 'delayed_retrieval',
+    firstActionMinutes: 2,
+    maximumActivities: 5
+  },
+  phases: [
+    'model',
+    'explain',
+    'repair',
+    'reexplain',
+    'transfer',
+    'schedule_return'
+  ],
+  focusedMinutes: 15
+}
+
+ ✓ src/evals/streamed-melatonin-skeleton.live.test.ts (1 test) 31987ms
+     ✓ reliably creates the affected 15-minute teaching-first session  31986ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  23:45:39
+   Duration  32.32s (transform 274ms, setup 0ms, import 229ms, tests 31.99s, environment 0ms)
+
+
+Exit code: 0
