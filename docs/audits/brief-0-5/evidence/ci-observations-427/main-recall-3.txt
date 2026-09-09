@@ -1,0 +1,31 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'recall'
+[22m[39mrecall {
+  elapsedMs: [33m15815[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'session_method_fidelity'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m'concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.'[39m,
+  inputTokens: [33m20776[39m,
+  cachedInputTokens: [33m11776[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m2691[39m,
+  validationIssueCode: [1mnull[22m,
+  strategy: [32m'full'[39m,
+  stage: [32m'complete'[39m
+} concept_mapping
+
+ [32m✓[39m src/evals/launch-session-journeys.live.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 21755[2mms[22m[39m
+     [33m[2m✓[22m[39m 'recall' [33m 21321[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m   Start at [22m 10:12:48
+[2m   Duration [22m 22.57s[2m (transform 790ms, setup 46ms, import 643ms, tests 21.75s, environment 0ms)[22m
+
+JSON report written to /home/runner/work/yova/yova/test-results/release-observations/main-recall-3.json

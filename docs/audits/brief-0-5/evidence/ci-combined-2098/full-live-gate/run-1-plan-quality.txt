@@ -1,0 +1,182 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/plan-quality.live.test.ts[2m > [22m[2mlive OpenAI plan quality[2m > [22m[2m'Biology test with learner notes'
+[22m[39m
+YOVA plan evaluation · Biology test with learner notes · 100/100
+PASS  Plan size fits the requested scope (10/10) · 3 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 30/30 min; Saturday: 40/40 min; Monday: 25/25 min
+PASS  No work is scheduled after the deadline (15/15) · Deadline: 2026-09-16T23:00:00.000Z
+PASS  Methods fit each session's actual task (20/20) · 3 of 3 sessions pass YOVA's task-to-method router (conceptual evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested study; session sequence: study → study → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 3 distinct objectives across 3 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · Source-grounded rationale reviewed
+
+[90mstdout[2m | src/evals/plan-quality.live.test.ts[2m > [22m[2mlive OpenAI plan quality[2m > [22m[2m'Calculus unit with mixed placement ev…'
+[22m[39m
+YOVA plan evaluation · Calculus unit with mixed placement evidence · 100/100
+PASS  Plan size fits the requested scope (10/10) · 6 sessions for unit or exam; expected 4-9
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 25/25 min; Thursday: 25/25 min; Saturday: 25/25 min; Sunday: 25/25 min; Tuesday: 25/25 min; Wednesday: 25/25 min
+PASS  No work is scheduled after the deadline (15/15) · No fixed deadline
+PASS  Methods fit each session's actual task (20/20) · 6 of 6 sessions pass YOVA's task-to-method router (problem solving evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested study; session sequence: study → learn → learn → learn → study → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · 6 of 6 topics accounted for; 6 scheduled and 0 deferred
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 6 distinct objectives across 6 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · No uploaded source
+
+[90mstdout[2m | src/evals/plan-quality.live.test.ts[2m > [22m[2mlive OpenAI plan quality[2m > [22m[2m'One product-rule skill in short sessi…'
+[22m[39m
+YOVA plan evaluation · One product-rule skill in short sessions · 100/100
+PASS  Plan size fits the requested scope (10/10) · 4 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 15/15 min; Saturday: 15/15 min; Monday: 15/15 min; Wednesday: 15/15 min
+PASS  No work is scheduled after the deadline (15/15) · No fixed deadline
+PASS  Methods fit each session's actual task (20/20) · 4 of 4 sessions pass YOVA's task-to-method router (problem solving evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → study → study → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 4 distinct objectives across 4 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · No uploaded source
+
+[90mstdout[2m | src/evals/plan-quality.live.test.ts[2m > [22m[2mlive OpenAI plan quality[2m > [22m[2m'World War I unit guide in short sessi…'
+[22m[39m
+YOVA plan evaluation · World War I unit guide in short sessions · 100/100
+PASS  Plan size fits the requested scope (10/10) · 4 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 15/15 min; Saturday: 15/15 min; Monday: 15/15 min; Wednesday: 15/15 min
+PASS  No work is scheduled after the deadline (15/15) · Deadline: 2026-09-30T23:00:00.000Z
+PASS  Methods fit each session's actual task (20/20) · 4 of 4 sessions pass YOVA's task-to-method router (conceptual evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → learn → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 4 distinct objectives across 4 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · Source-grounded rationale reviewed
+
+[90mstdout[2m | src/evals/plan-quality.live.test.ts[2m > [22m[2mlive OpenAI plan quality[2m > [22m[2m'Full beginner calculus pathway'
+[22m[39m
+YOVA plan evaluation · Full beginner calculus pathway · 100/100
+PASS  Plan size fits the requested scope (10/10) · 8 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 25/30 min; Saturday: 25/30 min; Monday: 25/30 min; Wednesday: 25/30 min; Saturday: 25/30 min; Monday: 25/30 min; Wednesday: 25/30 min; Saturday: 25/30 min
+PASS  No work is scheduled after the deadline (15/15) · No fixed deadline
+PASS  Methods fit each session's actual task (20/20) · 8 of 8 sessions pass YOVA's task-to-method router (problem solving evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → learn → learn → learn → learn → learn → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 8 distinct objectives across 8 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · No uploaded source
+
+[90mstdout[2m | src/evals/plan-quality.live.test.ts[2m > [22m[2mlive OpenAI plan quality[2m > [22m[2m'General-learning startup funding path…'
+[22m[39m
+YOVA plan evaluation · General-learning startup funding pathway · 100/100
+PASS  Plan size fits the requested scope (10/10) · 4 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 25/30 min; Saturday: 40/40 min; Monday: 25/25 min; Wednesday: 30/30 min
+PASS  No work is scheduled after the deadline (15/15) · No fixed deadline
+PASS  Methods fit each session's actual task (20/20) · 4 of 4 sessions pass YOVA's task-to-method router (general evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → learn → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 4 distinct objectives across 4 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · No uploaded source
+
+[90mstdout[2m | src/evals/plan-quality.live.test.ts[2m > [22m[2mlive OpenAI plan quality[2m > [22m[2m'History essay using outside sources'
+[22m[39m
+YOVA plan evaluation · History essay using outside sources · 100/100
+PASS  Plan size fits the requested scope (10/10) · 4 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 25/30 min; Saturday: 20/40 min; Saturday: 20/40 min; Monday: 25/25 min
+PASS  No work is scheduled after the deadline (15/15) · Deadline: 2026-09-16T23:00:00.000Z
+PASS  Methods fit each session's actual task (20/20) · 4 of 4 sessions pass YOVA's task-to-method router (writing evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → study → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 4 distinct objectives across 4 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · No uploaded source
+
+[90mstdout[2m | src/evals/plan-quality.live.test.ts[2m > [22m[2mlive OpenAI plan quality[2m > [22m[2m'Beginner JavaScript practice'
+[22m[39m
+YOVA plan evaluation · Beginner JavaScript practice · 100/100
+PASS  Plan size fits the requested scope (10/10) · 4 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 25/30 min; Saturday: 40/40 min; Monday: 25/25 min; Wednesday: 30/30 min
+PASS  No work is scheduled after the deadline (15/15) · No fixed deadline
+PASS  Methods fit each session's actual task (20/20) · 4 of 4 sessions pass YOVA's task-to-method router (coding evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → learn → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 4 distinct objectives across 4 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · No uploaded source
+
+[90mstdout[2m | src/evals/plan-quality.live.test.ts[2m > [22m[2mlive OpenAI plan quality[2m > [22m[2m'General-learning finance pathway'
+[22m[39m
+YOVA plan evaluation · General-learning finance pathway · 100/100
+PASS  Plan size fits the requested scope (10/10) · 4 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 30/30 min; Saturday: 40/40 min; Monday: 25/25 min; Wednesday: 30/30 min
+PASS  No work is scheduled after the deadline (15/15) · No fixed deadline
+PASS  Methods fit each session's actual task (20/20) · 4 of 4 sessions pass YOVA's task-to-method router (general evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → learn → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 4 distinct objectives across 4 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · No uploaded source
+
+ [31m❯[39m src/evals/plan-quality.live.test.ts [2m([22m[2m11 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 246973[2mms[22m[39m
+     [32m✓[39m the requested case exists[32m 2[2mms[22m[39m
+     [33m[2m✓[22m[39m 'Biology test with learner notes' [33m 20534[2mms[22m[39m
+[31m     [31m×[31m 'Calculus problem-solving plan'[39m[33m 40011[2mms[22m[39m
+     [33m[2m✓[22m[39m 'Calculus unit with mixed placement ev…' [33m 24758[2mms[22m[39m
+     [33m[2m✓[22m[39m 'One product-rule skill in short sessi…' [33m 16567[2mms[22m[39m
+     [33m[2m✓[22m[39m 'World War I unit guide in short sessi…' [33m 17587[2mms[22m[39m
+     [33m[2m✓[22m[39m 'Full beginner calculus pathway' [33m 28284[2mms[22m[39m
+     [33m[2m✓[22m[39m 'General-learning startup funding path…' [33m 22540[2mms[22m[39m
+     [33m[2m✓[22m[39m 'History essay using outside sources' [33m 33134[2mms[22m[39m
+     [33m[2m✓[22m[39m 'Beginner JavaScript practice' [33m 18145[2mms[22m[39m
+     [33m[2m✓[22m[39m 'General-learning finance pathway' [33m 25407[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/plan-quality.live.test.ts[2m > [22mlive OpenAI plan quality[2m > [22m'Calculus problem-solving plan'
+[31m[1mOpenAIPlanGenerationError[22m: The OpenAI request failed.[39m
+[36m [2m❯[22m generatePlanWithOpenAI src/lib/openai/plan-generator.ts:[2m210:11[22m[39m
+    [90m208|[39m       [33m?[39m [32m` The first draft was rejected because: [39m[36m${[39mlastValidationIssue[36m}[39m[32m`[39m
+    [90m209|[39m       [33m:[39m [32m""[39m[33m;[39m
+    [90m210|[39m     [35mthrow[39m [35mnew[39m [33mOpenAIPlanGenerationError[39m(
+    [90m   |[39m           [31m^[39m
+    [90m211|[39m       [32m`The OpenAI request failed.[39m[36m${[39mpriorIssue[36m}[39m[32m`[39m[33m,[39m
+    [90m212|[39m       [32m"provider_error"[39m[33m,[39m
+[90m [2m❯[22m src/evals/plan-quality.live.test.ts:[2m19:23[22m[39m
+
+[31m[1mCaused by: Error[22m: Request timed out.[39m
+[90m [2m❯[22m OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:[2m434:23[22m[39m
+[36m [2m❯[22m requestDraft src/lib/openai/plan-generator.ts:[2m111:24[22m[39m
+[90m [2m❯[22m generatePlanWithOpenAI src/lib/openai/plan-generator.ts:[2m143:20[22m[39m
+[90m [2m❯[22m src/evals/plan-quality.live.test.ts:[2m19:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22m[39m
+[31m[1mSerialized Error:[22m[39m [90m{ status: undefined, headers: undefined, requestID: undefined, error: undefined, code: undefined, param: undefined }[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m10 passed[39m[22m[90m (11)[39m
+[2m   Start at [22m 09:07:42
+[2m   Duration [22m 247.50s[2m (transform 291ms, setup 0ms, import 381ms, tests 246.97s, environment 0ms)[22m
+
+
+Exit code: 1

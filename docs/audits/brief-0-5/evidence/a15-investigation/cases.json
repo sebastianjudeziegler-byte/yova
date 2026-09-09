@@ -1,0 +1,26 @@
+[
+  {
+    "run": 1,
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+    "state": "failed",
+    "reason": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.",
+    "log": "run-1-plan-session-journey.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-plan-session-journey.txt"
+  },
+  {
+    "run": 3,
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-3-plan-session-journey.txt"
+  }
+]

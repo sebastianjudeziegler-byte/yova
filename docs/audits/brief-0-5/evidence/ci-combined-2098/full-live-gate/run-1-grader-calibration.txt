@@ -1,0 +1,108 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/grader-calibration.live.test.ts[2m > [22m[2mlive grader calibration across subjects[2m > [22m[2mcomplete: 'accepts a correct biology paraphrase'
+[22m[39mbiology-paraphrase {
+  verdict: [32m'secure'[39m,
+  feedback: [32m'Your response establishes the required idea. oxygen is the final electron acceptor oxygen accepts electrons so oxidative phosphorylation can continue'[39m,
+  matchedIdeas: [
+    [32m'oxygen is the final electron acceptor'[39m,
+    [32m'oxygen accepts electrons so oxidative phosphorylation can continue'[39m
+  ],
+  missingIdeas: []
+}
+
+[90mstdout[2m | src/evals/grader-calibration.live.test.ts[2m > [22m[2mlive grader calibration across subjects[2m > [22m[2mcomplete: 'accepts a concise programming explana…'
+[22m[39mprogramming-concise {
+  verdict: [32m'secure'[39m,
+  feedback: [32m'Your response establishes the required idea. base case provides a stopping condition base case terminates recursive calls'[39m,
+  matchedIdeas: [
+    [32m'base case provides a stopping condition'[39m,
+    [32m'base case terminates recursive calls'[39m
+  ],
+  missingIdeas: []
+}
+
+[90mstdout[2m | src/evals/grader-calibration.live.test.ts[2m > [22m[2mlive grader calibration across subjects[2m > [22m[2mcomplete: 'history: complete-history'
+[22m[39mcomplete-history {
+  verdict: [32m'secure'[39m,
+  feedback: [32m'Your response establishes the required idea. Dispute over taxation without colonial representation'[39m,
+  matchedIdeas: [ [32m'Dispute over taxation without colonial representation'[39m ],
+  missingIdeas: []
+}
+
+[90mstdout[2m | src/evals/grader-calibration.live.test.ts[2m > [22m[2mlive grader calibration across subjects[2m > [22m[2minsufficient: 'biology: underspecified-biology'
+[22m[39munderspecified-biology {
+  verdict: [32m'needs_review'[39m,
+  feedback: [32m'The response is too vague to show the biology mechanism. It does not establish that oxygen is the final electron acceptor or that electron flow stops in the electron transport chain.'[39m,
+  matchedIdeas: [],
+  missingIdeas: [
+    [32m'oxygen acts as the final electron acceptor'[39m,
+    [32m'electron flow stops when oxygen is removed'[39m
+  ]
+}
+
+[90mstdout[2m | src/evals/grader-calibration.live.test.ts[2m > [22m[2mlive grader calibration across subjects[2m > [22m[2minsufficient: 'programming: underspecified-programmi…'
+[22m[39munderspecified-programming {
+  verdict: [32m'needs_review'[39m,
+  feedback: [32m'The response is too vague to establish why a base case is necessary. It does not clearly state that the base case stops recursive calls or prevents unbounded recursion.'[39m,
+  matchedIdeas: [],
+  missingIdeas: [
+    [32m'base case stops recursive calls'[39m,
+    [32m'base case prevents unbounded recursion'[39m
+  ]
+}
+
+[90mstdout[2m | src/evals/grader-calibration.live.test.ts[2m > [22m[2mlive grader calibration across subjects[2m > [22m[2minsufficient: 'history: underspecified-history'
+[22m[39munderspecified-history {
+  verdict: [32m'needs_review'[39m,
+  feedback: [32m'Your response does not yet establish the full relationship required by this check. Compare it with the reference answer and add the central missing idea.'[39m,
+  matchedIdeas: [],
+  missingIdeas: [
+    [32m'colonists resisted parliamentary taxation because of lack of representation'[39m,
+    [32m"colonists challenged Parliament's authority to tax"[39m
+  ]
+}
+
+[90mstdout[2m | src/evals/grader-calibration.live.test.ts[2m > [22m[2mlive grader calibration across subjects[2m > [22m[2minsufficient: 'biology: missing-context-biology'
+[22m[39mmissing-context-biology {
+  verdict: [32m'uncertain'[39m,
+  feedback: [32m'This check does not give enough context for a reliable judgment. No specific changed condition, observations, or experimental details are supplied, so there is not enough factual context to verify the explanation.'[39m,
+  matchedIdeas: [],
+  missingIdeas: []
+}
+
+[90mstdout[2m | src/evals/grader-calibration.live.test.ts[2m > [22m[2mlive grader calibration across subjects[2m > [22m[2minsufficient: 'programming: missing-context-programm…'
+[22m[39mmissing-context-programming {
+  verdict: [32m'uncertain'[39m,
+  feedback: [32m'This check does not give enough context for a reliable judgment. The activity explicitly says the function and its inputs or outputs are not provided, so the changed condition cannot be identified reliably.'[39m,
+  matchedIdeas: [],
+  missingIdeas: []
+}
+
+[90mstdout[2m | src/evals/grader-calibration.live.test.ts[2m > [22m[2mlive grader calibration across subjects[2m > [22m[2minsufficient: 'history: missing-context-history'
+[22m[39mmissing-context-history {
+  verdict: [32m'uncertain'[39m,
+  feedback: [32m'This check does not give enough context for a reliable judgment. The activity lacks the underlying source evidence or concrete historical details needed to verify the cause of the policy change.'[39m,
+  matchedIdeas: [],
+  missingIdeas: []
+}
+
+ [32m✓[39m src/evals/grader-calibration.live.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 17314[2mms[22m[39m
+     [33m[2m✓[22m[39m complete: 'accepts a correct biology paraphrase' [33m 1923[2mms[22m[39m
+     [33m[2m✓[22m[39m complete: 'accepts a concise programming explana…' [33m 1855[2mms[22m[39m
+     [33m[2m✓[22m[39m complete: 'history: complete-history' [33m 2033[2mms[22m[39m
+     [33m[2m✓[22m[39m insufficient: 'biology: underspecified-biology' [33m 1971[2mms[22m[39m
+     [33m[2m✓[22m[39m insufficient: 'programming: underspecified-programmi…' [33m 2198[2mms[22m[39m
+     [33m[2m✓[22m[39m insufficient: 'history: underspecified-history' [33m 1934[2mms[22m[39m
+     [33m[2m✓[22m[39m insufficient: 'biology: missing-context-biology' [33m 1923[2mms[22m[39m
+     [33m[2m✓[22m[39m insufficient: 'programming: missing-context-programm…' [33m 1861[2mms[22m[39m
+     [33m[2m✓[22m[39m insufficient: 'history: missing-context-history' [33m 1613[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+[2m   Start at [22m 09:05:11
+[2m   Duration [22m 17.49s[2m (transform 51ms, setup 0ms, import 43ms, tests 17.31s, environment 0ms)[22m
+
+
+Exit code: 0

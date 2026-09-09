@@ -1,0 +1,70 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+WWI streamed lesson metrics {
+  skeletonElapsedMs: 11830,
+  skeletonAttempts: 2,
+  lessonElapsedMs: 11089,
+  latencyToFirstTokenMs: 4710,
+  wordCount: 233,
+  inputTokens: 1003,
+  outputTokens: 447
+}
+
+ ❯ src/evals/streamed-world-war-one-lesson.live.test.ts (1 test | 1 failed) 23227ms
+     × delivers substantive teaching from the first generated lesson brief 22966ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+AssertionError: expected '# Europe in Rival Blocs\n\n## The big…' to match /1914/
+
+- Expected:
+/1914/
+
++ Received:
+"# Europe in Rival Blocs
+
+## The big picture
+
+Before World War I, Europe was divided into two major alliance blocs:
+
+- **Triple Alliance:** Germany, Austria-Hungary, and Italy
+- **Triple Entente:** Britain, France, and Russia
+
+An alliance was an agreement to support or cooperate with other countries, especially when facing threats. These alliances grew alongside tensions caused by military competition, disputes between powerful states, and crises in Europe. As each bloc became stronger, countries increasingly viewed the other bloc as a danger.
+
+This created a chain-reaction risk. Imagine a conflict beginning between two countries. Their allies might become involved to protect their own security or prevent the opposing bloc from gaining power. A local dispute could therefore spread into a much larger war.
+
+## Place on a cause map
+
+A clear causal connection is:
+
+**European tensions** $\\rightarrow$ **rival alliances feel threatened** $\\rightarrow$ **a conflict can draw in several countries**
+
+The alliances did not make war inevitable, but they created the structure through which conflict could expand rapidly.
+
+## A common mix-up
+
+The Triple Alliance and Triple Entente were **prewar groupings**, not exact lists of the countries that later fought together throughout World War I. Italy, for example, belonged to the Triple Alliance before the war but did not enter the war on Germany and Austria-Hungary’s side. The key prewar idea is that alliances and tensions had already divided Europe into suspicious rival blocs."
+
+ ❯ src/evals/streamed-world-war-one-lesson.live.test.ts:95:28
+     93|     expect(lessonResult.wordCount).toBeLessThanOrEqual(lessonBudget.ma…
+     94|     expect(lessonMarkdown).toMatch(/alliance/i);
+     95|     expect(lessonMarkdown).toMatch(/1914/);
+       |                            ^
+     96|     // Since the method-aware cycles in b8f5e102 (Sep 1), the first
+     97|     // teaching block owns its assigned claims, not the entire session…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  08:42:04
+   Duration  23.59s (transform 375ms, setup 22ms, import 242ms, tests 23.23s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/branch-live/run-2-streamed-world-war-one-lesson.json
+
+Exit code: 1

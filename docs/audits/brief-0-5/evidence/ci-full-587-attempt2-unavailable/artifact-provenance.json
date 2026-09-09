@@ -1,0 +1,12 @@
+{
+  "run": 34384175894,
+  "attempt": 2,
+  "job": 102577671749,
+  "head": "587f114a82b68593694854c5069d67d5ca1d7557",
+  "testedMerge": "679fa3a49be4c782ecc879507414defaec99f7b5",
+  "liveArtifact": 10117400431,
+  "liveSha256": "00f0a949b7c364b6226cc2e6cc445b68a22a2bf371b284bba4222a8242e07383",
+  "phoneArtifact": 10117305974,
+  "phoneSha256": "b716fe461c5ebd450f9e035e3ceb4f542ef0eb983bfed58f70cf390997e9b40e",
+  "outcome": "Same Google apt metadata hash mismatch; cancelled after setup failed. Pending rows are unrun, not semantic failures. Phone checks unavailable on both sources."
+}

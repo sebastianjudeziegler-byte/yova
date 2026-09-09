@@ -1,0 +1,10 @@
+{
+  "unchangedConfigurationAndDependencies": {
+    ".env.local": true,
+    "pnpm-lock.yaml": true,
+    "node_modules/next/package.json": true,
+    "node_modules/openai/package.json": true,
+    "node_modules/vitest/package.json": true
+  },
+  "productDiffPaths": []
+}

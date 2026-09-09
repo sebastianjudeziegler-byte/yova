@@ -1,3 +1,5 @@
+import { personalizedMethodReason } from "@/lib/plan-generation/learner-plan-copy";
+import { initialPlanProfileMethod } from "@/lib/study-route/initial-plan-profile-method";
 import {
   makeUuid,
   type LearningPlan,
@@ -60,10 +62,12 @@ export function integrateInitialPlanMethodRoutes({
   plan,
   request,
   context,
+  methodReasons,
 }: {
   plan: LearningPlan;
   request: PlanGenerationRequest;
   context: InitialPlanMethodRoutingContext;
+  methodReasons?: readonly string[];
 }): LearningPlan {
   if (request.intent !== "plan" || plan.creationIntent !== "plan") {
     throw new Error("Initial multi-session method routing applies only to ordinary plan drafts.");
@@ -82,18 +86,25 @@ export function integrateInitialPlanMethodRoutes({
     personalization: context.personalization,
     observedEvidence: context.observedEvidence,
   });
-  const sessions = plan.sessions.map((session) => {
+  const usedReasons = new Set<string>();
+  const sessions = plan.sessions.map((session, index) => {
     if (session.reviewType || session.reviewConcept?.trim()) {
       throw new Error("Initial plan method routing cannot rewrite a scheduled review contract.");
     }
     const route = canonicalDraftRouteScaffold({ plan, request, session });
-    const selection = selectCanonicalStudyMethod({
+    const canonicalSelection = selectCanonicalStudyMethod({
       ...methodSelectionContextForStudyRoute(route),
       currentComparisonKey: methodEvidenceComparisonKey(
         methodEvidenceComparisonContextForRoute(route),
       ),
       ...routedInputs,
     });
+    const isFixedPlan = route.provenance.routerVersion.split("+").includes(NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION);
+    const selected = isFixedPlan ? initialPlanProfileMethod(canonicalSelection, routedInputs.personalization?.canonicalProfile, Boolean(routedInputs.personalization?.preferredMethodIds?.length)) : canonicalSelection;
+    const proposed = methodReasons?.[index];
+    const reason = isFixedPlan ? personalizedMethodReason({ request, session: { ...session, method: selected.selectedMethodName }, proposed: proposed && !usedReasons.has(proposed.trim()) ? proposed : undefined }) : selected.learnerFacingReason;
+    usedReasons.add(reason);
+    const selection = { ...selected, learnerFacingReason: reason };
     const integratedRoute = integrateStudyRouteMethodDecision({
       route,
       decision: {

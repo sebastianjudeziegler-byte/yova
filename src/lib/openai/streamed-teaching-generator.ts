@@ -1,3 +1,4 @@
+import { hasDistinctLearningChoices, learningContentKey } from "@/lib/session-generation/learning-notation";
 import "server-only";
 
 import { createHash } from "node:crypto";
@@ -137,7 +138,7 @@ const CompactStreamedRecoveryRecognitionCheckSchema = z.object({
       message: "The recognition answer must exactly match one supplied choice.",
     });
   }
-  if (new Set(check.choices.map(normalizeRecoveryQuestion)).size !== check.choices.length) {
+  if (!hasDistinctLearningChoices(check.choices)) {
     context.addIssue({
       code: "custom",
       path: ["choices"],
@@ -153,17 +154,18 @@ const CompactStreamedRecoveryItemSchema = z.object({
   independentCheck: CompactStreamedRecoveryCheckSchema.nullable(),
 });
 
-function compactStreamedRecoverySchema(itemCount: number, minutes: number) {
+function compactStreamedRecoverySchema(itemCount: number, minutes: number, requiresIndependentCheck: boolean) {
   const shortCheck = CompactStreamedRecoveryCheckSchema.extend({
     title: z.string().trim().min(3).max(70),
     prompt: z.string().trim().min(15).max(160),
     referenceAnswer: z.string().trim().min(20).max(250),
     feedback: z.string().trim().min(20).max(180),
   });
-  const itemSchema = minutes <= 15 ? CompactStreamedRecoveryItemSchema.extend({
-    check: shortCheck,
-    independentCheck: shortCheck.nullable(),
-  }) : CompactStreamedRecoveryItemSchema;
+  const checkSchema = minutes <= 15 ? shortCheck : CompactStreamedRecoveryCheckSchema;
+  const itemSchema = CompactStreamedRecoveryItemSchema.extend({
+    check: checkSchema,
+    independentCheck: requiresIndependentCheck ? checkSchema : z.null(),
+  });
   return z.object({
     items: z.array(itemSchema).length(itemCount),
     recognitionCheck: CompactStreamedRecoveryRecognitionCheckSchema,
@@ -223,8 +225,8 @@ Hard requirements:
 const COMPACT_STREAMED_RECOVERY_INSTRUCTIONS = `Create only the bounded subject claims and typed checks for a YOVA teaching recovery. YOVA owns the lesson sequence, target assignment, evidence map, method phases, timing, source metadata, and personalization metadata.
 
 Requirements:
-- Return exactly one item for every supplied ideaSlot and keep the same order.
-- Each essentialIdea is a distinct, complete explanatory claim about that slot's exact target. Preserve the target's distinctive subject terms. Never broaden into a neighboring or deferred target.
+- Each targetGroup has a server-owned claimCount. Return exactly that many items per group, keeping group order. When a group needs multiple claims, separate different components or relationships of its target; never repeat or paraphrase one claim to fill the count.
+- Each essentialIdea is a distinct, complete explanatory claim about its group's exact target. Preserve the target's distinctive subject terms. Never broaden into a neighboring or deferred target.
 - Teach the actual subject. Do not write study-method advice, placeholders, rubrics, or generic statements about learning.
 - concept is a short, topic-specific label for the claim's typed check.
 - check.title is a natural, topic-specific heading of 3 to 10 words. It never contains the complete explanatory claim or answer.
@@ -232,7 +234,7 @@ Requirements:
 - check.referenceAnswer directly answers the prompt with the actual subject facts. It is never phrased as “a strong answer should” or “the learner should mention.”
 - check.feedback explains the relationship and one useful correction point.
 - When requiresIndependentCheck is true, independentCheck is a genuinely fresh application of the same target. Otherwise independentCheck is null.
-- Return exactly one recognitionCheck for the final ideaSlot. It must ask one self-contained multiple-choice question after teaching, include exactly four distinct plausible choices, and copy the correct choice exactly into correctAnswer.
+- Return exactly one recognitionCheck for the final claim within recognitionTarget. This target is chosen by the server. Test that claim, not an earlier group's claim. It must ask one self-contained multiple-choice question after teaching, include exactly four distinct plausible choices, and copy the correct choice exactly into correctAnswer.
 - Keep every recognition choice inside that final active target. A wrong choice may alter one relationship already present in the active slot, but it must not introduce a new name, date, term, procedure, or neighboring curriculum target.
 - Use only the supplied active target and its topic context. Do not introduce neighboring curriculum content.
 - Do not use em dashes, en dashes, markdown headings, markdown emphasis, or bullet glyphs.
@@ -1062,7 +1064,19 @@ async function generateCompactStreamedTeachingRecovery({
   const slots = compactRecoverySlots({ context, routing, practiceVariation, pacingContract });
   if (!slots) return null;
 
-  const schema = compactStreamedRecoverySchema(slots.length, context.session.estimatedMinutes);
+  const schema = compactStreamedRecoverySchema(slots.length, context.session.estimatedMinutes, slots.some(slot => slot.requiresIndependentCheck));
+  const targetGroups = [...new Set(slots.map(slot => slot.targetId))].map(targetId => {
+    const groupSlots = slots.filter(slot => slot.targetId === targetId);
+    const slot = groupSlots[0]!;
+    return {
+      target: slot.target ?? context.session.objective,
+      topic: slot.topicTitle,
+      topicDescription: slot.topicDescription,
+      topicSubtopics: slot.topicSubtopics,
+      claimCount: groupSlots.length,
+      requiresIndependentCheck: slot.requiresIndependentCheck,
+    };
+  });
   const providerCall = prepareSessionProviderCall({
     budget: generationBudget,
     preferredTimeoutMs: COMPACT_STREAMED_RECOVERY_PROVIDER_TIMEOUT_MS,
@@ -1087,14 +1101,8 @@ async function generateCompactStreamedTeachingRecovery({
       instructions: `${COMPACT_STREAMED_RECOVERY_INSTRUCTIONS}\nAvailable time: ${context.session.estimatedMinutes} minutes. Keep prompts to one sentence, answers to one or two concise sentences, and feedback to one short sentence. Each essentialIdea must name its target's distinctive subject and state one bounded relationship in no more than 16 words.`,
       input: `Build the compact streamed teaching recovery from this bounded context:\n${JSON.stringify({
         methodId: routing.suggestedPrimaryMethodId,
-        ideaSlots: slots.map((slot, index) => ({
-          slot: index + 1,
-          target: slot.target ?? context.session.objective,
-          topic: slot.topicTitle,
-          topicDescription: slot.topicDescription,
-          topicSubtopics: slot.topicSubtopics,
-          requiresIndependentCheck: slot.requiresIndependentCheck,
-        })),
+        targetGroups,
+        recognitionTarget: targetGroups.at(-1)!.target,
       })}`,
       reasoning: { effort: "none" },
       text: {
@@ -1445,9 +1453,20 @@ function buildCompactStreamedRecoveryDraft({
   });
   const recognitionIndex = items.length - 1;
   const recognitionSlot = slots[recognitionIndex]!;
+  // A short check answer can name one fact from an explanatory claim without
+  // repeating its curriculum label. Establish claim authority first; unchecked
+  // provider prose must never authorize its own off-topic answer.
+  validateStreamedTargetAssignments({
+    essentialIdeas: items.map(item => item.essentialIdea),
+    targetAssignments: items.map((item, index) => ({ essentialIdea: item.essentialIdea, targetId: slots[index]!.targetId })),
+    currentSessionScope: currentScope,
+    targetSubjectReferences: buildStreamedTargetSubjectReferences({ context, currentSessionScope: currentScope }),
+    targetIsolationMode: "server_bounded_recovery",
+  });
   validateCompactRecognitionCheck({
     check: recognitionCheck,
     slot: recognitionSlot,
+    taughtIdea: items[recognitionIndex]!.essentialIdea,
     currentSessionScope: currentScope,
   });
   const recognitionActivity = (
@@ -1481,6 +1500,7 @@ function buildCompactStreamedRecoveryDraft({
       validateCompactIndependentCheck({
         check: item.check,
         slot,
+        taughtIdea: item.essentialIdea,
         currentSessionScope: currentScope,
       });
     }
@@ -1538,6 +1558,7 @@ function buildCompactStreamedRecoveryDraft({
     validateCompactIndependentCheck({
       check: singleWorkedExample,
       slot: slots[0]!,
+      taughtIdea: items[0]!.essentialIdea,
       currentSessionScope: currentScope,
     });
     activities.push({
@@ -1666,72 +1687,51 @@ function buildCompactStreamedRecoveryDraft({
 }
 
 function validateCompactIndependentCheck({
-  check,
-  slot,
-  currentSessionScope,
+  check, slot, taughtIdea, currentSessionScope,
 }: {
   check: z.infer<typeof CompactStreamedRecoveryCheckSchema>;
   slot: CompactRecoverySlot;
+  taughtIdea: string;
   currentSessionScope: StreamedCurrentSessionScope;
 }) {
-  if (!slot.target) return;
-  const learnerSurface = [
-    check.title,
-    check.prompt,
-    check.referenceAnswer,
-    check.feedback,
-  ].join(" ");
-  const references = [
-    slot.target,
-    slot.topicDescription,
-    ...slot.topicSubtopics,
-  ].filter(Boolean);
-  if (!references.some((reference) => lessonIdeaSharesTargetSubject(learnerSurface, reference))) {
-    throw new CurrentSessionScopeError(
-      `${currentSessionScopeForRepair(currentSessionScope)} The independent application does not preserve its active target's subject terms.`,
-      "streamed_target_subject",
-    );
-  }
-  if (lessonIdeaContainsDeferredRelationAnchor({
-    idea: learnerSurface,
-    assignedTarget: slot.target,
-    deferredTargets: currentSessionScope.deferredTargets,
-    authoritativeAssignedSubjectReferences: references.slice(1),
-  })) {
-    throw new CurrentSessionScopeError(
-      `${currentSessionScopeForRepair(currentSessionScope)} The independent application contains deferred-session substance.`,
-      "streamed_deferred_content",
-    );
-  }
+  validateCompactCheckScope({
+    learnerSurface: [check.title, check.prompt, check.referenceAnswer, check.feedback].join(" "),
+    answerSurface: [check.referenceAnswer, check.feedback].join(" "),
+    questionContext: check.prompt,
+    slot, taughtIdea, currentSessionScope, label: "independent application",
+  });
 }
 
 function validateCompactRecognitionCheck({
-  check,
-  slot,
-  currentSessionScope,
+  check, slot, taughtIdea, currentSessionScope,
 }: {
   check: z.infer<typeof CompactStreamedRecoveryRecognitionCheckSchema>;
   slot: CompactRecoverySlot;
+  taughtIdea: string;
   currentSessionScope: StreamedCurrentSessionScope;
 }) {
+  validateCompactCheckScope({
+    learnerSurface: [check.title, check.prompt, ...check.choices, check.feedback].join(" "),
+    answerSurface: [check.correctAnswer, check.feedback].join(" "),
+    questionContext: check.prompt,
+    slot, currentSessionScope, label: "recognition check", taughtIdea,
+  });
+}
+
+function validateCompactCheckScope({
+  learnerSurface, answerSurface, questionContext, slot, currentSessionScope, label, taughtIdea,
+}: {
+  learnerSurface: string;
+  answerSurface: string;
+  questionContext: string;
+  slot: CompactRecoverySlot;
+  currentSessionScope: StreamedCurrentSessionScope;
+  label: "independent application" | "recognition check";
+  taughtIdea: string;
+}) {
   if (!slot.target) return;
-  const learnerSurface = [
-    check.title,
-    check.prompt,
-    ...check.choices,
-    check.feedback,
-  ].join(" ");
-  const references = [
-    slot.target,
-    slot.topicDescription,
-    ...slot.topicSubtopics,
-  ].filter(Boolean);
-  if (!references.some((reference) => lessonIdeaSharesTargetSubject(learnerSurface, reference))) {
-    throw new CurrentSessionScopeError(
-      `${currentSessionScopeForRepair(currentSessionScope)} The recognition check does not preserve its active target's subject terms.`,
-      "streamed_target_subject",
-    );
-  }
+  const references = [slot.target, slot.topicDescription, ...slot.topicSubtopics].filter(Boolean);
+  // Check every surface, including wrong choices, for deferred substance first.
   if (lessonIdeaContainsDeferredRelationAnchor({
     idea: learnerSurface,
     assignedTarget: slot.target,
@@ -1739,14 +1739,23 @@ function validateCompactRecognitionCheck({
     authoritativeAssignedSubjectReferences: references.slice(1),
   })) {
     throw new CurrentSessionScopeError(
-      `${currentSessionScopeForRepair(currentSessionScope)} The recognition check contains deferred-session substance.`,
+      `${currentSessionScopeForRepair(currentSessionScope)} The ${label} contains deferred-session substance.`,
       "streamed_deferred_content",
+    );
+  }
+  // A familiar heading cannot authorize an unrelated answer. Subject proof
+  // comes from the answer and explanation, without short-claim length caps.
+  const answerReferences = [...references, taughtIdea];
+  if (!answerReferences.some(reference => lessonIdeaSharesTargetSubject(answerSurface, reference, "check", questionContext))) {
+    throw new CurrentSessionScopeError(
+      `${currentSessionScopeForRepair(currentSessionScope)} The ${label} does not preserve its active target's subject terms.`,
+      "streamed_target_subject",
     );
   }
 }
 
 function normalizeRecoveryQuestion(value: string) {
-  return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return learningContentKey(value);
 }
 
 function isRetryableStreamedProviderError(error: unknown) {
@@ -2139,10 +2148,24 @@ export function buildStreamedTargetSubjectReferences({
   for (const entry of targetCatalogForScope(currentSessionScope)) {
     if (!entry.target) continue;
     const matchedTopic = topicByTargetIndex.get(entry.targetIndex);
-    // One broad legacy topic can map to several distinct plan targets. Its
-    // description cannot prove which target id owns a claim, so keep the
-    // target-label guard rather than lending the same vocabulary to each id.
-    if (!matchedTopic || targetCountByTopicId.get(matchedTopic.id) !== 1) continue;
+    if (!matchedTopic) continue;
+    // A shared topic description cannot establish target identity. A bounded
+    // subtopic can, when exactly one active/deferred label owns it. Keep this
+    // narrower path confined to generated content; legacy material authority
+    // continues to use its existing contract.
+    if (targetCountByTopicId.get(matchedTopic.id) !== 1) {
+      if (context.learningGoal.sourceMode !== "yova_generated" || matchedTopic.origin !== "ai_generated") continue;
+      const scopeTargets = [...currentSessionScope.activeTargets, ...currentSessionScope.deferredTargets];
+      const scopedSubtopics = matchedTopic.subtopics.filter(reference => {
+        const owners = scopeTargets.filter(target => (
+          lessonIdeaSharesTargetSubject(reference, target)
+          || lessonIdeaSharesTargetSubject(target, reference)
+        ));
+        return owners.length === 1 && owners[0] === entry.target;
+      });
+      if (scopedSubtopics.length > 0) references[entry.targetId] = scopedSubtopics;
+      continue;
+    }
     const boundedTopicReferences = [
       matchedTopic.description.slice(0, 700),
       ...matchedTopic.subtopics.slice(0, 8).map((subtopic) => subtopic.slice(0, 240)),
@@ -2680,7 +2703,7 @@ function selectProvenScopedRecognitionCheck({
       ...(targetSubjectReferences?.[assignment.targetId] ?? []),
     ];
     if (!authoritativeSubjectReferences.some((reference) => (
-      lessonIdeaSharesTargetSubject(fullLearnerSurface, reference)
+      lessonIdeaSharesTargetSubject(fullLearnerSurface, reference, "check")
     ))) continue;
 
     const deferredConflict = deferredScopeConflicts(fullLearnerSurface, deferredFingerprint)

@@ -1,0 +1,76 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/streamed-world-war-one-lesson.live.test.ts[2m > [22m[2mlive streamed World War I lesson[2m > [22m[2mdelivers substantive teaching from the first generated lesson brief
+[22m[39mWWI streamed lesson metrics {
+  skeletonElapsedMs: [33m14261[39m,
+  skeletonAttempts: [33m2[39m,
+  lessonElapsedMs: [33m10044[39m,
+  latencyToFirstTokenMs: [33m2598[39m,
+  wordCount: [33m255[39m,
+  inputTokens: [33m1004[39m,
+  outputTokens: [33m417[39m
+}
+
+ [31m❯[39m src/evals/streamed-world-war-one-lesson.live.test.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 24689[2mms[22m[39m
+[31m     [31m×[31m delivers substantive teaching from the first generated lesson brief[39m[33m 24686[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/streamed-world-war-one-lesson.live.test.ts[2m > [22mlive streamed World War I lesson[2m > [22mdelivers substantive teaching from the first generated lesson brief
+[31m[1mAssertionError[22m: expected '# Rival Blocs in Europe\n\nBefore the…' to match /prewar|before (?:1914|World War I)/i[39m
+
+[32m- Expected:[39m
+/prewar|before (?:1914|World War I)/i
+
+[31m+ Received:[39m
+"# Rival Blocs in Europe
+
+Before the First World War, Europe was divided into two rival power blocs. Alliances were intended to protect countries, but they also connected separate disputes and increased suspicion between the major powers.
+
+## The two blocs
+
+The **Triple Alliance** consisted of:
+
+- Germany
+- Austria-Hungary
+- Italy
+
+The opposing **Triple Entente** linked:
+
+- Britain
+- France
+- Russia
+
+An entente was an understanding rather than exactly the same kind of formal military alliance. However, both groupings encouraged governments to expect support from friendly powers and to prepare for conflict with the rival bloc.
+
+Several tensions reinforced this division. France resented Germany after losing Alsace-Lorraine in an earlier war. Germany’s growing military and naval strength worried Britain. Austria-Hungary and Russia competed for influence in the Balkans. These disputes made the alliances feel increasingly necessary, while the alliances themselves deepened fear and military planning.
+
+## How the danger grew
+
+A cause map can show the relationship:
+
+$$\\text{existing tensions} \\rightarrow \\text{rival alliances} \\rightarrow \\text{greater suspicion and wider war risk}$$
+
+For example, a confrontation involving Austria-Hungary and Russia would not necessarily remain a dispute between two empires. Germany might support Austria-Hungary, while France might support Russia. Britain could then become involved alongside France and Russia. Alliances therefore created a route by which a local crisis could spread across Europe.
+
+A common mix-up is to say that alliances alone caused the war. They did not automatically produce conflict. Instead, they divided Europe and made an existing crisis more likely to expand into a general war."
+
+[36m [2m❯[22m src/evals/streamed-world-war-one-lesson.live.test.ts:[2m95:28[22m[39m
+    [90m 93|[39m     expect(lessonResult.wordCount).toBeLessThanOrEqual(lessonBudget.ma…
+    [90m 94|[39m     [34mexpect[39m(lessonMarkdown)[33m.[39m[34mtoMatch[39m([36m/alliance/i[39m)[33m;[39m
+    [90m 95|[39m     expect(lessonMarkdown).toMatch(/prewar|before (?:1914|World War I)…
+    [90m   |[39m                            [31m^[39m
+    [90m 96|[39m     [90m// Since the method-aware cycles in b8f5e102 (Sep 1), the first[39m
+    [90m 97|[39m     // teaching block owns its assigned claims, not the entire session…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m   Start at [22m 06:20:37
+[2m   Duration [22m 25.26s[2m (transform 627ms, setup 0ms, import 463ms, tests 24.69s, environment 0ms)[22m
+
+
+Exit code: 1

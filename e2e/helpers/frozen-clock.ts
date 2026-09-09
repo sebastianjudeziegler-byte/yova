@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { test as base, type Page } from "@playwright/test";
 
 /**
  * Canonical frozen instant for plan-scheduling browser tests.
@@ -20,3 +20,14 @@ export async function freezePlanClock(page: Page, at: Date = PLAN_FIXED_NOW) {
   await page.clock.setFixedTime(at);
   await page.context().setExtraHTTPHeaders({ "X-Yova-Test-Now": at.toISOString() });
 }
+
+export * from "@playwright/test";
+
+export const test = base.extend({
+  page: async ({ page }, run) => {
+    // Match date-relative fixtures in the runner; explicit dated journeys can
+    // still opt into PLAN_FIXED_NOW with freezePlanClock(page).
+    await freezePlanClock(page, new Date());
+    await run(page);
+  },
+});

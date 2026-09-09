@@ -1,0 +1,25 @@
+{
+  "commit": "e03a082659f51172c0b06bf84daffdd5599ac773",
+  "files": [
+    "src/evals/launch-session-journeys.live.test.ts",
+    "src/evals/answer-evaluation-quality.live.test.ts",
+    "src/evals/launch-lesson-streams.live.test.ts",
+    "src/evals/lesson-tutor.live.test.ts",
+    "src/evals/material-osmosis-session.live.test.ts",
+    "src/evals/outside-teaching-reliability.live.test.ts",
+    "src/evals/plan-creation-blockers.live.test.ts",
+    "src/evals/plan-quality.live.test.ts",
+    "src/evals/plan-session-journey.live.test.ts",
+    "src/evals/session-quality.live.test.ts",
+    "src/evals/streamed-ap-biology.live.test.ts",
+    "src/evals/streamed-melatonin-skeleton.live.test.ts",
+    "src/evals/streamed-rayleigh.live.test.ts",
+    "src/evals/streamed-world-war-one-lesson.live.test.ts",
+    "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+    "src/evals/teaching-assessment-contract.live.test.ts",
+    "src/lib/diagnostics/map-diagnostic.live.test.ts"
+  ],
+  "runs": 3,
+  "browserClock": "2026-09-07T19:35:00.000Z",
+  "browserFixture": "fresh producer output in each complete run"
+}

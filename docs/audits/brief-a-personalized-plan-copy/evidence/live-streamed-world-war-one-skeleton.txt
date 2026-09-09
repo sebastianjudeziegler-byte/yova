@@ -1,0 +1,141 @@
+Real-provider canary: src/evals/streamed-world-war-one-skeleton.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+Exact WWI baseline skeleton {
+  generationStats: {
+    elapsedMs: 13932,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'streamed_lesson_scope',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”; “Sequence from the Sarajevo assassination to declarations of war”; “Basic chronology from 1914 to 1918”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_1; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+    inputTokens: 8323,
+    cachedInputTokens: 7424,
+    cacheWriteTokens: 0,
+    outputTokens: 2153,
+    validationIssueCode: 'streamed_target_missing',
+    recoveryMode: 'safe_learn',
+    strategy: 'streamed',
+    stage: 'complete'
+  },
+  coverage: {
+    focus: 'Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.',
+    essentialIdeas: [
+      'Prewar European alliances and tensions split Europe into rival blocs before 1914.',
+      'The Sarajevo assassination triggered the July Crisis and a chain of war declarations.',
+      'Basic chronology from 1914 to 1918 runs from war outbreak to armistice.'
+    ],
+    completionEvidence: [
+      'Describe the main alliance blocs and at least three prewar tensions using the example provided',
+      'Place Sarajevo, the July Crisis, the start of the war, U.S. entry, and the armistice in order'
+    ],
+    evidenceMap: [ [Object], [Object], [Object] ],
+    deferredContent: []
+  },
+  activities: [
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 3,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'Prewar European alliances and tensions split Europe into rival blocs before 1914.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 8,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'The Sarajevo assassination triggered the July Crisis and a chain of war declarations.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'Basic chronology from 1914 to 1918 runs from war outbreak to armistice.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'repair',
+      concept: 'Prewar European alliances and tensions split Europe into rival blocs before 1914.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'reexplain',
+      concept: 'Prewar European alliances and tensions split Europe into rival blocs before 1914.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'multiple_choice',
+      phase: 'transfer',
+      concept: 'Recognition transfer: Basic chronology from 1914 to 1918 runs from war outbreak to armistice.',
+      minutes: 4,
+      ideas: []
+    },
+    {
+      type: 'reflection',
+      phase: 'schedule_return',
+      concept: null,
+      minutes: 1,
+      ideas: []
+    }
+  ]
+}
+Exact WWI baseline generation failure {
+  message: 'expected [ { …(16) }, { …(16) } ] to have a length of 3 but got 2',
+  generationStats: null
+}
+
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts (2 tests | 1 failed) 55451ms
+     × creates the production 45-minute streamed teaching session 13989ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+AssertionError: expected [ { …(16) }, { …(16) } ] to have a length of 3 but got 2
+
+- Expected
++ Received
+
+- 3
++ 2
+
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts:37:11
+     35|       expect(focusedActivities.filter((activity) => (
+     36|         activity.type === "instruction" && activity.lessonBrief
+     37|       ))).toHaveLength(3);
+       |           ^
+     38|       expect(focusedActivities.filter((activity) => (
+     39|         activity.requiredForCompletion
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  21:24:33
+   Duration  55.94s (transform 289ms, setup 0ms, import 411ms, tests 55.45s, environment 0ms)
+
+
+Exit code: 1

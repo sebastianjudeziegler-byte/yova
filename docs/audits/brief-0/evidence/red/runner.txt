@@ -1,0 +1,220 @@
+Before Brief 0 implementation. Command: node --test --test-concurrency=1 scripts/live-gate/core.test.mjs scripts/live-gate/cli.test.mjs
+✖ one documented command invokes the full live runner (1.645875ms)
+✖ CI runs the full set nightly and accepts an explicit PR revision without exposing fork credentials (0.109417ms)
+✖ the audit pins all original canaries so deletion cannot silently shrink the full gate (5.100916ms)
+✖ REAL, STALE, and new semantic failures block; audited flakes still execute and report their result (1.273041ms)
+✖ provider timeouts/quota and missing keys are neither red nor green, even for a quarantined case (0.846209ms)
+✖ UI timeouts, invalid schemas, and unexecuted cases cannot hide as provider outages or flakes (0.135792ms)
+✖ a mixed batch cannot hide a semantic defect behind another attempt's outage (0.134209ms)
+✖ a recovered REAL case is green without changing its classification (0.174625ms)
+✖ full discovery includes future canaries and runs the launch producer before its consumer (0.139459ms)
+✖ desktop and mobile stay separate in the artifact and retain visible failure reasons (0.120167ms)
+✖ published errors retain provider classification without credentials, headers, or request bodies (0.107583ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 0
+ℹ fail 11
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 100.315625
+
+✖ failing tests:
+
+test at scripts/live-gate/cli.test.mjs:7:1
+✖ one documented command invokes the full live runner (1.645875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - 'node scripts/run-live-gate.mjs'
+
+      at TestContext.<anonymous> (file://<repo>/scripts/live-gate/cli.test.mjs:9:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'node scripts/run-live-gate.mjs',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/live-gate/cli.test.mjs:12:1
+✖ CI runs the full set nightly and accepts an explicit PR revision without exposing fork credentials (0.109417ms)
+  AssertionError [ERR_ASSERTION]: The complete live set needs its own scheduled workflow
+      at TestContext.<anonymous> (file://<repo>/scripts/live-gate/cli.test.mjs:13:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at scripts/live-gate/cli.test.mjs:25:1
+✖ the audit pins all original canaries so deletion cannot silently shrink the full gate (5.100916ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(existsSync("scripts/live-gate/policy.json"))
+
+      at TestContext.<anonymous> (file://<repo>/scripts/live-gate/cli.test.mjs:26:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at scripts/live-gate/core.test.mjs:8:1
+✖ REAL, STALE, and new semantic failures block; audited flakes still execute and report their result (1.273041ms)
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '<repo>/scripts/live-gate/core.mjs' imported from <repo>/scripts/live-gate/core.test.mjs
+      at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:992:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
+      at #resolve (node:internal/modules/esm/loader:683:17)
+      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
+      at node:internal/modules/esm/loader:632:32
+      at TracingChannel.tracePromise (node:diagnostics_channel:362:14) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file://<repo>/scripts/live-gate/core.mjs'
+  }
+
+test at scripts/live-gate/core.test.mjs:23:1
+✖ provider timeouts/quota and missing keys are neither red nor green, even for a quarantined case (0.846209ms)
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '<repo>/scripts/live-gate/core.mjs' imported from <repo>/scripts/live-gate/core.test.mjs
+      at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:992:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
+      at #resolve (node:internal/modules/esm/loader:683:17)
+      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
+      at node:internal/modules/esm/loader:632:32
+      at TracingChannel.tracePromise (node:diagnostics_channel:362:14) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file://<repo>/scripts/live-gate/core.mjs'
+  }
+
+test at scripts/live-gate/core.test.mjs:43:1
+✖ UI timeouts, invalid schemas, and unexecuted cases cannot hide as provider outages or flakes (0.135792ms)
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '<repo>/scripts/live-gate/core.mjs' imported from <repo>/scripts/live-gate/core.test.mjs
+      at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:992:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
+      at #resolve (node:internal/modules/esm/loader:683:17)
+      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
+      at node:internal/modules/esm/loader:632:32
+      at TracingChannel.tracePromise (node:diagnostics_channel:362:14) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file://<repo>/scripts/live-gate/core.mjs'
+  }
+
+test at scripts/live-gate/core.test.mjs:50:1
+✖ a mixed batch cannot hide a semantic defect behind another attempt's outage (0.134209ms)
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '<repo>/scripts/live-gate/core.mjs' imported from <repo>/scripts/live-gate/core.test.mjs
+      at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:992:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
+      at #resolve (node:internal/modules/esm/loader:683:17)
+      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
+      at node:internal/modules/esm/loader:632:32
+      at TracingChannel.tracePromise (node:diagnostics_channel:362:14) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file://<repo>/scripts/live-gate/core.mjs'
+  }
+
+test at scripts/live-gate/core.test.mjs:57:1
+✖ a recovered REAL case is green without changing its classification (0.174625ms)
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '<repo>/scripts/live-gate/core.mjs' imported from <repo>/scripts/live-gate/core.test.mjs
+      at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:992:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
+      at #resolve (node:internal/modules/esm/loader:683:17)
+      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
+      at node:internal/modules/esm/loader:632:32
+      at TracingChannel.tracePromise (node:diagnostics_channel:362:14) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file://<repo>/scripts/live-gate/core.mjs'
+  }
+
+test at scripts/live-gate/core.test.mjs:64:1
+✖ full discovery includes future canaries and runs the launch producer before its consumer (0.139459ms)
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '<repo>/scripts/live-gate/core.mjs' imported from <repo>/scripts/live-gate/core.test.mjs
+      at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:992:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
+      at #resolve (node:internal/modules/esm/loader:683:17)
+      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
+      at node:internal/modules/esm/loader:632:32
+      at TracingChannel.tracePromise (node:diagnostics_channel:362:14) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file://<repo>/scripts/live-gate/core.mjs'
+  }
+
+test at scripts/live-gate/core.test.mjs:81:1
+✖ desktop and mobile stay separate in the artifact and retain visible failure reasons (0.120167ms)
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '<repo>/scripts/live-gate/core.mjs' imported from <repo>/scripts/live-gate/core.test.mjs
+      at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:992:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
+      at #resolve (node:internal/modules/esm/loader:683:17)
+      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
+      at node:internal/modules/esm/loader:632:32
+      at TracingChannel.tracePromise (node:diagnostics_channel:362:14) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file://<repo>/scripts/live-gate/core.mjs'
+  }
+
+test at scripts/live-gate/core.test.mjs:94:1
+✖ published errors retain provider classification without credentials, headers, or request bodies (0.107583ms)
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '<repo>/scripts/live-gate/core.mjs' imported from <repo>/scripts/live-gate/core.test.mjs
+      at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:992:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
+      at #resolve (node:internal/modules/esm/loader:683:17)
+      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
+      at node:internal/modules/esm/loader:632:32
+      at TracingChannel.tracePromise (node:diagnostics_channel:362:14) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file://<repo>/scripts/live-gate/core.mjs'
+  }
+
+Exit code: 1

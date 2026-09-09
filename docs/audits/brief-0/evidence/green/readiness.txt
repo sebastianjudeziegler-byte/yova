@@ -1,0 +1,6 @@
+Command: node scripts/check-readiness.mjs --deployment
+TZ=America/Los_Angeles
+YOVA local/CI build: production readiness is not being claimed.
+Run pnpm readiness:production with the target environment before a release.
+
+Exit code: 0

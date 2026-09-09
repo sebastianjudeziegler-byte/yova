@@ -1,0 +1,24 @@
+Command: node --test --test-concurrency=1 scripts/live-gate/core.test.mjs scripts/live-gate/cli.test.mjs
+TZ=America/Los_Angeles
+✔ one documented command invokes the full live runner (0.5135ms)
+✔ CI runs the full set nightly and accepts an explicit PR revision without exposing fork credentials (0.269375ms)
+✔ the audit pins all original canaries so deletion cannot silently shrink the full gate (0.942417ms)
+✔ REAL, STALE, and new semantic failures block; audited flakes still execute and report their result (2.554625ms)
+✔ provider timeouts/quota and missing keys are neither red nor green, even for a quarantined case (0.439041ms)
+✔ UI timeouts, invalid schemas, and unexecuted cases cannot hide as provider outages or flakes (0.128375ms)
+✔ a mixed batch cannot hide a semantic defect behind another attempt's outage (0.106958ms)
+✔ a recovered REAL case is green without changing its classification (0.09775ms)
+✔ full discovery includes future canaries and runs the launch producer before its consumer (1.659916ms)
+✔ desktop and mobile stay separate in the artifact and retain visible failure reasons (0.223125ms)
+✔ published errors retain provider classification without credentials, headers, or request bodies (0.161209ms)
+✔ Vitest's already-serialized batch errors retain provider-unavailable accounting (0.466917ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 78.452625
+
+Exit code: 0

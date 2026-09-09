@@ -1,0 +1,391 @@
+[WebServer] (node:15802) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:15803) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 102 tests using 1 worker
+
+(node:15812) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓    1 [desktop-chromium] › e2e/core-learning-loop.spec.ts:29:5 › Study Now lets the learner review and safely choose an eligible method before activation (11.1s)
+  ✓    2 [desktop-chromium] › e2e/core-learning-loop.spec.ts:68:5 › Study Now discloses omitted scope before starting and lets the learner change time (9.3s)
+  ✓    3 [desktop-chromium] › e2e/core-learning-loop.spec.ts:96:5 › durable allowance exhaustion loads the committed method workpad and names the reset (4.5s)
+  ✓    4 [desktop-chromium] › e2e/core-learning-loop.spec.ts:137:5 › durable allowance exhaustion without a safe fallback has its own non-retryable state (3.5s)
+  ✓    5 [desktop-chromium] › e2e/core-learning-loop.spec.ts:179:5 › streamed lesson quota uses its built-in explanation and surfaces the reset (4.3s)
+  ✘    6 [desktop-chromium] › e2e/core-learning-loop.spec.ts:220:5 › a confident misconception is repaired now without a duplicate follow-up (21.1s)
+(node:16174) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓    7 [desktop-chromium] › e2e/core-learning-loop.spec.ts:317:5 › Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context (9.2s)
+  ✓    8 [desktop-chromium] › e2e/core-learning-loop.spec.ts:404:5 › a support request keeps the committed practice recipe when fallback generation fails (6.0s)
+  ✓    9 [desktop-chromium] › e2e/core-learning-loop.spec.ts:443:5 › an inactive-plan generation response cannot open a stale built-in lesson (3.5s)
+  ✓   10 [desktop-chromium] › e2e/core-learning-loop.spec.ts:469:5 › a visibly shortened inside recipe keeps its method in the fallback workpad (7.1s)
+  ✓   11 [desktop-chromium] › e2e/core-learning-loop.spec.ts:506:5 › a built-in fallback never ignores a learner's custom session requirement (10.6s)
+  ✘   12 [desktop-chromium] › e2e/core-learning-loop.spec.ts:552:5 › a new topic is taught before YOVA asks for independent performance (11.4s)
+(node:16498) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   13 [desktop-chromium] › e2e/core-learning-loop.spec.ts:645:5 › a World War I beginner receives real teaching and a direct model answer (8.6s)
+  ✓   14 [desktop-chromium] › e2e/core-learning-loop.spec.ts:695:5 › an opaque class label is stopped until the learner names the actual calculus concept (24.1s)
+  ✓   15 [desktop-chromium] › e2e/core-learning-loop.spec.ts:733:5 › a teaching-first inside outage does not start with unsupported recall (14.5s)
+  ✓   16 [desktop-chromium] › e2e/core-learning-loop.spec.ts:767:5 › a temporary AI failure loads a subject-specific startup funding lesson (6.2s)
+  ✓   17 [desktop-chromium] › e2e/core-learning-loop.spec.ts:796:5 › home lets the learner browse prioritized recommendations without opening every plan (4.8s)
+  ✓   18 [desktop-chromium] › e2e/core-learning-loop.spec.ts:823:5 › outside study gives a concrete source-based session instead of pretending YOVA owns the content (10.7s)
+  ✓   19 [desktop-chromium] › e2e/core-learning-loop.spec.ts:853:5 › an arbitrary outside method workpad completes as practice without changing topic evidence (3.8s)
+  ✓   20 [desktop-chromium] › e2e/core-learning-loop.spec.ts:930:5 › a fallback method workpad resumes its timer and checked targets after reload (11.0s)
+  ✓   21 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1062:5 › a 10-minute outside teaching-first session loads its built-in method lesson (5.9s)
+  ✓   22 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1102:5 › an overdue outside teaching-first session splits into runnable 10-minute parts (7.0s)
+  ✓   23 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1208:5 › an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad (10.3s)
+  ✓   24 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1323:5 › the backend rejects an opaque goal even when the browser guard is bypassed (40ms)
+  ✓   25 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1350:5 › plan generation remains a draft until the learner activates it (378ms)
+  ✓   26 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1401:5 › a learner can stop twice without losing progress or earlier evidence (4.5s)
+  ✓   27 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1449:5 › a lesson and its reopened model teach every fact required by the glycolysis recall check (24.4s)
+  ✓   28 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1518:5 › a resumed streamed question can reopen its prior lesson by persisted activity index (5.2s)
+  ✓   29 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1610:5 › a refresh recovers semantic progress without saving draft answers or inventing an interruption (26.6s)
+  ✓   30 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1784:5 › a saved first-step recall round resumes at the next prompt without persisting draft text (16.3s)
+  ✓   31 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2027:5 › learner text fields keep long pastes visible and block submission until trimmed (10.7s)
+  ✓   32 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2158:5 › an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged (5.7s)
+  ✓   33 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2188:5 › Calendar Agenda stays first and contained at a 375px viewport (4.8s)
+  ✓   34 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2289:5 › spent guided-session allowance is visible before Home or Calendar opens setup (6.1s)
+  ✓   35 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2356:5 › spent allowance still permits a saved session to continue (14.5s)
+  ✓   36 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2421:5 › the product shell keeps every core destination and creation path usable (5.1s)
+  ✓   37 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2470:5 › Ask YOVA turns structured explanations and math into readable interface content (5.5s)
+  ✓   38 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2518:5 › the session tutor stays anchored to the exact learning activity (4.1s)
+  ✓   39 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2589:5 › a planning request outage still produces a reviewable plan from YOVA's saved inputs (6.9s)
+  ✓   40 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2613:5 › legacy split work reopens as an active plan with runnable ten-minute sessions (3.6s)
+  ✓   41 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2734:5 › finishing a shortened guided lesson keeps every deferred target as exact next work (5.0s)
+  ✓   42 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2885:5 › adjusting ordinary future work preserves the exact scheduled review contract (7.1s)
+  ✓   43 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3044:5 › scheduled-review setup stays fixed and opens the exact active or Study Now goal (8.6s)
+  ✓   44 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3255:5 › a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes (2.9s)
+  ✓   45 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3314:5 › map revision cannot activate a stale draft and fresh placement uses the revised map (6.8s)
+  ✓   46 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3363:5 › normal-plan review changes one offered method without regenerating or rewriting other routes (8.2s)
+  ✓   47 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3476:5 › session setup changes one committed method and generates from its exact successor route (6.7s)
+Plan clock evidence: {"initialSessionCount":6,"adjustedSessionCount":9,"deadline":"2026-09-04T22:59:00.000Z","deadlineLocal":"2026-09-04","createdAt":"2026-09-02T10:00:00.000Z","committedAt":["2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z","2026-09-02T10:00:00.000Z"]}
+  ✓   48 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3726:5 › a multi-session plan carries one clear source decision from Add to Learning (3.8s)
+  ✓   49 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3866:5 › archived, draft, and deleted-plan projections stay out of current-work surfaces (6.1s)
+  ✓   50 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3967:5 › material setup clearly supports files, articles, and YouTube transcripts (3.1s)
+  ✓   51 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3987:5 › material drop zone accepts drag gestures and explains rejected files (4.1s)
+(node:18201) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   52 [mobile-chromium] › e2e/core-learning-loop.spec.ts:29:5 › Study Now lets the learner review and safely choose an eligible method before activation (5.6s)
+  ✓   53 [mobile-chromium] › e2e/core-learning-loop.spec.ts:68:5 › Study Now discloses omitted scope before starting and lets the learner change time (3.2s)
+  ✓   54 [mobile-chromium] › e2e/core-learning-loop.spec.ts:96:5 › durable allowance exhaustion loads the committed method workpad and names the reset (2.3s)
+  ✓   55 [mobile-chromium] › e2e/core-learning-loop.spec.ts:137:5 › durable allowance exhaustion without a safe fallback has its own non-retryable state (4.8s)
+  ✓   56 [mobile-chromium] › e2e/core-learning-loop.spec.ts:179:5 › streamed lesson quota uses its built-in explanation and surfaces the reset (4.9s)
+  ✓   57 [mobile-chromium] › e2e/core-learning-loop.spec.ts:220:5 › a confident misconception is repaired now without a duplicate follow-up (10.2s)
+  ✓   58 [mobile-chromium] › e2e/core-learning-loop.spec.ts:317:5 › Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context (5.3s)
+  ✓   59 [mobile-chromium] › e2e/core-learning-loop.spec.ts:404:5 › a support request keeps the committed practice recipe when fallback generation fails (11.8s)
+  ✓   60 [mobile-chromium] › e2e/core-learning-loop.spec.ts:443:5 › an inactive-plan generation response cannot open a stale built-in lesson (4.8s)
+  ✓   61 [mobile-chromium] › e2e/core-learning-loop.spec.ts:469:5 › a visibly shortened inside recipe keeps its method in the fallback workpad (4.3s)
+  ✓   62 [mobile-chromium] › e2e/core-learning-loop.spec.ts:506:5 › a built-in fallback never ignores a learner's custom session requirement (10.8s)
+  ✓   63 [mobile-chromium] › e2e/core-learning-loop.spec.ts:552:5 › a new topic is taught before YOVA asks for independent performance (9.1s)
+  ✓   64 [mobile-chromium] › e2e/core-learning-loop.spec.ts:645:5 › a World War I beginner receives real teaching and a direct model answer (9.8s)
+  ✘   65 [mobile-chromium] › e2e/core-learning-loop.spec.ts:695:5 › an opaque class label is stopped until the learner names the actual calculus concept (38.9s)
+(node:18871) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   66 [mobile-chromium] › e2e/core-learning-loop.spec.ts:733:5 › a teaching-first inside outage does not start with unsupported recall (28.6s)
+  ✘   67 [mobile-chromium] › e2e/core-learning-loop.spec.ts:767:5 › a temporary AI failure loads a subject-specific startup funding lesson (33.5s)
+(node:19141) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   68 [mobile-chromium] › e2e/core-learning-loop.spec.ts:796:5 › home lets the learner browse prioritized recommendations without opening every plan (57.8s)
+  ✓   69 [mobile-chromium] › e2e/core-learning-loop.spec.ts:823:5 › outside study gives a concrete source-based session instead of pretending YOVA owns the content (12.7s)
+  ✓   70 [mobile-chromium] › e2e/core-learning-loop.spec.ts:853:5 › an arbitrary outside method workpad completes as practice without changing topic evidence (10.5s)
+  ✘   71 [mobile-chromium] › e2e/core-learning-loop.spec.ts:930:5 › a fallback method workpad resumes its timer and checked targets after reload (32.6s)
+(node:19699) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   72 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1062:5 › a 10-minute outside teaching-first session loads its built-in method lesson (31.2s)
+(node:19847) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   73 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1102:5 › an overdue outside teaching-first session splits into runnable 10-minute parts (13.1s)
+  ✓   74 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1208:5 › an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad (11.0s)
+  ✓   75 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1323:5 › the backend rejects an opaque goal even when the browser guard is bypassed (36ms)
+  ✓   76 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1350:5 › plan generation remains a draft until the learner activates it (482ms)
+  ✓   77 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1401:5 › a learner can stop twice without losing progress or earlier evidence (4.6s)
+  ✓   78 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1449:5 › a lesson and its reopened model teach every fact required by the glycolysis recall check (8.2s)
+  ✓   79 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1518:5 › a resumed streamed question can reopen its prior lesson by persisted activity index (6.1s)
+  ✓   80 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1610:5 › a refresh recovers semantic progress without saving draft answers or inventing an interruption (25.2s)
+  ✓   81 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1784:5 › a saved first-step recall round resumes at the next prompt without persisting draft text (52.8s)
+  ✓   82 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2027:5 › learner text fields keep long pastes visible and block submission until trimmed (30.2s)
+  ✓   83 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2158:5 › an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged (27.6s)
+  ✘   84 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2188:5 › Calendar Agenda stays first and contained at a 375px viewport (39.3s)
+(node:20984) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   85 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2289:5 › spent guided-session allowance is visible before Home or Calendar opens setup (0ms)
+  -   86 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2356:5 › spent allowance still permits a saved session to continue
+  -   87 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2421:5 › the product shell keeps every core destination and creation path usable
+  -   88 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2470:5 › Ask YOVA turns structured explanations and math into readable interface content
+  -   89 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2518:5 › the session tutor stays anchored to the exact learning activity
+  -   90 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2589:5 › a planning request outage still produces a reviewable plan from YOVA's saved inputs
+  -   91 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2613:5 › legacy split work reopens as an active plan with runnable ten-minute sessions
+  -   92 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2734:5 › finishing a shortened guided lesson keeps every deferred target as exact next work
+  -   93 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2885:5 › adjusting ordinary future work preserves the exact scheduled review contract
+  -   94 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3044:5 › scheduled-review setup stays fixed and opens the exact active or Study Now goal
+  -   95 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3255:5 › a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes
+  -   96 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3314:5 › map revision cannot activate a stale draft and fresh placement uses the revised map
+  -   97 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3363:5 › normal-plan review changes one offered method without regenerating or rewriting other routes
+  -   98 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3476:5 › session setup changes one committed method and generates from its exact successor route
+  -   99 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3726:5 › a multi-session plan carries one clear source decision from Add to Learning
+  -  100 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3866:5 › archived, draft, and deleted-plan projections stay out of current-work surfaces
+  -  101 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3967:5 › material setup clearly supports files, articles, and YouTube transcripts
+  -  102 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3987:5 › material drop zone accepts drag gestures and explains rejected files
+
+
+  1) [desktop-chromium] › e2e/core-learning-loop.spec.ts:220:5 › a confident misconception is repaired now without a duplicate follow-up 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Repair now, verify later')
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Repair now, verify later')
+
+
+      261 |   await page.getByRole("button", { name: "Repair this idea" }).click();
+      262 |
+    > 263 |   await expect(page.getByText("Repair now, verify later")).toBeVisible({ timeout: 15_000 });
+          |                                                            ^
+      264 |   await expect(page.getByText("YOVA CHANGED THE SUPPORT")).toBeVisible();
+      265 |   const adaptiveRepair = page.getByRole("region", { name: "Adaptive repair: One clue first" });
+      266 |   await expect(adaptiveRepair).toBeVisible();
+        at <repo>/e2e/core-learning-loop.spec.ts:263:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-confi-40513-thout-a-duplicate-follow-up-desktop-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-confi-40513-thout-a-duplicate-follow-up-desktop-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-confi-40513-thout-a-duplicate-follow-up-desktop-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-confi-40513-thout-a-duplicate-follow-up-desktop-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-confi-40513-thout-a-duplicate-follow-up-desktop-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [desktop-chromium] › e2e/core-learning-loop.spec.ts:552:5 › a new topic is taught before YOVA asks for independent performance 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('YOVA\'S FORMATIVE CHECK')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByText('YOVA\'S FORMATIVE CHECK')
+
+
+      639 |   );
+      640 |   await page.getByRole("button", { name: "Check my answer" }).dispatchEvent("click");
+    > 641 |   await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
+          |                                                          ^
+      642 |   await expect(page.getByText("The key idea is present.")).toBeVisible();
+      643 | });
+      644 |
+        at <repo>/e2e/core-learning-loop.spec.ts:641:58
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-new-t-dc60f-for-independent-performance-desktop-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-new-t-dc60f-for-independent-performance-desktop-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-new-t-dc60f-for-independent-performance-desktop-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-new-t-dc60f-for-independent-performance-desktop-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-new-t-dc60f-for-independent-performance-desktop-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [mobile-chromium] › e2e/core-learning-loop.spec.ts:695:5 › an opaque class label is stopped until the learner names the actual calculus concept 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://127.0.0.1:3100/?qa=preview", waiting until "load"
+
+
+      4111 |
+      4112 | async function createPreviewAccount(page: Page) {
+    > 4113 |   await page.goto("/?qa=preview");
+           |              ^
+      4114 |   await page.getByRole("button", { name: "Build my plan" }).click();
+      4115 |   await page.getByLabel("First name").fill("Learner");
+      4116 |   await page.getByLabel("Email address").fill("learning-loop@example.com");
+        at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)
+        at <repo>/e2e/core-learning-loop.spec.ts:696:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-an-opaq-ec7f7-the-actual-calculus-concept-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-an-opaq-ec7f7-the-actual-calculus-concept-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-an-opaq-ec7f7-the-actual-calculus-concept-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-an-opaq-ec7f7-the-actual-calculus-concept-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-an-opaq-ec7f7-the-actual-calculus-concept-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [mobile-chromium] › e2e/core-learning-loop.spec.ts:767:5 › a temporary AI failure loads a subject-specific startup funding lesson 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Study something now', exact: true }).first()
+        - locator resolved to <button disabled class="yv-pill outline">Study something now</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+          - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is not enabled
+      - retrying click action
+        - waiting 500ms
+
+
+      776 |   await completeOnboarding(page);
+      777 |
+    > 778 |   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+          |                                                                                        ^
+      779 |   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+      780 |     "Teach me startup funding stages, instruments, investors, dilution, and term sheets from the beginning",
+      781 |   );
+        at <repo>/e2e/core-learning-loop.spec.ts:778:88
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-tempo-685ac-ific-startup-funding-lesson-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-tempo-685ac-ific-startup-funding-lesson-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-tempo-685ac-ific-startup-funding-lesson-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-tempo-685ac-ific-startup-funding-lesson-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-tempo-685ac-ific-startup-funding-lesson-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [mobile-chromium] › e2e/core-learning-loop.spec.ts:930:5 › a fallback method workpad resumes its timer and checked targets after reload 
+
+    Test timeout of 30000ms exceeded.
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [mobile-chromium] › e2e/core-learning-loop.spec.ts:1062:5 › a 10-minute outside teaching-first session loads its built-in method lesson 
+
+    Test timeout of 30000ms exceeded.
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-10-mi-60858--its-built-in-method-lesson-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-10-mi-60858--its-built-in-method-lesson-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-10-mi-60858--its-built-in-method-lesson-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-10-mi-60858--its-built-in-method-lesson-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-a-10-mi-60858--its-built-in-method-lesson-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2188:5 › Calendar Agenda stays first and contained at a 375px viewport 
+
+    Test timeout of 30000ms exceeded.
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-Calenda-b4220-ntained-at-a-375px-viewport-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-Calenda-b4220-ntained-at-a-375px-viewport-mobile-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-Calenda-b4220-ntained-at-a-375px-viewport-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/core-learning-loop/artifacts/core-learning-loop-Calenda-b4220-ntained-at-a-375px-viewport-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2289:5 › spent guided-session allowance is visible before Home or Calendar opens setup 
+
+    Error: Cannot find module '@playwright/test'
+    Require stack:
+    - <repo>/playwright.brief05-verification.config.ts
+    - <repo>/node_modules/.pnpm/playwright@1.62.1/node_modules/playwright/lib/common/index.js
+    - <repo>/node_modules/.pnpm/playwright@1.62.1/node_modules/playwright/lib/worker/workerProcessEntry.js
+
+       at ../playwright.brief05-verification.config.ts:1
+
+    > 1 | import { defineConfig } from '@playwright/test';
+        | ^
+      2 | import config from './playwright.config';
+      3 | const server = config.webServer;
+      4 | if (!server || Array.isArray(server)) throw new Error('Expected isolated local server');
+        at Object.<anonymous> (<repo>/playwright.brief05-verification.config.ts:1:1)
+
+  8 failed
+    [desktop-chromium] › e2e/core-learning-loop.spec.ts:220:5 › a confident misconception is repaired now without a duplicate follow-up 
+    [desktop-chromium] › e2e/core-learning-loop.spec.ts:552:5 › a new topic is taught before YOVA asks for independent performance 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:695:5 › an opaque class label is stopped until the learner names the actual calculus concept 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:767:5 › a temporary AI failure loads a subject-specific startup funding lesson 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:930:5 › a fallback method workpad resumes its timer and checked targets after reload 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:1062:5 › a 10-minute outside teaching-first session loads its built-in method lesson 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2188:5 › Calendar Agenda stays first and contained at a 375px viewport 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2289:5 › spent guided-session allowance is visible before Home or Calendar opens setup 
+  17 did not run
+  77 passed (16.8m)
+
+Exit code: 1

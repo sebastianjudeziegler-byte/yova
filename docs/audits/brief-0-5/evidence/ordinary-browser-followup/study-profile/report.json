@@ -1,0 +1,880 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "<repo>/node_modules/@playwright/test/cli.js",
+      "test",
+      "e2e/study-profile.spec.ts",
+      "--config",
+      "playwright.brief05-verification.config.ts"
+    ],
+    "configFile": "<repo>/playwright.brief05-verification.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": false,
+      "timeout": 120000,
+      "env": {
+        "YOVA_E2E": "1",
+        "AUTH_INVITE_ONLY": "false",
+        "AUTH_PASSWORD_ACCOUNTS": "false",
+        "AUTH_CAPTCHA_ENABLED": "false",
+        "AUTH_EMAIL_CODE_VERIFICATION": "false",
+        "SITE_URL": "http://127.0.0.1:3100",
+        "NEXT_PUBLIC_SUPABASE_URL": ""
+      },
+      "environmentEvidence": {
+        "providerConfigured": false,
+        "unrelatedEnvironmentOmitted": true
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "study-profile.spec.ts",
+      "file": "study-profile.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "YOVA Study Profile",
+          "file": "study-profile.spec.ts",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "requires waitlist confirmation before revealing any report",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 20150,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:24:48.451Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-e7662f895510c1af7f8c",
+              "file": "study-profile.spec.ts",
+              "line": 8,
+              "column": 7
+            },
+            {
+              "title": "opens a bound report only after explicit waitlist confirmation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5529,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:09.941Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-72226292cfb95910c99a",
+              "file": "study-profile.spec.ts",
+              "line": 151,
+              "column": 7
+            },
+            {
+              "title": "keeps results locked when report creation fails",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6994,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:15.480Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-1cac86b23f70e9c884bd",
+              "file": "study-profile.spec.ts",
+              "line": 196,
+              "column": 7
+            },
+            {
+              "title": "uses a generic not-found screen for an unknown private token",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4411,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:22.480Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-6558517bfa0b688a1ba6",
+              "file": "study-profile.spec.ts",
+              "line": 230,
+              "column": 7
+            },
+            {
+              "title": "requires an explicit POST to confirm a fragment-only waitlist token",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2005,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:26.899Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-7878502d28d4d13b4459",
+              "file": "study-profile.spec.ts",
+              "line": 240,
+              "column": 7
+            },
+            {
+              "title": "routes public Study Profile support and privacy requests to hello@yovaapp.com",
+              "ok": true,
+              "tags": [
+                "yovaapp.com"
+              ],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3866,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:28.910Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-9f06f0d581802001846e",
+              "file": "study-profile.spec.ts",
+              "line": 288,
+              "column": 7
+            },
+            {
+              "title": "keeps every pre-report screen usable on common phone widths",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Mobile-only geometry coverage.",
+                      "location": {
+                        "file": "<repo>/e2e/study-profile.spec.ts",
+                        "line": 302,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:32.781Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Mobile-only geometry coverage.",
+                          "location": {
+                            "file": "<repo>/e2e/study-profile.spec.ts",
+                            "line": 302,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-ff36dc2b19c50b65736c",
+              "file": "study-profile.spec.ts",
+              "line": 301,
+              "column": 7
+            },
+            {
+              "title": "keeps working when browser storage is unavailable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2398,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:32.786Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-2eff3de40cdbc41fde62",
+              "file": "study-profile.spec.ts",
+              "line": 421,
+              "column": 7
+            },
+            {
+              "title": "clears expired, future-dated, and timestamp-free browser drafts",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6584,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:35.190Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-ed2c08c1293e8a136d72",
+              "file": "study-profile.spec.ts",
+              "line": 435,
+              "column": 7
+            },
+            {
+              "title": "exposes semantic 14-step progress and dynamic radio keyboard help",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1669,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:41.780Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-d2c966551d4572e1a55f",
+              "file": "study-profile.spec.ts",
+              "line": 459,
+              "column": 7
+            },
+            {
+              "title": "requires waitlist confirmation before revealing any report",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mobile-chromium",
+                  "projectName": "mobile-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12495,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:43.913Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-3231c168d8d68a111096",
+              "file": "study-profile.spec.ts",
+              "line": 8,
+              "column": 7
+            },
+            {
+              "title": "opens a bound report only after explicit waitlist confirmation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mobile-chromium",
+                  "projectName": "mobile-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1848,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:56.609Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-b1578f07c68f41ae9173",
+              "file": "study-profile.spec.ts",
+              "line": 151,
+              "column": 7
+            },
+            {
+              "title": "keeps results locked when report creation fails",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mobile-chromium",
+                  "projectName": "mobile-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6989,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:25:58.464Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-2158cef7be0cb4c4622a",
+              "file": "study-profile.spec.ts",
+              "line": 196,
+              "column": 7
+            },
+            {
+              "title": "uses a generic not-found screen for an unknown private token",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mobile-chromium",
+                  "projectName": "mobile-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2463,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:26:05.460Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-16e773d9878e972a71eb",
+              "file": "study-profile.spec.ts",
+              "line": 230,
+              "column": 7
+            },
+            {
+              "title": "requires an explicit POST to confirm a fragment-only waitlist token",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mobile-chromium",
+                  "projectName": "mobile-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2240,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:26:07.929Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-48448e36644b8f86f776",
+              "file": "study-profile.spec.ts",
+              "line": 240,
+              "column": 7
+            },
+            {
+              "title": "routes public Study Profile support and privacy requests to hello@yovaapp.com",
+              "ok": true,
+              "tags": [
+                "yovaapp.com"
+              ],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mobile-chromium",
+                  "projectName": "mobile-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2749,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:26:10.175Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-ee413ea52ffa3c330f38",
+              "file": "study-profile.spec.ts",
+              "line": 288,
+              "column": 7
+            },
+            {
+              "title": "keeps every pre-report screen usable on common phone widths",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mobile-chromium",
+                  "projectName": "mobile-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16320,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('progressbar', { name: 'Study Profile progress' })\nExpected: \u001b[32m\"14\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('progressbar', { name: 'Study Profile progress' })\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('progressbar', { name: 'Study Profile progress' })\nExpected: \u001b[32m\"14\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('progressbar', { name: 'Study Profile progress' })\u001b[22m\n\n    at expectAssessmentStep (<repo>/e2e/study-profile.spec.ts:536:26)\n    at expectOnlyQuestion (<repo>/e2e/study-profile.spec.ts:504:9)\n    at <repo>/e2e/study-profile.spec.ts:330:15",
+                        "location": {
+                          "file": "<repo>/e2e/study-profile.spec.ts",
+                          "column": 26,
+                          "line": 536
+                        },
+                        "snippet": "  534 | async function expectAssessmentStep(page: Page, step: number) {\n  535 |   const progress = page.getByRole(\"progressbar\", { name: \"Study Profile progress\" });\n> 536 |   await expect(progress).toHaveAttribute(\"aria-valuemax\", \"14\");\n      |                          ^\n  537 |   await expect(progress).toHaveAttribute(\"aria-valuenow\", String(step));\n  538 |   await expect(progress).toHaveAttribute(\"aria-valuetext\", `Question ${step} of 14`);\n  539 | }"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "<repo>/e2e/study-profile.spec.ts",
+                            "column": 26,
+                            "line": 536
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('progressbar', { name: 'Study Profile progress' })\nExpected: \u001b[32m\"14\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('progressbar', { name: 'Study Profile progress' })\u001b[22m\n\n\n  534 | async function expectAssessmentStep(page: Page, step: number) {\n  535 |   const progress = page.getByRole(\"progressbar\", { name: \"Study Profile progress\" });\n> 536 |   await expect(progress).toHaveAttribute(\"aria-valuemax\", \"14\");\n      |                          ^\n  537 |   await expect(progress).toHaveAttribute(\"aria-valuenow\", String(step));\n  538 |   await expect(progress).toHaveAttribute(\"aria-valuetext\", `Question ${step} of 14`);\n  539 | }\n    at expectAssessmentStep (<repo>/e2e/study-profile.spec.ts:536:26)\n    at expectOnlyQuestion (<repo>/e2e/study-profile.spec.ts:504:9)\n    at <repo>/e2e/study-profile.spec.ts:330:15"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:26:12.931Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts/study-profile-YOVA-Study-P-58d93-able-on-common-phone-widths-mobile-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts/study-profile-YOVA-Study-P-58d93-able-on-common-phone-widths-mobile-chromium/test-failed-2.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts/study-profile-YOVA-Study-P-58d93-able-on-common-phone-widths-mobile-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts/study-profile-YOVA-Study-P-58d93-able-on-common-phone-widths-mobile-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "<repo>/e2e/study-profile.spec.ts",
+                        "column": 26,
+                        "line": 536
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-2c8da90f844334b8e5f9",
+              "file": "study-profile.spec.ts",
+              "line": 301,
+              "column": 7
+            },
+            {
+              "title": "keeps working when browser storage is unavailable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mobile-chromium",
+                  "projectName": "mobile-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4779,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:26:30.058Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-043f91dc311349801964",
+              "file": "study-profile.spec.ts",
+              "line": 421,
+              "column": 7
+            },
+            {
+              "title": "clears expired, future-dated, and timestamp-free browser drafts",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mobile-chromium",
+                  "projectName": "mobile-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9768,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:26:35.647Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-85c111bbf450cd21b784",
+              "file": "study-profile.spec.ts",
+              "line": 435,
+              "column": 7
+            },
+            {
+              "title": "exposes semantic 14-step progress and dynamic radio keyboard help",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "mobile-chromium",
+                  "projectName": "mobile-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2314,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-09T10:26:45.423Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "34583f18fed9fa6cc701-318057fd917dd58fa460",
+              "file": "study-profile.spec.ts",
+              "line": 459,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-09T10:24:42.115Z",
+    "duration": 125768.138,
+    "expected": 18,
+    "skipped": 1,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

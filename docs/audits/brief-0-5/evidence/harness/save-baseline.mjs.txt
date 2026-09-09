@@ -1,0 +1,24 @@
+import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { redact, unavailableReason } from '../../scripts/live-gate/core.mjs';
+process.loadEnvFile('.env.local');
+const source=process.argv[2] ?? 'tmp/brief-0-5/main-live';
+const target=process.argv[3] ?? 'docs/audits/brief-0-5/evidence/main-live';
+mkdirSync(target,{recursive:true});
+const cases=[];
+for(const file of readdirSync(source, { withFileTypes: true }).filter(entry => entry.isFile()).map(entry => entry.name)) {
+ let data=readFileSync(`${source}/${file}`,'utf8');
+ if(file.endsWith('-capture.jsonl')) data=data.split('\n').filter(Boolean).map(line=>{const item=JSON.parse(line);delete item.instructions;delete item.stack;return JSON.stringify(item)}).join('\n')+'\n';
+ if(file.endsWith('.json')){
+  const report=JSON.parse(data);
+  for(const suite of report.testResults) for(const item of suite.assertionResults){
+   if(!['passed','failed'].includes(item.status))continue;
+   const failures=item.failureMessages??[];
+   const unavailable=unavailableReason(failures.map(message=>({message}))) ?? (item.status==='failed' && /APIConnectionTimeoutError|Caused by: Error: Request timed out\./.test(readFileSync(`${source}/${file.replace('.json','.txt')}`, 'utf8')) ? 'Provider request timed out (see recorded cause in suite log)' : null);
+   cases.push({run:Number(file.match(/^run-(\d)/)[1]),file:suite.name.replace(`${process.cwd()}/`,''),test:item.fullName,state:unavailable?'unavailable':item.status,reason:unavailable??failures[0]?.split('\n')[0]??null,log:file.replace('.json','.txt')});
+  }
+ }
+ writeFileSync(`${target}/${file}`,redact(data,process.env).replaceAll(process.cwd(),'<repo>'));
+}
+writeFileSync(`${target}/cases.json`,JSON.stringify(cases,null,2)+'\n');
+console.log(JSON.stringify(cases.map(({run,test,state,reason})=>({run,test,state,reason})),null,2));

@@ -1,0 +1,36 @@
+Command: node node_modules/vitest/vitest.mjs run src/evals/session-rubric.test.ts --maxWorkers=1
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/session-rubric.test.ts (8 tests | 1 failed) 20ms
+     × accepts policy-backed overview and one-step copy while rejecting an unsupported learner claim 12ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/session-rubric.test.ts > session quality rubric > accepts policy-backed overview and one-step copy while rejecting an unsupported learner claim
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/evals/session-rubric.test.ts:152:41
+    150|       value, biologyCase.context, biologyCase.taskFamily, biologyCase.…
+    151|     ).checks.find((check) => check.id === "visible_personalization");
+    152|     expect(evaluateCopy(draft)?.passed).toBe(true);
+       |                                         ^
+    153|     const unsupported = { ...draft, methodBriefing: { ...draft.methodB…
+    154|     expect(evaluateCopy(unsupported)).toMatchObject({ passed: false });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  23:49:26
+   Duration  354ms (transform 176ms, setup 0ms, import 264ms, tests 20ms, environment 0ms)
+
+
+Exit code: 1

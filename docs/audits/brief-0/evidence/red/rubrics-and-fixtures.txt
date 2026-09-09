@@ -1,0 +1,116 @@
+Before implementation, valid recognition fixture. Command: node node_modules/vitest/vitest.mjs run src/evals/plan-rubric.test.ts src/evals/session-rubric.test.ts src/evals/live-fixtures.test.ts --maxWorkers=1
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/session-rubric.test.ts (7 tests | 3 failed) 21ms
+     × accepts a fifteen-minute model, explanation, repair, re-explanation and recognition sequence 12ms
+     × does not count a future retrieval reminder as focused session work 2ms
+     × accepts two focused retrieval checks plus a delayed return for a study session 2ms
+ ❯ src/evals/plan-rubric.test.ts (3 tests | 1 failed) 11ms
+     × does not invent a missing-map failure for a learner's otherwise valid plan 8ms
+ ❯ src/evals/live-fixtures.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/live-fixtures.test.ts [ src/evals/live-fixtures.test.ts ]
+Error: Cannot find module './live-fixtures' imported from <repo>/src/evals/live-fixtures.test.ts
+ ❯ src/evals/live-fixtures.test.ts:5:1
+      3| import { resolve } from "node:path";
+      4| import { afterEach, expect, it, vi } from "vitest";
+      5| import { liveFixturePath } from "./live-fixtures";
+       | ^
+      6|
+      7| afterEach(() => vi.unstubAllEnvs());
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-rubric.test.ts > evaluatePlanDraft > does not invent a missing-map failure for a learner's otherwise valid plan
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Every mapped topic is scheduled or explicitly deferred",
++ ]
+
+ ❯ src/evals/plan-rubric.test.ts:53:89
+     51|     const noMap = { ...evaluationCase.request, knowledgeMap: null };
+     52|     expect(draft.sessions.map(({ title }) => title)).toEqual(["Study w…
+     53|     expect(evaluatePlanDraft(draft, noMap, evaluationCase.taskFamily).…
+       |                                                                                         ^
+     54|     expect(evaluatePlanDraft(draft, requestWithMap, evaluationCase.tas…
+     55|     for (const topicIds of [[], ["22222222-2222-4222-8222-222222222222…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  src/evals/session-rubric.test.ts > session quality rubric > accepts a fifteen-minute model, explanation, repair, re-explanation and recognition sequence
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/evals/session-rubric.test.ts:147:28
+    145|       .checks.find((item) => item.id === "activity_pacing");
+    146|     expect(draft.activities.map(({ title }) => title)).toContain("Reco…
+    147|     expect(pacing?.passed).toBe(true);
+       |                            ^
+    148|     // Extra exercises and extra minutes still fail: the recipe is no …
+    149|     const overloaded = { ...draft, activities: Array.from({ length: 9 …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  src/evals/session-rubric.test.ts > session quality rubric > does not count a future retrieval reminder as focused session work
+AssertionError: expected '4/4 maximum focused activities for 15…' to contain '4 focused activities; production time…'
+
+Expected: "4 focused activities; production time budget passed"
+Received: "4/4 maximum focused activities for 15 minutes"
+
+ ❯ src/evals/session-rubric.test.ts:328:28
+    326|     const pacing = result.checks.find((item) => item.id === "activity_…
+    327|     expect(pacing?.passed).toBe(true);
+    328|     expect(pacing?.detail).toContain("4 focused activities; production…
+       |                            ^
+    329|   });
+    330|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  src/evals/session-rubric.test.ts > session quality rubric > accepts two focused retrieval checks plus a delayed return for a study session
+AssertionError: expected { id: 'activity_pacing', …(6) } to match object { passed: true, …(1) }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "detail": "2 focused activities; production time budget passed for 25 minutes",
++   "detail": "2/5 maximum focused activities for 25 minutes",
+    "passed": true,
+  }
+
+ ❯ src/evals/session-rubric.test.ts:375:73
+    373|       passed: true,
+    374|     });
+    375|     expect(result.checks.find((item) => item.id === "activity_pacing")…
+       |                                                                         ^
+    376|       passed: true,
+    377|       detail: "2 focused activities; production time budget passed for…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  4 failed | 6 passed (10)
+   Start at  23:27:21
+   Duration  541ms (transform 171ms, setup 0ms, import 323ms, tests 33ms, environment 0ms)
+
+
+Exit code: 1

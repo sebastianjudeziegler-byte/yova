@@ -1,0 +1,30 @@
+import { spawn } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+process.loadEnvFile('.env.local');
+const output = resolve(process.argv[2]);
+mkdirSync(output, { recursive: true });
+const selections = [
+ ['answer-evaluation-quality', 'accepts a correct biology|accepts a concise programming|admits uncertainty', 'YOVA_RUN_LIVE_ANSWER_EVALS'],
+ ['grader-calibration', '.', 'YOVA_RUN_LIVE_ANSWER_EVALS'],
+ ['streamed-ap-biology', 'builds a topic-specific teaching skeleton', 'YOVA_RUN_LIVE_STREAMED_EVALS'],
+ ['session-quality', 'Mapped product-rule|Beginner JavaScript|Spanish conversation', 'YOVA_RUN_LIVE_SESSION_EVALS'],
+ ['plan-session-journey', 'One product-rule skill', 'YOVA_RUN_LIVE_JOURNEY_EVALS'],
+ ['streamed-world-war-one-lesson', 'delivers substantive teaching', 'YOVA_RUN_LIVE_WWI_LESSON_EVALS'],
+ ['streamed-world-war-one-skeleton', 'creates the production 45-minute', 'YOVA_RUN_LIVE_WWI_BASELINE_EVALS'],
+];
+const counts = Number(process.argv[3] ?? 3);
+for (let run = 1; run <= counts; run++) for (const [suite, pattern, flag] of selections) {
+ const stem = `run-${run}-${suite}`;
+ console.log(stem);
+ const env = { ...process.env, [flag]: '1', BRIEF05_CAPTURE: `${output}/${stem}-capture.jsonl` };
+ for (const key of Object.keys(env)) if (/^YOVA_.*_EVAL_CASE$/.test(key)) delete env[key];
+ let log = '';
+ const code = await new Promise(done => {
+  const child = spawn(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', `src/evals/${suite}.live.test.ts`, '--config', 'tmp/brief-0-5/vitest.config.mts', '--maxWorkers=1', '--retry=0', '--testNamePattern', pattern, '--reporter=default', '--reporter=json', `--outputFile.json=${output}/${stem}.json`], { env, stdio: ['ignore','pipe','pipe'] });
+  child.stdout.on('data', data => log += data); child.stderr.on('data', data => log += data);
+  child.on('close', done);
+ });
+ writeFileSync(`${output}/${stem}.txt`, log + `\nExit code: ${code}\n`);
+ console.log(`${stem} exit ${code}`);
+}

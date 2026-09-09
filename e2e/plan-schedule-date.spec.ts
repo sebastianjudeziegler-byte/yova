@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { freezePlanClock, PLAN_FIXED_NOW } from "./helpers/frozen-clock";
 
 const onboardingAnswers = [
   "Show a short recommendation and alternatives",
@@ -50,11 +51,11 @@ for (const {days, priorityMinutes} of [{days:1,priorityMinutes:0},{days:3,priori
   // routing, UI rendering and activation all use the real local endpoints.
   await page.route("**/api/plans/generate**", async route => {
     const body = route.request().postDataJSON();
-    const boundary = new Date();
+    const boundary = new Date(PLAN_FIXED_NOW);
     boundary.setUTCDate(boundary.getUTCDate()+1);
     boundary.setUTCHours(19,priorityMinutes,0,0);
     // Exercise a real server deadline clipping a future study window to three
-    // minutes; no server clock override or fabricated generation response.
+    // minutes under the frozen preview clock; no fabricated generation response.
     const tinyWindow = priorityMinutes && !route.request().url().includes("?mode=diagnostic") ? {
       deadline:boundary.toISOString(),timeZone:"UTC",
       availability:[{day:new Intl.DateTimeFormat("en-US",{weekday:"long",timeZone:"UTC"}).format(boundary),window:"Evening",minutes:45}],
@@ -397,7 +398,7 @@ test("changing the goal through Back replaces the old placement map", async ({ p
 });
 
 function futureDate(days: number) {
-  const now = new Date();
+  const now = new Date(PLAN_FIXED_NOW);
   const currentCalendarParts = new Intl.DateTimeFormat("en-US", {
     timeZone: TEST_TIME_ZONE,
     year: "numeric",
@@ -426,6 +427,7 @@ async function finishPlanSetup(page: Page) {
 }
 
 async function openPreviewApp(page: Page) {
+  await freezePlanClock(page);
   await page.goto("/?qa=preview");
   await page.getByRole("button", { name: "Build my plan" }).click();
   await page.getByLabel("First name").fill("Learner");

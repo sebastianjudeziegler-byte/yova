@@ -1,0 +1,23 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+
+YOVA connected journey · One product-rule skill in short sessions
+Plan · 4 sessions · 100/100 · 15.2s
+First session · learn · Feynman Technique · 15 min
+Lesson · 5 activities · 100/100 · 13.1s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+ ✓ src/evals/plan-session-journey.live.test.ts (5 tests | 4 skipped) 28559ms
+     ✓ 'One product-rule skill in short sessi…'  28364ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 4 skipped (5)
+   Start at  09:46:30
+   Duration  28.96s (transform 358ms, setup 18ms, import 321ms, tests 28.56s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/a15-investigation/run-2-plan-session-journey.json
+
+Exit code: 0

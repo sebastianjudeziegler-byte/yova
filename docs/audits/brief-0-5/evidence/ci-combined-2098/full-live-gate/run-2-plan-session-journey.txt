@@ -1,0 +1,100 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'One product-rule skill in short sessi…'
+[22m[39m
+YOVA connected journey · One product-rule skill in short sessions
+Plan · 4 sessions · 100/100 · 14.5s
+First session · learn · Feynman Technique · 15 min
+Lesson · 5 activities · 85/100 · 12.0s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'World War I unit guide in short sessi…'
+[22m[39m
+YOVA connected journey · World War I unit guide in short sessions
+Plan · 4 sessions · 100/100 · 23.3s
+First session · learn · Feynman Technique · 15 min
+Lesson · 5 activities · 75/100 · 10.3s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'Full beginner calculus pathway'
+[22m[39m
+YOVA connected journey · Full beginner calculus pathway
+Plan · 4 sessions · 100/100 · 29.1s
+First session · learn · Worked Examples · 25 min
+Lesson · 5 activities · 85/100 · 11.0s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'History essay using outside sources'
+[22m[39m
+YOVA connected journey · History essay using outside sources
+Plan · 4 sessions · 100/100 · 25.1s
+First session · learn · Outline from Memory · 25 min
+Lesson · 4 activities · 100/100 · 10.3s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+ [31m❯[39m src/evals/plan-session-journey.live.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[33m 136215[2mms[22m[39m
+     [32m✓[39m the requested journey exists[32m 2[2mms[22m[39m
+[31m     [31m×[31m 'One product-rule skill in short sessi…'[39m[33m 27042[2mms[22m[39m
+[31m     [31m×[31m 'World War I unit guide in short sessi…'[39m[33m 33631[2mms[22m[39m
+[31m     [31m×[31m 'Full beginner calculus pathway'[39m[33m 40163[2mms[22m[39m
+     [33m[2m✓[22m[39m 'History essay using outside sources' [33m 35376[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/plan-session-journey.live.test.ts[2m > [22mlive plan-to-session journeys[2m > [22m'One product-rule skill in short sessi…'
+[41m[1m FAIL [22m[49m src/evals/plan-session-journey.live.test.ts[2m > [22mlive plan-to-session journeys[2m > [22m'Full beginner calculus pathway'
+[31m[1mAssertionError[22m: expected [ 'Activities fit the learning task' ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   "Activities fit the learning task",[39m
+[31m+ ][39m
+
+[36m [2m❯[22m src/evals/plan-session-journey.live.test.ts:[2m75:44[22m[39m
+    [90m 73|[39m     [34mexpect[39m(planResult[33m.[39mrequiredFailures)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m 74|[39m     [34mexpect[39m(planResult[33m.[39mscore)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m80[39m)[33m;[39m
+    [90m 75|[39m     [34mexpect[39m(sessionResult[33m.[39mrequiredFailures)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m   |[39m                                            [31m^[39m
+    [90m 76|[39m     [34mexpect[39m(sessionResult[33m.[39mscore)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m80[39m)[33m;[39m
+    [90m 77|[39m     expect(generatedSession.draft.methodBriefing.learningMode).toBe(fi…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/evals/plan-session-journey.live.test.ts[2m > [22mlive plan-to-session journeys[2m > [22m'World War I unit guide in short sessi…'
+[31m[1mAssertionError[22m: expected [ …(2) ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   "Activities fit the learning task",[39m
+[31m+   "Learner materials remain the factual anchor",[39m
+[31m+ ][39m
+
+[36m [2m❯[22m src/evals/plan-session-journey.live.test.ts:[2m75:44[22m[39m
+    [90m 73|[39m     [34mexpect[39m(planResult[33m.[39mrequiredFailures)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m 74|[39m     [34mexpect[39m(planResult[33m.[39mscore)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m80[39m)[33m;[39m
+    [90m 75|[39m     [34mexpect[39m(sessionResult[33m.[39mrequiredFailures)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m   |[39m                                            [31m^[39m
+    [90m 76|[39m     [34mexpect[39m(sessionResult[33m.[39mscore)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m80[39m)[33m;[39m
+    [90m 77|[39m     expect(generatedSession.draft.methodBriefing.learningMode).toBe(fi…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (5)[39m
+[2m   Start at [22m 09:31:51
+[2m   Duration [22m 137.14s[2m (transform 804ms, setup 0ms, import 781ms, tests 136.21s, environment 0ms)[22m
+
+
+Exit code: 1

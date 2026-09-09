@@ -1,0 +1,55 @@
+Main e03a082 complete baseline 1/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/material-osmosis-session.live.test.ts > live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window
+Shortened material-backed osmosis session failure {
+  run: 1,
+  message: 'YOVA could not build a safe degraded session for this setup. Review the session setup or choose a source-independent route.',
+  generationStats: {
+    elapsedMs: 4287,
+    attempts: 1,
+    firstAttemptPassed: false,
+    failedValidator: 'session_content_specificity',
+    repairAttempted: false,
+    repairSucceeded: null,
+    repairReason: 'semantic_validation',
+    repairDetail: 'The evidence map is inaccurate: "Tonicity and cell water movement" does not test "replacement text". Rebuild every evidence-map entry and its required question together so each prompt, answer, and feedback directly tests the one essential idea it claims.',
+    inputTokens: 1489,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 597,
+    validationIssueCode: 'session_recovery_validation',
+    stage: 'fallback',
+    cause: 'fallback_unavailable',
+    strategy: 'full'
+  }
+}
+
+ ❯ src/evals/material-osmosis-session.live.test.ts (1 test | 1 failed) 4360ms
+     × keeps two current targets and defers the third in a 15-minute window 4359ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/material-osmosis-session.live.test.ts > live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window
+SessionGenerationFailure: YOVA could not build a safe degraded session for this setup. Review the session setup or choose a source-independent route.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/material-osmosis-session.live.test.ts:144:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  22:40:35
+   Duration  4.84s (transform 293ms, setup 0ms, import 399ms, tests 4.36s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-1/material-osmosis-session.json
+
+Exit code: 1

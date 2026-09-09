@@ -1,0 +1,493 @@
+[
+  {
+    "suite": "answer-evaluation-quality",
+    "test": "the requested case exists",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "answer-evaluation-quality",
+    "test": "'accepts a correct biology paraphrase'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ \u2026(2) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "answer-evaluation-quality",
+    "test": "'catches confident biology keyword soup'",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "answer-evaluation-quality",
+    "test": "'marks a materially incomplete causal \u2026'",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "answer-evaluation-quality",
+    "test": "'accepts equivalent mathematical notat\u2026'",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "answer-evaluation-quality",
+    "test": "'does not reward a true statement that\u2026'",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "answer-evaluation-quality",
+    "test": "'accepts a concise programming explana\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "answer-evaluation-quality",
+    "test": "'admits uncertainty when the prompt la\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ 'uncertain' ] to include 'secure'",
+    "branchRepeats": []
+  },
+  {
+    "suite": "outside-teaching-reliability",
+    "test": "builds an arbitrary three-target teaching-first session repeatedly",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ { run: 3, \u2026(1) } ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-creation-blockers",
+    "test": "real placement questions and a map-only scope correction preserve demonstrated ATP",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "MapDiagnosticGenerationError: At least one placement question has an ambiguous or unsupported answer. Skip this optional check or try again.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-creation-blockers",
+    "test": "a ten-minute triage generates a runnable lesson on its saved topic",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "the requested case exists",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "'Biology test with learner notes'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "'Calculus problem-solving plan'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "'Calculus unit with mixed placement ev\u2026'",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "'One product-rule skill in short sessi\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "'World War I unit guide in short sessi\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "unavailable: provider request timeout",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "'Full beginner calculus pathway'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "unavailable: provider request timeout",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "'General-learning startup funding path\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "'History essay using outside sources'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "'Beginner JavaScript practice'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-quality",
+    "test": "'General-learning finance pathway'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-session-journey",
+    "test": "the requested journey exists",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-session-journey",
+    "test": "'One product-rule skill in short sessi\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-session-journey",
+    "test": "'World War I unit guide in short sessi\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-session-journey",
+    "test": "'Full beginner calculus pathway'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "plan-session-journey",
+    "test": "'History essay using outside sources'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "the requested case exists",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Biology teaching from learner notes'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Bioenergetics multi-target retrieval \u2026'",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Fifteen-minute temperature and reacti\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Fifteen-minute first product-rule les\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Mapped product-rule and chain-rule fi\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Production-shaped derivative-foundati\u2026'",
+    "mainFirst": "passed",
+    "mainRepeats": [
+      "passed",
+      "passed",
+      "failed"
+    ],
+    "branchOriginal": "failed",
+    "mainFailure": null,
+    "branchRepeats": [
+      "passed",
+      "passed",
+      "failed"
+    ]
+  },
+  {
+    "suite": "session-quality",
+    "test": "'World War I teaching for a complete b\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Mapped 45-minute World War I baseline\u2026'",
+    "mainFirst": "passed",
+    "mainRepeats": [
+      "passed",
+      "failed",
+      "failed"
+    ],
+    "branchOriginal": "failed",
+    "mainFailure": null,
+    "branchRepeats": [
+      "failed",
+      "failed",
+      "passed"
+    ]
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Calculus repair after a weak check'",
+    "mainFirst": "passed",
+    "mainRepeats": [
+      "passed",
+      "passed",
+      "failed"
+    ],
+    "branchOriginal": "failed",
+    "mainFailure": null,
+    "branchRepeats": [
+      "passed",
+      "passed",
+      "failed"
+    ]
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Self-contained delayed calculus review'",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'History writing outside YOVA'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": "SessionGenerationFailure: OpenAI did not return a complete, safe guided session after the bounded repair attempts. The evidence map is inaccurate: \"Evidence match\" does not test \"Evidence should be attached to each thesis claim from the textbook and class notes.\". Rebuild every evidence-map entry and its required question together so each prompt, answer, and feedback directly tests the one essential idea it claims.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Beginner JavaScript with fading suppo\u2026'",
+    "mainFirst": "passed",
+    "mainRepeats": [
+      "passed",
+      "failed",
+      "failed"
+    ],
+    "branchOriginal": "failed",
+    "mainFailure": null,
+    "branchRepeats": [
+      "passed",
+      "failed",
+      "failed"
+    ]
+  },
+  {
+    "suite": "session-quality",
+    "test": "'General-learning finance application'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Fifteen-minute vocabulary review'",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Startup funding foundations for a new\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'History reasoning from a primary-sour\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Literature close reading from a short\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Spanish conversation with supported t\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "session-quality",
+    "test": "'Teaching from a thin biology study gu\u2026'",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "branchRepeats": []
+  },
+  {
+    "suite": "streamed-rayleigh",
+    "test": "builds the production 15-minute two-target teaching skeleton",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ Array(1) ] to have a length of 2 but got 1",
+    "branchRepeats": []
+  },
+  {
+    "suite": "streamed-world-war-one-lesson",
+    "test": "delivers substantive teaching from the first generated lesson brief",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.",
+    "branchRepeats": []
+  },
+  {
+    "suite": "streamed-world-war-one-skeleton",
+    "test": "creates the production 45-minute streamed teaching session",
+    "mainFirst": "failed",
+    "mainRepeats": [],
+    "branchOriginal": "failed",
+    "mainFailure": "AssertionError: expected [ { \u2026(16) }, { \u2026(16) } ] to have a length of 3 but got 2",
+    "branchRepeats": []
+  },
+  {
+    "suite": "streamed-world-war-one-skeleton",
+    "test": "reliably creates a valid subject-specific session outline",
+    "mainFirst": "passed",
+    "mainRepeats": [],
+    "branchOriginal": "passed",
+    "mainFailure": null,
+    "branchRepeats": []
+  }
+]

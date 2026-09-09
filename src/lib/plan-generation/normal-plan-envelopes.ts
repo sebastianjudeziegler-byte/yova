@@ -1,3 +1,4 @@
+import { startingDifficultyTopicIds } from "@/lib/plan-generation/learner-plan-copy";
 import type { SessionLearningMode } from "@/lib/domain";
 import { NORMAL_STUDY_DURATION_LEVELS, type NormalStudyDurationMinutes } from "@/lib/study-route/duration-levels";
 import type { LearningTaskType } from "@/lib/learning/method-catalog";
@@ -165,6 +166,7 @@ export type NormalPlanEnvelopeComposition = Readonly<{
 type Target = Readonly<{
   topic: DeepReadonly<KnowledgeMapTopic>;
   orderIndex: number;
+  startingDifficulty: boolean;
   firstMode: SessionLearningMode;
   firstModeBasis: InitialPlanTargetModeDecision["basisCode"];
   taskClassification: DeepReadonly<LearningTaskClassification>;
@@ -256,9 +258,11 @@ export function composeNormalPlanEnvelopes(
     decision.targetDecisions[0]!.topicId,
     decision.targetDecisions[0]!,
   ]));
+  const startingDifficulties = startingDifficultyTopicIds(request);
   const targets = dependencyAwareEvidenceOrder(activeTopics.map<Target>((topic, orderIndex) => ({
     topic,
     orderIndex,
+    startingDifficulty: startingDifficulties.has(topic.id),
     firstMode: firstDecisionById.get(topic.id)!.learningMode,
     firstModeBasis: firstDecisionById.get(topic.id)!.basisCode,
     taskClassification: classifyLearningTask(authoritativeTaskText(request, topic)),
@@ -371,6 +375,7 @@ export function composeNormalPlanEnvelopes(
         durationContext: selectedDurationContext,
         learningMode: nextUnscheduledTarget.firstMode,
         taskFamily: nextUnscheduledTarget.taskClassification.taskType,
+        startingDifficulty: nextUnscheduledTarget.startingDifficulty,
       })
     : false;
 
@@ -471,6 +476,7 @@ function composeInitialAndRequiredPractice({
       durationContext,
       learningMode: first.firstMode,
       taskFamily: first.taskClassification.taskType,
+      startingDifficulty: first.startingDifficulty,
     });
     if (!placement) {
       failed.add(key);
@@ -553,6 +559,7 @@ function composeRequiredPractice({
     durationContext,
     learningMode: "study",
     taskFamily: first.taskClassification.taskType,
+    startingDifficulty: first.startingDifficulty,
   });
   if (!placement) return null;
   const compatibleCount = adjacentCompatibleCount(targets, targetIndex, first, true);
@@ -617,6 +624,7 @@ function addOptionalPractice({
       durationContext,
       learningMode: "study",
       taskFamily: first.taskClassification.taskType,
+      startingDifficulty: first.startingDifficulty,
     });
     if (!placement) break;
     const compatibleCount = adjacentCompatibleCount(targets, targetIndex, first, false);
@@ -645,6 +653,7 @@ function placeSession({
   durationContext,
   learningMode,
   taskFamily,
+  startingDifficulty,
 }: {
   cursor: Cursor;
   slots: readonly PlanAvailabilitySlot[];
@@ -652,6 +661,7 @@ function placeSession({
   durationContext: NormalPlanDurationContext;
   learningMode: SessionLearningMode;
   taskFamily: LearningTaskType;
+  startingDifficulty: boolean;
 }): Placement | null {
   let slotIndex = cursor.slotIndex;
   const notBefore = slots[slotIndex]
@@ -668,7 +678,7 @@ function placeSession({
     const scheduledFor = new Date(
       Date.parse(slot.startsAt) + usedMinutes * 60_000,
     ).toISOString();
-    const recommendation = recommendNormalStudyDuration({
+    const baseRecommendation = recommendNormalStudyDuration({
       context: {
         taskFamily,
         mode: learningMode === "learn" ? "learn" : "practice",
@@ -680,6 +690,20 @@ function placeSession({
       },
       recentOutcomes: durationContext.recentOutcomes,
     });
+    // Reserve the learner's sustainable block for their named difficulty.
+    // Other topics use the next smaller budget; deadline caps still win.
+    const reserveForDifficulty = startingDifficultyTopicIds(request).size > 0 && !startingDifficulty;
+    const smallerMinutes = NORMAL_STUDY_DURATION_LEVELS[Math.max(0, NORMAL_STUDY_DURATION_LEVELS.indexOf(baseRecommendation.minutes) - 1)]!;
+    const recommendation = reserveForDifficulty ? {
+      ...baseRecommendation,
+      minutes: smallerMinutes,
+      ruleTrace: [...baseRecommendation.ruleTrace, {
+        ruleId: "initial_plan_starting_difficulty_budget_v1",
+        result: `reserved_time_${smallerMinutes}_minutes`,
+        reason: "Keep this topic shorter to leave more study time for the difficulty you named, within your sustainable focus length.",
+        evidenceRefs: [],
+      }],
+    } : baseRecommendation;
     const resolvedDuration = resolveNormalStudyDurationPrecedence({
       systemRecommendation: recommendation,
       learnerOverrideMinutes: null,
@@ -753,6 +777,7 @@ function finalizeEnvelopes({
       modeBasisCode: decision.basisCode,
       targetModeDecisions: decision.targetDecisions,
       taskFamily: first.taskClassification.taskType,
+      startingDifficulty: first.startingDifficulty,
       taskClassification: first.taskClassification,
       scheduledFor: draft.placement.scheduledFor,
       availabilityStartsAt: draft.placement.slot.startsAt,
@@ -943,7 +968,7 @@ function dependencyAwareEvidenceOrder(
 }
 
 function targetPriority(target: Target) {
-  if (target.firstModeBasis === "placement_gap") return 0;
+  if (target.firstModeBasis === "placement_gap" || target.startingDifficulty) return 0;
   if (target.firstModeBasis === "unobserved_learn_baseline") return 1;
   return 2;
 }
@@ -1045,7 +1070,8 @@ function adjacentCompatibleCount(
   for (let index = start; index < targets.length; index += 1) {
     const target = targets[index]!;
     if (
-      target.taskClassification.taskType !== first.taskClassification.taskType
+      target.startingDifficulty !== first.startingDifficulty
+      || target.taskClassification.taskType !== first.taskClassification.taskType
       || (!requireOriginalAdjacency && target.firstMode !== first.firstMode)
       || (requireOriginalAdjacency && target.orderIndex !== priorOrderIndex + 1)
     ) break;
@@ -1118,6 +1144,7 @@ function deadlineRestrictsAvailability({
   durationContext,
   learningMode,
   taskFamily,
+  startingDifficulty,
 }: {
   request: PlanGenerationRequest;
   now: Date;
@@ -1127,6 +1154,7 @@ function deadlineRestrictsAvailability({
   durationContext: NormalPlanDurationContext;
   learningMode: SessionLearningMode;
   taskFamily: LearningTaskType;
+  startingDifficulty: boolean;
 }) {
   if (!request.deadline) return false;
   const placementInput = {
@@ -1135,6 +1163,7 @@ function deadlineRestrictsAvailability({
     durationContext,
     learningMode,
     taskFamily,
+    startingDifficulty,
   };
   if (placeSession({ ...placementInput, slots: boundedSlots })) return false;
   const horizonSlots = canonicalizePlanAvailabilitySlots(

@@ -1,0 +1,98 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/answer-evaluation-quality.live.test.ts[2m > [22m[2mlive OpenAI answer evaluation quality[2m > [22m[2m'accepts a correct biology paraphrase'
+[22m[39m
+YOVA answer evaluation · accepts a correct biology paraphrase
+Expected · secure
+Received · secure
+Feedback · Your response establishes the required idea. oxygen is the final electron acceptor oxygen allows electron flow and ATP production to continue
+Human label · The answer states oxygen's essential role and the consequence even though it does not copy the reference wording.
+
+
+[90mstdout[2m | src/evals/answer-evaluation-quality.live.test.ts[2m > [22m[2mlive OpenAI answer evaluation quality[2m > [22m[2m'catches confident biology keyword soup'
+[22m[39m
+YOVA answer evaluation · catches confident biology keyword soup
+Expected · needs_review
+Received · uncertain
+Feedback · YOVA cannot reliably confirm the full key idea from this response alone. Compare it with the reference answer before deciding how your answer should change.
+Human label · The response uses relevant vocabulary but reverses causality and incorrectly describes organisms as choosing mutations.
+
+
+[90mstdout[2m | src/evals/answer-evaluation-quality.live.test.ts[2m > [22m[2mlive OpenAI answer evaluation quality[2m > [22m[2m'marks a materially incomplete causal …'
+[22m[39m
+YOVA answer evaluation · marks a materially incomplete causal explanation for review
+Expected · needs_review
+Received · needs_review
+Feedback · Your response does not yet establish the full relationship required by this check. Compare it with the reference answer and add the central missing idea.
+Human label · Taxation is relevant, but the answer misses representation and the broader dispute about political authority required by the rubric.
+
+
+[90mstdout[2m | src/evals/answer-evaluation-quality.live.test.ts[2m > [22m[2mlive OpenAI answer evaluation quality[2m > [22m[2m'accepts equivalent mathematical notat…'
+[22m[39m
+YOVA answer evaluation · accepts equivalent mathematical notation
+Expected · secure
+Received · secure
+Feedback · Your response establishes the required idea. Derivative of x^3 + 2x is 3x^2 + 2 Power rule is used correctly
+Human label · The derivative is correct and the brief rule explanation establishes how it was obtained.
+
+
+[90mstdout[2m | src/evals/answer-evaluation-quality.live.test.ts[2m > [22m[2mlive OpenAI answer evaluation quality[2m > [22m[2m'does not reward a true statement that…'
+[22m[39m
+YOVA answer evaluation · does not reward a true statement that misses the mechanism
+Expected · needs_review
+Received · needs_review
+Feedback · The response identifies diversification as involving more investments, but it does not explain the key reason risk falls: losses in one holding can be offset by other holdings because their outcomes are not perfectly linked.
+Human label · Diversification can reduce risk, but merely saying there are more investments does not explain reduced exposure to any one asset or uncorrelated losses.
+
+
+[90mstdout[2m | src/evals/answer-evaluation-quality.live.test.ts[2m > [22m[2mlive OpenAI answer evaluation quality[2m > [22m[2m'accepts a concise programming explana…'
+[22m[39m
+YOVA answer evaluation · accepts a concise programming explanation
+Expected · secure
+Received · secure
+Feedback · Your response establishes the required idea. base case terminates recursion base case prevents infinite recursive calls
+Human label · The response correctly states that the base case terminates recursive calls and prevents unbounded recursion.
+
+
+[90mstdout[2m | src/evals/answer-evaluation-quality.live.test.ts[2m > [22m[2mlive OpenAI answer evaluation quality[2m > [22m[2m'admits uncertainty when the prompt la…'
+[22m[39m
+YOVA answer evaluation · admits uncertainty when the prompt lacks necessary context
+Expected · uncertain
+Received · uncertain
+Feedback · This check does not give enough context for a reliable judgment. The activity does not include the observations or name the condition that changed, so the key causal relationship cannot be checked.
+Human label · Neither the prompt nor the reference identifies what process changed, so several interpretations are defensible.
+
+
+ [31m❯[39m src/evals/answer-evaluation-quality.live.test.ts [2m([22m[2m8 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 15401[2mms[22m[39m
+     [32m✓[39m the requested case exists[32m 2[2mms[22m[39m
+     [33m[2m✓[22m[39m 'accepts a correct biology paraphrase' [33m 1929[2mms[22m[39m
+[31m     [31m×[31m 'catches confident biology keyword soup'[39m[33m 3027[2mms[22m[39m
+     [33m[2m✓[22m[39m 'marks a materially incomplete causal …' [33m 2585[2mms[22m[39m
+     [33m[2m✓[22m[39m 'accepts equivalent mathematical notat…' [33m 1669[2mms[22m[39m
+     [33m[2m✓[22m[39m 'does not reward a true statement that…' [33m 2326[2mms[22m[39m
+     [33m[2m✓[22m[39m 'accepts a concise programming explana…' [33m 1763[2mms[22m[39m
+     [33m[2m✓[22m[39m 'admits uncertainty when the prompt la…' [33m 2099[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/answer-evaluation-quality.live.test.ts[2m > [22mlive OpenAI answer evaluation quality[2m > [22m'catches confident biology keyword soup'
+[31m[1mAssertionError[22m: expected [ 'needs_review' ] to include 'uncertain'[39m
+[36m [2m❯[22m src/evals/answer-evaluation-quality.live.test.ts:[2m29:45[22m[39m
+    [90m 27|[39m     console[33m.[39m[34minfo[39m([32m`Human label · [39m[36m${[39mevaluationCase[33m.[39mhumanRationale[36m}[39m[32m\n`[39m)[33m;[39m
+    [90m 28|[39m
+    [90m 29|[39m     [34mexpect[39m(evaluationCase[33m.[39mexpectedVerdicts)[33m.[39m[34mtoContain[39m(result[33m.[39mverdict)[33m;[39m
+    [90m   |[39m                                             [31m^[39m
+    [90m 30|[39m     [34mexpect[39m(result[33m.[39mfeedback)[33m.[39mnot[33m.[39m[34mtoMatch[39m(forbiddenClaims)[33m;[39m
+    [90m 31|[39m     [34mexpect[39m(result[33m.[39mfeedback[33m.[39mlength)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m15[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m7 passed[39m[22m[90m (8)[39m
+[2m   Start at [22m 09:04:55
+[2m   Duration [22m 15.57s[2m (transform 56ms, setup 0ms, import 40ms, tests 15.40s, environment 0ms)[22m
+
+
+Exit code: 1

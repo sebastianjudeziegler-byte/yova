@@ -1,0 +1,9 @@
+{
+  "run": 34381102335,
+  "job": 102565879131,
+  "head": "427d3357c71b703c1a2c4fd6c4f1eaaf9e933cfb",
+  "testedMerge": "a2f3adea7ff3d4eff1ce0fb8ae7376b8ae6739f4",
+  "artifact": 10116220008,
+  "sha256": "4f646a2c077aa3924bdc0e2ced38352d4a3035eff6ebf7d0d7882a14649a54dc",
+  "meaning": "Diagnostic capture success is not a passing live gate; inspect per-test JSON. Main src/lib unchanged e03a082; eval expectations from Brief 0 d108e89."
+}

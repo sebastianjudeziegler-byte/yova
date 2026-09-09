@@ -121,10 +121,12 @@ export function evaluatePlanDraft(
     check(
       "coverage_map",
       "Every mapped topic is scheduled or explicitly deferred",
-      knownTopicIds.size > 0 && accountedTopics === knownTopicIds.size && hasOnlyKnownTopics,
+      !request.knowledgeMap || (knownTopicIds.size > 0 && accountedTopics === knownTopicIds.size && hasOnlyKnownTopics),
       0,
       true,
-      `${accountedTopics} of ${knownTopicIds.size} topics accounted for; ${scheduledTopicIds.size} scheduled and ${deferredTopicIds.size} deferred`,
+      request.knowledgeMap
+        ? `${accountedTopics} of ${knownTopicIds.size} topics accounted for; ${scheduledTopicIds.size} scheduled and ${deferredTopicIds.size} deferred`
+        : "No topic map supplied; mapped coverage is not applicable",
     ),
     check("explainability", "Every method has a meaningful reason", draft.sessions.every((session) => session.methodReason.trim().length >= 20), 10, false, "Method reasons are visible to the learner"),
     check("distinct_objectives", "Sessions are not repetitive", uniqueObjectives === draft.sessions.length, 5, false, `${uniqueObjectives} distinct objectives across ${draft.sessions.length} sessions`),

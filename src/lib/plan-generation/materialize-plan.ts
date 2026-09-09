@@ -1,3 +1,4 @@
+import { normalPlanAmountLabel } from "@/lib/plan-generation/learner-plan-copy";
 import { makeUuid, type LearningPlan } from "@/lib/domain";
 import {
   GeneratedPlanDraftSchema,
@@ -264,17 +265,6 @@ function validateNormalPlanEnvelopeCompositionForDraft(
   return composition;
 }
 
-function normalPlanAmountLabel(
-  targetCount: number,
-  evidenceCount: number,
-  minutes: number,
-) {
-  return [
-    `${targetCount} focused ${targetCount === 1 ? "target" : "targets"}`,
-    `${evidenceCount} evidence ${evidenceCount === 1 ? "check" : "checks"}`,
-    `about ${minutes} min`,
-  ].join(" + ");
-}
 
 function sameOrderedValues(left: readonly string[], right: readonly string[]) {
   return left.length === right.length

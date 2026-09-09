@@ -1,0 +1,35 @@
+Supplemental single-case verification after complete gate. Does not replace its result.
+Command: ["node", "--env-file=.env.local", "node_modules/vitest/vitest.mjs", "run", "src/evals/plan-session-journey.live.test.ts", "--maxWorkers=1", "--retry=0", "--testNamePattern", "'One\\ product\\-rule\\ skill\\ in\\ short\\ sessi\u2026'", "--reporter=default", "--reporter=./scripts/live-gate/vitest-reporter.mjs"]
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/plan-session-journey.live.test.ts (5 tests | 1 failed | 4 skipped) 26776ms
+     ↓ the requested journey exists
+     × 'One product-rule skill in short sessi…' 26775ms
+     ↓ 'World War I unit guide in short sessi…'
+     ↓ 'Full beginner calculus pathway'
+     ↓ 'History essay using outside sources'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/plan-session-journey.live.test.ts:58:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 skipped (5)
+   Start at  23:50:53
+   Duration  27.21s (transform 369ms, setup 0ms, import 342ms, tests 26.78s, environment 0ms)
+
+
+Exit code: 1

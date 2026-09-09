@@ -1,0 +1,29 @@
+{
+  "serial": true,
+  "runnerRetries": 0,
+  "command": [
+    "node",
+    "node_modules/@playwright/test/cli.js",
+    "test",
+    "e2e/calendar-journeys.spec.ts",
+    "e2e/calendar-recurring.spec.ts",
+    "e2e/calendar-tab.spec.ts",
+    "e2e/core-learning-loop.spec.ts",
+    "--grep",
+    "two simultaneous tabs|concurrent edits to a recurring series|finishing a quick-add plan|a confident misconception|a new topic is taught",
+    "--config",
+    "playwright.brief05-verification.config.ts"
+  ],
+  "results": [
+    {
+      "revision": "e03a082659f51172c0b06bf84daffdd5599ac773",
+      "label": "main",
+      "exitCode": 1
+    },
+    {
+      "revision": "e978f36bd0e3684f0b3595d6c2379da3e2686d0a",
+      "label": "branch",
+      "exitCode": 1
+    }
+  ]
+}

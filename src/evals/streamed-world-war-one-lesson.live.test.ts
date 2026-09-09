@@ -92,9 +92,20 @@ describe.skipIf(!liveEvaluationEnabled)("live streamed World War I lesson", () =
     expect(lessonResult.wordCount).toBeGreaterThanOrEqual(120);
     expect(lessonResult.wordCount).toBeLessThanOrEqual(lessonBudget.maximumWords);
     expect(lessonMarkdown).toMatch(/alliance/i);
-    expect(lessonMarkdown).toMatch(/Sarajevo|Franz Ferdinand/i);
-    expect(lessonMarkdown).toMatch(/1914/);
-    expect(lessonMarkdown).toMatch(/mobiliz|declaration of war/i);
+    expect(lessonMarkdown).toMatch(/prewar|before (?:the )?(?:1914|World War I|First World War)/i);
+    // Since the method-aware cycles in b8f5e102 (Sep 1), the first
+    // teaching block owns its assigned claims, not the entire session map.
+    // Later outbreak details remain required when this block actually owns
+    // them; the first prewar-alliance block must explain its own causal model.
+    expect(lessonMarkdown).toMatch(/Europe|European/i);
+    expect(lessonMarkdown).toMatch(/rival|commitment|tension|bloc/i);
+    const assignedClaims = instruction.lessonBrief.essentialIdeas.join(" ");
+    if (/Sarajevo|assassination/i.test(assignedClaims)) {
+      expect(lessonMarkdown).toMatch(/Sarajevo|Franz Ferdinand/i);
+    }
+    if (/mobiliz|declaration/i.test(assignedClaims)) {
+      expect(lessonMarkdown).toMatch(/mobiliz|declaration of war/i);
+    }
     expect(lessonMarkdown).not.toMatch(/click (continue|next)|confidence rating|answer key/i);
   }, 120_000);
 });

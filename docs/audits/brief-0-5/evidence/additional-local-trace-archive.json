@@ -1,0 +1,171 @@
+{
+  "archive": "/private/tmp/yova-brief05-additional-browser-traces",
+  "files": [
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-session-ed16a-m-its-exact-successor-route-mobile-chromium/video.webm",
+      "bytes": 55958,
+      "sha256": "98325fa15dbedc3159e754c2abebabbd3de141123dcc73c7cc7774c6cca8dc8d"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-session-ed16a-m-its-exact-successor-route-mobile-chromium/trace.zip",
+      "bytes": 57098,
+      "sha256": "995d7832d9f8f40fb371c74a04604339e485251a37b4af92ac744637142425dc"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/video.webm",
+      "bytes": 61598,
+      "sha256": "e7d205a50abdbd5672be5724218652691818e8d8eb29d9bf69eefaae4fd5c5e6"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/trace.zip",
+      "bytes": 56957,
+      "sha256": "d983728c380ca9c7fee17b1fbc85f006c7b713c3d4600589a9b6bb6721414d6e"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/video.webm",
+      "bytes": 1246939,
+      "sha256": "cd81b68306a4c18be0d59361765398f44c52128167b816f54c04b3c5be6120e6"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/trace.zip",
+      "bytes": 10755664,
+      "sha256": "65316f5fd17459d476c1c8b6b5cb4b5808e4d4b3015e518c8d22f3cfe51bf15c"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/video.webm",
+      "bytes": 15372904,
+      "sha256": "a177001a05944fc846181231d3372615a1fea5fdc2b3bdd389d683c1da563b92"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/trace.zip",
+      "bytes": 13348071,
+      "sha256": "d733823832afc2dd7e83c27374d2d10fdc0a8ab03c24dce9507219170c52728e"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-multi-5bbbb-cision-from-Add-to-Learning-mobile-chromium/trace.zip",
+      "bytes": 3718,
+      "sha256": "30def41bafecf1ffc3814e3988d81b5123a40d3cab6a142b0544552120ab651a"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-map-rev-8568c-cement-uses-the-revised-map-mobile-chromium/video.webm",
+      "bytes": 60914,
+      "sha256": "80d8ad5446e8d64bfa59ce956a1cd0a4005db6952572cc2ae74b1cba4a628b53"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-map-rev-8568c-cement-uses-the-revised-map-mobile-chromium/trace.zip",
+      "bytes": 57198,
+      "sha256": "a218c02d194a0f9f6ba1eccf588930b4643ce88de0bece34bf2cd6a58ffa83c3"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-materia-be74c-les-and-YouTube-transcripts-mobile-chromium/video.webm",
+      "bytes": 64629,
+      "sha256": "23495e646cdcc1906cd94971c2b8b0e38288929305f15b9f50184c7ef8427699"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-materia-be74c-les-and-YouTube-transcripts-mobile-chromium/trace.zip",
+      "bytes": 56779,
+      "sha256": "03cb657903780f85a3f074245aa1217bf86f78c10927b98ea0f72a35884bc2a3"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/video.webm",
+      "bytes": 1574674,
+      "sha256": "6666071ecaefc53b5da316126080165a16e98c499df540ee468efe4abc5be3f8"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/trace.zip",
+      "bytes": 14693641,
+      "sha256": "3ca685ae5eecadc62982d57c687adbb60a0977f970cb88b61822e636888d4304"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-pro-20375-on-and-creation-path-usable-mobile-chromium/trace.zip",
+      "bytes": 2406,
+      "sha256": "6ac127a81033b1be157b34af00d609740e8ef529f3cf3f2fcfa412f13a353f02"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/video.webm",
+      "bytes": 1082870,
+      "sha256": "c7773811099251d96b0e692e429c9c4d83a87337ce54c9bd129a182ac12063df"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/trace.zip",
+      "bytes": 12365198,
+      "sha256": "8e1117c42e2655f610c7c979f34a0b64492ac0b0848c0553cfc6f6609b9dd4ab"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-plann-3c2f1-an-from-YOVA-s-saved-inputs-mobile-chromium/video.webm",
+      "bytes": 73221,
+      "sha256": "77118c8c9c6821669c45e4ab68796d48865c9dd50693e3b63980ff5f4ea15269"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-plann-3c2f1-an-from-YOVA-s-saved-inputs-mobile-chromium/trace.zip",
+      "bytes": 57745,
+      "sha256": "58064bf96d543b8d59244d7808037725d89d1f089e431c1c0409ddefd45df593"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/video.webm",
+      "bytes": 740708,
+      "sha256": "fca98344cc06ce32aee11eda798f0011d6566f30214d82bb8677e932633eaecc"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/trace.zip",
+      "bytes": 7875025,
+      "sha256": "39bab927a629c24e7106253bde00011a56d6499ece6a94fcfb14a48eaec6d071"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-finishi-d4769-d-target-as-exact-next-work-mobile-chromium/video.webm",
+      "bytes": 1821834,
+      "sha256": "89a7e8c9e82d6d069280946593f6d7fce30a2a310458d941fe412721ef10925b"
+    },
+    {
+      "path": "ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-finishi-d4769-d-target-as-exact-next-work-mobile-chromium/trace.zip",
+      "bytes": 16770968,
+      "sha256": "fa2b9ca7f26df8eb890e70b2ac82ad6406fea61b069d2c5baf75f36c0fec1afa"
+    },
+    {
+      "path": "ordinary-browser-followup/study-profile/artifacts/study-profile-YOVA-Study-P-58d93-able-on-common-phone-widths-mobile-chromium/trace.zip",
+      "bytes": 11926965,
+      "sha256": "59bbf8a659c2b0355e56e93d06b2387b3966adea110306923ad8bb63449ccdce"
+    },
+    {
+      "path": "browser-comparison/branch/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/video.webm",
+      "bytes": 816205,
+      "sha256": "6bf1994643d8a5bd83e9b2987df5bddbf5bab258ef66eb4b0ab867109d25ab00"
+    },
+    {
+      "path": "browser-comparison/branch/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/trace.zip",
+      "bytes": 10046137,
+      "sha256": "b77262ca996c61284501bcb5f6f479f2f175fcbc0c7b35ae5e6bb54457704898"
+    },
+    {
+      "path": "browser-comparison/branch/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/video-1.webm",
+      "bytes": 684740,
+      "sha256": "2f06f863d0ae80c9fb2ef523a9a1a091ae9af934cad292ae6dc190c440710682"
+    },
+    {
+      "path": "browser-comparison/main/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/video.webm",
+      "bytes": 801243,
+      "sha256": "c230697b50e0cdd4a49f818c00293614c1ad1a4e46f332d89fb40d490e87d212"
+    },
+    {
+      "path": "browser-comparison/main/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/trace.zip",
+      "bytes": 9636185,
+      "sha256": "37d185bab1541edf309e3c3828b135d43aa3fdb7b0a9f8f607fad0397c8bf36f"
+    },
+    {
+      "path": "browser-comparison/main/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/video-1.webm",
+      "bytes": 727017,
+      "sha256": "1a4761385e79996cb75eb9beb8c13c0504de561a0a4702318b5424d3a17530ee"
+    },
+    {
+      "path": "browser-comparison/main/artifacts/core-learning-loop-a-confi-40513-thout-a-duplicate-follow-up-desktop-chromium/video.webm",
+      "bytes": 1144586,
+      "sha256": "061e47894289f9b796d3492a9baebed03b758e0bb67783f42307ad12e9f57c10"
+    },
+    {
+      "path": "browser-comparison/main/artifacts/core-learning-loop-a-confi-40513-thout-a-duplicate-follow-up-desktop-chromium/trace.zip",
+      "bytes": 11599241,
+      "sha256": "83f6f4f3c2d0b957f9b0c966115c9fc5e66e5d789060c31cb297795edbf7da4a"
+    }
+  ],
+  "note": "Raw heavyweight browser traces/videos remain local. Reports, screenshots, and error contexts are published."
+}

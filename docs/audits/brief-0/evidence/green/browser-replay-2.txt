@@ -1,0 +1,16 @@
+Fresh-server replay after full-suite server memory restarts. No assertion, timeout, or heap-setting changes.
+Command: ["node", "node_modules/@playwright/test/cli.js", "test", "e2e/add-to-yova.spec.ts", "--project", "mobile-chromium", "--grep", "a\\ deadline\\ can\\ live\\ in\\ Calendar,\\ be\\ completed,\\ and\\ stay\\ out\\ of\\ Learning", "--config", "playwright.brief0-verification.config.ts"]
+[WebServer] (node:87075) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:87076) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:87079) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [mobile-chromium] › e2e/add-to-yova.spec.ts:17:5 › a deadline can live in Calendar, be completed, and stay out of Learning (7.1s)
+
+  1 passed (12.0s)
+
+Exit code: 0

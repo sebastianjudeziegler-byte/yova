@@ -1,0 +1,8 @@
+Host power-log observation (read-only pmset -g log; local timezone Europe/London)
+
+2026-09-09 10:17:07 +0100 Sleep: Entering Sleep state due to Clamshell Sleep.
+2026-09-09 10:33:41 +0100 DarkWake: SleepService, followed by sleep at 10:34:03.
+2026-09-09 10:49:37 +0100 DarkWake: maintenance wake.
+2026-09-09 10:50:36 +0100 Wake: DarkWake to FullWake due to UserActivity Assertion.
+
+This overlaps the recurring-calendar test whose nominal 30-second timeout took 17.2 wall-clock minutes, and the calendar-safety server startup that timed out without collecting any test. It does not explain the earlier 10:12 desktop calendar-journeys failure. No power setting was changed. Scheduling tests still use their fixed test clock; this is host suspension, not scheduling-clock drift.

@@ -1,0 +1,118 @@
+[WebServer] (node:13629) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:13630) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 18 tests using 1 worker
+
+(node:13647) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop-chromium] › e2e/calendar-tab.spec.ts:23:5 › Calendar exposes Week and Agenda surfaces with bounded keyboard navigation (13.1s)
+  ✓   2 [desktop-chromium] › e2e/calendar-tab.spec.ts:69:5 › quick add confirms its interpretation, persists by account, and can be undone (17.1s)
+  ✓   3 [desktop-chromium] › e2e/calendar-tab.spec.ts:120:5 › quick add clamps an overlong title before confirmation and persists without crashing (4.3s)
+  ✓   4 [desktop-chromium] › e2e/calendar-tab.spec.ts:141:5 › exiting a quick-add plan draft returns to Calendar without losing or duplicating the manual deadline (4.4s)
+  ✘   5 [desktop-chromium] › e2e/calendar-tab.spec.ts:164:5 › finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome (34.4s)
+(node:14050) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   6 [desktop-chromium] › e2e/calendar-tab.spec.ts:200:5 › authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-in time adjustment stay connected (12.9s)
+  ✓   7 [desktop-chromium] › e2e/calendar-tab.spec.ts:250:5 › Calendar Start opens the exact ready session and fails closed on an ambiguous legacy plan (21.6s)
+  ✓   8 [desktop-chromium] › e2e/calendar-tab.spec.ts:278:5 › a future overloaded-day issue edits only that date's availability (6.0s)
+  ✓   9 [desktop-chromium] › e2e/calendar-tab.spec.ts:315:5 › learner-owned blocks resize and suggested moves become pinned only after approval (7.4s)
+(node:14332) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  10 [mobile-chromium] › e2e/calendar-tab.spec.ts:23:5 › Calendar exposes Week and Agenda surfaces with bounded keyboard navigation (4.8s)
+  ✓  11 [mobile-chromium] › e2e/calendar-tab.spec.ts:69:5 › quick add confirms its interpretation, persists by account, and can be undone (9.8s)
+  ✓  12 [mobile-chromium] › e2e/calendar-tab.spec.ts:120:5 › quick add clamps an overlong title before confirmation and persists without crashing (5.3s)
+  ✓  13 [mobile-chromium] › e2e/calendar-tab.spec.ts:141:5 › exiting a quick-add plan draft returns to Calendar without losing or duplicating the manual deadline (6.6s)
+  ✘  14 [mobile-chromium] › e2e/calendar-tab.spec.ts:164:5 › finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome (11.6s)
+(node:14567) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  15 [mobile-chromium] › e2e/calendar-tab.spec.ts:200:5 › authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-in time adjustment stay connected (8.4s)
+  ✓  16 [mobile-chromium] › e2e/calendar-tab.spec.ts:250:5 › Calendar Start opens the exact ready session and fails closed on an ambiguous legacy plan (10.4s)
+  ✓  17 [mobile-chromium] › e2e/calendar-tab.spec.ts:278:5 › a future overloaded-day issue edits only that date's availability (6.9s)
+  ✓  18 [mobile-chromium] › e2e/calendar-tab.spec.ts:315:5 › learner-owned blocks resize and suggested moves become pinned only after approval (11.0s)
+
+
+  1) [desktop-chromium] › e2e/calendar-tab.spec.ts:164:5 › finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Skip for now' })
+
+
+      177 |   } else {
+      178 |     await page.getByRole("button", { name: "Continue to placement check" }).click();
+    > 179 |     await page.getByRole("button", { name: "Skip for now" }).click();
+          |                                                              ^
+      180 |   }
+      181 |   await expect(page.getByRole("heading", { name: "Everything YOVA will use" })).toBeVisible();
+      182 |   await page.getByRole("button", { name: "Generate my plan" }).click();
+        at <repo>/e2e/calendar-tab.spec.ts:179:62
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mobile-chromium] › e2e/calendar-tab.spec.ts:164:5 › finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: 'Your plan' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('heading', { name: 'Your plan' })
+
+
+      183 |   await expect(page.getByText("Plan ready")).toBeVisible();
+      184 |   await page.getByRole("button", { name: "Use this plan" }).click();
+    > 185 |   await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
+          |                                                                  ^
+      186 |
+      187 |   await expect.poll(() => quickAddPlanCommitState(page)).toMatchObject({
+      188 |     planCount: 1,
+        at <repo>/e2e/calendar-tab.spec.ts:185:66
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [desktop-chromium] › e2e/calendar-tab.spec.ts:164:5 › finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome 
+    [mobile-chromium] › e2e/calendar-tab.spec.ts:164:5 › finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome 
+  16 passed (3.7m)
+
+Exit code: 1

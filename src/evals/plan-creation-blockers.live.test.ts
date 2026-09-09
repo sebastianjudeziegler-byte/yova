@@ -1,4 +1,5 @@
 import { writeFileSync } from "node:fs";
+import { liveFixturePath } from "@/evals/live-fixtures";
 import { describe, expect, test, vi } from "vitest";
 import { auditNow, auditDuration, shortDeadlineRequest } from "@/evals/plan-creation-blocker-cases";
 import { generateMapDiagnostic, applyDiagnosticAnswers } from "@/lib/diagnostics/map-diagnostic";
@@ -34,8 +35,20 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_PLAN_BLOCKERS !== "1")("live provider 
     const composition = composeNormalPlanEnvelopes({request:revised,now:auditNow,durationContext:auditDuration(60),learningIntentRecommendation:{intent:"learn",basis:"Teach untested topics and verify demonstrated ATP."}});
     const fill = await generateNormalPlanFillWithOpenAI({request:revised,composition,now:auditNow});
     const plan = buildNormalPlanFromFixedEnvelope({request:revised,composition,now:auditNow,fill:fill.fill,methodContext});
-    expect(plan.sessions.find(session=>session.topicIds?.includes(retained!.id))?.learningMode).toBe("study");
-    console.info(JSON.stringify({case:"live-correction",questions:diagnostic.questions,learnerView:{title:plan.title,rationale:plan.rationale,knownTopic:retained!.title,knownTopicLabel:"Quick verification",sessions:plan.sessions.map(({title,method,methodReason,objective,completionEvidence})=>({title,method,methodReason,objective,completionEvidence}))}}));
+    // Since d7d772b (2026-08-27), confirmed gaps outrank demonstrated topics
+    // under a fixed capacity; the latter may be explicitly deferred.
+    const knownTopic = plan.knowledgeMap!.topics.find(topic => topic.id === retained!.id)!;
+    expect(knownTopic.title).toBe(retained!.title);
+    expect(knownTopic.initialEvidence).toEqual(scored.map.topics[0]!.initialEvidence);
+    const verificationSessions = plan.sessions.filter(session => session.topicIds?.includes(knownTopic.id));
+    if (verificationSessions.length > 0) {
+      expect(verificationSessions.every(session => session.learningMode === "study")).toBe(true);
+      expect(knownTopic.deferred).toBeNull();
+    } else {
+      expect(knownTopic.deferred?.reason).toMatch(/deadline|capacity|session maximum|availability|plan boundary/i);
+      expect(knownTopic.deferred!.reason.length).toBeGreaterThan(20);
+    }
+    console.info(JSON.stringify({case:"live-correction",questions:diagnostic.questions,learnerView:{title:plan.title,rationale:plan.rationale,knownTopic:knownTopic.title,knownEvidence:knownTopic.initialEvidence?.outcome,deferredReason:knownTopic.deferred?.reason??null,sessions:plan.sessions.map(({title,method,methodReason,objective,completionEvidence})=>({title,method,methodReason,objective,completionEvidence}))}}));
   },150_000);
 
   test("a ten-minute triage generates a runnable lesson on its saved topic",async()=>{
@@ -47,7 +60,7 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_PLAN_BLOCKERS !== "1")("live provider 
     const session = plan.sessions[0]!;
     const context = {...buildPreviewSessionContext({plan,session,onboardingAnswers:[],completions:[],interruptions:[]}),materials:[]};
     const generated = await generateProductionSessionWithOpenAI(context);
-    writeFileSync("docs/audits/2026-09-07-plan-creation/consolidated/evidence/live-ten-minute-provider.json",JSON.stringify({plan,generated},null,2));
+    writeFileSync(liveFixturePath("deadline", "live-ten-minute-provider.json"),JSON.stringify({plan,generated},null,2));
     const resource = toSessionResource(CachedGeneratedSessionSchema.parse({
       ...generated.draft, schemaVersion:generated.deliveryInstructions?17:15,
       routeRevisionId:session.studyRoute!.identity.routeRevisionId,
@@ -62,6 +75,6 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_PLAN_BLOCKERS !== "1")("live provider 
     expect(resource.topicIds).toEqual(session.topicIds);
     expect(generated.draft.activities.filter(activity=>activity.requiredForCompletion).reduce((sum,activity)=>sum+activity.estimatedMinutes,0)).toBeLessThanOrEqual(10);
     console.info(JSON.stringify({case:"live-ten-minute",title:session.title,method:session.method,objective:session.objective,resource}));
-    writeFileSync("docs/audits/2026-09-07-plan-creation/consolidated/evidence/live-ten-minute.json",JSON.stringify({plan,resource},null,2));
+    writeFileSync(liveFixturePath("deadline", "live-ten-minute.json"),JSON.stringify({plan,resource},null,2));
   },120_000);
 });

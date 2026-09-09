@@ -1,0 +1,16 @@
+Main e03a082 complete baseline 3/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+ ✓ src/evals/launch-lesson-streams.live.test.ts (2 tests) 16033ms
+     ✓ streams the validated calculus teaching  5358ms
+     ✓ streams the validated osmosis teaching  10674ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  23:09:49
+   Duration  16.32s (transform 160ms, setup 0ms, import 218ms, tests 16.03s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-3/launch-lesson-streams.json
+
+Exit code: 0

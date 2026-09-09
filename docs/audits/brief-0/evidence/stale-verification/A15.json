@@ -1,0 +1,58 @@
+{
+  "cases": [
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > the requested journey exists",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > the requested journey exists",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.",
+          "generationStats": {
+            "validationIssueCode": "session_recovery_structure",
+            "failedValidator": "session_structure",
+            "repairDetail": "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “The formula (fg)' = f'g + fg'”. Later targets that must remain exact entries in deferredContent: “Identifying the two factors and their derivatives”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. Keep exactly one completion-required recognition check after the final teaching block and bind its full learner surface to one active target, topic, and source boundary. The compact teaching recovery did not match its bounded content schema.",
+            "cause": {
+              "message": "invalid_structure"
+            }
+          }
+        }
+      ],
+      "durationMs": 26775.225417
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'History essay using outside sources'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'History essay using outside sources'",
+      "state": "skipped",
+      "errors": [],
+      "durationMs": 0
+    }
+  ],
+  "errors": []
+}

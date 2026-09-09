@@ -1,0 +1,12 @@
+Real-provider canary: src/lib/diagnostics/map-diagnostic.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  21:25:37
+   Duration  34.94s (transform 78ms, setup 0ms, import 53ms, tests 34.82s, environment 0ms)
+
+
+Exit code: 0

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { freezePlanClock, PLAN_FIXED_NOW } from "./helpers/frozen-clock";
 
 const onboardingAnswers = [
   "Show a short recommendation and alternatives",
@@ -15,7 +16,7 @@ const onboardingAnswers = [
 ] as const;
 
 test("a deadline can live in Calendar, be completed, and stay out of Learning", async ({ page }) => {
-  const futureDeadline = new Date();
+  const futureDeadline = new Date(PLAN_FIXED_NOW);
   futureDeadline.setDate(futureDeadline.getDate() + 30);
   const expectedDeadline = [
     futureDeadline.getFullYear(),
@@ -292,6 +293,7 @@ async function inspectOutcomeInWeek(
 }
 
 async function openPreviewApp(page: Page) {
+  await freezePlanClock(page);
   await page.goto("/?qa=preview");
   await page.getByRole("button", { name: "Build my plan" }).click();
   await page.getByLabel("First name").fill("Learner");

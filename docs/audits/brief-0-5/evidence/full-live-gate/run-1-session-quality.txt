@@ -1,0 +1,126 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/session-quality.live.test.ts (20 tests | 19 failed) 523ms
+     ✓ the requested case exists 1ms
+     × 'Biology teaching from learner notes' 378ms
+     × 'Bioenergetics multi-target retrieval …' 7ms
+     × 'Fifteen-minute temperature and reacti…' 12ms
+     × 'Fifteen-minute first product-rule les…' 10ms
+     × 'Mapped product-rule and chain-rule fi…' 9ms
+     × 'Production-shaped derivative-foundati…' 10ms
+     × 'World War I teaching for a complete b…' 8ms
+     × 'Mapped 45-minute World War I baseline…' 8ms
+     × 'Calculus repair after a weak check' 4ms
+     × 'Self-contained delayed calculus review' 4ms
+     × 'History writing outside YOVA' 10ms
+     × 'Beginner JavaScript with fading suppo…' 8ms
+     × 'General-learning finance application' 7ms
+     × 'Fifteen-minute vocabulary review' 3ms
+     × 'Startup funding foundations for a new…' 9ms
+     × 'History reasoning from a primary-sour…' 7ms
+     × 'Literature close reading from a short…' 8ms
+     × 'Spanish conversation with supported t…' 8ms
+     × 'Teaching from a thin biology study gu…' 12ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 19 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Biology teaching from learner notes'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'World War I teaching for a complete b…'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'History reasoning from a primary-sour…'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Literature close reading from a short…'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Teaching from a thin biology study gu…'
+SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/19]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Bioenergetics multi-target retrieval …'
+SessionGenerationFailure: OpenAI did not return a complete, safe guided session after the bounded study attempts.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/19]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Fifteen-minute temperature and reacti…'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Fifteen-minute first product-rule les…'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Mapped 45-minute World War I baseline…'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Beginner JavaScript with fading suppo…'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'General-learning finance application'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Startup funding foundations for a new…'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Spanish conversation with supported t…'
+SessionGenerationFailure: OpenAI could not prepare the streamed teaching structure.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/19]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Production-shaped derivative-foundati…'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'History writing outside YOVA'
+SessionGenerationFailure: OpenAI could not prepare the guided session.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/19]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Calculus repair after a weak check'
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Fifteen-minute vocabulary review'
+SessionGenerationFailure: OpenAI did not return a complete subject lesson after one repair attempt.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/19]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Self-contained delayed calculus review'
+SessionGenerationFailure: OpenAI did not return a safe scheduled retrieval after one repair attempt. The scheduled-retrieval provider request failed before YOVA received a usable result.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/19]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  19 failed | 1 passed (20)
+   Start at  12:44:12
+   Duration  792ms (transform 383ms, setup 0ms, import 196ms, tests 523ms, environment 0ms)
+
+
+Exit code: 1

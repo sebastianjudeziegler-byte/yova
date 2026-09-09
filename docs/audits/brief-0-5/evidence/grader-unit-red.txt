@@ -1,0 +1,86 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/lib/openai/answer-evaluator.test.ts (7 tests | 4 failed) 68ms
+     × withholds secure evidence when the assessment lacks the required observations 3ms
+     × does not call an under-specified response secure even when the provider verdict does 1ms
+     × returns no missing details for a complete answer when only optional reference facts are absent 1ms
+     × keeps a genuinely missing required idea visible and prevents secure evidence 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/answer-evaluator.test.ts > answer evaluation calibration > withholds secure evidence when the assessment lacks the required observations
+AssertionError: expected 'secure' to be 'uncertain' // Object.is equality
+
+Expected: "uncertain"
+Received: "secure"
+
+ ❯ src/lib/openai/answer-evaluator.test.ts:116:28
+    114|     const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/an…
+    115|     const result = await evaluateAnswerWithOpenAI(request);
+    116|     expect(result.verdict).toBe("uncertain");
+       |                            ^
+    117|     expect(result.feedback).toMatch(/observations|not supplied/i);
+    118|     expect(result.matchedIdeas).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/lib/openai/answer-evaluator.test.ts > answer evaluation calibration > does not call an under-specified response secure even when the provider verdict does
+AssertionError: expected 'secure' to be 'uncertain' // Object.is equality
+
+Expected: "uncertain"
+Received: "secure"
+
+ ❯ src/lib/openai/answer-evaluator.test.ts:130:28
+    128|     const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/an…
+    129|     const result = await evaluateAnswerWithOpenAI(request);
+    130|     expect(result.verdict).toBe("uncertain");
+       |                            ^
+    131|     expect(result.feedback).not.toMatch(/answer establishes/i);
+    132|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/lib/openai/answer-evaluator.test.ts > answer evaluation calibration > returns no missing details for a complete answer when only optional reference facts are absent
+AssertionError: expected [ 'Earlier calls return.' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Earlier calls return.",
++ ]
+
+ ❯ src/lib/openai/answer-evaluator.test.ts:146:33
+    144|     const result = await evaluateAnswerWithOpenAI(request);
+    145|     expect(result.verdict).toBe("secure");
+    146|     expect(result.missingIdeas).toEqual([]);
+       |                                 ^
+    147|     expect(result.matchedIdeas).toContain("The base case stops recursi…
+    148|     expect(result.feedback).not.toMatch(/missing|unwinding/i);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/lib/openai/answer-evaluator.test.ts > answer evaluation calibration > keeps a genuinely missing required idea visible and prevents secure evidence
+AssertionError: expected 'secure' to be 'needs_review' // Object.is equality
+
+Expected: "needs_review"
+Received: "secure"
+
+ ❯ src/lib/openai/answer-evaluator.test.ts:158:28
+    156|     const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/an…
+    157|     const result = await evaluateAnswerWithOpenAI(request);
+    158|     expect(result.verdict).toBe("needs_review");
+       |                            ^
+    159|     expect(result.missingIdeas).toContain("Colonists disputed taxation…
+    160|     expect(result.feedback).not.toMatch(/establishes all/i);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 3 passed (7)
+   Start at  08:30:59
+   Duration  165ms (transform 30ms, setup 0ms, import 26ms, tests 68ms, environment 0ms)
+

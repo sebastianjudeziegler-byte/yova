@@ -1,0 +1,25 @@
+[WebServer] (node:24715) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:24716) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 1 worker
+
+(node:24729) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop-chromium] › e2e/study-profile-report-compatibility.spec.ts:5:7 › YOVA Study Profile private report compatibility › keeps report credentials server-side until email confirmation (10.0s)
+[WebServer] (node:24776) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:24788) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [desktop-chromium] › e2e/study-profile-report-compatibility.spec.ts:52:7 › YOVA Study Profile private report compatibility › keeps unknown-token failures generic through the API and report route (6.3s)
+(node:24798) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 [mobile-chromium] › e2e/study-profile-report-compatibility.spec.ts:5:7 › YOVA Study Profile private report compatibility › keeps report credentials server-side until email confirmation (6.5s)
+[WebServer] (node:24856) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:24855) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  4 [mobile-chromium] › e2e/study-profile-report-compatibility.spec.ts:52:7 › YOVA Study Profile private report compatibility › keeps unknown-token failures generic through the API and report route (2.5s)
+
+  4 passed (32.5s)

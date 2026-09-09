@@ -1,0 +1,123 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'
+
+YOVA session evaluation · Mapped product-rule and chain-rule first lesson · 100/100
+Generation · gpt-5.4-mini-2026-03-17 · 12.8s · 2 attempts · 6,912 cached input tokens
+Repair trigger · The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Product rule”; “Chain rule”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_1; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.
+instruction      none · Differentiate a Product
+free_response    Product rule differentiates a product by summing u'v and uv'. · Differentiate a Product
+free_response    Chain rule differentiates a composite by multiplying outer and inner derivatives. · Differentiate a Composite
+free_response    Product rule differentiates a product by summing u'v and uv'. · Repair the first explanation
+free_response    Product rule differentiates a product by summing u'v and uv'. · Explain the corrected relationship again
+multiple_choice  Recognition transfer: Chain rule differentiates a composite by multiplying outer and inner derivatives. · Identify the Chain Rule
+reflection       none · Check today's ideas again later
+
+PASS  Activity count fits the session (10/10) · 6 focused activities; production time budget passed for 25 minutes
+PASS  Session requires active learner effort (15/15) · 5 retrieval or knowledge-check activities
+PASS  Questions include usable answers and feedback (15/15) · 5 question activities inspected
+PASS  Activities fit the learning task (15/15) · 6 of 7 activities align with problem solving
+PASS  Session moves from support into practice (10/10) · Checked teaching and question order
+PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+PASS  Known review concepts are addressed (10/10) · No prior review signal
+PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+PASS  Method briefing explains what, why, how, and done (0/0) · self_explanation for conceptual_learning
+PASS  Activities actually execute the named learning method (0/0) · Required self_explanation phases appear in order
+PASS  The session starts with the method's correct first action (0/0) · self_explanation starts with model
+PASS  Required content fits the stated time window (0/0) · 17 required and 26 total minutes inside a 25-minute window
+PASS  Every target idea has required learning evidence (0/0) · 2 essential ideas mapped to 3 required checks
+PASS  Every question includes the context needed to answer (0/0) · 5 self-contained questions inspected
+PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+PASS  Learning sessions teach before they test (0/0) · 1 modeled or streamed teaching activities inspected
+PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 3 learner-facing adjustment explanations inspected
+PASS  The session explains why it is structured this way (5/5) · 218 rationale characters
+PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+
+stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Beginner JavaScript with fading suppo…'
+
+YOVA session evaluation · Beginner JavaScript with fading support · 100/100
+Generation · gpt-5.4-mini-2026-03-17 · 13.5s · 2 attempts · 5,888 cached input tokens
+Repair trigger · The required knowledge check mapped to “map returns one output for each input by transforming every array item” does not visibly assess that essential idea. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.
+instruction      none · Transforms elements
+free_response    map returns a new array with each element transformed. · Map transforms elements
+instruction      none · Filter selects matching items
+free_response    filter returns only elements that satisfy a condition. · Filter selects matching items
+multiple_choice  Recognition transfer: filter returns only elements that satisfy a condition. · Choose the right array method
+
+PASS  Activity count fits the session (10/10) · 5 focused activities; production time budget passed for 30 minutes
+PASS  Session requires active learner effort (15/15) · 3 retrieval or knowledge-check activities
+PASS  Questions include usable answers and feedback (15/15) · 3 question activities inspected
+PASS  Activities fit the learning task (15/15) · 5 of 5 activities align with coding
+PASS  Session moves from support into practice (10/10) · Checked teaching and question order
+PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+PASS  Known review concepts are addressed (10/10) · No prior review signal
+PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+PASS  Method briefing explains what, why, how, and done (0/0) · worked_example_fading for programming
+PASS  Activities actually execute the named learning method (0/0) · Required worked_example_fading phases appear in order
+PASS  The session starts with the method's correct first action (0/0) · worked_example_fading starts with model
+PASS  Required content fits the stated time window (0/0) · 30 required and 30 total minutes inside a 30-minute window
+PASS  Every target idea has required learning evidence (0/0) · 2 essential ideas mapped to 3 required checks
+PASS  Every question includes the context needed to answer (0/0) · 3 self-contained questions inspected
+PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+PASS  Learning sessions teach before they test (0/0) · 2 modeled or streamed teaching activities inspected
+PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 1 learner-facing adjustment explanations inspected
+PASS  The session explains why it is structured this way (5/5) · 169 rationale characters
+PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+
+stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Spanish conversation with supported t…'
+
+YOVA session evaluation · Spanish conversation with supported transfer · 100/100
+Generation · gpt-5.4-mini-2026-03-17 · 11.5s · 2 attempts · 6,400 cached input tokens
+Repair trigger · The skeleton could not be finalized because its knowledge-check structure was incomplete (multiple choice: 1, typed response: 3). [
+  {
+    "origin": "array",
+    "code": "too_small",
+    "minimum": 3,
+    "inclusive": true,
+    "path": [
+      "activities"
+    ],
+    "message": "Too small: expected array to have >=3 items"
+  }
+] The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.
+instruction      none · Asking completion time
+free_response    Talk about a daily routine: use when-questions to ask the completion time of an activity. · Asking completion time
+free_response    Talk about a daily routine: answer with a complete present-tense sentence. · Answering in present tense
+free_response    Talk about a daily routine: use when-questions to ask the completion time of an activity. · Repair the first explanation
+free_response    Talk about a daily routine: use when-questions to ask the completion time of an activity. · Explain the corrected relationship again
+multiple_choice  Recognition transfer: Talk about a daily routine: answer with a complete present-tense sentence. · Choose the correct response
+
+PASS  Activity count fits the session (10/10) · 6 focused activities; production time budget passed for 20 minutes
+PASS  Session requires active learner effort (15/15) · 5 retrieval or knowledge-check activities
+PASS  Questions include usable answers and feedback (15/15) · 5 question activities inspected
+PASS  Activities fit the learning task (15/15) · 6 of 6 activities align with language
+PASS  Session moves from support into practice (10/10) · Checked teaching and question order
+PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+PASS  Known review concepts are addressed (10/10) · No prior review signal
+PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+PASS  Method briefing explains what, why, how, and done (0/0) · self_explanation for conceptual_learning
+PASS  Activities actually execute the named learning method (0/0) · Required self_explanation phases appear in order
+PASS  The session starts with the method's correct first action (0/0) · self_explanation starts with model
+PASS  Required content fits the stated time window (0/0) · 14 required and 20 total minutes inside a 20-minute window
+PASS  Every target idea has required learning evidence (0/0) · 2 essential ideas mapped to 3 required checks
+PASS  Every question includes the context needed to answer (0/0) · 5 self-contained questions inspected
+PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+PASS  Learning sessions teach before they test (0/0) · 1 modeled or streamed teaching activities inspected
+PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 1 learner-facing adjustment explanations inspected
+PASS  The session explains why it is structured this way (5/5) · 170 rationale characters
+PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+
+ ✓ src/evals/session-quality.live.test.ts (20 tests | 17 skipped) 38124ms
+     ✓ 'Mapped product-rule and chain-rule fi…'  12783ms
+     ✓ 'Beginner JavaScript with fading suppo…'  13514ms
+     ✓ 'Spanish conversation with supported t…'  11479ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed | 17 skipped (20)
+   Start at  09:20:10
+   Duration  38.37s (transform 321ms, setup 25ms, import 116ms, tests 38.12s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/final-live/run-2-session-quality.json
+
+Exit code: 0

@@ -1,0 +1,1370 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "<repo>/node_modules/@playwright/test/cli.js",
+      "test",
+      "e2e/core-learning-loop.spec.ts",
+      "--project",
+      "mobile-chromium",
+      "--grep",
+      "Ask\\ YOVA\\ turns\\ structured\\ explanations\\ and\\ math\\ into\\ readable\\ interface\\ content|Calendar\\ Agenda\\ stays\\ first\\ and\\ contained\\ at\\ a\\ 375px\\ viewport|a\\ 10\\-minute\\ outside\\ teaching\\-first\\ session\\ loads\\ its\\ built\\-in\\ method\\ lesson|a\\ fallback\\ method\\ workpad\\ resumes\\ its\\ timer\\ and\\ checked\\ targets\\ after\\ reload|a\\ multi\\-session\\ plan\\ carries\\ one\\ clear\\ source\\ decision\\ from\\ Add\\ to\\ Learning|a\\ normal\\ conceptual\\ plan\\ visibly\\ moves\\ from\\ Learn\\ to\\ later\\ Practice\\ and\\ commits\\ both\\ route\\ modes|a\\ planning\\ request\\ outage\\ still\\ produces\\ a\\ reviewable\\ plan\\ from\\ YOVA's\\ saved\\ inputs|a\\ temporary\\ AI\\ failure\\ loads\\ a\\ subject\\-specific\\ startup\\ funding\\ lesson|adjusting\\ ordinary\\ future\\ work\\ preserves\\ the\\ exact\\ scheduled\\ review\\ contract|an\\ opaque\\ class\\ label\\ is\\ stopped\\ until\\ the\\ learner\\ names\\ the\\ actual\\ calculus\\ concept|archived,\\ draft,\\ and\\ deleted\\-plan\\ projections\\ stay\\ out\\ of\\ current\\-work\\ surfaces|finishing\\ a\\ shortened\\ guided\\ lesson\\ keeps\\ every\\ deferred\\ target\\ as\\ exact\\ next\\ work|legacy\\ split\\ work\\ reopens\\ as\\ an\\ active\\ plan\\ with\\ runnable\\ ten\\-minute\\ sessions|map\\ revision\\ cannot\\ activate\\ a\\ stale\\ draft\\ and\\ fresh\\ placement\\ uses\\ the\\ revised\\ map|material\\ drop\\ zone\\ accepts\\ drag\\ gestures\\ and\\ explains\\ rejected\\ files|material\\ setup\\ clearly\\ supports\\ files,\\ articles,\\ and\\ YouTube\\ transcripts|normal\\-plan\\ review\\ changes\\ one\\ offered\\ method\\ without\\ regenerating\\ or\\ rewriting\\ other\\ routes|scheduled\\-review\\ setup\\ stays\\ fixed\\ and\\ opens\\ the\\ exact\\ active\\ or\\ Study\\ Now\\ goal|session\\ setup\\ changes\\ one\\ committed\\ method\\ and\\ generates\\ from\\ its\\ exact\\ successor\\ route|spent\\ allowance\\ still\\ permits\\ a\\ saved\\ session\\ to\\ continue|spent\\ guided\\-session\\ allowance\\ is\\ visible\\ before\\ Home\\ or\\ Calendar\\ opens\\ setup|the\\ product\\ shell\\ keeps\\ every\\ core\\ destination\\ and\\ creation\\ path\\ usable|the\\ session\\ tutor\\ stays\\ anchored\\ to\\ the\\ exact\\ learning\\ activity",
+      "--config",
+      "playwright.brief05-verification.config.ts"
+    ],
+    "configFile": "<repo>/playwright.brief05-verification.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": false,
+      "timeout": 120000,
+      "env": {
+        "YOVA_E2E": "1",
+        "AUTH_INVITE_ONLY": "false",
+        "AUTH_PASSWORD_ACCOUNTS": "false",
+        "AUTH_CAPTCHA_ENABLED": "false",
+        "AUTH_EMAIL_CODE_VERIFICATION": "false",
+        "SITE_URL": "http://127.0.0.1:3100",
+        "NEXT_PUBLIC_SUPABASE_URL": ""
+      },
+      "environmentEvidence": {
+        "providerConfigured": false,
+        "unrelatedEnvironmentOmitted": true
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "core-learning-loop.spec.ts",
+      "file": "core-learning-loop.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "an opaque class label is stopped until the learner names the actual calculus concept",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 19613,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:28:22.885Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-90f8e78b384bb13ef5d9",
+          "file": "core-learning-loop.spec.ts",
+          "line": 695,
+          "column": 5
+        },
+        {
+          "title": "a temporary AI failure loads a subject-specific startup funding lesson",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 11398,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:28:43.528Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-bd9e9d5d2dff781db0ba",
+          "file": "core-learning-loop.spec.ts",
+          "line": 767,
+          "column": 5
+        },
+        {
+          "title": "a fallback method workpad resumes its timer and checked targets after reload",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 13803,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:28:54.950Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-778de12e3a1e7f7253ba",
+          "file": "core-learning-loop.spec.ts",
+          "line": 930,
+          "column": 5
+        },
+        {
+          "title": "a 10-minute outside teaching-first session loads its built-in method lesson",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 11855,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:29:08.788Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-1365fc52995eb57a784d",
+          "file": "core-learning-loop.spec.ts",
+          "line": 1062,
+          "column": 5
+        },
+        {
+          "title": "Calendar Agenda stays first and contained at a 375px viewport",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5493,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:29:20.682Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-62ce665f1c70500cfac0",
+          "file": "core-learning-loop.spec.ts",
+          "line": 2188,
+          "column": 5
+        },
+        {
+          "title": "spent guided-session allowance is visible before Home or Calendar opens setup",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5254,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:29:26.187Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-2ef1471e66a5e9617e81",
+          "file": "core-learning-loop.spec.ts",
+          "line": 2289,
+          "column": 5
+        },
+        {
+          "title": "spent allowance still permits a saved session to continue",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 2117415,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "message": "\u001b[31mTearing down \"context\" exceeded the test timeout of 30000ms.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 14,
+                        "line": 2400
+                      },
+                      "message": "Error: page.reload: Test ended.\nCall log:\n\u001b[2m  - waiting for navigation until \"load\"\u001b[22m\n\u001b[2m    - navigated to \"http://127.0.0.1:3100/?qa=preview\"\u001b[22m\n\n\n  2398 |\n  2399 |   allowanceExhausted = true;\n> 2400 |   await page.reload();\n       |              ^\n  2401 |\n  2402 |   await expect(page.locator(\".guided-session-allowance-notice.home\")).toContainText(\n  2403 |     \"Daily guided-session allowance used\",\n    at <repo>/e2e/core-learning-loop.spec.ts:2400:14"
+                    },
+                    {
+                      "message": "Error: End of central directory record signature not found. Either not a zip file, or file is truncated."
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:29:31.449Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-spent-a-84cee-a-saved-session-to-continue-mobile-chromium/error-context.md"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-94a88ae73a7f7de065ee",
+          "file": "core-learning-loop.spec.ts",
+          "line": 2356,
+          "column": 5
+        },
+        {
+          "title": "the product shell keeps every core destination and creation path usable",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 936809,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded while setting up \"context\".\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded while setting up \"context\".\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded while setting up \"context\".\u001b[39m"
+                    },
+                    {
+                      "message": "Error: browser.newContext: Protocol error (Browser.setDownloadBehavior): Failed to find browser context for id 4B1118BA79DC1DECBFEB5DF0F2AEC126"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:04:52.733Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-pro-20375-on-and-creation-path-usable-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-pro-20375-on-and-creation-path-usable-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-8c3d27aec95f37fbd721",
+          "file": "core-learning-loop.spec.ts",
+          "line": 2421,
+          "column": 5
+        },
+        {
+          "title": "Ask YOVA turns structured explanations and math into readable interface content",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 779968,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 57,
+                        "line": 2512
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.tutor-rich-text strong')\nExpected: \u001b[32m\"Core idea:\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.tutor-rich-text strong')\u001b[22m\n\n\n  2510 |   await page.getByRole(\"button\", { name: \"Send\" }).click();\n  2511 |\n> 2512 |   await expect(page.locator(\".tutor-rich-text strong\")).toHaveText(\"Core idea:\");\n       |                                                         ^\n  2513 |   await expect(page.locator(\".tutor-rich-text .katex\")).toBeVisible();\n  2514 |   await expect(page.locator(\".tutor-rich-text li\")).toHaveCount(2);\n  2515 |   await expect(page.locator(\".tutor-rich-text\")).not.toContainText(\"**\");\n    at <repo>/e2e/core-learning-loop.spec.ts:2512:57"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:20:31.814Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-00f7d69624b54485a35a",
+          "file": "core-learning-loop.spec.ts",
+          "line": 2470,
+          "column": 5
+        },
+        {
+          "title": "the session tutor stays anchored to the exact learning activity",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 32374,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 129,
+                        "line": 4273
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.session-setup-shell, .session-shell, .method-session-shell, .session-recovery-shell').or(getByRole('button', { name: /Start this session/ }))\nExpected: visible\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 30000ms\u001b[22m\n\u001b[2m  - waiting for locator('.session-setup-shell, .session-shell, .method-session-shell, .session-recovery-shell').or(getByRole('button', { name: /Start this session/ }))\u001b[22m\n\u001b[2m  - Test timeout of 30000ms exceeded.\u001b[22m\n\n\n  4271 | async function confirmSessionSetup(page: Page) {\n  4272 |   const review = page.getByRole(\"button\", { name: /Start this session/ });\n> 4273 |   await expect(page.locator(\".session-setup-shell, .session-shell, .method-session-shell, .session-recovery-shell\").or(review)).toBeVisible({ timeout: 30_000 });\n       |                                                                                                                                 ^\n  4274 |   if (await review.isVisible()) { await review.click(); return; }\n  4275 |   if (!await page.locator(\".session-setup-shell\").isVisible()) return;\n  4276 |   await expect(page.getByRole(\"heading\", { name: \"Here is how YOVA plans to start.\" })).toBeVisible({\n    at confirmSessionSetup (<repo>/e2e/core-learning-loop.spec.ts:4273:129)\n    at <repo>/e2e/core-learning-loop.spec.ts:2566:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:33:37.834Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-f5e4a35cadcdd7553053",
+          "file": "core-learning-loop.spec.ts",
+          "line": 2518,
+          "column": 5
+        },
+        {
+          "title": "a planning request outage still produces a reviewable plan from YOVA's saved inputs",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 52658,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 14,
+                        "line": 4113
+                      },
+                      "message": "Error: page.goto: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3100/?qa=preview\", waiting until \"load\"\u001b[22m\n\n\n  4111 |\n  4112 | async function createPreviewAccount(page: Page) {\n> 4113 |   await page.goto(\"/?qa=preview\");\n       |              ^\n  4114 |   await page.getByRole(\"button\", { name: \"Build my plan\" }).click();\n  4115 |   await page.getByLabel(\"First name\").fill(\"Learner\");\n  4116 |   await page.getByLabel(\"Email address\").fill(\"learning-loop@example.com\");\n    at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)\n    at <repo>/e2e/core-learning-loop.spec.ts:2597:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:34:19.362Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-plann-3c2f1-an-from-YOVA-s-saved-inputs-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-plann-3c2f1-an-from-YOVA-s-saved-inputs-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-plann-3c2f1-an-from-YOVA-s-saved-inputs-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-9bb2208d2d3f51243c70",
+          "file": "core-learning-loop.spec.ts",
+          "line": 2589,
+          "column": 5
+        },
+        {
+          "title": "legacy split work reopens as an active plan with runnable ten-minute sessions",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 5,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 45465,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 14,
+                        "line": 4113
+                      },
+                      "message": "Error: page.goto: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3100/?qa=preview\", waiting until \"load\"\u001b[22m\n\n\n  4111 |\n  4112 | async function createPreviewAccount(page: Page) {\n> 4113 |   await page.goto(\"/?qa=preview\");\n       |              ^\n  4114 |   await page.getByRole(\"button\", { name: \"Build my plan\" }).click();\n  4115 |   await page.getByLabel(\"First name\").fill(\"Learner\");\n  4116 |   await page.getByLabel(\"Email address\").fill(\"learning-loop@example.com\");\n    at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)\n    at <repo>/e2e/core-learning-loop.spec.ts:2614:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:35:29.909Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-3f3742de48cdb67169a5",
+          "file": "core-learning-loop.spec.ts",
+          "line": 2613,
+          "column": 5
+        },
+        {
+          "title": "finishing a shortened guided lesson keeps every deferred target as exact next work",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 6,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 62281,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeEnabled\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: 'Start session', exact: true })\nExpected: enabled\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeEnabled\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: 'Start session', exact: true })\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeEnabled\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: 'Start session', exact: true })\nExpected: enabled\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeEnabled\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: 'Start session', exact: true })\u001b[22m\n\n    at <repo>/e2e/core-learning-loop.spec.ts:2802:82",
+                    "location": {
+                      "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                      "column": 82,
+                      "line": 2802
+                    },
+                    "snippet": "  2800 |\n  2801 |   await page.reload();\n> 2802 |   await expect(page.getByRole(\"button\", { name: \"Start session\", exact: true })).toBeEnabled();\n       |                                                                                  ^\n  2803 |   await page.getByRole(\"button\", { name: \"Learning\", exact: true }).click();\n  2804 |   const planCard = page.locator(\".learning-goal-card\").filter({\n  2805 |     hasText: \"Cellular Respiration Continuation\","
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 82,
+                        "line": 2802
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeEnabled\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: 'Start session', exact: true })\nExpected: enabled\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeEnabled\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: 'Start session', exact: true })\u001b[22m\n\n\n  2800 |\n  2801 |   await page.reload();\n> 2802 |   await expect(page.getByRole(\"button\", { name: \"Start session\", exact: true })).toBeEnabled();\n       |                                                                                  ^\n  2803 |   await page.getByRole(\"button\", { name: \"Learning\", exact: true }).click();\n  2804 |   const planCard = page.locator(\".learning-goal-card\").filter({\n  2805 |     hasText: \"Cellular Respiration Continuation\",\n    at <repo>/e2e/core-learning-loop.spec.ts:2802:82"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:36:32.233Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-finishi-d4769-d-target-as-exact-next-work-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-finishi-d4769-d-target-as-exact-next-work-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-finishi-d4769-d-target-as-exact-next-work-mobile-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                    "column": 82,
+                    "line": 2802
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-b1d3b16314978f74676a",
+          "file": "core-learning-loop.spec.ts",
+          "line": 2734,
+          "column": 5
+        },
+        {
+          "title": "adjusting ordinary future work preserves the exact scheduled review contract",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 37221,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 14,
+                        "line": 2948
+                      },
+                      "message": "Error: page.reload: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"load\"\u001b[22m\n\u001b[2m    - navigated to \"http://127.0.0.1:3100/?qa=preview\"\u001b[22m\n\n\n  2946 |   });\n  2947 |\n> 2948 |   await page.reload();\n       |              ^\n  2949 |   await page.getByRole(\"button\", { name: \"Learning\", exact: true }).click();\n  2950 |   const planCard = page.locator(\".learning-goal-card\").filter({ hasText: \"Plate Boundary Evidence Plan\" });\n  2951 |   await planCard.getByRole(\"button\", { name: \"Open goal\" }).click();\n    at <repo>/e2e/core-learning-loop.spec.ts:2948:14"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:37:48.247Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-625f61fe897366759655",
+          "file": "core-learning-loop.spec.ts",
+          "line": 2885,
+          "column": 5
+        },
+        {
+          "title": "scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 12864,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:38:30.577Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-d55ecccc0ea382a29e1a",
+          "file": "core-learning-loop.spec.ts",
+          "line": 3044,
+          "column": 5
+        },
+        {
+          "title": "a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 20496,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('heading', { name: 'Here is what YOVA understood.' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('heading', { name: 'Here is what YOVA understood.' })\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('heading', { name: 'Here is what YOVA understood.' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('heading', { name: 'Here is what YOVA understood.' })\u001b[22m\n\n    at beginPlanFromAdd (<repo>/e2e/core-learning-loop.spec.ts:4085:86)\n    at <repo>/e2e/core-learning-loop.spec.ts:3259:3",
+                    "location": {
+                      "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                      "column": 86,
+                      "line": 4085
+                    },
+                    "snippet": "  4083 |   await page.getByRole(\"textbox\", { name: \"Describe what you want to add\" }).fill(description);\n  4084 |   await page.getByRole(\"button\", { name: \"Organize this\" }).click();\n> 4085 |   await expect(page.getByRole(\"heading\", { name: \"Here is what YOVA understood.\" })).toBeVisible();\n       |                                                                                      ^\n  4086 |   await page.getByRole(\"button\", { name: \"Choose what YOVA should do\" }).click();\n  4087 |   await page.getByRole(\"button\", { name: /Create a plan/ }).click();\n  4088 | }"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 86,
+                        "line": 4085
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('heading', { name: 'Here is what YOVA understood.' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('heading', { name: 'Here is what YOVA understood.' })\u001b[22m\n\n\n  4083 |   await page.getByRole(\"textbox\", { name: \"Describe what you want to add\" }).fill(description);\n  4084 |   await page.getByRole(\"button\", { name: \"Organize this\" }).click();\n> 4085 |   await expect(page.getByRole(\"heading\", { name: \"Here is what YOVA understood.\" })).toBeVisible();\n       |                                                                                      ^\n  4086 |   await page.getByRole(\"button\", { name: \"Choose what YOVA should do\" }).click();\n  4087 |   await page.getByRole(\"button\", { name: /Create a plan/ }).click();\n  4088 | }\n    at beginPlanFromAdd (<repo>/e2e/core-learning-loop.spec.ts:4085:86)\n    at <repo>/e2e/core-learning-loop.spec.ts:3259:3"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:38:44.507Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                    "column": 86,
+                    "line": 4085
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-40b5b72262e7758600c3",
+          "file": "core-learning-loop.spec.ts",
+          "line": 3255,
+          "column": 5
+        },
+        {
+          "title": "map revision cannot activate a stale draft and fresh placement uses the revised map",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 9,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 43383,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 14,
+                        "line": 4113
+                      },
+                      "message": "Error: page.goto: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3100/?qa=preview\", waiting until \"load\"\u001b[22m\n\n\n  4111 |\n  4112 | async function createPreviewAccount(page: Page) {\n> 4113 |   await page.goto(\"/?qa=preview\");\n       |              ^\n  4114 |   await page.getByRole(\"button\", { name: \"Build my plan\" }).click();\n  4115 |   await page.getByLabel(\"First name\").fill(\"Learner\");\n  4116 |   await page.getByLabel(\"Email address\").fill(\"learning-loop@example.com\");\n    at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)\n    at <repo>/e2e/core-learning-loop.spec.ts:3336:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:39:11.785Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-map-rev-8568c-cement-uses-the-revised-map-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-map-rev-8568c-cement-uses-the-revised-map-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-map-rev-8568c-cement-uses-the-revised-map-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-fbd3e1a992f9f9147d46",
+          "file": "core-learning-loop.spec.ts",
+          "line": 3314,
+          "column": 5
+        },
+        {
+          "title": "normal-plan review changes one offered method without regenerating or rewriting other routes",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 10,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 35067,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 60,
+                        "line": 3378
+                      },
+                      "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Skip for now' })\u001b[22m\n\n\n  3376 |   await page.getByRole(\"button\", { name: \"45 minutes\", exact: true }).click();\n  3377 |   await page.getByRole(\"button\", { name: \"Continue\" }).click();\n> 3378 |   await page.getByRole(\"button\", { name: \"Skip for now\" }).click();\n       |                                                            ^\n  3379 |   await page.getByRole(\"button\", { name: \"Generate my plan\" }).click();\n  3380 |   await expect(page.getByText(\"Plan ready\")).toBeVisible({ timeout: 30_000 });\n  3381 |\n    at <repo>/e2e/core-learning-loop.spec.ts:3378:60"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:40:03.010Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-10f1c778155d8d1beb79",
+          "file": "core-learning-loop.spec.ts",
+          "line": 3363,
+          "column": 5
+        },
+        {
+          "title": "session setup changes one committed method and generates from its exact successor route",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 45525,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 14,
+                        "line": 4113
+                      },
+                      "message": "Error: page.goto: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3100/?qa=preview\", waiting until \"load\"\u001b[22m\n\n\n  4111 |\n  4112 | async function createPreviewAccount(page: Page) {\n> 4113 |   await page.goto(\"/?qa=preview\");\n       |              ^\n  4114 |   await page.getByRole(\"button\", { name: \"Build my plan\" }).click();\n  4115 |   await page.getByLabel(\"First name\").fill(\"Learner\");\n  4116 |   await page.getByLabel(\"Email address\").fill(\"learning-loop@example.com\");\n    at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)\n    at <repo>/e2e/core-learning-loop.spec.ts:3493:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:40:45.614Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-session-ed16a-m-its-exact-successor-route-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-session-ed16a-m-its-exact-successor-route-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-session-ed16a-m-its-exact-successor-route-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-25a930ae259c65b1f099",
+          "file": "core-learning-loop.spec.ts",
+          "line": 3476,
+          "column": 5
+        },
+        {
+          "title": "a multi-session plan carries one clear source decision from Add to Learning",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 12,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 37492,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded while setting up \"page\".\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded while setting up \"page\".\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded while setting up \"page\".\u001b[39m"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:41:43.252Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-multi-5bbbb-cision-from-Add-to-Learning-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-multi-5bbbb-cision-from-Add-to-Learning-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-09c096ee5d35af83f133",
+          "file": "core-learning-loop.spec.ts",
+          "line": 3726,
+          "column": 5
+        },
+        {
+          "title": "archived, draft, and deleted-plan projections stay out of current-work surfaces",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 13,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 15670,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:42:33.787Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-b201d3ee558b4c472ec1",
+          "file": "core-learning-loop.spec.ts",
+          "line": 3866,
+          "column": 5
+        },
+        {
+          "title": "material setup clearly supports files, articles, and YouTube transcripts",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 13,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 42425,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/core-learning-loop.spec.ts",
+                        "column": 14,
+                        "line": 4113
+                      },
+                      "message": "Error: page.goto: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3100/?qa=preview\", waiting until \"load\"\u001b[22m\n\n\n  4111 |\n  4112 | async function createPreviewAccount(page: Page) {\n> 4113 |   await page.goto(\"/?qa=preview\");\n       |              ^\n  4114 |   await page.getByRole(\"button\", { name: \"Build my plan\" }).click();\n  4115 |   await page.getByLabel(\"First name\").fill(\"Learner\");\n  4116 |   await page.getByLabel(\"Email address\").fill(\"learning-loop@example.com\");\n    at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)\n    at <repo>/e2e/core-learning-loop.spec.ts:3968:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:43:01.089Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-materia-be74c-les-and-YouTube-transcripts-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-materia-be74c-les-and-YouTube-transcripts-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-materia-be74c-les-and-YouTube-transcripts-mobile-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-075e99ea71c4b9cd93f9",
+          "file": "core-learning-loop.spec.ts",
+          "line": 3967,
+          "column": 5
+        },
+        {
+          "title": "material drop zone accepts drag gestures and explains rejected files",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 14,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 11595,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T11:43:45.859Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2eacc803da0b9a700aff-9cc74669cbe25e7f1e68",
+          "file": "core-learning-loop.spec.ts",
+          "line": 3987,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-09T10:28:01.470Z",
+    "duration": 4557101.835,
+    "expected": 9,
+    "skipped": 0,
+    "unexpected": 14,
+    "flaky": 0
+  }
+}

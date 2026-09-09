@@ -1,0 +1,52 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+
+YOVA connected journey · One product-rule skill in short sessions
+Plan · 4 sessions · 100/100 · 14.2s
+First session · learn · Feynman Technique · 15 min
+Lesson · 5 activities · 85/100 · 8.7s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+ ❯ src/evals/plan-session-journey.live.test.ts (5 tests | 1 failed | 4 skipped) 23161ms
+     ↓ the requested journey exists
+     × 'One product-rule skill in short sessi…' 22965ms
+     ↓ 'World War I unit guide in short sessi…'
+     ↓ 'Full beginner calculus pathway'
+     ↓ 'History essay using outside sources'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Activities fit the learning task",
++   "The lesson names and teaches the actual subject content",
++ ]
+
+ ❯ src/evals/plan-session-journey.live.test.ts:75:44
+     73|     expect(planResult.requiredFailures).toEqual([]);
+     74|     expect(planResult.score).toBeGreaterThanOrEqual(80);
+     75|     expect(sessionResult.requiredFailures).toEqual([]);
+       |                                            ^
+     76|     expect(sessionResult.score).toBeGreaterThanOrEqual(80);
+     77|     expect(generatedSession.draft.methodBriefing.learningMode).toBe(fi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 skipped (5)
+   Start at  08:56:46
+   Duration  23.60s (transform 379ms, setup 20ms, import 349ms, tests 23.16s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/branch-final/run-2-plan-session-journey.json
+
+Exit code: 1

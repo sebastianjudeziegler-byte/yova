@@ -1,0 +1,100 @@
+Main e03a082 complete baseline 1/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+stderr | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'calculus'
+calculus SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.
+    at generateProductionSessionWithOpenAI (<repo>/src/lib/openai/session-generation-strategy.ts:100:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at <repo>/src/evals/launch-session-journeys.live.test.ts:43:22
+    at file://<repo>/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+  generationStats: {
+    elapsedMs: 8660,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'session_structure',
+    repairAttempted: true,
+    repairSucceeded: false,
+    repairReason: 'semantic_validation',
+    repairDetail: 'A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery did not match its bounded content schema.',
+    inputTokens: 8398,
+    cachedInputTokens: 3840,
+    cacheWriteTokens: 0,
+    outputTokens: 1022,
+    validationIssueCode: 'session_recovery_structure',
+    stage: 'validation',
+    cause: 'invalid_structure',
+    recoveryMode: 'safe_learn',
+    strategy: 'streamed'
+  },
+  structuralDiagnostic: undefined
+}
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'osmosis'
+osmosis {
+  elapsedMs: 11012,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'streamed_lesson_scope',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane as a selective barrier”; “Osmosis as water movement”. Later targets that must remain exact entries in deferredContent: “Simple osmosis example and check”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+  inputTokens: 9947,
+  cachedInputTokens: 3840,
+  cacheWriteTokens: 0,
+  outputTokens: 1596,
+  validationIssueCode: 'streamed_target_missing',
+  recoveryMode: 'safe_learn',
+  strategy: 'streamed',
+  stage: 'complete'
+} self_explanation
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'recall'
+recall {
+  elapsedMs: 18426,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'session_method_fidelity',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: 'concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.',
+  inputTokens: 20924,
+  cachedInputTokens: 11776,
+  cacheWriteTokens: 0,
+  outputTokens: 3009,
+  validationIssueCode: null,
+  strategy: 'full',
+  stage: 'complete'
+} concept_mapping
+
+ ❯ src/evals/launch-session-journeys.live.test.ts (3 tests | 1 failed) 53494ms
+     × 'calculus' 12830ms
+     ✓ 'osmosis'  14272ms
+     ✓ 'recall'  26391ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'calculus'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/launch-session-journeys.live.test.ts:43:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  22:39:01
+   Duration  53.90s (transform 371ms, setup 0ms, import 314ms, tests 53.49s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-1/launch-session-journeys.json
+
+Exit code: 1

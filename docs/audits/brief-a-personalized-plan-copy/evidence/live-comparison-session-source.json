@@ -1,0 +1,12 @@
+{
+  "main": "e03a082",
+  "branch": "d99f127",
+  "identicalFiles": {
+    "src/evals/session-quality.live.test.ts": true,
+    "src/evals/session-cases.ts": true,
+    "src/evals/session-rubric.ts": true,
+    "src/lib/openai/session-generator.ts": true,
+    "src/lib/openai/session-generation-strategy.ts": true,
+    "src/lib/openai/streamed-teaching-generator.ts": true
+  }
+}

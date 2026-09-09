@@ -1,0 +1,53 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/material-osmosis-session.live.test.ts[2m > [22m[2mlive shortened material-backed osmosis session[2m > [22m[2mkeeps two current targets and defers the third in a 15-minute window
+[22m[39mShortened material-backed osmosis session {
+  run: [33m1[39m,
+  generationStats: {
+    elapsedMs: [33m4369[39m,
+    attempts: [33m1[39m,
+    firstAttemptPassed: [33mtrue[39m,
+    failedValidator: [1mnull[22m,
+    repairAttempted: [33mfalse[39m,
+    repairSucceeded: [1mnull[22m,
+    repairReason: [32m'none'[39m,
+    repairDetail: [1mnull[22m,
+    inputTokens: [33m1489[39m,
+    cachedInputTokens: [33m0[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m549[39m,
+    recoveryMode: [32m'safe_study'[39m,
+    validationIssueCode: [1mnull[22m,
+    strategy: [32m'full'[39m,
+    stage: [32m'complete'[39m
+  },
+  topicIds: [
+    [32m'73333333-3333-4333-8333-333333333331'[39m,
+    [32m'73333333-3333-4333-8333-333333333332'[39m
+  ],
+  coverage: {
+    focus: [32m'Retrieve or apply the current targets without notes: Osmosis and water potential; Tonicity and cell water movement. Repair only gaps these attempts expose.'[39m,
+    essentialIdeas: [
+      [32m'Osmosis is the net movement of water across a selectively permeable membrane from lower solute concentration to higher solute concentration, driven by the water-potential gradient.'[39m,
+      [32m'Tonicity describes how a solution causes a cell to gain water, lose water, or show no net water movement: hypotonic makes cells gain water, hypertonic makes them lose water, and is'[39m
+    ],
+    completionEvidence: [
+      [32m'Explain osmosis and predict net water movement without notes.'[39m,
+      [32m"Classify a solution's tonicity and explain the resulting cell water movement."[39m
+    ],
+    evidenceMap: [ [36m[Object][39m, [36m[Object][39m ],
+    deferredContent: [ [32m'Effects of osmosis on animal and plant cells'[39m ]
+  }
+}
+
+ [32m✓[39m src/evals/material-osmosis-session.live.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 4486[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps two current targets and defers the third in a 15-minute window [33m 4484[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m   Start at [22m 07:49:34
+[2m   Duration [22m 5.43s[2m (transform 593ms, setup 0ms, import 816ms, tests 4.49s, environment 0ms)[22m
+
+
+Exit code: 0

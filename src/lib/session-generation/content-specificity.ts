@@ -1,4 +1,5 @@
 import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
+import { mathematicalSubjectTerms } from "./learning-notation";
 
 const GENERIC_PLACEHOLDER_PATTERNS = [
   /\bfirst concept listed\b/i,
@@ -186,16 +187,16 @@ function conceptsOverlap(left: string, right: string) {
 }
 
 function meaningfulTokens(value: string) {
-  return unique(value.toLocaleLowerCase()
+  return unique([...mathematicalSubjectTerms(value), ...value.toLocaleLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
-    .split(" ")
+    .split(" ")]
     .map((token) => token.length > 4 && token.endsWith("s") ? token.slice(0, -1) : token)
     .filter((token) => token.length > 3 && !IGNORED_TOKENS.has(token)));
 }
 
 function containsToken(value: string, token: string) {
   const normalized = value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ");
-  return normalized.split(" ").some((candidate) => (
+  return [...mathematicalSubjectTerms(value), ...normalized.split(" ")].some((candidate) => (
     tokensRelated(candidate, token)
   ));
 }

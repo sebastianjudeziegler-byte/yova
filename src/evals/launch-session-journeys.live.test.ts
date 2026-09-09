@@ -5,7 +5,8 @@ import { buildPreviewSessionContext } from "@/lib/session-generation/preview-con
 import { commitPlanStudyRoutes } from "@/lib/study-route/activation";
 import { selectCanonicalStudyMethod } from "@/lib/learning/canonical-method-selection";
 import { methodSelectionContextForStudyRoute } from "@/lib/study-route/method-plan-integration";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync } from "node:fs";
+import { liveFixturePath } from "@/evals/live-fixtures";
 
 vi.mock("server-only", () => ({}));
 
@@ -36,12 +37,10 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_LAUNCH_EVALS !== "1")("launch session 
       },
     }), new Date().toISOString());
     const context = { ...buildPreviewSessionContext({ plan, session: plan.sessions[0]!, onboardingAnswers: [], completions: [], interruptions: [] }), materials: [] };
-    const evidenceDirectory = "/tmp/yova-launch-regressions";
-    mkdirSync(evidenceDirectory, { recursive: true });
-    writeFileSync(`${evidenceDirectory}/${journey.id}-context.json`, JSON.stringify(context, null, 2));
+    writeFileSync(liveFixturePath("launch", `${journey.id}-context.json`), JSON.stringify(context, null, 2));
     try {
       const result = await generateProductionSessionWithOpenAI(context);
-      writeFileSync(`${evidenceDirectory}/${journey.id}-result.json`, JSON.stringify(result, null, 2));
+      writeFileSync(liveFixturePath("launch", `${journey.id}-result.json`), JSON.stringify(result, null, 2));
       console.info(journey.id, result.generationStats, result.draft.methodBriefing.methodId);
       expect(result.draft.activities.some((activity) => activity.type === "free_response")).toBe(true);
       expect(result.draft.methodBriefing.methodId).toBe(context.studyRoute!.approach.primaryMethodId);

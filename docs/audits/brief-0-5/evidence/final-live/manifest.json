@@ -1,0 +1,15 @@
+{
+  "sourceCommit": "e978f36bd0e3684f0b3595d6c2379da3e2686d0a",
+  "mainCommit": "e03a082659f51172c0b06bf84daffdd5599ac773",
+  "runs": 3,
+  "testRunnerRetries": 0,
+  "serial": true,
+  "attempts": 63,
+  "passed": 63,
+  "failed": 0,
+  "unavailable": 0,
+  "reports": 27,
+  "firstTestStartEpochMs": 1788944339677,
+  "lastTestStartEpochMs": 1788944897859,
+  "instrumentation": "Pass-through capture only; same local provider environment and modules; no return-value substitution."
+}

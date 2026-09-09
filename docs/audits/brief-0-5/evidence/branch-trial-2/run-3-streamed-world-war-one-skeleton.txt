@@ -1,0 +1,100 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+Exact WWI baseline skeleton {
+  generationStats: {
+    elapsedMs: 6919,
+    attempts: 1,
+    firstAttemptPassed: false,
+    failedValidator: 'session_practice_variation',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: 'YOVA restored 3 evidence-derived practice-intent labels without changing question content or learning phases.',
+    inputTokens: 7530,
+    cachedInputTokens: 7424,
+    cacheWriteTokens: 0,
+    outputTokens: 1507,
+    validationIssueCode: 'session_practice_metadata',
+    strategy: 'streamed',
+    stage: 'complete'
+  },
+  coverage: {
+    focus: 'World War I cause map',
+    essentialIdeas: [
+      'Prewar European alliances and tensions shaped a divided Europe before 1914.',
+      'The Sarajevo assassination triggered the July Crisis, which moved through ultimatums, mobilization, and declarations of war.',
+      "World War I's basic chronology runs from the outbreak in 1914 to the armistice in 1918."
+    ],
+    completionEvidence: [
+      'Describe the main alliance blocs and at least three prewar tensions using the example provided',
+      'Place Sarajevo, the July Crisis, the start of the war, U.S. entry, and the armistice in order'
+    ],
+    evidenceMap: [ [Object], [Object], [Object] ],
+    deferredContent: []
+  },
+  activities: [
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 5,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'Prewar European alliances and tensions',
+      minutes: 9,
+      ideas: []
+    },
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 10,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'repair',
+      concept: 'Sequence from the Sarajevo assassination to declarations of war',
+      minutes: 8,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'reexplain',
+      concept: 'Basic chronology from 1914 to 1918',
+      minutes: 8,
+      ideas: []
+    },
+    {
+      type: 'multiple_choice',
+      phase: 'transfer',
+      concept: 'Basic chronology from 1914 to 1918',
+      minutes: 5,
+      ideas: []
+    },
+    {
+      type: 'reflection',
+      phase: 'schedule_return',
+      concept: null,
+      minutes: 1,
+      ideas: []
+    }
+  ]
+}
+
+ ✓ src/evals/streamed-world-war-one-skeleton.live.test.ts (2 tests | 1 skipped) 6973ms
+     ✓ creates the production 45-minute streamed teaching session  6924ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 1 skipped (2)
+   Start at  08:59:17
+   Duration  7.46s (transform 304ms, setup 19ms, import 395ms, tests 6.97s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/branch-final/run-3-streamed-world-war-one-skeleton.json
+
+Exit code: 0

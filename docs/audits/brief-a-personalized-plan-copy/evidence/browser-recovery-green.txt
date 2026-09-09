@@ -1,0 +1,17 @@
+[WebServer] (node:76770) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:76771) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 1 worker
+
+(node:76789) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1400:5 › a learner can stop twice without losing progress or earlier evidence (9.0s)
+  ✓  2 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2616:5 › legacy split work reopens as an active plan with runnable ten-minute sessions (4.7s)
+(node:76816) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1400:5 › a learner can stop twice without losing progress or earlier evidence (3.5s)
+  ✓  4 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2616:5 › legacy split work reopens as an active plan with runnable ten-minute sessions (3.7s)
+
+  4 passed (28.1s)

@@ -1,0 +1,752 @@
+[
+  {
+    "id": "A01",
+    "name": "accepts a correct biology paraphrase",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "test": "live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'",
+    "historicalMain": [
+      {
+        "run": 1,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-1/answer-evaluation-quality.txt"
+      },
+      {
+        "run": 2,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-2/answer-evaluation-quality.txt"
+      },
+      {
+        "run": 3,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-3/answer-evaluation-quality.txt"
+      }
+    ],
+    "freshMain": [
+      {
+        "run": 1,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a correct biology paraphrase'",
+        "state": "failed",
+        "reason": "AssertionError: expected [ Array(1) ] to deeply equal []",
+        "log": "run-1-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a correct biology paraphrase'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a correct biology paraphrase'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-answer-evaluation-quality.txt"
+      }
+    ],
+    "finalBranch": [
+      {
+        "run": 1,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a correct biology paraphrase'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a correct biology paraphrase'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a correct biology paraphrase'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-answer-evaluation-quality.txt"
+      }
+    ]
+  },
+  {
+    "id": "A02",
+    "name": "accepts a concise programming explanation",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "test": "live OpenAI answer evaluation quality > 'accepts a concise programming explana…'",
+    "historicalMain": [
+      {
+        "run": 1,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-1/answer-evaluation-quality.txt"
+      },
+      {
+        "run": 2,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-2/answer-evaluation-quality.txt"
+      },
+      {
+        "run": 3,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-3/answer-evaluation-quality.txt"
+      }
+    ],
+    "freshMain": [
+      {
+        "run": 1,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a concise programming explana…'",
+        "state": "failed",
+        "reason": "AssertionError: expected [ 'Allows earlier calls to return' ] to deeply equal []",
+        "log": "run-1-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a concise programming explana…'",
+        "state": "failed",
+        "reason": "AssertionError: expected [ Array(1) ] to deeply equal []",
+        "log": "run-2-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a concise programming explana…'",
+        "state": "failed",
+        "reason": "AssertionError: expected [ Array(1) ] to deeply equal []",
+        "log": "run-3-answer-evaluation-quality.txt"
+      }
+    ],
+    "finalBranch": [
+      {
+        "run": 1,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a concise programming explana…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a concise programming explana…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'accepts a concise programming explana…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-answer-evaluation-quality.txt"
+      }
+    ]
+  },
+  {
+    "id": "A03",
+    "name": "admits uncertainty when the prompt lacks necessary context",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "test": "live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'",
+    "historicalMain": [
+      {
+        "run": 1,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-1/answer-evaluation-quality.txt"
+      },
+      {
+        "run": 2,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-2/answer-evaluation-quality.txt"
+      },
+      {
+        "run": 3,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-3/answer-evaluation-quality.txt"
+      }
+    ],
+    "freshMain": [
+      {
+        "run": 1,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'admits uncertainty when the prompt la…'",
+        "state": "failed",
+        "reason": "AssertionError: expected [ 'uncertain' ] to include 'secure'",
+        "log": "run-1-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'admits uncertainty when the prompt la…'",
+        "state": "failed",
+        "reason": "AssertionError: expected [ 'uncertain' ] to include 'secure'",
+        "log": "run-2-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'admits uncertainty when the prompt la…'",
+        "state": "failed",
+        "reason": "AssertionError: expected [ 'uncertain' ] to include 'secure'",
+        "log": "run-3-answer-evaluation-quality.txt"
+      }
+    ],
+    "finalBranch": [
+      {
+        "run": 1,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'admits uncertainty when the prompt la…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'admits uncertainty when the prompt la…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-answer-evaluation-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/answer-evaluation-quality.live.test.ts",
+        "test": "live OpenAI answer evaluation quality 'admits uncertainty when the prompt la…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-answer-evaluation-quality.txt"
+      }
+    ]
+  },
+  {
+    "id": "A15",
+    "name": "One product-rule skill in short sessions",
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "test": "live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+    "historicalMain": [
+      {
+        "run": 1,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-1/plan-session-journey.txt"
+      },
+      {
+        "run": 2,
+        "state": "unavailable",
+        "log": "../../brief-0/evidence/baseline-2/plan-session-journey.txt"
+      },
+      {
+        "run": 3,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-3/plan-session-journey.txt"
+      }
+    ],
+    "freshMain": [
+      {
+        "run": 1,
+        "file": "src/evals/plan-session-journey.live.test.ts",
+        "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+        "state": "unavailable",
+        "reason": "Provider request timed out (see recorded cause in suite log)",
+        "log": "run-1-plan-session-journey.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/plan-session-journey.live.test.ts",
+        "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+        "state": "failed",
+        "reason": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.",
+        "log": "run-2-plan-session-journey.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/plan-session-journey.live.test.ts",
+        "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+        "state": "failed",
+        "reason": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.",
+        "log": "run-3-plan-session-journey.txt"
+      }
+    ],
+    "finalBranch": [
+      {
+        "run": 1,
+        "file": "src/evals/plan-session-journey.live.test.ts",
+        "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-plan-session-journey.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/plan-session-journey.live.test.ts",
+        "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-plan-session-journey.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/plan-session-journey.live.test.ts",
+        "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-plan-session-journey.txt"
+      }
+    ]
+  },
+  {
+    "id": "A22",
+    "name": "Mapped product-rule and chain-rule first lesson",
+    "file": "src/evals/session-quality.live.test.ts",
+    "test": "live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'",
+    "historicalMain": [
+      {
+        "run": 1,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-1/session-quality.txt"
+      },
+      {
+        "run": 2,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-2/session-quality.txt"
+      },
+      {
+        "run": 3,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-3/session-quality.txt"
+      }
+    ],
+    "freshMain": [
+      {
+        "run": 1,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Mapped product-rule and chain-rule fi…'",
+        "state": "failed",
+        "reason": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []",
+        "log": "run-1-session-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Mapped product-rule and chain-rule fi…'",
+        "state": "failed",
+        "reason": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_missing:scope_input:ideas_1_assignments_1_targets_2_represented_1). Stage: finalize.",
+        "log": "run-2-session-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Mapped product-rule and chain-rule fi…'",
+        "state": "failed",
+        "reason": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []",
+        "log": "run-3-session-quality.txt"
+      }
+    ],
+    "finalBranch": [
+      {
+        "run": 1,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Mapped product-rule and chain-rule fi…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-session-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Mapped product-rule and chain-rule fi…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-session-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Mapped product-rule and chain-rule fi…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-session-quality.txt"
+      }
+    ]
+  },
+  {
+    "id": "A27",
+    "name": "Beginner JavaScript with fading support",
+    "file": "src/evals/session-quality.live.test.ts",
+    "test": "live OpenAI session quality > 'Beginner JavaScript with fading suppo…'",
+    "historicalMain": [
+      {
+        "run": 1,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-1/session-quality.txt"
+      },
+      {
+        "run": 2,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-2/session-quality.txt"
+      },
+      {
+        "run": 3,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-3/session-quality.txt"
+      }
+    ],
+    "freshMain": [
+      {
+        "run": 1,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Beginner JavaScript with fading suppo…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-session-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Beginner JavaScript with fading suppo…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-session-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Beginner JavaScript with fading suppo…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-session-quality.txt"
+      }
+    ],
+    "finalBranch": [
+      {
+        "run": 1,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Beginner JavaScript with fading suppo…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-session-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Beginner JavaScript with fading suppo…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-session-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Beginner JavaScript with fading suppo…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-session-quality.txt"
+      }
+    ]
+  },
+  {
+    "id": "A32",
+    "name": "Spanish conversation with supported transfer",
+    "file": "src/evals/session-quality.live.test.ts",
+    "test": "live OpenAI session quality > 'Spanish conversation with supported t…'",
+    "historicalMain": [
+      {
+        "run": 1,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-1/session-quality.txt"
+      },
+      {
+        "run": 2,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-2/session-quality.txt"
+      },
+      {
+        "run": 3,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-3/session-quality.txt"
+      }
+    ],
+    "freshMain": [
+      {
+        "run": 1,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Spanish conversation with supported t…'",
+        "state": "failed",
+        "reason": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.",
+        "log": "run-1-session-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Spanish conversation with supported t…'",
+        "state": "failed",
+        "reason": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []",
+        "log": "run-2-session-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Spanish conversation with supported t…'",
+        "state": "failed",
+        "reason": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.",
+        "log": "run-3-session-quality.txt"
+      }
+    ],
+    "finalBranch": [
+      {
+        "run": 1,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Spanish conversation with supported t…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-session-quality.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Spanish conversation with supported t…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-session-quality.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/session-quality.live.test.ts",
+        "test": "live OpenAI session quality 'Spanish conversation with supported t…'",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-session-quality.txt"
+      }
+    ]
+  },
+  {
+    "id": "X06",
+    "name": "builds a topic-specific teaching skeleton",
+    "file": "src/evals/streamed-ap-biology.live.test.ts",
+    "test": "live streamed AP Biology session > builds a topic-specific teaching skeleton",
+    "historicalMain": [
+      {
+        "run": 1,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-1/streamed-ap-biology.txt"
+      },
+      {
+        "run": 2,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-2/streamed-ap-biology.txt"
+      },
+      {
+        "run": 3,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-3/streamed-ap-biology.txt"
+      }
+    ],
+    "freshMain": [
+      {
+        "run": 1,
+        "file": "src/evals/streamed-ap-biology.live.test.ts",
+        "test": "live streamed AP Biology session builds a topic-specific teaching skeleton",
+        "state": "failed",
+        "reason": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: finalize.",
+        "log": "run-1-streamed-ap-biology.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/streamed-ap-biology.live.test.ts",
+        "test": "live streamed AP Biology session builds a topic-specific teaching skeleton",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-streamed-ap-biology.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/streamed-ap-biology.live.test.ts",
+        "test": "live streamed AP Biology session builds a topic-specific teaching skeleton",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-streamed-ap-biology.txt"
+      }
+    ],
+    "finalBranch": [
+      {
+        "run": 1,
+        "file": "src/evals/streamed-ap-biology.live.test.ts",
+        "test": "live streamed AP Biology session builds a topic-specific teaching skeleton",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-streamed-ap-biology.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/streamed-ap-biology.live.test.ts",
+        "test": "live streamed AP Biology session builds a topic-specific teaching skeleton",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-streamed-ap-biology.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/streamed-ap-biology.live.test.ts",
+        "test": "live streamed AP Biology session builds a topic-specific teaching skeleton",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-streamed-ap-biology.txt"
+      }
+    ]
+  },
+  {
+    "id": "A35",
+    "name": "delivers substantive teaching from the first generated lesson brief",
+    "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+    "test": "live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief",
+    "historicalMain": [
+      {
+        "run": 1,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-1/streamed-world-war-one-lesson.txt"
+      },
+      {
+        "run": 2,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-2/streamed-world-war-one-lesson.txt"
+      },
+      {
+        "run": 3,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-3/streamed-world-war-one-lesson.txt"
+      }
+    ],
+    "freshMain": [
+      {
+        "run": 1,
+        "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+        "test": "live streamed World War I lesson delivers substantive teaching from the first generated lesson brief",
+        "state": "failed",
+        "reason": "AssertionError: expected '# Why Europe Was Tense Before 1914\\n\\…' to match /Sarajevo|Franz Ferdinand/i",
+        "log": "run-1-streamed-world-war-one-lesson.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+        "test": "live streamed World War I lesson delivers substantive teaching from the first generated lesson brief",
+        "state": "failed",
+        "reason": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery contradicted its required independent-check shape.",
+        "log": "run-2-streamed-world-war-one-lesson.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+        "test": "live streamed World War I lesson delivers substantive teaching from the first generated lesson brief",
+        "state": "failed",
+        "reason": "AssertionError: expected '# Alliance Blocs Before 1914\\n\\n## Th…' to match /Sarajevo|Franz Ferdinand/i",
+        "log": "run-3-streamed-world-war-one-lesson.txt"
+      }
+    ],
+    "finalBranch": [
+      {
+        "run": 1,
+        "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+        "test": "live streamed World War I lesson delivers substantive teaching from the first generated lesson brief",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-streamed-world-war-one-lesson.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+        "test": "live streamed World War I lesson delivers substantive teaching from the first generated lesson brief",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-streamed-world-war-one-lesson.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+        "test": "live streamed World War I lesson delivers substantive teaching from the first generated lesson brief",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-streamed-world-war-one-lesson.txt"
+      }
+    ]
+  },
+  {
+    "id": "A36",
+    "name": "creates the production 45-minute streamed teaching session",
+    "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+    "test": "live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session",
+    "historicalMain": [
+      {
+        "run": 1,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-1/streamed-world-war-one-skeleton.txt"
+      },
+      {
+        "run": 2,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-2/streamed-world-war-one-skeleton.txt"
+      },
+      {
+        "run": 3,
+        "state": "failed",
+        "log": "../../brief-0/evidence/baseline-3/streamed-world-war-one-skeleton.txt"
+      }
+    ],
+    "freshMain": [
+      {
+        "run": 1,
+        "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+        "test": "live exact World War I baseline skeleton creates the production 45-minute streamed teaching session",
+        "state": "failed",
+        "reason": "AssertionError: expected [ { …(16) }, { …(16) } ] to have a length of 3 but got 2",
+        "log": "run-1-streamed-world-war-one-skeleton.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+        "test": "live exact World War I baseline skeleton creates the production 45-minute streamed teaching session",
+        "state": "failed",
+        "reason": "AssertionError: expected [ { …(16) }, { …(16) } ] to have a length of 3 but got 2",
+        "log": "run-2-streamed-world-war-one-skeleton.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+        "test": "live exact World War I baseline skeleton creates the production 45-minute streamed teaching session",
+        "state": "failed",
+        "reason": "AssertionError: expected [ { …(16) }, { …(16) } ] to have a length of 3 but got 2",
+        "log": "run-3-streamed-world-war-one-skeleton.txt"
+      }
+    ],
+    "finalBranch": [
+      {
+        "run": 1,
+        "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+        "test": "live exact World War I baseline skeleton creates the production 45-minute streamed teaching session",
+        "state": "passed",
+        "reason": null,
+        "log": "run-1-streamed-world-war-one-skeleton.txt"
+      },
+      {
+        "run": 2,
+        "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+        "test": "live exact World War I baseline skeleton creates the production 45-minute streamed teaching session",
+        "state": "passed",
+        "reason": null,
+        "log": "run-2-streamed-world-war-one-skeleton.txt"
+      },
+      {
+        "run": 3,
+        "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+        "test": "live exact World War I baseline skeleton creates the production 45-minute streamed teaching session",
+        "state": "passed",
+        "reason": null,
+        "log": "run-3-streamed-world-war-one-skeleton.txt"
+      }
+    ]
+  }
+]

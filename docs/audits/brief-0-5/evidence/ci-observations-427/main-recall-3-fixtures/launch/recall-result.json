@@ -1,0 +1,248 @@
+{
+  "draft": {
+    "topicIds": [
+      "d880a357-562a-427f-86d7-0944b683e4c2",
+      "81afb62a-6f9a-4149-a4b9-353d97fd300b"
+    ],
+    "rationale": "Concept Mapping fits this novice study session because the task is to retrieve two connected locations, verify the links, and repair only the gap the attempt reveals. The route is bounded to glycolysis and Krebs cycle locations, with no future content pulled in.",
+    "coverage": {
+      "focus": "Glycolysis location and Krebs cycle location in cellular respiration.",
+      "essentialIdeas": [
+        "Glycolysis happens in the cytoplasm or cytosol and is the first stage of cellular respiration.",
+        "The Krebs cycle happens in the mitochondrial matrix and is the second stage of cellular respiration after pyruvate processing."
+      ],
+      "completionEvidence": [
+        "Attempt each target without notes and correct any exposed gap"
+      ],
+      "evidenceMap": [
+        {
+          "essentialIdea": "Glycolysis happens in the cytoplasm or cytosol and is the first stage of cellular respiration.",
+          "activityConcept": "Glycolysis location"
+        },
+        {
+          "essentialIdea": "The Krebs cycle happens in the mitochondrial matrix and is the second stage of cellular respiration after pyruvate processing.",
+          "activityConcept": "Krebs cycle location"
+        }
+      ],
+      "deferredContent": [
+        "Electron transport chain location"
+      ]
+    },
+    "methodBriefing": {
+      "learningMode": "study",
+      "taskType": "conceptual_learning",
+      "methodId": "concept_mapping",
+      "name": "Concept Mapping",
+      "what": "You will first answer from memory, then link the two stage and location facts with explicit relationship phrases, check the evidence, and repair any miss.",
+      "why": "This method fits a small connected biology recall task because it makes the relationship between stages visible instead of treating each fact as isolated.",
+      "how": [
+        "Answer the first prompt with no notes.",
+        "Build the map by naming the concepts and the links between them.",
+        "Check the stated evidence and then correct the specific gap that shows up."
+      ],
+      "completion": "Completed when both locations are stated from memory, the map links the ideas clearly, and the repaired answer matches the correct locations.",
+      "personalization": [
+        "YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."
+      ]
+    },
+    "sourceGrounding": null,
+    "activities": [
+      {
+        "topicId": "d880a357-562a-427f-86d7-0944b683e4c2",
+        "methodPhase": "retrieve",
+        "estimatedMinutes": 3,
+        "requiredForCompletion": true,
+        "label": "Try",
+        "title": "Glycolysis location from memory",
+        "body": "Without notes, where does glycolysis happen?",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": null,
+        "type": "free_response",
+        "concept": "Glycolysis location",
+        "choices": [],
+        "correctAnswer": "Glycolysis happens in the cytoplasm, also called the cytosol, and it is the first stage of cellular respiration.",
+        "feedback": "This checks whether you can recall the location directly, not just recognize it after seeing options."
+      },
+      {
+        "topicId": "d880a357-562a-427f-86d7-0944b683e4c2",
+        "methodPhase": "connect",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "Map",
+        "title": "Link glycolysis and Krebs cycle",
+        "body": "Connect the two stages with relationship phrases.",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": {
+          "kind": "concept_map",
+          "instructions": "Connect the named concepts with relationship phrases that state where each stage happens and how the stages are ordered.",
+          "nodes": [
+            {
+              "id": "glycolysis",
+              "label": "Glycolysis"
+            },
+            {
+              "id": "cytoplasm",
+              "label": "Cytoplasm or cytosol"
+            },
+            {
+              "id": "krebs",
+              "label": "Krebs cycle"
+            },
+            {
+              "id": "matrix",
+              "label": "Mitochondrial matrix"
+            }
+          ],
+          "connections": [
+            {
+              "fromId": "glycolysis",
+              "toId": "cytoplasm",
+              "prompt": "Where does glycolysis happen?",
+              "expectedRelationship": "Glycolysis happens in the cytoplasm or cytosol."
+            },
+            {
+              "fromId": "krebs",
+              "toId": "matrix",
+              "prompt": "Where does the Krebs cycle happen?",
+              "expectedRelationship": "The Krebs cycle happens in the mitochondrial matrix."
+            },
+            {
+              "fromId": "glycolysis",
+              "toId": "krebs",
+              "prompt": "How are these stages ordered in cellular respiration?",
+              "expectedRelationship": "Glycolysis is the first stage and the Krebs cycle is the second stage."
+            }
+          ]
+        },
+        "type": "free_response",
+        "concept": "Krebs cycle location",
+        "choices": [],
+        "correctAnswer": "Glycolysis happens in the cytoplasm or cytosol. The Krebs cycle happens in the mitochondrial matrix. Glycolysis is the first stage and the Krebs cycle is the second stage.",
+        "feedback": "A correct map names the locations and the order link, not just the two terms by themselves."
+      },
+      {
+        "topicId": "81afb62a-6f9a-4149-a4b9-353d97fd300b",
+        "methodPhase": "evidence_match",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "Check",
+        "title": "Match the evidence to the location",
+        "body": "Which statement best matches the verified evidence for the Krebs cycle?",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": null,
+        "type": "multiple_choice",
+        "concept": "Krebs cycle location",
+        "choices": [
+          "The Krebs cycle happens in the cytoplasm or cytosol.",
+          "The Krebs cycle happens in the mitochondrial matrix.",
+          "The Krebs cycle happens outside the cell membrane.",
+          "The Krebs cycle happens in the nucleus."
+        ],
+        "correctAnswer": "The Krebs cycle happens in the mitochondrial matrix.",
+        "feedback": "The Krebs cycle is tied to the mitochondrial matrix, while the cytoplasm is the location of glycolysis, so the correct choice must keep those locations distinct."
+      },
+      {
+        "topicId": "81afb62a-6f9a-4149-a4b9-353d97fd300b",
+        "methodPhase": "repair",
+        "estimatedMinutes": 3,
+        "requiredForCompletion": true,
+        "label": "Repair",
+        "title": "Fix any missing location",
+        "body": "If your answer missed either location, rewrite both correctly.",
+        "teaching": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "methodRuntime": null,
+        "type": "free_response",
+        "concept": "Krebs cycle location",
+        "choices": [],
+        "correctAnswer": "Glycolysis happens in the cytoplasm or cytosol. The Krebs cycle happens in the mitochondrial matrix.",
+        "feedback": "Repair means replacing the wrong or missing location with the exact correct one and stating both stages clearly."
+      }
+    ]
+  },
+  "model": "gpt-5.4-mini-2026-03-17",
+  "responseId": "resp_04ac1fbb17063ecc016aa1939d19d087d080b4d530f4fb36b6",
+  "routingContext": {
+    "taskType": "conceptual_learning",
+    "knowledgeStage": "novice"
+  },
+  "supportPlan": {
+    "level": "independent_start",
+    "title": "Start without support",
+    "explanation": "YOVA needs a genuine attempt before showing the answer so the session can establish what is already available from memory.",
+    "evidenceLabel": "Establishing a baseline",
+    "concept": null
+  },
+  "deliveryPolicy": {
+    "schemaVersion": 1,
+    "evidenceStatus": "baseline",
+    "presentation": {
+      "mode": "task_aligned",
+      "label": "Task-led presentation",
+      "instruction": "Follow the selected method's opening phase. When support is needed, present the content in the sequence best supported by the current task."
+    },
+    "repair": {
+      "mode": "task_aligned",
+      "label": "Evidence-led repair",
+      "instruction": "Choose the smallest repair that addresses the demonstrated gap without lowering the target."
+    },
+    "retention": {
+      "mode": "task_aligned",
+      "label": "Task-led evidence",
+      "instruction": "Use the memory or application check that best matches the current task."
+    },
+    "workspace": {
+      "mode": "task_aligned",
+      "label": "Focused workspace",
+      "instruction": "Show one obvious current action with the session path available nearby."
+    },
+    "pacing": {
+      "firstActionMinutes": 4,
+      "maximumActivities": 4,
+      "reason": "There is not enough repeated behavior evidence to change the normal session size."
+    },
+    "activityCadence": {
+      "mode": "task_aligned",
+      "label": "Task-aligned cadence",
+      "instruction": "Change activities only when the selected teaching method and current objective call for it."
+    },
+    "attemptSafety": {
+      "mode": "task_aligned",
+      "label": "Task-aligned attempts",
+      "instruction": "Use the attempt and feedback format best supported by the current task and selected method."
+    },
+    "knowledgeCheck": {
+      "mode": "task_aligned",
+      "label": "Task-aligned knowledge check",
+      "instruction": "Use the knowledge check required by the selected method and current learning objective."
+    },
+    "learnerFacingReasons": [
+      "YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."
+    ],
+    "signalsUsed": []
+  },
+  "generationStats": {
+    "elapsedMs": 15815,
+    "attempts": 2,
+    "firstAttemptPassed": false,
+    "failedValidator": "session_method_fidelity",
+    "repairAttempted": true,
+    "repairSucceeded": true,
+    "repairReason": "semantic_validation",
+    "repairDetail": "concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.",
+    "inputTokens": 20776,
+    "cachedInputTokens": 11776,
+    "cacheWriteTokens": 0,
+    "outputTokens": 2691,
+    "validationIssueCode": null,
+    "strategy": "full",
+    "stage": "complete"
+  }
+}

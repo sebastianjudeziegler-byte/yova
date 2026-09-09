@@ -11,8 +11,10 @@ import {
 } from "@/lib/learning/method-fidelity";
 import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import { validateSessionCompletionContract } from "@/lib/session-generation/completion-contract";
+import { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
 import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
 import { validateSessionContentSpecificity } from "@/lib/session-generation/content-specificity";
+import { hasDistinctLearningChoices } from "@/lib/session-generation/learning-notation";
 import {
   buildSessionDeliveryPolicy,
   type SessionDeliveryPolicy,
@@ -38,7 +40,7 @@ export type SessionQualityResult = {
 
 const TASK_PATTERNS: Record<SessionTaskFamily, RegExp> = {
   conceptual: /explain|connect|compare|concept|model|retriev|recall|apply|process/i,
-  problem_solving: /worked|example|solve|problem|practice|calculate|step|equation|derivativ|differentiat|rule|setup/i,
+  problem_solving: /worked|example|solve|problem|practice|calculate|step|equation|derivativ|differentia|rule|setup|\bfunction factors?\b|\bproduct of (?:two )?functions?\b|\bmultipl(?:y|ied|ication)\b/i,
   reading: /passage|text|detail|evidence|interpret|imagery|setting|claim|annotat|quote|read/i,
   writing: /thesis|evidence|outline|draft|write|claim|revise|argument/i,
   coding: /code|implement|debug|trace|array|function|program|map|filter|reduce/i,
@@ -64,6 +66,7 @@ export function evaluateSessionDraft(
     activity.teaching?.example?.takeaway,
     activity.teaching?.commonMistake?.mistake,
     activity.teaching?.commonMistake?.correction,
+    ...("lessonBrief" in activity && activity.lessonBrief ? activity.lessonBrief.essentialIdeas : []),
     activity.correctAnswer,
     activity.feedback,
     ...activity.choices,
@@ -94,16 +97,13 @@ export function evaluateSessionDraft(
     .map((activity, index) => ({ activity, index }))
     .filter(({ activity }) => activity.type === "multiple_choice" || activity.type === "free_response")
     .map(({ index }) => index);
-  // Keep this in lockstep with the product's real time-budget validator.
-  const maximumActivities = context.session.estimatedMinutes <= 15
-    ? 4
-    : context.session.estimatedMinutes <= 30
-      ? 5
-      : 8;
+  // The product reserves room for the committed Learn method and recognition.
+  // Reuse that validator so a copied 4/5 cap cannot reject a valid recipe.
+  const productionTimeBudgetIssue = validateSessionTimeBudget(draft, context.session.estimatedMinutes);
   const questionIntegrity = questions.every((activity) => {
     if (!activity.concept || !activity.correctAnswer || !activity.feedback || activity.feedback.length < 20) return false;
-    if (activity.type === "free_response") return activity.correctAnswer.length >= 15 && activity.choices.length === 0;
-    return new Set(activity.choices.map(normalize)).size === activity.choices.length
+    if (activity.type === "free_response") return activity.correctAnswer.trim().length > 0 && activity.choices.length === 0;
+    return hasDistinctLearningChoices(activity.choices)
       && activity.choices.includes(activity.correctAnswer);
   });
   const alignedActivities = activityText.filter((text) => TASK_PATTERNS[taskFamily].test(text)).length;
@@ -136,8 +136,9 @@ export function evaluateSessionDraft(
     ));
   const noOverclaim = !/learns? best|learning style|brain type|visual learner|auditory learner|kinesthetic learner|because (you have|of your) adhd|diagnos(?:is|ed|e)\b/i.test(combined);
   const visiblePersonalization = draft.methodBriefing.personalization.length >= 1
-    && draft.methodBriefing.personalization.every((reason) => reason.trim().length >= 20)
-    && draft.methodBriefing.personalization.every((reason) => /you|your|session|support|example|step|practice|review|question|check|retrieval|scheduled return|attempt|miss|misconception|model|result|performance|pacing/i.test(reason));
+    // Policy-backed decision copy need not contain a fixed vocabulary. The
+    // provenance validator below still rejects unsupported learner claims.
+    && draft.methodBriefing.personalization.every((reason) => reason.trim().length >= 20);
   const routing = buildLearningScienceRoutingBrief({
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: context.session.learningMode,
@@ -211,10 +212,16 @@ export function evaluateSessionDraft(
       );
     });
   const questionContextIssue = validateSessionQuestionContext(draft);
+  // Streamed sessions may teach only today's bounded plan slice. Inspect its
+  // planned targets rather than requiring vocabulary from a deferred formula
+  // in the broader goal. The same content/evidence checks still run below.
+  const scopedTargets = draft.activities.some(activity => "lessonBrief" in activity && activity.lessonBrief)
+    ? (context.session.contentTargets ?? []).filter(target => !draft.coverage.deferredContent.includes(target))
+    : [];
   const contentSpecificityIssue = validateSessionContentSpecificity({
     draft,
-    goalTopic: context.learningGoal.topic,
-    sessionObjective: context.session.objective,
+    goalTopic: scopedTargets.length > 0 ? scopedTargets.join("; ") : context.learningGoal.topic,
+    sessionObjective: scopedTargets.length > 0 ? scopedTargets.join("; ") : context.session.objective,
   });
   const deliveryPolicy = generatedDeliveryPolicy ?? buildSessionDeliveryPolicy({
     learnerProfile: context.learnerProfile,
@@ -229,7 +236,7 @@ export function evaluateSessionDraft(
   );
 
   const checks: SessionQualityCheck[] = [
-    check("activity_pacing", "Activity count fits the session", focusedActivities.length >= 2 && focusedActivities.length <= maximumActivities, 10, true, `${focusedActivities.length}/${maximumActivities} maximum focused activities for ${context.session.estimatedMinutes} minutes`),
+    check("activity_pacing", "Activity count fits the session", focusedActivities.length >= 2 && productionTimeBudgetIssue === null, 10, true, productionTimeBudgetIssue ?? `${focusedActivities.length} focused activities; production time budget passed for ${context.session.estimatedMinutes} minutes`),
     check("active_practice", "Session requires active learner effort", questions.length >= 2, 15, true, `${questions.length} retrieval or knowledge-check activities`),
     check("answer_integrity", "Questions include usable answers and feedback", questionIntegrity, 15, true, `${questions.length} question activities inspected`),
     check("task_alignment", "Activities fit the learning task", scheduledRetrieval || alignedActivities >= Math.ceil(draft.activities.length * 0.5), 15, true, scheduledRetrieval ? "Scheduled reviews use the bounded retrieval format" : `${alignedActivities} of ${draft.activities.length} activities align with ${taskFamily.replace("_", " ")}`),
@@ -253,10 +260,6 @@ export function evaluateSessionDraft(
   const score = checks.reduce((total, item) => total + item.earned, 0);
   const requiredFailures = checks.filter((item) => item.required && !item.passed).map((item) => item.label);
   return { score, passed: score >= 80 && requiredFailures.length === 0, checks, requiredFailures };
-}
-
-function normalize(value: string) {
-  return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function check(id: string, label: string, passed: boolean, points: number, required: boolean, detail: string): SessionQualityCheck {

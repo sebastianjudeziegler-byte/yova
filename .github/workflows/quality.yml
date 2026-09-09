@@ -12,7 +12,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 150
     env:
       # Date-oriented learner flows are defined in YOVA's launch timezone.
       # GitHub runners default to UTC, which made otherwise-correct deadline
@@ -85,7 +85,35 @@ jobs:
         run: pnpm exec supabase stop --no-backup
 
       - name: Install isolated browser
-        run: pnpm exec playwright install --with-deps chromium
+        run: |
+          # The hosted image includes a Google Chrome apt source unrelated to
+          # Playwright's pinned Chromium download. Its inconsistent metadata
+          # must not prevent installing Ubuntu browser libraries. Temporarily
+          # isolate only that source; never bypass package integrity checks.
+          quarantine="$RUNNER_TEMP/yova-browser-apt-sources"
+          mkdir -p "$quarantine"
+          restore_sources() {
+            for source in "$quarantine"/*; do
+              if test -f "$source"; then sudo mv "$source" /etc/apt/sources.list.d/; fi
+            done
+          }
+          trap restore_sources EXIT
+          sudo python3 - "$quarantine" <<'PYTHON'
+          import re, shutil, sys
+          from pathlib import Path
+          for source in Path('/etc/apt/sources.list.d').iterdir():
+              if source.suffix not in ('.list', '.sources'):
+                  continue
+              active = '\n'.join(line for line in source.read_text().splitlines() if not line.lstrip().startswith('#'))
+              urls = re.findall(r'https?://[^\s#]+', active)
+              if not any('dl.google.com/linux/chrome-stable' in url for url in urls):
+                  continue
+              if not all(url.startswith(('https://dl.google.com/linux/chrome-stable', 'http://dl.google.com/linux/chrome-stable')) for url in urls):
+                  raise RuntimeError('The Chrome source shares a file with another repository; cannot isolate it safely.')
+              print(f'Temporarily isolating hosted-image source: {source.name}')
+              shutil.move(str(source), str(Path(sys.argv[1]) / source.name))
+          PYTHON
+          pnpm exec playwright install --with-deps chromium
 
       - name: Run learning-engine tests
         run: pnpm test
@@ -101,6 +129,57 @@ jobs:
 
       - name: Run public authentication journey
         run: pnpm test:e2e:auth
+
+      - name: Compare the Study Profile phone-width case on main and release
+        if: ${{ !cancelled() }}
+        run: node scripts/compare-study-profile-ci.mjs
+
+      - name: Upload Study Profile comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: study-profile-phone-comparison-${{ github.run_id }}
+          path: test-results/study-profile-comparison
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Run full live gate on the combined release
+        if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        run: |
+          if test "$LIVE_GATE_RUNS" = 3; then
+            mkdir -p tmp/brief-0-5 test-results/live-gate
+            cp docs/audits/brief-0-5/evidence/harness/ci-capture.ts.txt tmp/brief-0-5/capture.ts
+            cp vitest.config.mts /tmp/yova-original-vitest.mts
+            trap 'cp /tmp/yova-original-vitest.mts vitest.config.mts' EXIT
+            python3 - <<'PYTHON'
+          from pathlib import Path
+          path = Path('vitest.config.mts')
+          source = path.read_text()
+          path.write_text(source.replace('test: {', 'test: {\n    setupFiles: ["tmp/brief-0-5/capture.ts"],', 1))
+          PYTHON
+            export BRIEF05_CAPTURE="$PWD/test-results/live-gate/provider-captures.jsonl"
+          fi
+          pnpm test:live --runs "$LIVE_GATE_RUNS"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Three serial release samples; ordinary main/PR gates retain one.
+          LIVE_GATE_RUNS: ${{ github.head_ref == 'codex/brief-0-5-grader-and-validators' && '3' || '1' }}
+
+      - name: Publish full live gate evidence
+        if: always()
+        run: |
+          if test -f test-results/live-gate/report.md; then
+            cat test-results/live-gate/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload full live gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-live-gate-${{ github.run_id }}
+          path: test-results/live-gate
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: Upload browser evidence on failure
         if: failure()

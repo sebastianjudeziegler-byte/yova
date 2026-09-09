@@ -1,0 +1,74 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'calculus'
+calculus {
+  elapsedMs: 9026,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'session_required_typed_recall',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: 'A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.',
+  inputTokens: 9388,
+  cachedInputTokens: 3840,
+  cacheWriteTokens: 0,
+  outputTokens: 1343,
+  validationIssueCode: null,
+  recoveryMode: 'safe_learn',
+  strategy: 'streamed',
+  stage: 'complete'
+} self_explanation
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'osmosis'
+osmosis {
+  elapsedMs: 11698,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'streamed_lesson_scope',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: 'This 25-minute lesson needs 2 distinct explanatory claims so the selected time is filled with real teaching and questions instead of stretching one idea. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.',
+  inputTokens: 9358,
+  cachedInputTokens: 3840,
+  cacheWriteTokens: 0,
+  outputTokens: 1610,
+  validationIssueCode: 'streamed_scope_other',
+  recoveryMode: 'safe_learn',
+  strategy: 'streamed',
+  stage: 'complete'
+} self_explanation
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'recall'
+recall {
+  elapsedMs: 8895,
+  attempts: 1,
+  firstAttemptPassed: true,
+  failedValidator: null,
+  repairAttempted: false,
+  repairSucceeded: null,
+  repairReason: 'none',
+  repairDetail: null,
+  inputTokens: 10379,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+  outputTokens: 1364,
+  validationIssueCode: null,
+  strategy: 'full',
+  stage: 'complete'
+} concept_mapping
+
+ ✓ src/evals/launch-session-journeys.live.test.ts (3 tests) 42231ms
+     ✓ 'calculus'  14396ms
+     ✓ 'osmosis'  14666ms
+     ✓ 'recall'  13168ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  23:32:37
+   Duration  42.60s (transform 344ms, setup 0ms, import 290ms, tests 42.23s, environment 0ms)
+
+
+Exit code: 0

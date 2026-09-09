@@ -1,0 +1,96 @@
+Main e03a082 complete baseline 2/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'Full beginner calculus pathway'
+
+YOVA connected journey · Full beginner calculus pathway
+Plan · 4 sessions · 100/100 · 23.8s
+First session · learn · Worked Examples · 25 min
+Lesson · 5 activities · 85/100 · 9.6s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+stdout | src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+
+YOVA connected journey · History essay using outside sources
+Plan · 4 sessions · 100/100 · 26.0s
+First session · learn · Outline from Memory · 30 min
+Lesson · 4 activities · 100/100 · 7.3s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+ ❯ src/evals/plan-session-journey.live.test.ts (5 tests | 4 failed) 135451ms
+     ✓ the requested journey exists 1ms
+     × 'One product-rule skill in short sessi…' 40326ms
+     × 'World War I unit guide in short sessi…' 28444ms
+     × 'Full beginner calculus pathway' 33405ms
+     × 'History essay using outside sources' 33274ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+OpenAIPlanGenerationError: The OpenAI request failed.
+ ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:210:11
+    208|       ? ` The first draft was rejected because: ${lastValidationIssue}`
+    209|       : "";
+    210|     throw new OpenAIPlanGenerationError(
+       |           ^
+    211|       `The OpenAI request failed.${priorIssue}`,
+    212|       "provider_error",
+ ❯ src/evals/plan-session-journey.live.test.ts:31:27
+
+Caused by: Error: Request timed out.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:434:23
+ ❯ requestDraft src/lib/openai/plan-generator.ts:111:24
+ ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:143:20
+ ❯ src/evals/plan-session-journey.live.test.ts:31:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { status: undefined, headers: undefined, requestID: undefined, error: undefined, code: undefined, param: undefined }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'World War I unit guide in short sessi…'
+SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/plan-session-journey.live.test.ts:58:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'Full beginner calculus pathway'
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Every mapped topic is scheduled or explicitly deferred",
++ ]
+
+ ❯ src/evals/plan-session-journey.live.test.ts:73:41
+     71|     console.info(`Personalization · ${generatedSession.draft.methodBri…
+     72|
+     73|     expect(planResult.requiredFailures).toEqual([]);
+       |                                         ^
+     74|     expect(planResult.score).toBeGreaterThanOrEqual(80);
+     75|     expect(sessionResult.requiredFailures).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 1 passed (5)
+   Start at  23:00:17
+   Duration  135.90s (transform 399ms, setup 0ms, import 369ms, tests 135.45s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-2/plan-session-journey.json
+
+Exit code: 1

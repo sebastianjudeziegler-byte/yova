@@ -1,0 +1,23 @@
+{
+  "baseCommit": "e03a082659f51172c0b06bf84daffdd5599ac773",
+  "node": "v24.19.0",
+  "unchangedLocalFiles": {
+    ".env.local": true,
+    "pnpm-lock.yaml": true,
+    "node_modules/next/package.json": true,
+    "node_modules/openai/package.json": true,
+    "node_modules/vitest/package.json": true
+  },
+  "providerCredentials": "Existing .env.local; not printed, replaced, or modified.",
+  "liveExecution": "Nine full suites serial; all existing live opt-ins enabled; case filters cleared.",
+  "browserHarness": "Identical branch frozen-clock helper and import used on main; no assertion or application-source changes.",
+  "browserFixture": "Exact saved branch live-ten-minute.json reused on main.",
+  "branchCommit": "d99f1278e9e2e1e2b81574651ad6f8e7ce8a9578",
+  "branchUnchangedLocalFiles": {
+    ".env.local": true,
+    "pnpm-lock.yaml": true,
+    "node_modules/next/package.json": true,
+    "node_modules/openai/package.json": true,
+    "node_modules/vitest/package.json": true
+  }
+}

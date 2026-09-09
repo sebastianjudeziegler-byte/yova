@@ -1,0 +1,13 @@
+
+ RUN  v4.1.10 <repo>
+
+ ✓ src/evals/teaching-assessment-contract.live.test.ts (1 test) 8207ms
+     ✓ explains every glycolysis product before accepting a learner's paraphrase  8206ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  09:43:48
+   Duration  8.52s (transform 168ms, setup 0ms, import 234ms, tests 8.21s, environment 0ms)
+
+
+Exit code: 0

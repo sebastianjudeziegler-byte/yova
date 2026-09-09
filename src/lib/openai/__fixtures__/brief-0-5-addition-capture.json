@@ -1,0 +1,329 @@
+{
+  "context": {
+    "sessionArchitectureVersion": "streamed_teaching_v1",
+    "learningGoal": {
+      "title": "Calculus derivative unit",
+      "topic": "Derivative basics, product rule, chain rule, and implicit differentiation",
+      "kind": "test",
+      "deadline": null,
+      "sourceMode": "yova_generated",
+      "studyMode": "inside_yova",
+      "learningIntent": "study"
+    },
+    "planRationale": "Teach the confirmed product-rule and chain-rule gaps before returning to mixed derivative practice.",
+    "materials": [],
+    "knowledgeTopics": [
+      {
+        "id": "8ec325f4-0000-4000-8000-000000000003",
+        "title": "Product rule",
+        "description": "Differentiate products of functions with the two-term product rule.",
+        "subtopics": [],
+        "prerequisiteTopicIds": [],
+        "status": "not_started",
+        "initialEvidence": {
+          "source": "placement_check",
+          "outcome": "gap",
+          "observedAt": "2026-08-18T23:30:00.000Z"
+        },
+        "sourceReferences": [],
+        "origin": "ai_generated",
+        "deferred": null
+      },
+      {
+        "id": "8ec325f4-0000-4000-8000-000000000004",
+        "title": "Chain rule",
+        "description": "Differentiate composite functions by linking outer and inner derivatives.",
+        "subtopics": [],
+        "prerequisiteTopicIds": [],
+        "status": "not_started",
+        "initialEvidence": {
+          "source": "placement_check",
+          "outcome": "gap",
+          "observedAt": "2026-08-18T23:30:00.000Z"
+        },
+        "sourceReferences": [],
+        "origin": "ai_generated",
+        "deferred": null
+      }
+    ],
+    "session": {
+      "title": "Learn product rule and one connected topic",
+      "objective": "Build an accurate first mental model of the product rule and chain rule, connect each to its prerequisites, then apply them with less support.",
+      "method": "Closed-note retrieval",
+      "methodReason": "A short model followed by guided practice makes each derivative procedure visible before support fades.",
+      "estimatedMinutes": 25,
+      "learningMode": "learn",
+      "topicIds": [
+        "8ec325f4-0000-4000-8000-000000000003",
+        "8ec325f4-0000-4000-8000-000000000004"
+      ],
+      "contentTargets": [
+        "Product rule",
+        "Chain rule"
+      ],
+      "completionEvidence": [
+        "Explain when the product rule is required and apply it to one product",
+        "Explain how the chain rule follows a composite function and apply it once"
+      ],
+      "reviewConcept": null,
+      "reviewType": null
+    },
+    "learnerProfile": {
+      "commonBlocker": null,
+      "guidancePreference": null,
+      "explanationPreference": "Start with the big picture before details",
+      "focusFrequency": null,
+      "startingPattern": null,
+      "primaryImprovementGoal": null,
+      "memoryChallenge": "I understand it initially but forget it after a few days",
+      "supportPreference": "Break a stuck point into smaller steps",
+      "workspacePreference": "Show one step at a time"
+    },
+    "sessionAdjustment": null,
+    "recentResults": [],
+    "recentInterruptions": [],
+    "conceptSignals": [],
+    "scaffoldSignals": [],
+    "topicCalibrationSignals": []
+  },
+  "outputs": [
+    {
+      "topicIds": [
+        "8ec325f4-0000-4000-8000-000000000003",
+        "8ec325f4-0000-4000-8000-000000000004"
+      ],
+      "rationale": "Teach the two confirmed derivative rules in a visible teach then retrieve sequence, with support fading from guided explanation to independent explanation and application.",
+      "coverage": {
+        "focus": "Product rule and chain rule",
+        "essentialIdeas": [
+          "Differentiate a product by adding the derivative of the first factor times the second factor and the first factor times the derivative of the second factor.",
+          "Differentiate a composite function by taking the derivative of the outer function at the inner function and multiplying by the inner derivative."
+        ],
+        "completionEvidence": [
+          "State when the product rule is required and apply it to one product.",
+          "State how the chain rule follows a composite function and apply it once."
+        ],
+        "evidenceMap": [
+          {
+            "essentialIdea": "Differentiate a product by adding the derivative of the first factor times the second factor and the first factor times the derivative of the second factor.",
+            "activityConcept": "Product rule"
+          },
+          {
+            "essentialIdea": "Differentiate a composite function by taking the derivative of the outer function at the inner function and multiplying by the inner derivative.",
+            "activityConcept": "Chain rule"
+          }
+        ],
+        "deferredContent": []
+      },
+      "methodBriefing": {
+        "learningMode": "learn",
+        "taskType": "conceptual_learning",
+        "methodId": "self_explanation",
+        "name": "Feynman Technique",
+        "what": "Study an accurate model, explain it in your own words, repair any gap, then explain it again without copying.",
+        "why": "Explaining the relationship and then repairing it helps expose missing links and build a more usable mental model.",
+        "how": [
+          "Read the concise model carefully.",
+          "Answer in your own words without copying the phrasing.",
+          "Compare your answer with the model and notice what is missing or unclear.",
+          "Fix one specific gap, then explain it again from memory."
+        ],
+        "completion": "You can explain each rule correctly, identify the key relationship, and give a correct example or application.",
+        "personalization": [
+          "Start with the big picture before details.",
+          "Use one step at a time.",
+          "Restore support in smaller steps after a miss."
+        ]
+      },
+      "sourceGrounding": null,
+      "activities": [
+        {
+          "topicId": "8ec325f4-0000-4000-8000-000000000003",
+          "methodPhase": "model",
+          "estimatedMinutes": 7,
+          "requiredForCompletion": true,
+          "label": "model_1",
+          "title": "Product rule basics",
+          "body": "Read the model and note the rule structure.",
+          "teaching": null,
+          "lessonBrief": {
+            "version": 1,
+            "topicIds": [
+              "8ec325f4-0000-4000-8000-000000000003"
+            ],
+            "essentialIdeas": [
+              "Differentiate a product by adding the derivative of the first factor times the second factor and the first factor times the derivative of the second factor."
+            ],
+            "sourceChunks": [],
+            "knowledgeSource": "model_knowledge",
+            "evidenceContext": {
+              "confirmedGaps": [],
+              "secureKnowledge": [],
+              "priorMisconceptions": []
+            },
+            "contentRequirements": {
+              "teachEveryEssentialIdea": true,
+              "includeConcreteExample": true,
+              "includeCommonMixup": true,
+              "preservePrerequisiteOrder": true
+            }
+          },
+          "practiceIntent": null,
+          "misconceptionSummary": null,
+          "type": "instruction",
+          "concept": null,
+          "choices": [],
+          "correctAnswer": null,
+          "feedback": null
+        },
+        {
+          "topicId": "8ec325f4-0000-4000-8000-000000000003",
+          "methodPhase": "explain",
+          "estimatedMinutes": 6,
+          "requiredForCompletion": true,
+          "label": "check_1",
+          "title": "Explain the product rule",
+          "body": "State the rule in your own words and then solve one product derivative.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "develop_gap",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "Product rule",
+          "choices": [],
+          "correctAnswer": "The derivative of a product is f'(x)g(x) + f(x)g'(x). For example, if y = x^2 sin x, then y' = 2x sin x + x^2 cos x.",
+          "feedback": "A complete answer names both terms in the product rule and applies them to one product. A common gap is changing only one factor or multiplying the derivatives together."
+        },
+        {
+          "topicId": "8ec325f4-0000-4000-8000-000000000004",
+          "methodPhase": "model",
+          "estimatedMinutes": 6,
+          "requiredForCompletion": true,
+          "label": "model_2",
+          "title": "Chain rule basics",
+          "body": "Read the model and track outer, inner, then multiply.",
+          "teaching": null,
+          "lessonBrief": {
+            "version": 1,
+            "topicIds": [
+              "8ec325f4-0000-4000-8000-000000000004"
+            ],
+            "essentialIdeas": [
+              "Differentiate a composite function by taking the derivative of the outer function at the inner function and multiplying by the inner derivative."
+            ],
+            "sourceChunks": [],
+            "knowledgeSource": "model_knowledge",
+            "evidenceContext": {
+              "confirmedGaps": [],
+              "secureKnowledge": [],
+              "priorMisconceptions": []
+            },
+            "contentRequirements": {
+              "teachEveryEssentialIdea": true,
+              "includeConcreteExample": true,
+              "includeCommonMixup": true,
+              "preservePrerequisiteOrder": true
+            }
+          },
+          "practiceIntent": null,
+          "misconceptionSummary": null,
+          "type": "instruction",
+          "concept": null,
+          "choices": [],
+          "correctAnswer": null,
+          "feedback": null
+        },
+        {
+          "topicId": "8ec325f4-0000-4000-8000-000000000004",
+          "methodPhase": "reexplain",
+          "estimatedMinutes": 4,
+          "requiredForCompletion": true,
+          "label": "check_2",
+          "title": "Explain the chain rule",
+          "body": "Restate the rule in plain language and apply it once.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "develop_gap",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "Chain rule",
+          "choices": [],
+          "correctAnswer": "For a composite function, differentiate the outside function and multiply by the derivative of the inside function. For example, if y = (3x+1)^4, then y' = 4(3x+1)^3 \u00b7 3.",
+          "feedback": "A complete answer identifies outer and inner parts and multiplies by the inner derivative. A common gap is differentiating only the outside part and stopping there."
+        },
+        {
+          "topicId": "8ec325f4-0000-4000-8000-000000000004",
+          "methodPhase": "transfer",
+          "estimatedMinutes": 2,
+          "requiredForCompletion": true,
+          "label": "check_3",
+          "title": "Choose the right rule",
+          "body": "Pick the derivative method that fits the expression.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "develop_gap",
+          "misconceptionSummary": null,
+          "type": "multiple_choice",
+          "concept": "Chain rule",
+          "choices": [
+            "Use the chain rule because one function is inside another.",
+            "Use the product rule because two functions are being multiplied.",
+            "Use the quotient rule because one expression is on top of another.",
+            "Use only the power rule because the expression has an exponent."
+          ],
+          "correctAnswer": "Use the chain rule because one function is inside another.",
+          "feedback": "The chain rule applies to a composition, while the product rule applies to a product of factors. The key question is whether one function is inside another."
+        }
+      ],
+      "targetAssignments": [
+        {
+          "essentialIdea": "Differentiate a product by adding the derivative of the first factor times the second factor and the first factor times the derivative of the second factor.",
+          "targetId": "target_1"
+        },
+        {
+          "essentialIdea": "Differentiate a composite function by taking the derivative of the outer function at the inner function and multiplying by the inner derivative.",
+          "targetId": "target_2"
+        }
+      ]
+    },
+    {
+      "items": [
+        {
+          "essentialIdea": "Differentiate a product by adding the derivative of the first factor times the second factor and the first factor times the derivative of the second factor.",
+          "concept": "product rule formula",
+          "check": {
+            "title": "Explain the product rule",
+            "prompt": "State the rule in your own words and then solve one product derivative.",
+            "referenceAnswer": "The derivative of a product is f'(x)g(x) + f(x)g'(x). For example, if y = x^2 sin x, then y' = 2x sin x + x^2 cos x.",
+            "feedback": "A complete answer names both terms in the product rule and applies them to one product. A common gap is changing only one factor or multiplying the derivatives together."
+          },
+          "independentCheck": null
+        },
+        {
+          "essentialIdea": "Chain rule differentiates a composite by multiplying outer and inner derivatives.",
+          "concept": "chain rule formula",
+          "check": {
+            "title": "Differentiate a composite",
+            "prompt": "How do you differentiate y = f(g(x))?",
+            "referenceAnswer": "Differentiate the outer function at g(x), then multiply by g'(x): y' = f'(g(x))g'(x).",
+            "feedback": "The outer derivative stays evaluated at the inner function, then you multiply by the inner derivative."
+          },
+          "independentCheck": null
+        }
+      ],
+      "recognitionCheck": {
+        "title": "Identify the chain rule",
+        "prompt": "Which derivative rule applies to y = f(g(x))?",
+        "choices": [
+          "Differentiate the outer function at g(x), then multiply by g'(x).",
+          "Multiply f(x) and g(x) first, then differentiate the result.",
+          "Differentiate each function separately and add the derivatives.",
+          "Differentiate the inner function first, then subtract it from the outer derivative."
+        ],
+        "correctAnswer": "Differentiate the outer function at g(x), then multiply by g'(x).",
+        "feedback": "This is the chain rule because the function is composite."
+      }
+    }
+  ],
+  "fixtureNote": "The normal response is captured verbatim. The captured passing recovery is adapted only to replay the normal response\u2019s exact product-rule claim and check in the server-owned recovery shape; its second claim and recognition are unchanged."
+}

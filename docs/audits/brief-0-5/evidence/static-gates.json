@@ -1,0 +1,29 @@
+{
+  "sourceCommit": "e978f36bd0e3684f0b3595d6c2379da3e2686d0a",
+  "checks": [
+    {
+      "command": "pnpm_config_verify_deps_before_run=false pnpm test",
+      "exitCode": 0,
+      "unitTestsPassed": 3918,
+      "runnerTestsPassed": 12,
+      "log": "unit-full.txt"
+    },
+    {
+      "command": "pnpm_config_verify_deps_before_run=false pnpm lint",
+      "exitCode": 0,
+      "log": "lint.txt"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit",
+      "exitCode": 0,
+      "log": "typecheck.txt"
+    },
+    {
+      "command": "pnpm_config_verify_deps_before_run=false pnpm build",
+      "exitCode": 0,
+      "log": "build.txt"
+    }
+  ],
+  "migrations": "Not applicable: no migrations changed",
+  "note": "Exit results recorded from the completed static verification; silent successful typecheck output is retained as an empty log. Temporary capture TypeScript was outside the checkout during these checks."
+}

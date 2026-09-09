@@ -1,0 +1,2503 @@
+[
+  {
+    "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > the requested case exists",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "name": "live OpenAI answer evaluation quality > the requested case exists",
+    "title": "the requested case exists",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/answer-evaluation-quality.txt",
+        "durationMs": 0.6142500000000126
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/answer-evaluation-quality.txt",
+        "durationMs": 0.6645830000000075
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/answer-evaluation-quality.txt",
+        "durationMs": 0.6003750000000139
+      }
+    ],
+    "displayName": "the requested case exists",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "name": "live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'",
+    "title": "'accepts a correct biology paraphrase'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"oxygen accepts hydrogen ions to form water\",\n+ ]",
+        "log": "baseline-1/answer-evaluation-quality.txt",
+        "durationMs": 4160.851584
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"oxygen combines with electrons and hydrogen ions to form water\",\n+ ]",
+        "log": "baseline-2/answer-evaluation-quality.txt",
+        "durationMs": 1604.851084
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"oxygen accepts hydrogen ions to form water\",\n+ ]",
+        "log": "baseline-3/answer-evaluation-quality.txt",
+        "durationMs": 2330.6052910000003
+      }
+    ],
+    "displayName": "accepts a correct biology paraphrase",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A01",
+    "priority": 9,
+    "severity": "P2",
+    "lifecycleExposure": "Yes, during a typed-answer check: completion remains possible, but the learner sees a secure judgment beside a \u201cWhat is still missing\u201d list of optional details.",
+    "likelyCause": "The verdict follows the required rubric while missingIdeas still pulls optional details from the reference answer.",
+    "reproCommand": "YOVA_RUN_LIVE_ANSWER_EVALS=1 YOVA_ANSWER_EVAL_CASE=biology-paraphrase node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/answer-evaluation-quality.live.test.ts --maxWorkers=1",
+    "observed": "A correct paraphrase received secure plus non-empty missingIdeas even though those details are explicitly optional in the fixture rubric."
+  },
+  {
+    "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'catches confident biology keyword soup'",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "name": "live OpenAI answer evaluation quality > 'catches confident biology keyword soup'",
+    "title": "'catches confident biology keyword soup'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/answer-evaluation-quality.txt",
+        "durationMs": 3786.7630839999993
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/answer-evaluation-quality.txt",
+        "durationMs": 1347.862833
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/answer-evaluation-quality.txt",
+        "durationMs": 1660.891083
+      }
+    ],
+    "displayName": "catches confident biology keyword soup",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'marks a materially incomplete causal \u2026'",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "name": "live OpenAI answer evaluation quality > 'marks a materially incomplete causal \u2026'",
+    "title": "'marks a materially incomplete causal \u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/answer-evaluation-quality.txt",
+        "durationMs": 1648.182499999999
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/answer-evaluation-quality.txt",
+        "durationMs": 1277.4880419999995
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/answer-evaluation-quality.txt",
+        "durationMs": 1367.2855
+      }
+    ],
+    "displayName": "marks a materially incomplete causal explanation for review",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat\u2026'",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "name": "live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat\u2026'",
+    "title": "'accepts equivalent mathematical notat\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/answer-evaluation-quality.txt",
+        "durationMs": 1416.0360840000012
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/answer-evaluation-quality.txt",
+        "durationMs": 1075.9912909999994
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/answer-evaluation-quality.txt",
+        "durationMs": 1131.4912080000004
+      }
+    ],
+    "displayName": "accepts equivalent mathematical notation",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'does not reward a true statement that\u2026'",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "name": "live OpenAI answer evaluation quality > 'does not reward a true statement that\u2026'",
+    "title": "'does not reward a true statement that\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/answer-evaluation-quality.txt",
+        "durationMs": 1540.2037920000002
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/answer-evaluation-quality.txt",
+        "durationMs": 1791.8588330000002
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/answer-evaluation-quality.txt",
+        "durationMs": 1546.7725
+      }
+    ],
+    "displayName": "does not reward a true statement that misses the mechanism",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts a concise programming explana\u2026'",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "name": "live OpenAI answer evaluation quality > 'accepts a concise programming explana\u2026'",
+    "title": "'accepts a concise programming explana\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"function returns back through earlier calls\",\n+ ]",
+        "log": "baseline-1/answer-evaluation-quality.txt",
+        "durationMs": 1592.4583750000002
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Earlier recursive calls return after the base case is reached\",\n+ ]",
+        "log": "baseline-2/answer-evaluation-quality.txt",
+        "durationMs": 1247.430875
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Base case allows the recursive calls to terminate\",\n+ ]",
+        "log": "baseline-3/answer-evaluation-quality.txt",
+        "durationMs": 1277.0761670000002
+      }
+    ],
+    "displayName": "accepts a concise programming explanation",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A02",
+    "priority": 9,
+    "severity": "P2",
+    "lifecycleExposure": "Yes, during a typed-answer check: completion remains possible, but the learner sees a secure judgment beside a \u201cWhat is still missing\u201d list of optional details.",
+    "likelyCause": "The verdict follows the required rubric while missingIdeas still pulls optional details from the reference answer.",
+    "reproCommand": "YOVA_RUN_LIVE_ANSWER_EVALS=1 YOVA_ANSWER_EVAL_CASE=programming-concise node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/answer-evaluation-quality.live.test.ts --maxWorkers=1",
+    "observed": "A correct paraphrase received secure plus non-empty missingIdeas even though those details are explicitly optional in the fixture rubric."
+  },
+  {
+    "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la\u2026'",
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "name": "live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la\u2026'",
+    "title": "'admits uncertainty when the prompt la\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'uncertain' ] to include 'secure'",
+        "log": "baseline-1/answer-evaluation-quality.txt",
+        "durationMs": 1490.2167499999996
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'uncertain' ] to include 'secure'",
+        "log": "baseline-2/answer-evaluation-quality.txt",
+        "durationMs": 1567.8067920000012
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'uncertain' ] to include 'secure'",
+        "log": "baseline-3/answer-evaluation-quality.txt",
+        "durationMs": 1484.5418750000008
+      }
+    ],
+    "displayName": "admits uncertainty when the prompt lacks necessary context",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A03",
+    "priority": 1,
+    "severity": "P1",
+    "lifecycleExposure": "Yes, at the answer-check step: an under-specified question receives a secure judgment instead of uncertainty, so the evidence-authority path could accept a judgment it cannot substantiate.",
+    "likelyCause": "The evaluator trusts a vague reference/rubric instead of detecting missing observations and withholding judgment.",
+    "reproCommand": "YOVA_RUN_LIVE_ANSWER_EVALS=1 YOVA_ANSWER_EVAL_CASE=ambiguous-prompt node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/answer-evaluation-quality.live.test.ts --maxWorkers=1",
+    "observed": "The rate-change answer was graded secure with no stated process, observations, or changed condition."
+  },
+  {
+    "id": "src/evals/launch-lesson-streams.live.test.ts::launch lesson delivery > streams the validated calculus teaching",
+    "file": "src/evals/launch-lesson-streams.live.test.ts",
+    "name": "launch lesson delivery > streams the validated calculus teaching",
+    "title": "streams the validated calculus teaching",
+    "runs": [
+      {
+        "run": 1,
+        "status": "unavailable",
+        "detail": "Fresh producer fixture missing; producer result is reported separately",
+        "log": "baseline-1/launch-lesson-streams.txt",
+        "durationMs": 2.431624999999997
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/launch-lesson-streams.txt",
+        "durationMs": 7432.4387910000005
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/launch-lesson-streams.txt",
+        "durationMs": 5357.870625
+      }
+    ],
+    "displayName": "streams the validated calculus teaching",
+    "cohort": "additional",
+    "passed": 2,
+    "failed": 0,
+    "unavailable": 1,
+    "classification": "UNAVAILABLE",
+    "classificationEvidence": "1/3 attempts unavailable; 2/3 passed. No semantic failure observed.",
+    "auditId": "X01"
+  },
+  {
+    "id": "src/evals/launch-lesson-streams.live.test.ts::launch lesson delivery > streams the validated osmosis teaching",
+    "file": "src/evals/launch-lesson-streams.live.test.ts",
+    "name": "launch lesson delivery > streams the validated osmosis teaching",
+    "title": "streams the validated osmosis teaching",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/launch-lesson-streams.txt",
+        "durationMs": 13192.732792
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/launch-lesson-streams.txt",
+        "durationMs": 11720.917833
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/launch-lesson-streams.txt",
+        "durationMs": 10674.313208
+      }
+    ],
+    "displayName": "streams the validated osmosis teaching",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'calculus'",
+    "file": "src/evals/launch-session-journeys.live.test.ts",
+    "name": "launch session journeys with committed recipes > 'calculus'",
+    "title": "'calculus'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.",
+        "log": "baseline-1/launch-session-journeys.txt",
+        "durationMs": 12829.5365
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/launch-session-journeys.txt",
+        "durationMs": 10526.548333
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/launch-session-journeys.txt",
+        "durationMs": 15179.118583000001
+      }
+    ],
+    "displayName": "calculus",
+    "cohort": "additional",
+    "passed": 2,
+    "failed": 1,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 2/3 complete main runs; 1 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "X02"
+  },
+  {
+    "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'osmosis'",
+    "file": "src/evals/launch-session-journeys.live.test.ts",
+    "name": "launch session journeys with committed recipes > 'osmosis'",
+    "title": "'osmosis'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/launch-session-journeys.txt",
+        "durationMs": 14271.936541
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/launch-session-journeys.txt",
+        "durationMs": 10591.004
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/launch-session-journeys.txt",
+        "durationMs": 12563.985833
+      }
+    ],
+    "displayName": "osmosis",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'recall'",
+    "file": "src/evals/launch-session-journeys.live.test.ts",
+    "name": "launch session journeys with committed recipes > 'recall'",
+    "title": "'recall'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/launch-session-journeys.txt",
+        "durationMs": 26391.168459
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/launch-session-journeys.txt",
+        "durationMs": 11939.812166000003
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/launch-session-journeys.txt",
+        "durationMs": 14921.978707999999
+      }
+    ],
+    "displayName": "recall",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/lesson-tutor.live.test.ts::live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it",
+    "file": "src/evals/lesson-tutor.live.test.ts",
+    "name": "live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it",
+    "title": "answers a genuinely off-topic question instead of refusing it",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/lesson-tutor.txt",
+        "durationMs": 4557.564667
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/lesson-tutor.txt",
+        "durationMs": 3282.846792
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/lesson-tutor.txt",
+        "durationMs": 2935.5964169999997
+      }
+    ],
+    "displayName": "answers a genuinely off-topic question instead of refusing it",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/lesson-tutor.live.test.ts::live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check",
+    "file": "src/evals/lesson-tutor.live.test.ts",
+    "name": "live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check",
+    "title": "does not reveal the answer to a later protected knowledge check",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/lesson-tutor.txt",
+        "durationMs": 5272.786583
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/lesson-tutor.txt",
+        "durationMs": 7381.730833
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/lesson-tutor.txt",
+        "durationMs": 1858.0388750000002
+      }
+    ],
+    "displayName": "does not reveal the answer to a later protected knowledge check",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/lib/diagnostics/map-diagnostic.live.test.ts::live map diagnostic generation > generates from a material map and reports latency",
+    "file": "src/lib/diagnostics/map-diagnostic.live.test.ts",
+    "name": "live map diagnostic generation > generates from a material map and reports latency",
+    "title": "generates from a material map and reports latency",
+    "runs": [
+      {
+        "run": 1,
+        "status": "unavailable",
+        "detail": "Provider request timed out (cause recorded in suite log)",
+        "log": "baseline-1/map-diagnostic.txt",
+        "durationMs": 24054.626083000003
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/map-diagnostic.txt",
+        "durationMs": 13987.841790999999
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "MapDiagnosticGenerationError: The placement check did not cover its assigned questions safely.",
+        "log": "baseline-3/map-diagnostic.txt",
+        "durationMs": 5571.895458999999
+      }
+    ],
+    "displayName": "generates from a material map and reports latency",
+    "cohort": "additional",
+    "passed": 1,
+    "failed": 1,
+    "unavailable": 1,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 1/3 complete main runs; 1 semantic failure(s), 1 unavailable attempt(s).",
+    "auditId": "X03"
+  },
+  {
+    "id": "src/lib/diagnostics/map-diagnostic.live.test.ts::live map diagnostic generation > generates from a ai_generated map and reports latency",
+    "file": "src/lib/diagnostics/map-diagnostic.live.test.ts",
+    "name": "live map diagnostic generation > generates from a ai_generated map and reports latency",
+    "title": "generates from a ai_generated map and reports latency",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "MapDiagnosticGenerationError: The placement check did not cover its assigned questions safely.",
+        "log": "baseline-1/map-diagnostic.txt",
+        "durationMs": 4356.959040999998
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/map-diagnostic.txt",
+        "durationMs": 15198.65875
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/map-diagnostic.txt",
+        "durationMs": 14349.030917
+      }
+    ],
+    "displayName": "generates from a ai_generated map and reports latency",
+    "cohort": "additional",
+    "passed": 2,
+    "failed": 1,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 2/3 complete main runs; 1 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "X04"
+  },
+  {
+    "id": "src/evals/material-osmosis-session.live.test.ts::live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window",
+    "file": "src/evals/material-osmosis-session.live.test.ts",
+    "name": "live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window",
+    "title": "keeps two current targets and defers the third in a 15-minute window",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a safe degraded session for this setup. Review the session setup or choose a source-independent route.",
+        "log": "baseline-1/material-osmosis-session.txt",
+        "durationMs": 4359.349333
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/material-osmosis-session.txt",
+        "durationMs": 2944.585
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/material-osmosis-session.txt",
+        "durationMs": 3489.4581670000002
+      }
+    ],
+    "displayName": "keeps two current targets and defers the third in a 15-minute window",
+    "cohort": "additional",
+    "passed": 2,
+    "failed": 1,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 2/3 complete main runs; 1 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "X05"
+  },
+  {
+    "id": "src/evals/outside-teaching-reliability.live.test.ts::live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly",
+    "file": "src/evals/outside-teaching-reliability.live.test.ts",
+    "name": "live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly",
+    "title": "builds an arbitrary three-target teaching-first session repeatedly",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ { run: 1, \u2026(1) }, { run: 2, \u2026(1) } ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   {\n+     \"generationStats\": {\n+       \"attempts\": 2,\n+       \"cacheWriteTokens\": 0,\n+       \"cachedInputTokens\": 6912,\n+       \"cause\": \"semantic_validation\",\n+       \"elapsedMs\": 21791,\n+       \"failedValidator\": \"session_method_fidelity\",\n+       \"firstAttemptPassed\": false,\n+       \"inputTokens\": 24047,\n+       \"outputTokens\": 3354,\n+       \"repairAttempted\": true,\n+       \"repairDetail\": \"The session produced a error_repair runtime, but self_explanation does not use a method runtime. Follow-up repair failure: reexplain is attached to an activity type that cannot perform that learning phase.\",\n+       \"repairReason\": \"semantic_validation\",\n+       \"repairSucceeded\": false,\n+       \"stage\": \"validation\",\n+       \"strategy\": \"full\",\n+       \"validationIssueCode\": null,\n+     },\n+     \"run\": 1,\n+   },\n+   {\n+     \"generationStats\": {\n+       \"attempts\": 2,\n+       \"cacheWriteTokens\": 0,\n+       \"cachedInputTokens\": 18432,\n+       \"cause\": \"semantic_validation\",\n+       \"elapsedMs\": 22782,\n+       \"failedValidator\": \"session_method_fidelity\",\n+       \"firstAttemptPassed\": false,\n+       \"inputTokens\": 24043,\n+       \"outputTokens\": 3316,\n+       \"repairAttempted\": true,\n+       \"repairDetail\": \"reexplain is attached to an activity type that cannot perform that learning phase. Follow-up repair failure: connect is attached to an activity type that cannot perform that learning phase.\",\n+       \"repairReason\": \"semantic_validation\",\n+       \"repairSucceeded\": false,\n+       \"stage\": \"validation\",\n+       \"strategy\": \"full\",\n+       \"validationIssueCode\": null,\n+     },\n+     \"run\": 2,\n+   },\n+ ]",
+        "log": "baseline-1/outside-teaching-reliability.txt",
+        "durationMs": 55880.994125000005
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/outside-teaching-reliability.txt",
+        "durationMs": 22705.881792
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ { run: 1, \u2026(1) }, { run: 2, \u2026(1) } ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   {\n+     \"generationStats\": {\n+       \"attempts\": 2,\n+       \"cacheWriteTokens\": 0,\n+       \"cachedInputTokens\": 18432,\n+       \"cause\": \"semantic_validation\",\n+       \"elapsedMs\": 15677,\n+       \"failedValidator\": \"session_content_specificity\",\n+       \"firstAttemptPassed\": false,\n+       \"inputTokens\": 24047,\n+       \"outputTokens\": 3385,\n+       \"repairAttempted\": true,\n+       \"repairDetail\": \"The session produced a error_repair runtime, but self_explanation does not use a method runtime. Follow-up repair failure: These essential ideas are checked later but are not actually taught in the lesson model: \\\"Income, preferences, input costs, and expectations can shift demand or supply in a definite direction.\\\". Teach every listed relationship explicitly, or move it to deferredContent and remove its evidence-map entry.\",\n+       \"repairReason\": \"semantic_validation\",\n+       \"repairSucceeded\": false,\n+       \"stage\": \"validation\",\n+       \"strategy\": \"full\",\n+       \"validationIssueCode\": null,\n+     },\n+     \"run\": 1,\n+   },\n+   {\n+     \"generationStats\": {\n+       \"attempts\": 2,\n+       \"cacheWriteTokens\": 0,\n+       \"cachedInputTokens\": 18432,\n+       \"cause\": \"semantic_validation\",\n+       \"elapsedMs\": 18351,\n+       \"failedValidator\": \"session_method_runtime\",\n+       \"firstAttemptPassed\": false,\n+       \"inputTokens\": 24041,\n+       \"outputTokens\": 3534,\n+       \"repairAttempted\": true,\n+       \"repairDetail\": \"explain is attached to an activity type that cannot perform that learning phase. Follow-up repair failure: The session produced a error_repair runtime, but self_explanation does not use a method runtime.\",\n+       \"repairReason\": \"semantic_validation\",\n+       \"repairSucceeded\": false,\n+       \"stage\": \"validation\",\n+       \"strategy\": \"full\",\n+       \"validationIssueCode\": null,\n+     },\n+     \"run\": 2,\n+   },\n+ ]",
+        "log": "baseline-3/outside-teaching-reliability.txt",
+        "durationMs": 42744.855124999995
+      }
+    ],
+    "displayName": "builds an arbitrary three-target teaching-first session repeatedly",
+    "cohort": "original-36",
+    "passed": 1,
+    "failed": 2,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 1/3 complete main runs; 2 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "A04"
+  },
+  {
+    "id": "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP",
+    "file": "src/evals/plan-creation-blockers.live.test.ts",
+    "name": "live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP",
+    "title": "real placement questions and a map-only scope correction preserve demonstrated ATP",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected undefined to be 'study' // Object.is equality\n\n- Expected:\n\"study\"\n\n+ Received:\nundefined",
+        "log": "baseline-1/plan-creation-blockers.txt",
+        "durationMs": 33428.392958000004
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected undefined to be 'study' // Object.is equality\n\n- Expected:\n\"study\"\n\n+ Received:\nundefined",
+        "log": "baseline-2/plan-creation-blockers.txt",
+        "durationMs": 27242.117583
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected undefined to be 'study' // Object.is equality\n\n- Expected:\n\"study\"\n\n+ Received:\nundefined",
+        "log": "baseline-3/plan-creation-blockers.txt",
+        "durationMs": 23367.333708
+      }
+    ],
+    "displayName": "real placement questions and a map-only scope correction preserve demonstrated ATP",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "The baseline expectation was stale, but branch verification exposed an independent diagnostic-generator failure before that assertion; conservatively REAL after correction.",
+    "auditId": "A05",
+    "severity": "P2 (optional placement)",
+    "observed": "The complete branch run rejected generated placement questions as ambiguous or unsupported before the corrected evidence/deferral assertion; a focused follow-up passed that assertion.",
+    "lifecycleExposure": "Yes, during optional placement while creating a plan: the learner sees a generation error and must retry or skip placement. The flow without placement is not implicated by this observation.",
+    "likelyCause": "The diagnostic generator and answer verifier sometimes disagree about answer support, consistent with the diagnostic failures seen in X03/X04.",
+    "reproCommand": "YOVA_RUN_LIVE_PLAN_BLOCKERS=1 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/plan-creation-blockers.live.test.ts --maxWorkers=1 --testNamePattern 'real placement questions'",
+    "followupEvidence": [
+      "branch-live-gate/run-1-plan-creation-blockers.txt",
+      "stale-verification/A05.txt"
+    ],
+    "initialClassification": "STALE"
+  },
+  {
+    "id": "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic",
+    "file": "src/evals/plan-creation-blockers.live.test.ts",
+    "name": "live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic",
+    "title": "a ten-minute triage generates a runnable lesson on its saved topic",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/plan-creation-blockers.txt",
+        "durationMs": 10306.642750000006
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/plan-creation-blockers.txt",
+        "durationMs": 7999.269875000002
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/plan-creation-blockers.txt",
+        "durationMs": 6399.800875000001
+      }
+    ],
+    "displayName": "a ten-minute triage generates a runnable lesson on its saved topic",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > the requested case exists",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > the requested case exists",
+    "title": "the requested case exists",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 0.6663340000000062
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 0.6318330000000003
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 0.7144169999999974
+      }
+    ],
+    "displayName": "the requested case exists",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Biology test with learner notes'",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > 'Biology test with learner notes'",
+    "title": "'Biology test with learner notes'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 20221.556542
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 15009.93975
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 20124.983458000002
+      }
+    ],
+    "displayName": "Biology test with learner notes",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).",
+    "auditId": "A06"
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus problem-solving plan'",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > 'Calculus problem-solving plan'",
+    "title": "'Calculus problem-solving plan'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 14923.346000000001
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 15408.940333999999
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 17794.723374999998
+      }
+    ],
+    "displayName": "Calculus problem-solving plan",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).",
+    "auditId": "A07"
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus unit with mixed placement ev\u2026'",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > 'Calculus unit with mixed placement ev\u2026'",
+    "title": "'Calculus unit with mixed placement ev\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 24232.059749999993
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 20895.821167000002
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 18056.065833
+      }
+    ],
+    "displayName": "Calculus unit with mixed placement evidence",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'One product-rule skill in short sessi\u2026'",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > 'One product-rule skill in short sessi\u2026'",
+    "title": "'One product-rule skill in short sessi\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "unavailable",
+        "detail": "Provider request timed out (cause recorded in suite log)",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 40031.983791
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 13721.252541000002
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 13011.165583000002
+      }
+    ],
+    "displayName": "One product-rule skill in short sessions",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 2,
+    "unavailable": 1,
+    "classification": "STALE",
+    "classificationEvidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).",
+    "auditId": "A08"
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'World War I unit guide in short sessi\u2026'",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > 'World War I unit guide in short sessi\u2026'",
+    "title": "'World War I unit guide in short sessi\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 18242.448791999996
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 16445.550499999998
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 16979.920708000005
+      }
+    ],
+    "displayName": "World War I unit guide in short sessions",
+    "cohort": "original-timeout",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).",
+    "auditId": "A09"
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Full beginner calculus pathway'",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > 'Full beginner calculus pathway'",
+    "title": "'Full beginner calculus pathway'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 29576.211875000008
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 35048.34054199999
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 23683.126957999993
+      }
+    ],
+    "displayName": "Full beginner calculus pathway",
+    "cohort": "original-timeout",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).",
+    "auditId": "A10"
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'General-learning startup funding path\u2026'",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > 'General-learning startup funding path\u2026'",
+    "title": "'General-learning startup funding path\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 25713.124207999994
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 22738.23324999999
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 18823.266875
+      }
+    ],
+    "displayName": "General-learning startup funding pathway",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).",
+    "auditId": "A11"
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'History essay using outside sources'",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > 'History essay using outside sources'",
+    "title": "'History essay using outside sources'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "unavailable",
+        "detail": "Provider request timed out (cause recorded in suite log)",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 21042.777333999984
+      },
+      {
+        "run": 2,
+        "status": "unavailable",
+        "detail": "Provider request timed out (cause recorded in suite log)",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 40058.51766700001
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 26061.600042000005
+      }
+    ],
+    "displayName": "History essay using outside sources",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 1,
+    "unavailable": 2,
+    "classification": "STALE",
+    "classificationEvidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).",
+    "auditId": "A12"
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Beginner JavaScript practice'",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > 'Beginner JavaScript practice'",
+    "title": "'Beginner JavaScript practice'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 15672.819415999984
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 16757.827958999987
+      },
+      {
+        "run": 3,
+        "status": "unavailable",
+        "detail": "Provider request timed out (cause recorded in suite log)",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 40047.686667
+      }
+    ],
+    "displayName": "Beginner JavaScript practice",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 2,
+    "unavailable": 1,
+    "classification": "STALE",
+    "classificationEvidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).",
+    "auditId": "A13"
+  },
+  {
+    "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'General-learning finance pathway'",
+    "file": "src/evals/plan-quality.live.test.ts",
+    "name": "live OpenAI plan quality > 'General-learning finance pathway'",
+    "title": "'General-learning finance pathway'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-quality.txt",
+        "durationMs": 32403.808375000022
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-2/plan-quality.txt",
+        "durationMs": 17889.86929100001
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-quality.txt",
+        "durationMs": 19114.929875
+      }
+    ],
+    "displayName": "General-learning finance pathway",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).",
+    "auditId": "A14"
+  },
+  {
+    "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > the requested journey exists",
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "name": "live plan-to-session journeys > the requested journey exists",
+    "title": "the requested journey exists",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/plan-session-journey.txt",
+        "durationMs": 0.6736669999999663
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/plan-session-journey.txt",
+        "durationMs": 0.7778329999999869
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/plan-session-journey.txt",
+        "durationMs": 0.667082999999991
+      }
+    ],
+    "displayName": "the requested journey exists",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'One product-rule skill in short sessi\u2026'",
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "name": "live plan-to-session journeys > 'One product-rule skill in short sessi\u2026'",
+    "title": "'One product-rule skill in short sessi\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-session-journey.txt",
+        "durationMs": 23155.003333
+      },
+      {
+        "run": 2,
+        "status": "unavailable",
+        "detail": "Provider request timed out (cause recorded in suite log)",
+        "log": "baseline-2/plan-session-journey.txt",
+        "durationMs": 40325.509
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-session-journey.txt",
+        "durationMs": 23874.746709
+      }
+    ],
+    "displayName": "One product-rule skill in short sessions",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 2,
+    "unavailable": 1,
+    "classification": "REAL",
+    "classificationEvidence": "The baseline no-map coverage assertion was stale, but both the complete branch run and a focused follow-up failed session recovery independently; conservatively REAL after correction.",
+    "auditId": "A15",
+    "severity": "P1",
+    "observed": "Session generation failed its bounded compact-recovery schema twice after the stale no-map assertion was corrected; telemetry says the formula-only active slice leaked the deferred factor-identification target.",
+    "lifecycleExposure": "Yes, when opening the first product-rule lesson after activation: session generation cannot produce a runnable teaching/check sequence.",
+    "likelyCause": "The authoritative slice separates the product-rule formula from identifying its factors, but generated teaching/checks cross that boundary and compact recovery does not satisfy the schema.",
+    "reproCommand": "YOVA_RUN_LIVE_JOURNEY_EVALS=1 YOVA_JOURNEY_EVAL_CASE=product_rule_narrow_15 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/plan-session-journey.live.test.ts --maxWorkers=1",
+    "followupEvidence": [
+      "branch-live-gate/run-1-plan-session-journey.txt",
+      "stale-verification/A15.txt"
+    ],
+    "initialClassification": "STALE"
+  },
+  {
+    "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'World War I unit guide in short sessi\u2026'",
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "name": "live plan-to-session journeys > 'World War I unit guide in short sessi\u2026'",
+    "title": "'World War I unit guide in short sessi\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-session-journey.txt",
+        "durationMs": 29023.148959000002
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-2/plan-session-journey.txt",
+        "durationMs": 28444.439500000008
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-session-journey.txt",
+        "durationMs": 34360.649625000005
+      }
+    ],
+    "displayName": "World War I unit guide in short sessions",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A16",
+    "priority": 7,
+    "severity": "P1 (legacy material path)",
+    "lifecycleExposure": "A tester can hit this when opening a plan with the legacy material-context shape in this fixture; this audit does not establish the same defect for every freshly mapped upload.",
+    "likelyCause": "The retained legacy pure-material path reaches a fallback that requires mapped source authority; source-outline roles may also be inconsistent. The contract still promises legacy support, so this is a product-intent question, not permission to invent fixture mappings.",
+    "reproCommand": "YOVA_RUN_LIVE_JOURNEY_EVALS=1 YOVA_JOURNEY_EVAL_CASE=world_war_one_guide_15 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/plan-session-journey.live.test.ts --maxWorkers=1",
+    "observed": "Generation refused the supplied material with \u201cno readable explanatory source is mapped to the active target\u201d; some attempts instead reached an obsolete rubric assertion."
+  },
+  {
+    "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'Full beginner calculus pathway'",
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "name": "live plan-to-session journeys > 'Full beginner calculus pathway'",
+    "title": "'Full beginner calculus pathway'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-session-journey.txt",
+        "durationMs": 30631.833790999997
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-2/plan-session-journey.txt",
+        "durationMs": 33404.587792000006
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-session-journey.txt",
+        "durationMs": 44038.43675000001
+      }
+    ],
+    "displayName": "Full beginner calculus pathway",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "After correcting no-map coverage and policy-copy vocabulary, a focused run still failed task alignment. Deciding whether foundational Learn content must satisfy the plan-wide problem-solving keyword test requires product intent, so REAL; the assertion remains unchanged.",
+    "auditId": "A17",
+    "initialClassification": "STALE",
+    "severity": "P2 (product-intent question)",
+    "observed": "The corrected connected journey generated a five-activity Worked Examples lesson scoring 85/100, then failed the required \u201cActivities fit the learning task\u201d check. No full learner activity dump was retained by that existing canary, so this is an unresolved intent question rather than a claim that the lesson was definitively wrong.",
+    "lifecycleExposure": "The create/activate/open path can produce a runnable first lesson, but whether its activity mix meets the learner\u2019s broad calculus goal is unresolved. This audit observed an eval failure, not a proven UI completion blocker.",
+    "likelyCause": "The journey applies its plan-wide problem_solving task family to a foundational first Learn lesson; either the lexical test is too narrow or the lesson needs more explicit problem work. Founder decision required before changing that assertion.",
+    "reproCommand": "YOVA_RUN_LIVE_JOURNEY_EVALS=1 YOVA_JOURNEY_EVAL_CASE=calculus_broad_pathway_30 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/plan-session-journey.live.test.ts --maxWorkers=1",
+    "followupEvidence": [
+      "branch-live-gate/run-1-plan-session-journey.txt",
+      "stale-verification/A17.txt"
+    ]
+  },
+  {
+    "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'History essay using outside sources'",
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "name": "live plan-to-session journeys > 'History essay using outside sources'",
+    "title": "'History essay using outside sources'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-1/plan-session-journey.txt",
+        "durationMs": 28752.278583000007
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-2/plan-session-journey.txt",
+        "durationMs": 33274.334833
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Every mapped topic is scheduled or explicitly deferred\",\n+ ]",
+        "log": "baseline-3/plan-session-journey.txt",
+        "durationMs": 47274.49579199999
+      }
+    ],
+    "displayName": "History essay using outside sources",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).",
+    "auditId": "A18"
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > the requested case exists",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > the requested case exists",
+    "title": "the requested case exists",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 0.5911669999999845
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 0.599583000000024
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 0.638875000000013
+      }
+    ],
+    "displayName": "the requested case exists",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Biology teaching from learner notes'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Biology teaching from learner notes'",
+    "title": "'Biology teaching from learner notes'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 17343.372833
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 15227.353917
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 17954.849667
+      }
+    ],
+    "displayName": "Biology teaching from learner notes",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A19",
+    "priority": 7,
+    "severity": "P1 (legacy material path)",
+    "lifecycleExposure": "A tester can hit this when opening a plan with the legacy material-context shape in this fixture; this audit does not establish the same defect for every freshly mapped upload.",
+    "likelyCause": "The retained legacy pure-material path reaches a fallback that requires mapped source authority; source-outline roles may also be inconsistent. The contract still promises legacy support, so this is a product-intent question, not permission to invent fixture mappings.",
+    "reproCommand": "YOVA_RUN_LIVE_SESSION_EVALS=1 YOVA_SESSION_EVAL_CASE=biology_initial_teaching node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/session-quality.live.test.ts --maxWorkers=1",
+    "observed": "Generation refused the supplied material with \u201cno readable explanatory source is mapped to the active target\u201d; some attempts instead reached an obsolete rubric assertion."
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Bioenergetics multi-target retrieval \u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Bioenergetics multi-target retrieval \u2026'",
+    "title": "'Bioenergetics multi-target retrieval \u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 3645.5070840000008
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 3693.2583750000013
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 4696.814624999999
+      }
+    ],
+    "displayName": "Bioenergetics multi-target retrieval recovery",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute temperature and reacti\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Fifteen-minute temperature and reacti\u2026'",
+    "title": "'Fifteen-minute temperature and reacti\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 9404.632375000001
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 7693.725125000001
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 10812.520958000001
+      }
+    ],
+    "displayName": "Fifteen-minute temperature and reaction-rate explanation",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "The old 4/5 activity cap predates the method-aware Learn budget and recognition phase in b8f5e102 (Sep 1).",
+    "auditId": "A20"
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute first product-rule les\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Fifteen-minute first product-rule les\u2026'",
+    "title": "'Fifteen-minute first product-rule les\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 9421.191666999996
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 6681.762834000001
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 11296.700375
+      }
+    ],
+    "displayName": "Fifteen-minute first product-rule lesson",
+    "cohort": "original-36",
+    "passed": 1,
+    "failed": 2,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 1/3 complete main runs; 2 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "A21"
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped product-rule and chain-rule fi\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Mapped product-rule and chain-rule fi\u2026'",
+    "title": "'Mapped product-rule and chain-rule fi\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 10913.501207999994
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema.",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 11628.128125000003
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 12212.663999999997
+      }
+    ],
+    "displayName": "Mapped product-rule and chain-rule first lesson",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A22",
+    "priority": 3,
+    "severity": "P1",
+    "lifecycleExposure": "Yes, at session generation or repair after activation: the learner receives a generation failure before the required lesson/check sequence can be completed.",
+    "likelyCause": "The bounded compact-recovery output does not match the schema expected by session finalization.",
+    "reproCommand": "YOVA_RUN_LIVE_SESSION_EVALS=1 YOVA_SESSION_EVAL_CASE=calculus_product_chain_streamed_25 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/session-quality.live.test.ts --maxWorkers=1",
+    "observed": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema."
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Production-shaped derivative-foundati\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Production-shaped derivative-foundati\u2026'",
+    "title": "'Production-shaped derivative-foundati\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 13502.260834
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete, safe guided session after the bounded repair attempts. The required knowledge check mapped to \u201cThe power rule, constant multiple rule, and sum or difference rule apply to simple functions.\u201d does not visibly assess that essential idea.",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 12358.525833
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 7624.746749999998
+      }
+    ],
+    "displayName": "Production-shaped derivative-foundations verification",
+    "cohort": "original-36",
+    "passed": 2,
+    "failed": 1,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 2/3 complete main runs; 1 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "A23"
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'World War I teaching for a complete b\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'World War I teaching for a complete b\u2026'",
+    "title": "'World War I teaching for a complete b\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 16051.855833000009
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 21456.448792000003
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 14292.440125000001
+      }
+    ],
+    "displayName": "World War I teaching for a complete beginner",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A24",
+    "priority": 7,
+    "severity": "P1 (legacy material path)",
+    "lifecycleExposure": "A tester can hit this when opening a plan with the legacy material-context shape in this fixture; this audit does not establish the same defect for every freshly mapped upload.",
+    "likelyCause": "The retained legacy pure-material path reaches a fallback that requires mapped source authority; source-outline roles may also be inconsistent. The contract still promises legacy support, so this is a product-intent question, not permission to invent fixture mappings.",
+    "reproCommand": "YOVA_RUN_LIVE_SESSION_EVALS=1 YOVA_SESSION_EVAL_CASE=world_war_one_novice_15_min node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/session-quality.live.test.ts --maxWorkers=1",
+    "observed": "Generation refused the supplied material with \u201cno readable explanatory source is mapped to the active target\u201d; some attempts instead reached an obsolete rubric assertion."
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped 45-minute World War I baseline\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Mapped 45-minute World War I baseline\u2026'",
+    "title": "'Mapped 45-minute World War I baseline\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 11569.107334
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activities fit the learning task' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activities fit the learning task\",\n+ ]",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 8403.795290999988
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 21440.958916999996
+      }
+    ],
+    "displayName": "Mapped 45-minute World War I baseline lesson",
+    "cohort": "original-36",
+    "passed": 2,
+    "failed": 1,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 2/3 complete main runs; 1 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "A25"
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Calculus repair after a weak check'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Calculus repair after a weak check'",
+    "title": "'Calculus repair after a weak check'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete subject lesson after one repair attempt.",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 7288.420207999996
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete subject lesson after one repair attempt.",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 6106.534792000006
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 7930.249958999993
+      }
+    ],
+    "displayName": "Calculus repair after a weak check",
+    "cohort": "original-36",
+    "passed": 1,
+    "failed": 2,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 1/3 complete main runs; 2 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "A26"
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Self-contained delayed calculus review'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Self-contained delayed calculus review'",
+    "title": "'Self-contained delayed calculus review'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 2832.5232499999984
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 2095.231832999998
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 3340.085082999998
+      }
+    ],
+    "displayName": "Self-contained delayed calculus review",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History writing outside YOVA'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'History writing outside YOVA'",
+    "title": "'History writing outside YOVA'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 8405.148499999996
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 7279.414374999993
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 9374.48666699999
+      }
+    ],
+    "displayName": "History writing outside YOVA",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Beginner JavaScript with fading suppo\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Beginner JavaScript with fading suppo\u2026'",
+    "title": "'Beginner JavaScript with fading suppo\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 9846.240875000003
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 8960.995167000001
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 9090.153374999994
+      }
+    ],
+    "displayName": "Beginner JavaScript with fading support",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A27",
+    "priority": 5,
+    "severity": "P1",
+    "lifecycleExposure": "Yes, at session generation or repair after activation: the learner receives a generation failure before the required lesson/check sequence can be completed.",
+    "likelyCause": "The provider/recovery assigns duplicate explanatory claims to the current slice, and deterministic finalization rejects them.",
+    "reproCommand": "YOVA_RUN_LIVE_SESSION_EVALS=1 YOVA_SESSION_EVAL_CASE=javascript_scaffold_fading node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/session-quality.live.test.ts --maxWorkers=1",
+    "observed": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize."
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'General-learning finance application'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'General-learning finance application'",
+    "title": "'General-learning finance application'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 9455.429292
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 9963.487374999997
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 13842.919125
+      }
+    ],
+    "displayName": "General-learning finance application",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "The old 4/5 activity cap predates the method-aware Learn budget and recognition phase in b8f5e102 (Sep 1).",
+    "auditId": "A28"
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute vocabulary review'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Fifteen-minute vocabulary review'",
+    "title": "'Fifteen-minute vocabulary review'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 3116.503915999987
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 3247.1421249999985
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 4216.959375000006
+      }
+    ],
+    "displayName": "Fifteen-minute vocabulary review",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Startup funding foundations for a new\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Startup funding foundations for a new\u2026'",
+    "title": "'Startup funding foundations for a new\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 10549.478624999989
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 19096.716
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ 'Activity count fits the session' ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"Activity count fits the session\",\n+ ]",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 13399.711333999992
+      }
+    ],
+    "displayName": "Startup funding foundations for a new learner",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "The old 4/5 activity cap predates the method-aware Learn budget and recognition phase in b8f5e102 (Sep 1).",
+    "auditId": "A29"
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History reasoning from a primary-sour\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'History reasoning from a primary-sour\u2026'",
+    "title": "'History reasoning from a primary-sour\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 14530.019166000013
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 15549.301665999985
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 17845.03795900001
+      }
+    ],
+    "displayName": "History reasoning from a primary-source excerpt",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A30",
+    "priority": 7,
+    "severity": "P1 (legacy material path)",
+    "lifecycleExposure": "A tester can hit this when opening a plan with the legacy material-context shape in this fixture; this audit does not establish the same defect for every freshly mapped upload.",
+    "likelyCause": "The retained legacy pure-material path reaches a fallback that requires mapped source authority; source-outline roles may also be inconsistent. The contract still promises legacy support, so this is a product-intent question, not permission to invent fixture mappings.",
+    "reproCommand": "YOVA_RUN_LIVE_SESSION_EVALS=1 YOVA_SESSION_EVAL_CASE=history_source_reasoning node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/session-quality.live.test.ts --maxWorkers=1",
+    "observed": "Generation refused the supplied material with \u201cno readable explanatory source is mapped to the active target\u201d; some attempts instead reached an obsolete rubric assertion."
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Literature close reading from a short\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Literature close reading from a short\u2026'",
+    "title": "'Literature close reading from a short\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 15015.284207999997
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 14087.04462499998
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 21058.96433399999
+      }
+    ],
+    "displayName": "Literature close reading from a short passage",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A31",
+    "priority": 7,
+    "severity": "P1 (legacy material path)",
+    "lifecycleExposure": "A tester can hit this when opening a plan with the legacy material-context shape in this fixture; this audit does not establish the same defect for every freshly mapped upload.",
+    "likelyCause": "The retained legacy pure-material path reaches a fallback that requires mapped source authority; source-outline roles may also be inconsistent. The contract still promises legacy support, so this is a product-intent question, not permission to invent fixture mappings.",
+    "reproCommand": "YOVA_RUN_LIVE_SESSION_EVALS=1 YOVA_SESSION_EVAL_CASE=literature_close_reading node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/session-quality.live.test.ts --maxWorkers=1",
+    "observed": "Generation refused the supplied material with \u201cno readable explanatory source is mapped to the active target\u201d; some attempts instead reached an obsolete rubric assertion."
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Spanish conversation with supported t\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Spanish conversation with supported t\u2026'",
+    "title": "'Spanish conversation with supported t\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 9499.544041999994
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 9056.787000000011
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 11554.726167000015
+      }
+    ],
+    "displayName": "Spanish conversation with supported transfer",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A32",
+    "priority": 6,
+    "severity": "P1",
+    "lifecycleExposure": "Yes, at session generation or repair after activation: the learner receives a generation failure before the required lesson/check sequence can be completed.",
+    "likelyCause": "The provider/recovery assigns duplicate explanatory claims to the current slice, and deterministic finalization rejects them.",
+    "reproCommand": "YOVA_RUN_LIVE_SESSION_EVALS=1 YOVA_SESSION_EVAL_CASE=spanish_conversation_transfer node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/session-quality.live.test.ts --maxWorkers=1",
+    "observed": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize."
+  },
+  {
+    "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Teaching from a thin biology study gu\u2026'",
+    "file": "src/evals/session-quality.live.test.ts",
+    "name": "live OpenAI session quality > 'Teaching from a thin biology study gu\u2026'",
+    "title": "'Teaching from a thin biology study gu\u2026'",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-1/session-quality.txt",
+        "durationMs": 14578.579166999989
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-2/session-quality.txt",
+        "durationMs": 14616.702042000019
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+        "log": "baseline-3/session-quality.txt",
+        "durationMs": 19624.16412499998
+      }
+    ],
+    "displayName": "Teaching from a thin biology study guide",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A33",
+    "priority": 7,
+    "severity": "P1 (legacy material path)",
+    "lifecycleExposure": "A tester can hit this when opening a plan with the legacy material-context shape in this fixture; this audit does not establish the same defect for every freshly mapped upload.",
+    "likelyCause": "The retained legacy pure-material path reaches a fallback that requires mapped source authority; source-outline roles may also be inconsistent. The contract still promises legacy support, so this is a product-intent question, not permission to invent fixture mappings.",
+    "reproCommand": "YOVA_RUN_LIVE_SESSION_EVALS=1 YOVA_SESSION_EVAL_CASE=thin_biology_outline_support node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/session-quality.live.test.ts --maxWorkers=1",
+    "observed": "Generation refused the supplied material with \u201cno readable explanatory source is mapped to the active target\u201d; some attempts instead reached an obsolete rubric assertion."
+  },
+  {
+    "id": "src/evals/streamed-ap-biology.live.test.ts::live streamed AP Biology session > builds a topic-specific teaching skeleton",
+    "file": "src/evals/streamed-ap-biology.live.test.ts",
+    "name": "live streamed AP Biology session > builds a topic-specific teaching skeleton",
+    "title": "builds a topic-specific teaching skeleton",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: finalize.",
+        "log": "baseline-1/streamed-ap-biology.txt",
+        "durationMs": 9832.13025
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: finalize.",
+        "log": "baseline-2/streamed-ap-biology.txt",
+        "durationMs": 9816.419583
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: finalize.",
+        "log": "baseline-3/streamed-ap-biology.txt",
+        "durationMs": 12365.61625
+      }
+    ],
+    "displayName": "builds a topic-specific teaching skeleton",
+    "cohort": "additional",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "X06",
+    "priority": 2,
+    "severity": "P1",
+    "lifecycleExposure": "Yes, when opening a generated membrane-transport lesson after plan activation: generation rejects the skeleton and the lesson does not become runnable.",
+    "likelyCause": "The target-to-subject validator rejects the provider\u2019s bounded membrane/transport claims during finalization.",
+    "reproCommand": "YOVA_RUN_LIVE_STREAMED_EVALS=1 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/streamed-ap-biology.live.test.ts --maxWorkers=1 --testNamePattern 'builds\\ a\\ topic\\-specific\\ teaching\\ skeleton'",
+    "observed": "The initial and compact recovery path ended in streamed_target_subject:other before a usable skeleton was returned."
+  },
+  {
+    "id": "src/evals/streamed-melatonin-skeleton.live.test.ts::live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session",
+    "file": "src/evals/streamed-melatonin-skeleton.live.test.ts",
+    "name": "live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session",
+    "title": "reliably creates the affected 15-minute teaching-first session",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/streamed-melatonin-skeleton.txt",
+        "durationMs": 24591.069208999997
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/streamed-melatonin-skeleton.txt",
+        "durationMs": 24299.233125000002
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/streamed-melatonin-skeleton.txt",
+        "durationMs": 30480.889917
+      }
+    ],
+    "displayName": "reliably creates the affected 15-minute teaching-first session",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/streamed-rayleigh.live.test.ts::live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton",
+    "file": "src/evals/streamed-rayleigh.live.test.ts",
+    "name": "live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton",
+    "title": "builds the production 15-minute two-target teaching skeleton",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to have a length of 2 but got 1\n\n- Expected\n+ Received\n\n- 2\n+ 1",
+        "log": "baseline-1/streamed-rayleigh.txt",
+        "durationMs": 6783.696417
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to have a length of 2 but got 1\n\n- Expected\n+ Received\n\n- 2\n+ 1",
+        "log": "baseline-2/streamed-rayleigh.txt",
+        "durationMs": 7893.849584
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected [ Array(1) ] to have a length of 2 but got 1\n\n- Expected\n+ Received\n\n- 2\n+ 1",
+        "log": "baseline-3/streamed-rayleigh.txt",
+        "durationMs": 9477.551709
+      }
+    ],
+    "displayName": "builds the production 15-minute two-target teaching skeleton",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "STALE",
+    "classificationEvidence": "A 15-minute method-bounded slice keeps one active claim and explicitly defers the second topic; scope narrowing dates to c924f5d (Aug 23).",
+    "auditId": "A34"
+  },
+  {
+    "id": "src/evals/streamed-world-war-one-lesson.live.test.ts::live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief",
+    "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+    "name": "live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief",
+    "title": "delivers substantive teaching from the first generated lesson brief",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.",
+        "log": "baseline-1/streamed-world-war-one-lesson.txt",
+        "durationMs": 10928.11025
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected '# European Alliance Blocs Before 1914\u2026' to match /Sarajevo|Franz Ferdinand/i\n\n- Expected:\n/Sarajevo|Franz Ferdinand/i\n\n+ Received:\n\"# European Alliance Blocs Before 1914\n\nBefore the First World War, Europe was divided into two rival alliance blocs. These alliances did not automatically make war inevitable, but they increased mistrust and created the danger that a dispute involving a few countries could draw in several others.\n\n## The two blocs\n\nThe **Triple Alliance** consisted of:\n\n- Germany\n- Austria-Hungary\n- Italy\n\nThe **Triple Entente** linked:\n\n- Britain\n- France\n- Russia\n\nAn alliance was an agreement to support another state under particular conditions, especially if it was attacked. Meanwhile, competition over military strength, territory, and influence produced tension between the blocs. Governments prepared for the possibility of war because they feared their rivals were doing the same.\n\nThis created a dangerous chain: rivalry encouraged military preparation, preparation increased suspicion, and suspicion made further preparation seem necessary. Europe therefore became divided into armed, distrustful groups before 1914.\n\n## An important boundary\n\nA common mix-up is to treat the alliances as two perfectly fixed teams whose members were automatically required to fight in every conflict. In reality, alliance commitments had specific conditions, and governments still made decisions when war began. Italy, although a member of the Triple Alliance, did not enter the war alongside Germany and Austria-Hungary in 1914.\n\nThe key causal idea is not simply that alliances existed. It is that rival alliances connected European powers, so a local crisis had the potential to expand into a much wider war.\"",
+        "log": "baseline-2/streamed-world-war-one-lesson.txt",
+        "durationMs": 18584.915708
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.",
+        "log": "baseline-3/streamed-world-war-one-lesson.txt",
+        "durationMs": 13193.170375
+      }
+    ],
+    "displayName": "delivers substantive teaching from the first generated lesson brief",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A35",
+    "priority": 6,
+    "severity": "P1",
+    "lifecycleExposure": "Yes, at session generation or repair after activation: the learner receives a generation failure before the required lesson/check sequence can be completed.",
+    "likelyCause": "The generated teaching claims fail the authoritative subject/scope validator; repair does not reliably recover that boundary.",
+    "reproCommand": "YOVA_RUN_LIVE_WWI_LESSON_EVALS=1 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/streamed-world-war-one-lesson.live.test.ts --maxWorkers=1 --testNamePattern 'delivers\\ substantive\\ teaching\\ from\\ the\\ first\\ generated\\ lesson\\ brief'",
+    "observed": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft."
+  },
+  {
+    "id": "src/evals/streamed-world-war-one-skeleton.live.test.ts::live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session",
+    "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+    "name": "live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session",
+    "title": "creates the production 45-minute streamed teaching session",
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "detail": "AssertionError: expected [ { \u2026(16) }, { \u2026(16) } ] to have a length of 3 but got 2\n\n- Expected\n+ Received\n\n- 3\n+ 2",
+        "log": "baseline-1/streamed-world-war-one-skeleton.txt",
+        "durationMs": 7824.351584
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "detail": "AssertionError: expected [ { \u2026(16) }, { \u2026(16) } ] to have a length of 3 but got 2\n\n- Expected\n+ Received\n\n- 3\n+ 2",
+        "log": "baseline-2/streamed-world-war-one-skeleton.txt",
+        "durationMs": 10234.41925
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.",
+        "log": "baseline-3/streamed-world-war-one-skeleton.txt",
+        "durationMs": 13632.014917
+      }
+    ],
+    "displayName": "creates the production 45-minute streamed teaching session",
+    "cohort": "original-36",
+    "passed": 0,
+    "failed": 3,
+    "unavailable": 0,
+    "classification": "REAL",
+    "classificationEvidence": "A learner-facing failure or unresolved product-intent question remains.",
+    "auditId": "A36",
+    "priority": 6,
+    "severity": "P1",
+    "lifecycleExposure": "Yes, at session generation or repair after activation: the learner receives a generation failure before the required lesson/check sequence can be completed.",
+    "likelyCause": "The generated teaching claims fail the authoritative subject/scope validator; repair does not reliably recover that boundary.",
+    "reproCommand": "YOVA_RUN_LIVE_WWI_BASELINE_EVALS=1 YOVA_RUN_LIVE_WWI_SKELETON_EVALS=1 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/streamed-world-war-one-skeleton.live.test.ts --maxWorkers=1 --testNamePattern 'creates\\ the\\ production\\ 45\\-minute\\ streamed\\ teaching\\ session'",
+    "observed": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft."
+  },
+  {
+    "id": "src/evals/streamed-world-war-one-skeleton.live.test.ts::live streamed World War I session skeleton > reliably creates a valid subject-specific session outline",
+    "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+    "name": "live streamed World War I session skeleton > reliably creates a valid subject-specific session outline",
+    "title": "reliably creates a valid subject-specific session outline",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/streamed-world-war-one-skeleton.txt",
+        "durationMs": 26718.612124999996
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/streamed-world-war-one-skeleton.txt",
+        "durationMs": 31637.328583000002
+      },
+      {
+        "run": 3,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-3/streamed-world-war-one-skeleton.txt",
+        "durationMs": 32781.048667
+      }
+    ],
+    "displayName": "reliably creates a valid subject-specific session outline",
+    "cohort": "additional",
+    "passed": 3,
+    "failed": 0,
+    "unavailable": 0
+  },
+  {
+    "id": "src/evals/teaching-assessment-contract.live.test.ts::live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase",
+    "file": "src/evals/teaching-assessment-contract.live.test.ts",
+    "name": "live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase",
+    "title": "explains every glycolysis product before accepting a learner's paraphrase",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/teaching-assessment-contract.txt",
+        "durationMs": 6756.484833
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/teaching-assessment-contract.txt",
+        "durationMs": 6679.271083
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "AssertionError: expected '# Glycolysis: From Glucose to Pyruvat\u2026' to match /electron|carrier|reducing/i\n\n- Expected:\n/electron|carrier|reducing/i\n\n+ Received:\n\"# Glycolysis: From Glucose to Pyruvate\n\nGlycolysis breaks one glucose molecule into two smaller molecules called **pyruvate**. The word helps describe the process: \u201cglyco\u201d refers to sugar, while \u201clysis\u201d means splitting.\n\n## Follow one glucose molecule\n\n1. **One glucose enters glycolysis.**\n2. Its six-carbon structure is rearranged and split.\n3. The process finishes with **two pyruvate molecules**.\n4. Energy released during these reactions is captured as **ATP** and **NADH**.\n\nFor every glucose molecule, glycolysis produces:\n\n- **2 pyruvate**\n- **2 NADH**\n- a **net gain of 2 ATP**\n\nNADH is an energy-carrying molecule, so glycolysis stores some released energy in NADH as well as ATP.\n\n## Why ATP is described as \u201cnet\u201d\n\nGlycolysis makes ATP, but it also requires some ATP during its early reactions. Therefore, the total ATP produced is not the same as the final gain. After subtracting the ATP used from the ATP produced, the cell gains **2 ATP overall**.\n\nA common mix-up is to call all ATP formed during glycolysis the net yield. **Net ATP** means the amount left after accounting for ATP spent. The complete output per glucose is therefore two pyruvate, two NADH, and a net two ATP.\"",
+        "log": "baseline-3/teaching-assessment-contract.txt",
+        "durationMs": 6912.420875
+      }
+    ],
+    "displayName": "explains every glycolysis product before accepting a learner's paraphrase",
+    "cohort": "additional",
+    "passed": 2,
+    "failed": 1,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 2/3 complete main runs; 1 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "X07"
+  },
+  {
+    "id": "e2e/plan-launch-live.spec.ts::desktop-chromium::a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+    "file": "e2e/plan-launch-live.spec.ts",
+    "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+    "title": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+    "project": "desktop-chromium",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/browser.txt",
+        "durationMs": 21456
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/browser.txt",
+        "durationMs": 19546
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "TimeoutError: locator.click: Timeout 60000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'I got the key idea', exact: true })\u001b[22m\n",
+        "log": "baseline-3/browser.txt",
+        "durationMs": 78326
+      }
+    ],
+    "displayName": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+    "cohort": "original-36",
+    "passed": 2,
+    "failed": 1,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 2/3 complete main runs; 1 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "A37"
+  },
+  {
+    "id": "e2e/plan-launch-live.spec.ts::mobile-chromium::a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+    "file": "e2e/plan-launch-live.spec.ts",
+    "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+    "title": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+    "project": "mobile-chromium",
+    "runs": [
+      {
+        "run": 1,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-1/browser.txt",
+        "durationMs": 15801
+      },
+      {
+        "run": 2,
+        "status": "passed",
+        "detail": "",
+        "log": "baseline-2/browser.txt",
+        "durationMs": 14612
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "detail": "TimeoutError: locator.click: Timeout 60000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'I got the key idea', exact: true })\u001b[22m\n",
+        "log": "baseline-3/browser.txt",
+        "durationMs": 74703
+      }
+    ],
+    "displayName": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+    "cohort": "original-36",
+    "passed": 2,
+    "failed": 1,
+    "unavailable": 0,
+    "classification": "FLAKY",
+    "classificationEvidence": "Passed 2/3 complete main runs; 1 semantic failure(s), 0 unavailable attempt(s).",
+    "auditId": "A38"
+  }
+]

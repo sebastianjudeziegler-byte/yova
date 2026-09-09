@@ -1,0 +1,53 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/material-osmosis-session.live.test.ts > live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window
+Shortened material-backed osmosis session {
+  run: 1,
+  generationStats: {
+    elapsedMs: 4421,
+    attempts: 1,
+    firstAttemptPassed: true,
+    failedValidator: null,
+    repairAttempted: false,
+    repairSucceeded: null,
+    repairReason: 'none',
+    repairDetail: null,
+    inputTokens: 1489,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 546,
+    recoveryMode: 'safe_study',
+    validationIssueCode: null,
+    strategy: 'full',
+    stage: 'complete'
+  },
+  topicIds: [
+    '73333333-3333-4333-8333-333333333331',
+    '73333333-3333-4333-8333-333333333332'
+  ],
+  coverage: {
+    focus: 'Retrieve or apply the current targets without notes: Osmosis and water potential; Tonicity and cell water movement. Repair only gaps these attempts expose.',
+    essentialIdeas: [
+      'Osmosis is the net movement of water across a selectively permeable membrane from lower solute concentration to higher solute concentration, driven by the water-potential gradient.',
+      'Tonicity describes how a solution makes a cell gain water, lose water, or show no net water movement: hypotonic makes cells gain water, hypertonic makes them lose water, and isotot'
+    ],
+    completionEvidence: [
+      'Explain osmosis and predict net water movement without notes.',
+      "Classify a solution's tonicity and explain the resulting cell water movement."
+    ],
+    evidenceMap: [ [Object], [Object] ],
+    deferredContent: [ 'Effects of osmosis on animal and plant cells' ]
+  }
+}
+
+ ✓ src/evals/material-osmosis-session.live.test.ts (1 test) 4494ms
+     ✓ keeps two current targets and defers the third in a 15-minute window  4493ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  09:30:15
+   Duration  5.00s (transform 289ms, setup 0ms, import 411ms, tests 4.49s, environment 0ms)
+
+
+Exit code: 0

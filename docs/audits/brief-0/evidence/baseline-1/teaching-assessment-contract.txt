@@ -1,0 +1,15 @@
+Main e03a082 complete baseline 1/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+ ✓ src/evals/teaching-assessment-contract.live.test.ts (1 test) 6757ms
+     ✓ explains every glycolysis product before accepting a learner's paraphrase  6756ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  22:53:03
+   Duration  7.07s (transform 179ms, setup 0ms, import 242ms, tests 6.76s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-1/teaching-assessment-contract.json
+
+Exit code: 0

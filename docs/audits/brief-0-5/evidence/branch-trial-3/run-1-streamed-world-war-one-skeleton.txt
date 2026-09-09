@@ -1,0 +1,115 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+Exact WWI baseline skeleton {
+  generationStats: {
+    elapsedMs: 13196,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'streamed_lesson_scope',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”; “Sequence from the Sarajevo assassination to declarations of war”; “Basic chronology from 1914 to 1918”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_1; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+    inputTokens: 8382,
+    cachedInputTokens: 7424,
+    cacheWriteTokens: 0,
+    outputTokens: 2151,
+    validationIssueCode: 'streamed_target_missing',
+    recoveryMode: 'safe_learn',
+    strategy: 'streamed',
+    stage: 'complete'
+  },
+  coverage: {
+    focus: 'Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.',
+    essentialIdeas: [
+      'Prewar European alliances divided powers into Triple Entente and Triple Alliance blocs.',
+      "The Sarajevo assassination triggered Austria-Hungary's ultimatum and Europe's war declarations.",
+      '1914 began World War I, and 1918 ended it.'
+    ],
+    completionEvidence: [
+      'Describe the main alliance blocs and at least three prewar tensions using the example provided',
+      'Place Sarajevo, the July Crisis, the start of the war, U.S. entry, and the armistice in order'
+    ],
+    evidenceMap: [ [Object], [Object], [Object] ],
+    deferredContent: []
+  },
+  activities: [
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 3,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'Prewar European alliances divided powers into Triple Entente and Triple Alliance blocs.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 8,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: "The Sarajevo assassination triggered Austria-Hungary's ultimatum and Europe's war declarations.",
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: '1914 began World War I, and 1918 ended it.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'repair',
+      concept: 'Prewar European alliances divided powers into Triple Entente and Triple Alliance blocs.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'reexplain',
+      concept: 'Prewar European alliances divided powers into Triple Entente and Triple Alliance blocs.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'multiple_choice',
+      phase: 'transfer',
+      concept: 'Recognition transfer: 1914 began World War I, and 1918 ended it.',
+      minutes: 4,
+      ideas: []
+    },
+    {
+      type: 'reflection',
+      phase: 'schedule_return',
+      concept: null,
+      minutes: 1,
+      ideas: []
+    }
+  ]
+}
+
+ ✓ src/evals/streamed-world-war-one-skeleton.live.test.ts (2 tests | 1 skipped) 13262ms
+     ✓ creates the production 45-minute streamed teaching session  13206ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 1 skipped (2)
+   Start at  09:08:54
+   Duration  13.76s (transform 308ms, setup 24ms, import 401ms, tests 13.26s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/branch-verified/run-1-streamed-world-war-one-skeleton.json
+
+Exit code: 0

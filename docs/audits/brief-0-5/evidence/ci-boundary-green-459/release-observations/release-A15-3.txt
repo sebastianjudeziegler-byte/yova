@@ -1,0 +1,35 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+ [31m❯[39m src/evals/plan-session-journey.live.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 40448[2mms[22m[39m
+     [32m✓[39m the requested journey exists[32m 1[2mms[22m[39m
+[31m     [31m×[31m 'One product-rule skill in short sessi…'[39m[33m 40066[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/plan-session-journey.live.test.ts[2m > [22mlive plan-to-session journeys[2m > [22m'One product-rule skill in short sessi…'
+[31m[1mOpenAIPlanGenerationError[22m: The OpenAI request failed.[39m
+[36m [2m❯[22m generatePlanWithOpenAI src/lib/openai/plan-generator.ts:[2m210:11[22m[39m
+    [90m208|[39m       [33m?[39m [32m` The first draft was rejected because: [39m[36m${[39mlastValidationIssue[36m}[39m[32m`[39m
+    [90m209|[39m       [33m:[39m [32m""[39m[33m;[39m
+    [90m210|[39m     [35mthrow[39m [35mnew[39m [33mOpenAIPlanGenerationError[39m(
+    [90m   |[39m           [31m^[39m
+    [90m211|[39m       [32m`The OpenAI request failed.[39m[36m${[39mpriorIssue[36m}[39m[32m`[39m[33m,[39m
+    [90m212|[39m       [32m"provider_error"[39m[33m,[39m
+[90m [2m❯[22m src/evals/plan-session-journey.live.test.ts:[2m31:27[22m[39m
+
+[31m[1mCaused by: Error[22m: Request timed out.[39m
+[90m [2m❯[22m OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:[2m434:23[22m[39m
+[36m [2m❯[22m Responses.<anonymous> tmp/brief-0-5/capture.ts:[2m44:24[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22m[39m
+[31m[1mSerialized Error:[22m[39m [90m{ status: undefined, headers: undefined, requestID: undefined, error: undefined, code: undefined, param: undefined }[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 17:29:10
+[2m   Duration [22m 41.31s[2m (transform 765ms, setup 44ms, import 690ms, tests 40.45s, environment 0ms)[22m
+
+JSON report written to /home/runner/work/yova/yova/test-results/release-observations/release-A15-3.json

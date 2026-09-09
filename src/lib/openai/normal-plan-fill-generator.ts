@@ -1,3 +1,4 @@
+import type { InitialPlanMethodRoutingContext } from "@/lib/study-route/initial-plan-method-routing";
 import "server-only";
 import { ZodError } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
@@ -32,6 +33,7 @@ export type NormalPlanFillGenerationInput = Readonly<{
   composition: NormalPlanEnvelopeComposition;
   /** The single request clock already used to compose the fixed envelopes. */
   now: Date;
+  methodContext?: InitialPlanMethodRoutingContext;
 }>;
 
 export type NormalPlanFillGenerationOptions = Readonly<{

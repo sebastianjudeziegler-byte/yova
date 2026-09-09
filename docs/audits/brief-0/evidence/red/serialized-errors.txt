@@ -1,0 +1,50 @@
+Command: node --test --test-concurrency=1 scripts/live-gate/core.test.mjs scripts/live-gate/cli.test.mjs
+✔ one documented command invokes the full live runner (0.4225ms)
+✔ CI runs the full set nightly and accepts an explicit PR revision without exposing fork credentials (0.383625ms)
+✔ the audit pins all original canaries so deletion cannot silently shrink the full gate (1.099708ms)
+✔ REAL, STALE, and new semantic failures block; audited flakes still execute and report their result (2.2865ms)
+✔ provider timeouts/quota and missing keys are neither red nor green, even for a quarantined case (0.302333ms)
+✔ UI timeouts, invalid schemas, and unexecuted cases cannot hide as provider outages or flakes (0.10425ms)
+✔ a mixed batch cannot hide a semantic defect behind another attempt's outage (0.088333ms)
+✔ a recovered REAL case is green without changing its classification (0.077375ms)
+✔ full discovery includes future canaries and runs the launch producer before its consumer (1.321292ms)
+✔ desktop and mobile stay separate in the artifact and retain visible failure reasons (0.190375ms)
+✔ published errors retain provider classification without credentials, headers, or request bodies (0.158792ms)
+✖ Vitest's already-serialized batch errors retain provider-unavailable accounting (0.951625ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 11
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 71.764458
+
+✖ failing tests:
+
+test at scripts/live-gate/core.test.mjs:101:1
+✖ Vitest's already-serialized batch errors retain provider-unavailable accounting (0.951625ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   fail: 1,
+  -   fail: 0,
+      flaky: 0,
+      pass: 0,
+  +   unavailable: 0
+  -   unavailable: 1
+    }
+
+      at TestContext.<anonymous> (file://<repo>/scripts/live-gate/core.test.mjs:109:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { pass: 0, fail: 1, flaky: 0, unavailable: 0 },
+    expected: { pass: 0, fail: 0, flaky: 0, unavailable: 1 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+Exit code: 1

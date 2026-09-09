@@ -1,5 +1,4 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
-import { freezePlanClock, PLAN_FIXED_NOW } from "./helpers/frozen-clock";
+import { expect, test, type Page, type Route, freezePlanClock, PLAN_FIXED_NOW } from "./helpers/frozen-clock";
 import type { LearningPlan } from "../src/lib/domain";
 import {
   hydratedSessionResourceCacheIssue,
@@ -1015,7 +1014,7 @@ test("a fallback method workpad resumes its timer and checked targets after relo
   const topicChecks = workpad.getByRole("group", { name: "Check each covered topic" }).getByRole("checkbox");
   await expect(topicChecks.first()).toBeVisible();
   await topicChecks.first().check();
-  await page.waitForTimeout(1_100);
+  await page.clock.setFixedTime(new Date(await page.evaluate(() => Date.now()) + 2_000));
   await expect(page.locator(".method-session-shell > header > span")).not.toHaveText("0:00 elapsed");
 
   await expect.poll(() => page.evaluate(() => {
@@ -1418,6 +1417,8 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
   await leaveSession(page, "1 of 5 required steps finished");
 
   await expectSavedSessionRecommendation(page, 1);
+  // A later interruption/completion must have a later frozen timestamp.
+  await freezePlanClock(page, new Date(await page.evaluate(() => Date.now()) + 1_000));
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByRole("heading", { name: "One financial choice" })).toBeVisible();
   await page.getByRole("button", { name: "Next: Explore the model" }).click();
@@ -1428,6 +1429,8 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
   await leaveSession(page, "3 of 5 required steps finished");
 
   await expectSavedSessionRecommendation(page, 3);
+  // A later interruption/completion must have a later frozen timestamp.
+  await freezePlanClock(page, new Date(await page.evaluate(() => Date.now()) + 1_000));
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByRole("heading", { name: "Explain compound growth in your own words" })).toBeVisible();
   await page.getByRole("button", { name: "Somewhat sure" }).click();

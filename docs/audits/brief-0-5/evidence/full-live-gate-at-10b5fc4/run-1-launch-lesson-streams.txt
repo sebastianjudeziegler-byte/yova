@@ -1,0 +1,29 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/launch-lesson-streams.live.test.ts (2 tests | 1 failed) 7235ms
+     ✓ streams the validated calculus teaching  7227ms
+     × streams the validated osmosis teaching 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/launch-lesson-streams.live.test.ts > launch lesson delivery > streams the validated osmosis teaching
+Error: ENOENT: no such file or directory, open '/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-sj32ei/run-1/fixtures/launch/osmosis-result.json'
+ ❯ src/evals/launch-lesson-streams.live.test.ts:12:30
+     10| describe.skipIf(process.env.YOVA_RUN_LIVE_LESSON_EVALS !== "1")("launc…
+     11|   test.each(["calculus", "osmosis"])("streams the validated %s teachin…
+     12|     const saved = JSON.parse(readFileSync(liveFixturePath("launch", `$…
+       |                              ^
+     13|     const draft = StreamedGeneratedSessionDraftSchema.parse(saved.draf…
+     14|     const deliveryInstructions = LessonDeliveryInstructionsSchema.pars…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  09:29:21
+   Duration  7.54s (transform 160ms, setup 0ms, import 218ms, tests 7.24s, environment 0ms)
+
+
+Exit code: 1

@@ -1,0 +1,308 @@
+{
+  "studyRoute": {
+    "identity": {
+      "routeLineageId": "815ebc4b-0ccb-4ec8-bd12-79bee4355e80",
+      "routeRevisionId": "301a67e3-a37d-45ef-934d-7d6a80682d7e",
+      "revisionNumber": 1,
+      "schemaVersion": 1,
+      "lifecycleStatus": "committed",
+      "planId": "f14d54f8-9218-411c-b2d6-9d87bdee70b1",
+      "sessionId": "c9cb6826-73d4-400b-b05a-9f3236d831f6",
+      "createdAt": "2026-09-09T17:17:11.155Z",
+      "committedAt": "2026-09-09T17:17:11.165Z"
+    },
+    "target": {
+      "taskFamily": "conceptual_learning",
+      "desiredOutcome": "Retrieve and apply Order of the main stages of cellular respiration, Locations of glycolysis, the Krebs cycle, and the electron transport chain without notes, then repair only the gap the attempt reveals.",
+      "targetStates": [
+        {
+          "targetId": "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+          "stage": "novice",
+          "uncertainty": "unknown",
+          "evidenceRefs": []
+        },
+        {
+          "targetId": "962e831c-13a1-44e1-a46f-23cc6c48a116",
+          "stage": "novice",
+          "uncertainty": "unknown",
+          "evidenceRefs": []
+        }
+      ],
+      "sourceRequirements": {
+        "sourceType": "yova_generated",
+        "requiredSourceIds": [],
+        "groundingRequired": false,
+        "instructions": []
+      }
+    },
+    "approach": {
+      "mode": "practice",
+      "executionEnvironment": "inside_yova",
+      "primaryMethodId": "concept_mapping",
+      "visibleMethodName": "Concept Mapping",
+      "confidenceLevel": "unknown"
+    },
+    "timing": {
+      "activeMinutes": 15,
+      "elapsedMinutes": 15,
+      "durationSource": "legacy_reconstruction"
+    },
+    "execution": {
+      "orderedPhases": [
+        {
+          "phaseId": "method-1-retrieve",
+          "methodPhase": "retrieve",
+          "activeMinutes": 4,
+          "targetIds": [
+            "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+            "962e831c-13a1-44e1-a46f-23cc6c48a116"
+          ]
+        },
+        {
+          "phaseId": "method-2-connect",
+          "methodPhase": "connect",
+          "activeMinutes": 4,
+          "targetIds": [
+            "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+            "962e831c-13a1-44e1-a46f-23cc6c48a116"
+          ]
+        },
+        {
+          "phaseId": "method-3-evidence_match",
+          "methodPhase": "evidence_match",
+          "activeMinutes": 4,
+          "targetIds": [
+            "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+            "962e831c-13a1-44e1-a46f-23cc6c48a116"
+          ]
+        },
+        {
+          "phaseId": "method-4-repair",
+          "methodPhase": "repair",
+          "activeMinutes": 3,
+          "targetIds": [
+            "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+            "962e831c-13a1-44e1-a46f-23cc6c48a116"
+          ]
+        }
+      ],
+      "difficultyTier": "unknown",
+      "initialSupport": "independent_start",
+      "activityLimit": 4,
+      "completionEvidence": [
+        {
+          "evidenceId": "legacy-evidence-1",
+          "targetIds": [
+            "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+            "962e831c-13a1-44e1-a46f-23cc6c48a116"
+          ],
+          "kind": "retrieval",
+          "description": "Attempt each target without notes and correct any exposed gap",
+          "requiresIndependentAttempt": true
+        }
+      ],
+      "deferredTargets": []
+    },
+    "agency": {
+      "controlMode": "yova_decides",
+      "selectedBy": "yova",
+      "alternatives": [
+        {
+          "alternativeId": "method-alternative:retrieval_practice",
+          "mode": "practice",
+          "executionEnvironment": "inside_yova",
+          "primaryMethodId": "retrieval_practice",
+          "visibleMethodName": "Active Recall",
+          "activeMinutes": 15,
+          "tradeoff": "Active Recall also fits this conceptual learning Practice session. Produce an answer from memory before looking at the source."
+        }
+      ]
+    },
+    "explanation": {
+      "shortReason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+      "taskRequirements": [
+        "Concept Mapping is eligible for this conceptual learning Practice route at the novice stage.",
+        "Retrieve and apply Order of the main stages of cellular respiration, Locations of glycolysis, the Krebs cycle, and the electron transport chain without notes, then repair only the gap the attempt reveals.",
+        "Attempt each target without notes and correct any exposed gap"
+      ],
+      "learnerDeclarations": [],
+      "observations": [],
+      "uncertainties": [
+        "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
+        "The duration is preserved, but the legacy record does not show how it was chosen.",
+        "This starting point uses the available topic information; it has not been confirmed by an attempt in this session.",
+        "The task family is derived from legacy task text rather than a stored routing decision.",
+        "No authorized canonical control-mode answer is available, so YOVA uses its conservative agency default without treating it as a learner preference."
+      ]
+    },
+    "provenance": {
+      "routerVersion": "legacy_adapter_v1+study_route_method_plan_integration_v1+method_decision_evidence_adapter_v2+method_evidence_v1+method_compare_v1+method_runtime_capability_v1+method_presentation_v2+study_route_agency_mode_controller_v1",
+      "profileVersion": "launch-regression-v1",
+      "evidenceRefs": [],
+      "ruleTrace": [
+        {
+          "ruleId": "study_route.legacy_plan_adapter",
+          "result": "canonicalized_planned_promise",
+          "reason": "Preserved the legacy plan-session promise without inventing historical agency or confidence.",
+          "evidenceRefs": []
+        },
+        {
+          "ruleId": "method_decision_evidence_adapter_v2",
+          "result": "authorized_context_applied",
+          "reason": "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+          "evidenceRefs": []
+        },
+        {
+          "ruleId": "method_evidence_v1",
+          "result": "thresholded_outcome_evidence",
+          "reason": "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+          "evidenceRefs": []
+        },
+        {
+          "ruleId": "method_compare_v1",
+          "result": "comparison_context_required",
+          "reason": "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
+          "evidenceRefs": []
+        },
+        {
+          "ruleId": "method_eligibility_v3",
+          "result": "concept_mapping,retrieval_practice",
+          "reason": "Task, knowledge stage, and Practice mode limited selection to Concept Mapping, Active Recall.",
+          "evidenceRefs": []
+        },
+        {
+          "ruleId": "canonical_method_selection_v1",
+          "result": "task_baseline:concept_mapping",
+          "reason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+          "evidenceRefs": []
+        },
+        {
+          "ruleId": "method_runtime_capability_v1",
+          "result": "full:dedicated_runtime:recovery_none",
+          "reason": "YOVA can deliver this route through full generation and the dedicated concept map interaction. If primary generation fails, YOVA must retry or show recovery instead of relabeling a generic fallback as this method.",
+          "evidenceRefs": []
+        },
+        {
+          "ruleId": "method_presentation_v2",
+          "result": "recognizable_method_names",
+          "reason": "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
+          "evidenceRefs": []
+        },
+        {
+          "ruleId": "study_route_agency_mode_controller_v1",
+          "result": "yova_decides:missing_profile_default:alternatives:retrieval_practice",
+          "reason": "No authorized canonical control-mode answer is available, so YOVA uses its conservative agency default without treating it as a learner preference. The shared agency controller kept at most two eligible, deliverable alternatives.",
+          "evidenceRefs": []
+        }
+      ]
+    }
+  },
+  "sessionArchitectureVersion": "streamed_teaching_v1",
+  "learningGoal": {
+    "title": "Quiz Me on the Order and Locations of Glycolysis, the Krebs Cycle",
+    "topic": "Quiz me on the order and locations of glycolysis, the Krebs cycle, and the electron transport chain in cellular respi...",
+    "kind": "test",
+    "deadline": null,
+    "sourceMode": "yova_generated",
+    "studyMode": "inside_yova",
+    "learningIntent": "study"
+  },
+  "planRationale": "This focused session starts with an attempt from memory, then repairs only the exposed gaps. It uses a YOVA-created content sequence and guided work inside YOVA, fits the time available now, and begins with task-led explanation. The goal is a short recall check on the order and locations of the main stages of cellular respiration, not a full unit.",
+  "knowledgeTopics": [
+    {
+      "id": "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+      "title": "Order of the main stages of cellular respiration",
+      "description": "Recall the sequence of glycolysis, the Krebs cycle, and the electron transport chain.",
+      "subtopics": [
+        "Name the three stages in correct order",
+        "Recognize what comes before and after each stage",
+        "State the sequence from glucose breakdown to ATP production"
+      ],
+      "prerequisiteTopicIds": [],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": null
+    },
+    {
+      "id": "962e831c-13a1-44e1-a46f-23cc6c48a116",
+      "title": "Locations of glycolysis, the Krebs cycle, and the electron transport chain",
+      "description": "Recall where each stage happens inside the cell.",
+      "subtopics": [
+        "Glycolysis in the cytoplasm",
+        "Krebs cycle in the mitochondrial matrix",
+        "Electron transport chain on the inner mitochondrial membrane"
+      ],
+      "prerequisiteTopicIds": [
+        "e837c5b7-4f38-408b-9d5d-deca664e2ce2"
+      ],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": null
+    }
+  ],
+  "journey": {
+    "currentSequence": 1,
+    "totalSessions": 1,
+    "previousSessions": [],
+    "nextSessions": []
+  },
+  "session": {
+    "title": "Retrieve and apply Order of the main stages of cellular respiration and 1 connected topic",
+    "objective": "Retrieve and apply Order of the main stages of cellular respiration, Locations of glycolysis, the Krebs cycle, and the electron transport chain without notes, then repair only the gap the attempt reveals.",
+    "method": "Concept Mapping",
+    "methodReason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+    "estimatedMinutes": 15,
+    "learningMode": "study",
+    "topicIds": [
+      "e837c5b7-4f38-408b-9d5d-deca664e2ce2",
+      "962e831c-13a1-44e1-a46f-23cc6c48a116"
+    ],
+    "contentTargets": [
+      "Order of the main stages of cellular respiration",
+      "Locations of glycolysis, the Krebs cycle, and the electron transport chain"
+    ],
+    "completionEvidence": [
+      "Attempt each target without notes and correct any exposed gap"
+    ],
+    "reviewConcept": null,
+    "reviewType": null
+  },
+  "learnerProfile": {
+    "commonBlocker": null,
+    "guidancePreference": null,
+    "explanationPreference": null,
+    "focusFrequency": null,
+    "startingPattern": null,
+    "primaryImprovementGoal": null,
+    "functionalSupportNeed": null,
+    "processingPreference": null,
+    "memoryChallenge": null,
+    "supportPreference": null,
+    "workspacePreference": null,
+    "freeformContext": null,
+    "observationCorrection": null
+  },
+  "recentResults": [],
+  "recentInterruptions": [],
+  "conceptSignals": [],
+  "scaffoldSignals": [],
+  "topicCalibrationSignals": [],
+  "personalization": {
+    "decisions": [],
+    "methodTie": {
+      "state": {
+        "controls": {
+          "experiments": false
+        },
+        "activeExperiment": null,
+        "experimentHistory": []
+      },
+      "signals": []
+    }
+  },
+  "materials": []
+}

@@ -379,6 +379,71 @@ describe("authoritative streamed lesson briefs", () => {
     expect(result.activities[1]?.lessonBrief?.essentialIdeas).toEqual([secondIdea]);
   });
 
+  it("keeps two available claims distinct when an earlier block initially claims both", () => {
+    const draft = streamedDraft();
+    const firstIdea = draft.coverage.essentialIdeas[0]!;
+    const secondIdea = "Mobilization schedules made escalation difficult to pause";
+    draft.coverage.essentialIdeas.push(secondIdea);
+    draft.activities[0]!.estimatedMinutes = 8;
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [firstIdea, secondIdea];
+    draft.activities.splice(1, 0, {
+      ...draft.activities[0]!, title: "Connect mobilization to escalation", estimatedMinutes: 4,
+      lessonBrief: { ...draft.activities[0]!.lessonBrief!, essentialIdeas: [firstIdea] },
+    });
+    const scope = { sessionTopicIds: [topicId], sessionObjective: "Connect the escalation mechanisms.", sessionContentTargets: draft.coverage.essentialIdeas, sessionEstimatedMinutes: 20 };
+    expect(validateStreamedLessonScope(draft, scope)).toContain("more than one teaching block");
+    const result = enrichStreamedLessonBriefs(draft, {
+      sessionTopicIds: [topicId],
+      materials: [],
+      knowledgeTopics: [],
+      conceptSignals: [],
+      taskType: "conceptual_learning",
+      deliveryInstructions: {
+        schemaVersion: 1,
+        explanationDensity: "balanced",
+        tone: "encouraging",
+        analogyUse: "only_when_helpful",
+        workedExamples: "lead_with_example",
+        structure: "overview_first",
+        pacing: { firstActionMinutes: 3, maximumActivities: 5, instruction: "Use short teaching blocks." },
+        learnerContext: [],
+        contentRequirements: { coverAllEssentialIdeas: true, includeConcreteWorkedExample: true, includeCommonMixup: true, preservePrerequisiteOrder: true },
+      },
+    });
+    const teaching = result.activities.filter(activity => activity.lessonBrief);
+    expect(teaching.map(activity => activity.lessonBrief!.essentialIdeas)).toEqual([[firstIdea], [secondIdea]]);
+    expect(result.coverage.essentialIdeas).toEqual(draft.coverage.essentialIdeas);
+    expect(result.activities.map(activity => [activity.title, activity.estimatedMinutes, activity.methodPhase])).toEqual(draft.activities.map(activity => [activity.title, activity.estimatedMinutes, activity.methodPhase]));
+    expect(validateStreamedLessonScope(result, scope)).toBeNull();
+  });
+
+  it("still rejects duplicate teaching when there is no second distinct active claim", () => {
+    const draft = streamedDraft();
+    draft.activities.splice(1, 0, { ...draft.activities[0]!, title: "Repeat the same explanation" });
+    const result = enrichStreamedLessonBriefs(draft, {
+      sessionTopicIds: [topicId],
+      materials: [],
+      knowledgeTopics: [],
+      conceptSignals: [],
+      taskType: "conceptual_learning",
+      deliveryInstructions: {
+        schemaVersion: 1,
+        explanationDensity: "balanced",
+        tone: "encouraging",
+        analogyUse: "only_when_helpful",
+        workedExamples: "lead_with_example",
+        structure: "overview_first",
+        pacing: { firstActionMinutes: 3, maximumActivities: 5, instruction: "Use short teaching blocks." },
+        learnerContext: [],
+        contentRequirements: { coverAllEssentialIdeas: true, includeConcreteWorkedExample: true, includeCommonMixup: true, preservePrerequisiteOrder: true },
+      },
+    });
+    expect(validateStreamedLessonScope(result, {
+      sessionTopicIds: [topicId], sessionObjective: "Explain alliance escalation.",
+      sessionContentTargets: draft.coverage.essentialIdeas, sessionEstimatedMinutes: 20,
+    })).toContain("more than one teaching block");
+  });
+
   it("scales the number of teachable ideas with the teaching block's minutes", () => {
     expect(lessonIdeaCapacityForMinutes(4)).toBe(1);
     expect(lessonIdeaCapacityForMinutes(5)).toBe(1);
@@ -424,6 +489,14 @@ describe("authoritative streamed lesson briefs", () => {
 
   it("rejects a bare chapter-style label as lesson content", () => {
     expect(isCompleteLessonClaim("Prewar European alliances and tensions")).toBe(false);
+  });
+
+  it.each(["(fg)' = f'g + fg'", "(fg)′=f′g+fg′", "y = mx + b", "a^2 + b^2 = c^2"])("accepts a complete symbolic relationship: %s", claim => {
+    expect(isCompleteLessonClaim(claim)).toBe(true);
+  });
+
+  it.each(["Product rule", "(fg)'", "(fg)' =", "= f'g + fg'", "(fg)' = f'g +", "(fg)' = (f'g + fg'", "(fg)' = f'g ="])("still rejects an incomplete equation or topic label: %s", claim => {
+    expect(isCompleteLessonClaim(claim)).toBe(false);
   });
 
   it("rejects a broad whole-plan idea when the session was assigned a narrower target", () => {

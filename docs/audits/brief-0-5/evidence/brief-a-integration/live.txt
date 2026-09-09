@@ -1,0 +1,38 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/personalization-delta.live.test.ts (1 test | 1 failed) 121ms
+     × writes two distinct learner plans inside fixed slots using the real provider 120ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/personalization-delta.live.test.ts > Brief A real-provider personalization delta > writes two distinct learner plans inside fixed slots using the real provider
+OpenAINormalPlanFillError: The OpenAI normal-plan copy request failed.
+ ❯ Module.generateNormalPlanFillWithOpenAI src/lib/openai/normal-plan-fill-generator.ts:196:11
+    194|     }
+    195|     failedValidator = "plan_provider_request";
+    196|     throw new OpenAINormalPlanFillError(
+       |           ^
+    197|       "The OpenAI normal-plan copy request failed.",
+    198|       "provider_error",
+ ❯ src/evals/personalization-delta.live.test.ts:14:25
+
+Caused by: Error: Connection error.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:436:19
+ ❯ Module.generateNormalPlanFillWithOpenAI src/lib/openai/normal-plan-fill-generator.ts:131:22
+ ❯ src/evals/personalization-delta.live.test.ts:14:25
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { status: undefined, headers: undefined, requestID: undefined, error: undefined, code: undefined, param: undefined }
+Caused by: TypeError: fetch failed
+Caused by: Error: getaddrinfo ENOTFOUND api.openai.com
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -3008, code: 'ENOTFOUND', syscall: 'getaddrinfo', hostname: 'api.openai.com' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  12:44:01
+   Duration  883ms (transform 378ms, setup 0ms, import 674ms, tests 121ms, environment 0ms)
+

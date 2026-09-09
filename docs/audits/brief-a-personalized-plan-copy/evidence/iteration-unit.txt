@@ -1,0 +1,32 @@
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+ ❯ src/evals/personalization-delta.test.ts (9 tests | 1 failed) 322ms
+     × prioritizes a named ETC difficulty after prerequisites, budgets more time and explains it without recording evidence 26ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > prioritizes a named ETC difficulty after prerequisites, budgets more time and explains it without recording evidence
+AssertionError: expected 'YOVA fixed this sequence from the acc…' to match /confus|stuck|difficulty|extra|more t…/i
+
+- Expected:
+/confus|stuck|difficulty|extra|more time/i
+
++ Received:
+"YOVA fixed this sequence from the accepted topic map, current evidence, available time, and session limits. Each session has one bounded purpose and observable completion evidence. You said Electron transport chain was difficult, so it comes earlier after its prerequisites, with more of the available study time where capacity allows."
+
+ ❯ src/evals/personalization-delta.test.ts:50:28
+     48|     expect(etc.estimatedMinutes).toBeGreaterThan(normal.estimatedMinut…
+     49|     expect(plan.rationale).toMatch(/electron transport chain/i);
+     50|     expect(plan.rationale).toMatch(/confus|stuck|difficulty|extra|more…
+       |                            ^
+     51|     expect(fixture.request.knowledgeMap).toEqual(before);
+     52|     expect(plan.sessions.flatMap(s => s.studyRoute?.provenance.evidenc…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 passed (9)
+   Start at  20:32:02
+   Duration  697ms (transform 223ms, setup 0ms, import 309ms, tests 322ms, environment 0ms)

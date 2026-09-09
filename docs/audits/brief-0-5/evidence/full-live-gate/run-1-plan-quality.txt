@@ -1,0 +1,60 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/plan-quality.live.test.ts (11 tests | 10 failed) 158ms
+     ✓ the requested case exists 1ms
+     × 'Biology test with learner notes' 124ms
+     × 'Calculus problem-solving plan' 4ms
+     × 'Calculus unit with mixed placement ev…' 4ms
+     × 'One product-rule skill in short sessi…' 3ms
+     × 'World War I unit guide in short sessi…' 2ms
+     × 'Full beginner calculus pathway' 2ms
+     × 'General-learning startup funding path…' 2ms
+     × 'History essay using outside sources' 2ms
+     × 'Beginner JavaScript practice' 8ms
+     × 'General-learning finance pathway' 5ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'Biology test with learner notes'
+ FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'Calculus problem-solving plan'
+ FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'Calculus unit with mixed placement ev…'
+ FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'One product-rule skill in short sessi…'
+ FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'World War I unit guide in short sessi…'
+ FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'Full beginner calculus pathway'
+ FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'General-learning startup funding path…'
+ FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'History essay using outside sources'
+ FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'Beginner JavaScript practice'
+ FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'General-learning finance pathway'
+OpenAIPlanGenerationError: The OpenAI request failed.
+ ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:210:11
+    208|       ? ` The first draft was rejected because: ${lastValidationIssue}`
+    209|       : "";
+    210|     throw new OpenAIPlanGenerationError(
+       |           ^
+    211|       `The OpenAI request failed.${priorIssue}`,
+    212|       "provider_error",
+ ❯ src/evals/plan-quality.live.test.ts:19:23
+
+Caused by: Error: Connection error.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:436:19
+ ❯ requestDraft src/lib/openai/plan-generator.ts:111:24
+ ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:143:20
+ ❯ src/evals/plan-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { status: undefined, headers: undefined, requestID: undefined, error: undefined, code: undefined, param: undefined }
+Caused by: TypeError: fetch failed
+Caused by: Error: getaddrinfo ENOTFOUND api.openai.com
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -3008, code: 'ENOTFOUND', syscall: 'getaddrinfo', hostname: 'api.openai.com' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  10 failed | 1 passed (11)
+   Start at  12:44:11
+   Duration  403ms (transform 142ms, setup 0ms, import 168ms, tests 158ms, environment 0ms)
+
+
+Exit code: 1

@@ -1,0 +1,17 @@
+Fresh-server replay after full-suite server memory restarts. No assertion, timeout, or heap-setting changes.
+Command: ["node", "node_modules/@playwright/test/cli.js", "test", "e2e/accessibility-regression.spec.ts", "--project", "mobile-chromium", "--grep", "the\\ initial\\ HTML\\ provides\\ useful\\ public\\ content\\ without\\ waiting\\ for\\ JavaScript|form\\ placeholder\\ text\\ keeps\\ AA\\ contrast\\ on\\ public\\ surfaces", "--config", "playwright.brief0-verification.config.ts"]
+[WebServer] (node:87056) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:87057) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:87061) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [mobile-chromium] › e2e/accessibility-regression.spec.ts:29:5 › the initial HTML provides useful public content without waiting for JavaScript (446ms)
+  ✓  2 [mobile-chromium] › e2e/accessibility-regression.spec.ts:40:5 › form placeholder text keeps AA contrast on public surfaces (2.7s)
+
+  2 passed (9.5s)
+
+Exit code: 0

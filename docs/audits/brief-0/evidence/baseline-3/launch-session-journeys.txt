@@ -1,0 +1,76 @@
+Main e03a082 complete baseline 3/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'calculus'
+calculus {
+  elapsedMs: 12094,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'streamed_lesson_scope',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “What a product of functions means to differentiate”. Later targets that must remain exact entries in deferredContent: “Product rule formula and why it has two terms”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. Deferred content remained in active essential idea 1. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+  inputTokens: 9125,
+  cachedInputTokens: 3840,
+  cacheWriteTokens: 0,
+  outputTokens: 1250,
+  validationIssueCode: 'streamed_deferred_content',
+  recoveryMode: 'safe_learn',
+  strategy: 'streamed',
+  stage: 'complete'
+} worked_example_fading
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'osmosis'
+osmosis {
+  elapsedMs: 9290,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'streamed_lesson_scope',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Concentration differences and water movement”; “Osmosis across a cell membrane”. Later targets that must remain exact entries in deferredContent: “Simple cell example and check for understanding”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+  inputTokens: 9890,
+  cachedInputTokens: 3840,
+  cacheWriteTokens: 0,
+  outputTokens: 1970,
+  validationIssueCode: 'streamed_target_missing',
+  recoveryMode: 'safe_learn',
+  strategy: 'streamed',
+  stage: 'complete'
+} self_explanation
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'recall'
+recall {
+  elapsedMs: 12407,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'session_method_fidelity',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: 'concept_mapping is missing required learning phases: connect, evidence_match.',
+  inputTokens: 20760,
+  cachedInputTokens: 11776,
+  cacheWriteTokens: 0,
+  outputTokens: 2462,
+  validationIssueCode: null,
+  strategy: 'full',
+  stage: 'complete'
+} concept_mapping
+
+ ✓ src/evals/launch-session-journeys.live.test.ts (3 tests) 42666ms
+     ✓ 'calculus'  15179ms
+     ✓ 'osmosis'  12564ms
+     ✓ 'recall'  14922ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  23:08:55
+   Duration  43.03s (transform 351ms, setup 0ms, import 296ms, tests 42.67s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-3/launch-session-journeys.json
+
+Exit code: 0

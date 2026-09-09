@@ -1,4 +1,5 @@
 import "server-only";
+import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAIAnswerEvaluationConfig } from "@/lib/openai/config";
@@ -9,9 +10,27 @@ import {
 } from "@/lib/session-evaluation/schema";
 import { answerEvaluationUsesUnexpectedScript } from "@/lib/session-evaluation/output-language";
 
+// Provider-only assessment. The learner API and evidence receipt retain their
+// existing shape; code, not independently authored fields, owns consistency.
+const AssessedAnswerSchema = AnswerEvaluationDraftSchema.extend({
+  assessment: z.object({
+    contextSufficient: z.boolean(),
+    contextReason: z.string().trim().min(10).max(220),
+    criteria: z.array(z.object({
+      idea: z.string().trim().min(2).max(160),
+      required: z.boolean(),
+      status: z.enum(["established", "missing", "incorrect", "unclear"]),
+    })).min(1).max(6),
+  }),
+});
+
 const ANSWER_EVALUATOR_INSTRUCTIONS = `You provide formative feedback on one learner response inside YOVA.
 
-Judge only whether the learner's response communicates the essential meaning required by the supplied reference answer and rubric. Accept accurate paraphrases, equivalent notation, and concise answers. Do not require exact wording. Do not reward keyword copying when the relationship between ideas is wrong.
+Assess in this order:
+1. Decide whether the supplied activity has enough factual context for a reliable judgment. Missing observations, code, source evidence, or an unidentified changed condition make contextSufficient false. A vague reference answer does not supply missing facts. Matching that vague reference is not secure evidence.
+2. Identify the essential requirements from the question and rubric. Mark optional reference details required=false, including details explicitly called useful but not required. Do not silently upgrade them to requirements. Express each idea as a short factual relationship, not an instruction to the learner.
+3. Assess whether the learner actually establishes each requirement. Mark a vague answer unclear or missing even if it repeats related words. Accept accurate paraphrases, equivalent notation, and concise complete answers. Do not require exact wording or reward keyword copying when the relationship between ideas is wrong.
+4. Write consistent feedback. Only established required ideas belong in matchedIdeas. Only genuinely missing or incorrect required ideas belong in missingIdeas. If all requirements are established, missingIdeas is empty and feedback must not call optional details missing. If context is insufficient, use uncertain, explain the missing context without blaming the learner, and leave both idea lists empty.
 
 For quantitative work, the learner answer may contain labeled reasoning steps followed by a final answer. Evaluate the mathematical setup, operations, and conclusion separately. A minor arithmetic or notation slip should not erase evidence of a correct method. State which step first needs repair when the method breaks down.
 
@@ -62,11 +81,11 @@ async function requestAnswerEvaluation(
     ].filter(Boolean).join("\n\n"),
     reasoning: { effort: "low" },
     text: {
-      format: zodTextFormat(AnswerEvaluationDraftSchema, "yova_answer_evaluation"),
+      format: zodTextFormat(AssessedAnswerSchema, "yova_answer_evaluation"),
       verbosity: "low",
     },
-    max_output_tokens: 700,
-    prompt_cache_key: "yova-answer-evaluation-v2",
+    max_output_tokens: 1_200,
+    prompt_cache_key: "yova-answer-evaluation-v3",
     store: false,
   }, {
     // At most two language attempts can happen in this helper. Bound each one
@@ -75,10 +94,41 @@ async function requestAnswerEvaluation(
     timeout: 20_000,
   });
 
-  const parsed = AnswerEvaluationDraftSchema.safeParse(response.output_parsed);
+  const parsed = AssessedAnswerSchema.safeParse(response.output_parsed);
   if (response.status !== "completed" || !parsed.success) return null;
 
-  return parsed.data;
+  return calibrateAssessment(parsed.data);
+}
+
+function calibrateAssessment(draft: z.infer<typeof AssessedAnswerSchema>): AnswerEvaluationDraft {
+  const { assessment } = draft;
+  const required = assessment.criteria.filter(criterion => criterion.required);
+  if (!assessment.contextSufficient || required.length === 0) {
+    return {
+      verdict: "uncertain",
+      feedback: `This check does not give enough context for a reliable judgment. ${assessment.contextReason}`,
+      matchedIdeas: [],
+      missingIdeas: [],
+    };
+  }
+  const unclear = required.some(criterion => criterion.status === "unclear");
+  const missingIdeas = required.filter(criterion => ["missing", "incorrect"].includes(criterion.status)).map(criterion => criterion.idea).slice(0, 3);
+  const matchedIdeas = required.filter(criterion => criterion.status === "established").map(criterion => criterion.idea).slice(0, 4);
+  // With sufficient context, a definite required correction remains useful
+  // even when another part of the answer cannot yet be judged.
+  const verdict = missingIdeas.length > 0 ? "needs_review" : unclear ? "uncertain" : "secure";
+  // Repair contradictions without another provider request. In particular, a
+  // secure verdict cannot coexist with a claim that optional detail is missing.
+  const consistent = draft.verdict === verdict
+    && JSON.stringify(draft.missingIdeas) === JSON.stringify(missingIdeas);
+  return {
+    verdict,
+    feedback: verdict === "secure"
+      ? `Your response establishes the required idea. ${matchedIdeas.slice(0, 2).join(" ")}`
+      : consistent ? draft.feedback : deterministicEnglishEvaluation(verdict).feedback,
+    matchedIdeas,
+    missingIdeas,
+  };
 }
 
 function deterministicEnglishEvaluation(

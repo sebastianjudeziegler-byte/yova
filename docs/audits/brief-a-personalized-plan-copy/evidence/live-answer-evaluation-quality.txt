@@ -1,0 +1,100 @@
+Real-provider canary: src/evals/answer-evaluation-quality.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'
+
+YOVA answer evaluation · accepts a correct biology paraphrase
+Expected · secure
+Received · secure
+Feedback · You correctly identified oxygen as the final electron acceptor and explained that without it, electron flow backs up and oxidative phosphorylation stops.
+Human label · The answer states oxygen's essential role and the consequence even though it does not copy the reference wording.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a concise programming explana…'
+
+YOVA answer evaluation · accepts a concise programming explanation
+Expected · secure
+Received · secure
+Feedback · The response correctly explains that the base case stops the recursion and prevents endless self-calls. It also notes the consequence of missing one, which is accurate.
+Human label · The response correctly states that the base case terminates recursive calls and prevents unbounded recursion.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'
+
+YOVA answer evaluation · admits uncertainty when the prompt lacks necessary context
+Expected · uncertain
+Received · secure
+Feedback · The response gives the correct causal idea: the rate changed because the conditions changed. It is generic, but that is acceptable here because the prompt does not name the specific condition.
+Human label · Neither the prompt nor the reference identifies what process changed, so several interpretations are defensible.
+
+
+ ❯ src/evals/answer-evaluation-quality.live.test.ts (8 tests | 3 failed) 12256ms
+     × 'accepts a correct biology paraphrase' 1611ms
+     × 'accepts a concise programming explana…' 1676ms
+     × 'admits uncertainty when the prompt la…' 1932ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "oxygen accepts hydrogen ions to form water",
++ ]
+
+ ❯ src/evals/answer-evaluation-quality.live.test.ts:34:35
+     32|
+     33|     if (result.verdict === "secure") {
+     34|       expect(result.missingIdeas).toEqual([]);
+       |                                   ^
+     35|       expect(result.matchedIdeas.length).toBeGreaterThan(0);
+     36|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a concise programming explana…'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Recursive calls return after the stop condition is reached",
++ ]
+
+ ❯ src/evals/answer-evaluation-quality.live.test.ts:34:35
+     32|
+     33|     if (result.verdict === "secure") {
+     34|       expect(result.missingIdeas).toEqual([]);
+       |                                   ^
+     35|       expect(result.matchedIdeas.length).toBeGreaterThan(0);
+     36|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'
+AssertionError: expected [ 'uncertain' ] to include 'secure'
+ ❯ src/evals/answer-evaluation-quality.live.test.ts:29:45
+     27|     console.info(`Human label · ${evaluationCase.humanRationale}\n`);
+     28|
+     29|     expect(evaluationCase.expectedVerdicts).toContain(result.verdict);
+       |                                             ^
+     30|     expect(result.feedback).not.toMatch(forbiddenClaims);
+     31|     expect(result.feedback.length).toBeGreaterThanOrEqual(15);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 5 passed (8)
+   Start at  21:09:35
+   Duration  12.37s (transform 39ms, setup 0ms, import 25ms, tests 12.26s, environment 0ms)
+
+
+Exit code: 1

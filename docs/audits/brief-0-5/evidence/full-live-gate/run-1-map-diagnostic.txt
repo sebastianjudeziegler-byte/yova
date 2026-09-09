@@ -1,0 +1,92 @@
+
+ RUN  v4.1.10 <repo>
+
+stderr | src/lib/diagnostics/map-diagnostic.live.test.ts > live map diagnostic generation > generates from a material map and reports latency
+DIAGNOSTIC_LIVE_ERROR APIConnectionError: Connection error.
+    at OpenAI.makeRequest (file://<repo>/node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:436:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at generateMapDiagnostic (<repo>/src/lib/diagnostics/map-diagnostic.ts:92:22)
+    at <repo>/src/lib/diagnostics/map-diagnostic.live.test.ts:44:20
+    at file://<repo>/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+  status: undefined,
+  headers: undefined,
+  requestID: undefined,
+  error: undefined,
+  code: undefined,
+  param: undefined,
+  type: undefined,
+  cause: [TypeError: fetch failed] {
+    [cause]: Error: getaddrinfo ENOTFOUND api.openai.com
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'api.openai.com'
+    }
+  }
+}
+
+stderr | src/lib/diagnostics/map-diagnostic.live.test.ts > live map diagnostic generation > generates from a ai_generated map and reports latency
+DIAGNOSTIC_LIVE_ERROR APIConnectionError: Connection error.
+    at OpenAI.makeRequest (file://<repo>/node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:436:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at generateMapDiagnostic (<repo>/src/lib/diagnostics/map-diagnostic.ts:92:22)
+    at <repo>/src/lib/diagnostics/map-diagnostic.live.test.ts:44:20
+    at file://<repo>/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+  status: undefined,
+  headers: undefined,
+  requestID: undefined,
+  error: undefined,
+  code: undefined,
+  param: undefined,
+  type: undefined,
+  cause: [TypeError: fetch failed] {
+    [cause]: Error: getaddrinfo ENOTFOUND api.openai.com
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'api.openai.com'
+    }
+  }
+}
+
+ ❯ src/lib/diagnostics/map-diagnostic.live.test.ts (2 tests | 2 failed) 188ms
+     × generates from a material map and reports latency 184ms
+     × generates from a ai_generated map and reports latency 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/diagnostics/map-diagnostic.live.test.ts > live map diagnostic generation > generates from a material map and reports latency
+ FAIL  src/lib/diagnostics/map-diagnostic.live.test.ts > live map diagnostic generation > generates from a ai_generated map and reports latency
+MapDiagnosticGenerationError: The placement-check request failed.
+ ❯ generateMapDiagnostic src/lib/diagnostics/map-diagnostic.ts:165:11
+    163|   } catch (error) {
+    164|     if (error instanceof MapDiagnosticGenerationError) throw error;
+    165|     throw new MapDiagnosticGenerationError("The placement-check reques…
+       |           ^
+    166|   }
+    167| }
+ ❯ src/lib/diagnostics/map-diagnostic.live.test.ts:44:20
+
+Caused by: Error: Connection error.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:436:19
+ ❯ generateMapDiagnostic src/lib/diagnostics/map-diagnostic.ts:92:22
+ ❯ src/lib/diagnostics/map-diagnostic.live.test.ts:44:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { status: undefined, headers: undefined, requestID: undefined, error: undefined, code: undefined, param: undefined }
+Caused by: TypeError: fetch failed
+Caused by: Error: getaddrinfo ENOTFOUND api.openai.com
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -3008, code: 'ENOTFOUND', syscall: 'getaddrinfo', hostname: 'api.openai.com' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  13:00:44
+   Duration  366ms (transform 91ms, setup 0ms, import 59ms, tests 188ms, environment 0ms)
+
+
+Exit code: 1

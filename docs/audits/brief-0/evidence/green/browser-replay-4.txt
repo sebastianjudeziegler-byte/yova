@@ -1,0 +1,18 @@
+Fresh-server replay after full-suite server memory restarts. No assertion, timeout, or heap-setting changes.
+Command: ["node", "node_modules/@playwright/test/cli.js", "test", "e2e/plan-schedule-date.spec.ts", "--project", "mobile-chromium", "--grep", "an\\ overfull\\ plan\\ returns\\ to\\ its\\ schedule\\ and\\ recovers\\ without\\ a\\ client\\ crash|changing\\ the\\ goal\\ through\\ Back\\ replaces\\ the\\ old\\ placement\\ map", "--config", "playwright.brief0-verification.config.ts"]
+[WebServer] (node:87210) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:87211) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:87214) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:274:5 › an overfull plan returns to its schedule and recovers without a client crash (6.8s)
+{"oldTopics":["Glycolysis products"],"newTopics":["Photosynthesis and chloroplasts"],"visibleQuestion":"Which statement best captures the mapped idea Photosynthesis and chloroplasts?"}
+  ✓  2 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:344:5 › changing the goal through Back replaces the old placement map (11.7s)
+
+  2 passed (23.5s)
+
+Exit code: 0

@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
+import { liveFixturePath } from "@/evals/live-fixtures";
 import { StreamedGeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 import { LessonDeliveryInstructionsSchema } from "@/lib/personalization/session-delivery-policy";
 vi.mock("server-only", () => ({}));
@@ -8,7 +9,7 @@ vi.mock("server-only", () => ({}));
 // drafts. This separate opt-in verifies that their teaching actually streams.
 describe.skipIf(process.env.YOVA_RUN_LIVE_LESSON_EVALS !== "1")("launch lesson delivery", () => {
   test.each(["calculus", "osmosis"])("streams the validated %s teaching", async name => {
-    const saved = JSON.parse(readFileSync(`/tmp/yova-launch-regressions/${name}-result.json`, "utf8"));
+    const saved = JSON.parse(readFileSync(liveFixturePath("launch", `${name}-result.json`), "utf8"));
     const draft = StreamedGeneratedSessionDraftSchema.parse(saved.draft);
     const deliveryInstructions = LessonDeliveryInstructionsSchema.parse(saved.deliveryInstructions);
     const { streamGeneratedLessonWithRetry } = await import("@/lib/openai/streamed-lesson-generator");
@@ -28,6 +29,6 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_LESSON_EVALS !== "1")("launch lesson d
       lessons.push({ title: activity.title, ...result });
     }
     expect(lessons.length).toBeGreaterThan(0);
-    writeFileSync(`/tmp/yova-launch-regressions/${name}-lessons.json`, JSON.stringify(lessons, null, 2));
+    writeFileSync(liveFixturePath("launch", `${name}-lessons.json`), JSON.stringify(lessons, null, 2));
   }, 90_000);
 });

@@ -1,0 +1,41 @@
+[WebServer] (node:24194) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:24197) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 26 tests using 1 worker
+
+(node:24202) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:22:41 › explicit 1-minute availability remains a priority card (7.6s)
+  ✓   2 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:22:41 › explicit 3-minute availability remains a priority card (4.1s)
+  ✓   3 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:22:41 › explicit 5-minute availability remains a priority card (3.4s)
+  ✓   4 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:22:41 › explicit 9-minute availability remains a priority card (2.1s)
+  ✓   5 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:43:127 › consolidated: a 1-day deadline survives placement, plan review and activation (4.8s)
+  ✓   6 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:43:127 › consolidated: a 3-day deadline survives placement, plan review and activation (6.0s)
+  ✓   7 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:43:127 › consolidated: a three-minute priority records no completion (3.4s)
+  ✓   8 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:135:5 › a natural deadline and an edited date survive every schedule control (3.5s)
+  ✓   9 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:188:5 › explicit study days survive intake and later time changes (2.4s)
+  ✓  10 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:215:5 › a historical topic date cannot override the learner's real deadline (2.8s)
+  ✓  11 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:232:5 › shorter sessions preserve weekly availability and explain insufficient time (3.3s)
+  ✓  12 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:275:5 › an overfull plan returns to its schedule and recovers without a client crash (5.8s)
+{"oldTopics":["Glycolysis products"],"newTopics":["Photosynthesis and chloroplasts"],"visibleQuestion":"Which statement best captures the mapped idea Photosynthesis and chloroplasts?"}
+  ✓  13 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:345:5 › changing the goal through Back replaces the old placement map (3.8s)
+(node:24450) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  14 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:22:41 › explicit 1-minute availability remains a priority card (2.5s)
+  ✓  15 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:22:41 › explicit 3-minute availability remains a priority card (3.9s)
+  ✓  16 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:22:41 › explicit 5-minute availability remains a priority card (5.4s)
+  ✓  17 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:22:41 › explicit 9-minute availability remains a priority card (4.3s)
+  ✓  18 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:43:127 › consolidated: a 1-day deadline survives placement, plan review and activation (4.3s)
+  ✓  19 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:43:127 › consolidated: a 3-day deadline survives placement, plan review and activation (5.2s)
+  ✓  20 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:43:127 › consolidated: a three-minute priority records no completion (3.1s)
+  ✓  21 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:135:5 › a natural deadline and an edited date survive every schedule control (2.7s)
+  ✓  22 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:188:5 › explicit study days survive intake and later time changes (3.4s)
+  ✓  23 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:215:5 › a historical topic date cannot override the learner's real deadline (2.7s)
+  ✓  24 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:232:5 › shorter sessions preserve weekly availability and explain insufficient time (3.6s)
+  ✓  25 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:275:5 › an overfull plan returns to its schedule and recovers without a client crash (3.6s)
+{"oldTopics":["Glycolysis products"],"newTopics":["Photosynthesis and chloroplasts"],"visibleQuestion":"Which statement best captures the mapped idea Photosynthesis and chloroplasts?"}
+  ✓  26 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:345:5 › changing the goal through Back replaces the old placement map (4.0s)
+
+  26 passed (1.8m)

@@ -36,6 +36,29 @@ describe("evaluatePlanDraft", () => {
     },
   };
 
+  it("does not invent a missing-map failure for a learner's otherwise valid plan", () => {
+    const draft = GeneratedPlanDraftSchema.parse({
+      title: "Derivative Rules", topic: "Product and quotient rules", kind: "topic",
+      deadline: evaluationCase.request.deadline,
+      rationale: "Worked examples prepare the learner to choose a rule independently.",
+      deferredTopics: [],
+      sessions: [
+        session(1, "Study worked examples", "Trace product-rule examples and explain each decision.", "Worked example fading", "A complete example prepares this learner for an independent attempt."),
+        session(2, "Solve with fading support", "Complete a derivative with fewer prompts.", "Worked example fading", "Support fades so the learner performs more of each step."),
+        session(3, "Mixed independent practice", "Solve mixed product-rule and quotient-rule problems.", "Interleaved practice", "Mixed problems check which rule the learner chooses independently."),
+      ],
+    });
+    const noMap = { ...evaluationCase.request, knowledgeMap: undefined };
+    expect(draft.sessions.map(({ title }) => title)).toEqual(["Study worked examples", "Solve with fading support", "Mixed independent practice"]);
+    expect(evaluatePlanDraft(draft, noMap, evaluationCase.taskFamily).requiredFailures).toEqual([]);
+    expect(evaluatePlanDraft(draft, requestWithMap, evaluationCase.taskFamily).requiredFailures).toEqual([]);
+    for (const topicIds of [[], ["22222222-2222-4222-8222-222222222222"]]) {
+      const missingOrUnknown = { ...draft, sessions: draft.sessions.map((item) => ({ ...item, topicIds })) };
+      expect(evaluatePlanDraft(missingOrUnknown, requestWithMap, evaluationCase.taskFamily).requiredFailures)
+        .toContain("Every mapped topic is scheduled or explicitly deferred");
+    }
+  });
+
   it("accepts a task-aligned, time-bounded calculus plan", () => {
     const draft = GeneratedPlanDraftSchema.parse({
       title: "Derivative Rules",

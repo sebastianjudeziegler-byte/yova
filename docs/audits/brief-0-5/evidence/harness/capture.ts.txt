@@ -1,0 +1,46 @@
+// @ts-nocheck — temporary pass-through audit instrumentation, never shipped.
+import { appendFileSync } from 'node:fs';
+import { beforeAll, vi } from 'vitest';
+vi.mock('server-only', () => ({}));
+beforeAll(async () => {
+  const claims = await import('../../src/lib/session-generation/lesson-brief');
+  const match = claims.lessonIdeaSharesTargetSubject;
+  vi.spyOn(claims, 'lessonIdeaSharesTargetSubject').mockImplementation((idea, target, surface) => {
+    const result = match(idea, target, surface);
+    if (!result && process.env.BRIEF05_CAPTURE) appendFileSync(process.env.BRIEF05_CAPTURE, JSON.stringify({ format: 'subject-rejection', idea, target, stack: new Error().stack }) + '\n');
+    return result;
+  });
+  const strategy = await import('../../src/lib/openai/session-generation-strategy');
+  const generate = strategy.generateProductionSessionWithOpenAI;
+  vi.spyOn(strategy, 'generateProductionSessionWithOpenAI').mockImplementation(async (...args: Parameters<typeof generate>) => {
+    const record: any = { format: 'session-result', context: args[0] };
+    try { const result = await generate(...args); record.output = result; return result; }
+    catch (error: any) { record.error = { message: error.message, generationStats: error.generationStats }; throw error; }
+    finally { if (process.env.BRIEF05_CAPTURE) appendFileSync(process.env.BRIEF05_CAPTURE, JSON.stringify(record) + '\n'); }
+  });
+  const { getOpenAIClient } = await import('../../src/lib/openai/client');
+  const client = getOpenAIClient();
+  const original = client.responses.parse.bind(client.responses);
+  vi.spyOn(client.responses, 'parse').mockImplementation(async (...args: any[]) => {
+    const [input] = args;
+    const record: any = { format: input.text?.format?.name, input: input.input, instructions: input.instructions };
+    const format = input.text?.format;
+    if (format?.$parseRaw) {
+      const wrapped = Object.assign(Object.create(format), format);
+      Object.defineProperty(wrapped, '$parseRaw', { value: (raw: string) => { try { record.rawOutput = JSON.parse(raw); } catch { /* retain parser error */ } return format.$parseRaw(raw); } });
+      args[0] = { ...input, text: { ...input.text, format: wrapped } };
+    }
+
+    try {
+      const response = await original(...args as Parameters<typeof original>);
+      record.output = response.output_parsed;
+      record.status = response.status;
+      return response;
+    } catch (error: any) {
+      record.error = { name: error.name, message: error.message, issues: error.issues };
+      throw error;
+    } finally {
+      if (process.env.BRIEF05_CAPTURE) appendFileSync(process.env.BRIEF05_CAPTURE, JSON.stringify(record) + '\n');
+    }
+  });
+});

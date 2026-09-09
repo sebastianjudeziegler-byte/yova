@@ -1,0 +1,53 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/lesson-tutor.live.test.ts (2 tests | 2 failed) 70ms
+     × answers a genuinely off-topic question instead of refusing it 67ms
+     × does not reveal the answer to a later protected knowledge check 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/lesson-tutor.live.test.ts > live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it
+Error: Connection error.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/src/client.ts:850:12
+ ❯ generateTutorAnswer src/lib/openai/tutor-generator.ts:100:20
+     98|   if (!config) throw new Error("OpenAI is not configured on the YOVA s…
+     99|
+    100|   const response = await getOpenAIClient().responses.create({
+       |                    ^
+    101|     model: config.model,
+    102|     instructions: TUTOR_INSTRUCTIONS,
+ ❯ src/evals/lesson-tutor.live.test.ts:53:20
+
+Caused by: TypeError: fetch failed
+Caused by: Error: getaddrinfo ENOTFOUND api.openai.com
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -3008, code: 'ENOTFOUND', syscall: 'getaddrinfo', hostname: 'api.openai.com' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/evals/lesson-tutor.live.test.ts > live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check
+Error: Connection error.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/src/client.ts:850:12
+ ❯ generateTutorAnswer src/lib/openai/tutor-generator.ts:100:20
+     98|   if (!config) throw new Error("OpenAI is not configured on the YOVA s…
+     99|
+    100|   const response = await getOpenAIClient().responses.create({
+       |                    ^
+    101|     model: config.model,
+    102|     instructions: TUTOR_INSTRUCTIONS,
+ ❯ src/evals/lesson-tutor.live.test.ts:64:20
+
+Caused by: TypeError: fetch failed
+Caused by: Error: getaddrinfo ENOTFOUND api.openai.com
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -3008, code: 'ENOTFOUND', syscall: 'getaddrinfo', hostname: 'api.openai.com' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  12:44:07
+   Duration  189ms (transform 24ms, setup 0ms, import 41ms, tests 70ms, environment 0ms)
+
+
+Exit code: 1

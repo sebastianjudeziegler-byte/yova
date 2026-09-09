@@ -1,0 +1,35 @@
+{
+  "brief05": "e978f36bd0e3684f0b3595d6c2379da3e2686d0a",
+  "briefA": "340c8b6e8b663c0be8ef6fafa72c8d735e08c122",
+  "temporarySourcePaths": [
+    "src/app/api/plans/generate/route.test.ts",
+    "src/app/api/plans/generate/route.ts",
+    "src/evals/personalization-delta-fixture.ts",
+    "src/evals/personalization-delta.live.test.ts",
+    "src/evals/personalization-delta.test.ts",
+    "src/lib/learning/method-router.ts",
+    "src/lib/openai/normal-plan-fill-generator.ts",
+    "src/lib/plan-generation/learner-plan-copy.ts",
+    "src/lib/plan-generation/materialize-plan.ts",
+    "src/lib/plan-generation/normal-plan-envelopes.ts",
+    "src/lib/plan-generation/normal-plan-pipeline.ts",
+    "src/lib/plan-generation/normal-plan-provider-fill.test.ts",
+    "src/lib/plan-generation/normal-plan-provider-fill.ts",
+    "src/lib/plan-generation/normal-plan-provider-prompt.test.ts",
+    "src/lib/plan-generation/normal-plan-provider-prompt.ts",
+    "src/lib/study-route/initial-plan-method-routing.ts",
+    "src/lib/study-route/initial-plan-profile-method.ts",
+    "src/lib/study-route/normal-plan-envelope-integration.ts"
+  ],
+  "restored": true,
+  "results": [
+    {
+      "test": "deterministic",
+      "exitCode": 0
+    },
+    {
+      "test": "live",
+      "exitCode": 1
+    }
+  ]
+}

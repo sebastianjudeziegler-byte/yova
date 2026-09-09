@@ -1,0 +1,41 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/launch-lesson-streams.live.test.ts (2 tests | 2 failed) 5ms
+     × streams the validated calculus teaching 4ms
+     × streams the validated osmosis teaching 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/launch-lesson-streams.live.test.ts > launch lesson delivery > streams the validated calculus teaching
+Error: ENOENT: no such file or directory, open '/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/fixtures/launch/calculus-result.json'
+ ❯ src/evals/launch-lesson-streams.live.test.ts:12:30
+     10| describe.skipIf(process.env.YOVA_RUN_LIVE_LESSON_EVALS !== "1")("launc…
+     11|   test.each(["calculus", "osmosis"])("streams the validated %s teachin…
+     12|     const saved = JSON.parse(readFileSync(liveFixturePath("launch", `$…
+       |                              ^
+     13|     const draft = StreamedGeneratedSessionDraftSchema.parse(saved.draf…
+     14|     const deliveryInstructions = LessonDeliveryInstructionsSchema.pars…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/evals/launch-lesson-streams.live.test.ts > launch lesson delivery > streams the validated osmosis teaching
+Error: ENOENT: no such file or directory, open '/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/fixtures/launch/osmosis-result.json'
+ ❯ src/evals/launch-lesson-streams.live.test.ts:12:30
+     10| describe.skipIf(process.env.YOVA_RUN_LIVE_LESSON_EVALS !== "1")("launc…
+     11|   test.each(["calculus", "osmosis"])("streams the validated %s teachin…
+     12|     const saved = JSON.parse(readFileSync(liveFixturePath("launch", `$…
+       |                              ^
+     13|     const draft = StreamedGeneratedSessionDraftSchema.parse(saved.draf…
+     14|     const deliveryInstructions = LessonDeliveryInstructionsSchema.pars…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  12:44:05
+   Duration  330ms (transform 169ms, setup 0ms, import 249ms, tests 5ms, environment 0ms)
+
+
+Exit code: 1

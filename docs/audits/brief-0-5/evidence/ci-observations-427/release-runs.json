@@ -1,0 +1,137 @@
+[
+  {
+    "source": "release",
+    "case": "A15",
+    "run": 1,
+    "exitCode": 0,
+    "result": "release-A15-1.json",
+    "capture": "release-A15-1.jsonl",
+    "log": "release-A15-1.txt"
+  },
+  {
+    "source": "release",
+    "case": "A27",
+    "run": 1,
+    "exitCode": 0,
+    "result": "release-A27-1.json",
+    "capture": "release-A27-1.jsonl",
+    "log": "release-A27-1.txt"
+  },
+  {
+    "source": "release",
+    "case": "misconception",
+    "run": 1,
+    "exitCode": 1,
+    "result": "release-misconception-1.json",
+    "capture": "release-misconception-1.jsonl",
+    "log": "release-misconception-1.txt"
+  },
+  {
+    "source": "release",
+    "case": "recall",
+    "run": 1,
+    "exitCode": 0,
+    "result": "release-recall-1.json",
+    "capture": "release-recall-1.jsonl",
+    "log": "release-recall-1.txt"
+  },
+  {
+    "source": "release",
+    "case": "A09",
+    "run": 1,
+    "exitCode": 0,
+    "result": "release-A09-1.json",
+    "capture": "release-A09-1.jsonl",
+    "log": "release-A09-1.txt"
+  },
+  {
+    "source": "release",
+    "case": "A15",
+    "run": 2,
+    "exitCode": 1,
+    "result": "release-A15-2.json",
+    "capture": "release-A15-2.jsonl",
+    "log": "release-A15-2.txt"
+  },
+  {
+    "source": "release",
+    "case": "A27",
+    "run": 2,
+    "exitCode": 0,
+    "result": "release-A27-2.json",
+    "capture": "release-A27-2.jsonl",
+    "log": "release-A27-2.txt"
+  },
+  {
+    "source": "release",
+    "case": "misconception",
+    "run": 2,
+    "exitCode": 0,
+    "result": "release-misconception-2.json",
+    "capture": "release-misconception-2.jsonl",
+    "log": "release-misconception-2.txt"
+  },
+  {
+    "source": "release",
+    "case": "recall",
+    "run": 2,
+    "exitCode": 0,
+    "result": "release-recall-2.json",
+    "capture": "release-recall-2.jsonl",
+    "log": "release-recall-2.txt"
+  },
+  {
+    "source": "release",
+    "case": "A09",
+    "run": 2,
+    "exitCode": 0,
+    "result": "release-A09-2.json",
+    "capture": "release-A09-2.jsonl",
+    "log": "release-A09-2.txt"
+  },
+  {
+    "source": "release",
+    "case": "A15",
+    "run": 3,
+    "exitCode": 0,
+    "result": "release-A15-3.json",
+    "capture": "release-A15-3.jsonl",
+    "log": "release-A15-3.txt"
+  },
+  {
+    "source": "release",
+    "case": "A27",
+    "run": 3,
+    "exitCode": 0,
+    "result": "release-A27-3.json",
+    "capture": "release-A27-3.jsonl",
+    "log": "release-A27-3.txt"
+  },
+  {
+    "source": "release",
+    "case": "misconception",
+    "run": 3,
+    "exitCode": 0,
+    "result": "release-misconception-3.json",
+    "capture": "release-misconception-3.jsonl",
+    "log": "release-misconception-3.txt"
+  },
+  {
+    "source": "release",
+    "case": "recall",
+    "run": 3,
+    "exitCode": 0,
+    "result": "release-recall-3.json",
+    "capture": "release-recall-3.jsonl",
+    "log": "release-recall-3.txt"
+  },
+  {
+    "source": "release",
+    "case": "A09",
+    "run": 3,
+    "exitCode": 0,
+    "result": "release-A09-3.json",
+    "capture": "release-A09-3.jsonl",
+    "log": "release-A09-3.txt"
+  }
+]

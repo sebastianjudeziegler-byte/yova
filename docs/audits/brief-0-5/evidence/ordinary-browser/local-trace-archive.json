@@ -1,0 +1,126 @@
+{
+  "archive": "/private/tmp/yova-brief05-ordinary-browser-binary-traces",
+  "note": "Heavyweight raw traces/videos are retained locally, outside Git. Published reports, screenshots and error contexts remain in this audit. Original attachment paths in raw reports refer to their location during the run.",
+  "files": [
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-a-new-t-dc60f-for-independent-performance-desktop-chromium/video.webm",
+      "bytes": 607654,
+      "sha256": "e4ae913aca6ccb0b96e5667a799cf127f5ec5a11409e81a587ec3b58c7597870"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-a-new-t-dc60f-for-independent-performance-desktop-chromium/trace.zip",
+      "bytes": 8156718,
+      "sha256": "d524d9f0887fb3a2e149d5c395bb3e8014ced6acea59a96c0b1d7d0b989ccc5c"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-an-opaq-ec7f7-the-actual-calculus-concept-mobile-chromium/video.webm",
+      "bytes": 985064,
+      "sha256": "1fbbe5762fb1780cf184ec9686c53996431b34c0c92da7c69e8d4a4a14f990d3"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-an-opaq-ec7f7-the-actual-calculus-concept-mobile-chromium/trace.zip",
+      "bytes": 7702092,
+      "sha256": "52846610acf80e176ef9772ad841df5075fb44d460a938a16e5a02be65c34958"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-a-10-mi-60858--its-built-in-method-lesson-mobile-chromium/video.webm",
+      "bytes": 2166468,
+      "sha256": "d27d434a3e406c3680054f042f68fec426af202a616b0a84fc28a9594cdce796"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-a-10-mi-60858--its-built-in-method-lesson-mobile-chromium/trace.zip",
+      "bytes": 27168103,
+      "sha256": "df1a989134923db1df831d18584b2fe0ea3cc739f40ed9f25550d52f5c5c362f"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-Calenda-b4220-ntained-at-a-375px-viewport-mobile-chromium/video.webm",
+      "bytes": 1431649,
+      "sha256": "b3c2e22e7e92e2d0492ac80db1192040662ac3fa4cc993dec372f41a2b6ab6ca"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-Calenda-b4220-ntained-at-a-375px-viewport-mobile-chromium/trace.zip",
+      "bytes": 14728979,
+      "sha256": "5447e224bd3aedea372c0811612fea75d9584440e6d35a2fcb13def6d85637a1"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-a-confi-40513-thout-a-duplicate-follow-up-desktop-chromium/video.webm",
+      "bytes": 694361,
+      "sha256": "313b14554c980d96d36fd52371565228a6510e872d4ce3e5bc6e7362f4cbdfd3"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-a-confi-40513-thout-a-duplicate-follow-up-desktop-chromium/trace.zip",
+      "bytes": 8561602,
+      "sha256": "ed2c966eea911a6efd43f6d10ce3b08eec8e318b199749d9167a26466589f00d"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-a-tempo-685ac-ific-startup-funding-lesson-mobile-chromium/video.webm",
+      "bytes": 1157182,
+      "sha256": "321908f9e588bffe7edb95b19218cc12558d4f89b9e2700904772842f4fc54d2"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-a-tempo-685ac-ific-startup-funding-lesson-mobile-chromium/trace.zip",
+      "bytes": 13721447,
+      "sha256": "0fdcb81b3fdba15073f0b09160fc07854996fcb909352f44493b3e685bda878e"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/video.webm",
+      "bytes": 2149820,
+      "sha256": "fad30454994f537c9ae8d25ff3e48f30385183271d6783d3b778e8eed6004b99"
+    },
+    {
+      "path": "core-learning-loop/artifacts/core-learning-loop-a-fallb-260c1-hecked-targets-after-reload-mobile-chromium/trace.zip",
+      "bytes": 23613939,
+      "sha256": "4224504365afbd0d534796297dbdfdd35bbfe56ed028ba88c39d8241a0555b7e"
+    },
+    {
+      "path": "calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/video.webm",
+      "bytes": 768715,
+      "sha256": "40476e7e7f33595517a70ed516e43000e4dea4039e25442961901f4620066a67"
+    },
+    {
+      "path": "calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/trace.zip",
+      "bytes": 14565236,
+      "sha256": "6538ad8496646aefd6044d7447d1e02f049a84904f771d9c5c86627eeaf9df6d"
+    },
+    {
+      "path": "calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/video.webm",
+      "bytes": 880154,
+      "sha256": "19fc88128cbc63226a9d2fc73cd362a9cb9acc7b712a4317d2d3327cf13be783"
+    },
+    {
+      "path": "calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/trace.zip",
+      "bytes": 8548212,
+      "sha256": "8e5db98fd9d2a7902068f5551ca45cc7a5603e7882533cbf3968a15923a558eb"
+    },
+    {
+      "path": "calendar-recurring/artifacts/calendar-recurring-concurr-c637c--second-tab-s-unsaved-draft-mobile-chromium/video.webm",
+      "bytes": 18236432,
+      "sha256": "78a8d17499d06a9aa75ef5fecc37aecf1005b82e1eefba4e0724233631b41863"
+    },
+    {
+      "path": "calendar-recurring/artifacts/calendar-recurring-concurr-c637c--second-tab-s-unsaved-draft-mobile-chromium/trace.zip",
+      "bytes": 39130258,
+      "sha256": "d136b84ebe79cf158599e42ba461e17cc6ac67d5aa5b87b71b3ad984464d31af"
+    },
+    {
+      "path": "calendar-recurring/artifacts/calendar-recurring-concurr-c637c--second-tab-s-unsaved-draft-mobile-chromium/video-1.webm",
+      "bytes": 20484097,
+      "sha256": "d6d2e4d12c5d39325b6f1c5caa7e16a21b7f1a197e82f5c20d46b30ed1dbb0b6"
+    },
+    {
+      "path": "calendar-journeys/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/video.webm",
+      "bytes": 815690,
+      "sha256": "c62d4ce7f5f8a2e0df246b0fafbfea2a9341bebfbf808d0ada15d72353142575"
+    },
+    {
+      "path": "calendar-journeys/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/trace.zip",
+      "bytes": 8133751,
+      "sha256": "5914db14ef4c1b594703c9a805b330517298c16a934c3df148cdc599eb2da591"
+    },
+    {
+      "path": "calendar-journeys/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/video-1.webm",
+      "bytes": 692247,
+      "sha256": "fce464d6e8f39edf5982d80f933db2e8a673829928885d4e083111744467d06e"
+    }
+  ]
+}

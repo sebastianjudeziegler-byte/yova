@@ -1,0 +1,74 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'calculus'
+[22m[39mcalculus {
+  elapsedMs: [33m10450[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'streamed_lesson_scope'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Derivative notation and meaning”. Later targets that must remain exact entries in deferredContent: “Product rule explanation”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. Deferred content remained in active essential idea 1. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+  inputTokens: [33m9325[39m,
+  cachedInputTokens: [33m3840[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1506[39m,
+  validationIssueCode: [32m'streamed_deferred_content'[39m,
+  recoveryMode: [32m'safe_learn'[39m,
+  strategy: [32m'streamed'[39m,
+  stage: [32m'complete'[39m
+} self_explanation
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'osmosis'
+[22m[39mosmosis {
+  elapsedMs: [33m14548[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'streamed_lesson_scope'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane as a selective barrier”; “Concentration difference and water movement”. Later targets that must remain exact entries in deferredContent: “Osmosis in a simple cell example”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+  inputTokens: [33m9959[39m,
+  cachedInputTokens: [33m3840[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1852[39m,
+  validationIssueCode: [32m'streamed_target_missing'[39m,
+  recoveryMode: [32m'safe_learn'[39m,
+  strategy: [32m'streamed'[39m,
+  stage: [32m'complete'[39m
+} self_explanation
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'recall'
+[22m[39mrecall {
+  elapsedMs: [33m10026[39m,
+  attempts: [33m1[39m,
+  firstAttemptPassed: [33mtrue[39m,
+  failedValidator: [1mnull[22m,
+  repairAttempted: [33mfalse[39m,
+  repairSucceeded: [1mnull[22m,
+  repairReason: [32m'none'[39m,
+  repairDetail: [1mnull[22m,
+  inputTokens: [33m9963[39m,
+  cachedInputTokens: [33m5888[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1360[39m,
+  validationIssueCode: [1mnull[22m,
+  strategy: [32m'full'[39m,
+  stage: [32m'complete'[39m
+} concept_mapping
+
+ [32m✓[39m src/evals/launch-session-journeys.live.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 47415[2mms[22m[39m
+     [33m[2m✓[22m[39m 'calculus' [33m 15133[2mms[22m[39m
+     [33m[2m✓[22m[39m 'osmosis' [33m 18233[2mms[22m[39m
+     [33m[2m✓[22m[39m 'recall' [33m 13602[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 10:46:02
+[2m   Duration [22m 48.20s[2m (transform 772ms, setup 33ms, import 630ms, tests 47.41s, environment 0ms)[22m
+
+
+Exit code: 0

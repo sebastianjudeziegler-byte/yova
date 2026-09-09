@@ -1,0 +1,76 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+WWI streamed lesson metrics {
+  skeletonElapsedMs: 13322,
+  skeletonAttempts: 2,
+  lessonElapsedMs: 9910,
+  latencyToFirstTokenMs: 3041,
+  wordCount: 258,
+  inputTokens: 1006,
+  outputTokens: 435
+}
+
+ ❯ src/evals/streamed-world-war-one-lesson.live.test.ts (1 test | 1 failed) 23456ms
+     × delivers substantive teaching from the first generated lesson brief 23455ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+AssertionError: expected '# Europe’s Rival Blocs Before 1914\n\…' to match /Sarajevo|Franz Ferdinand/i
+
+- Expected:
+/Sarajevo|Franz Ferdinand/i
+
++ Received:
+"# Europe’s Rival Blocs Before 1914
+
+Before 1914, Europe’s major powers were divided into two rival alliance blocs. These alliances were intended to increase security, but they also made international crises more dangerous because a dispute involving one country could draw in its partners.
+
+## The two blocs
+
+The **Triple Alliance** joined:
+
+- Germany
+- Austria-Hungary
+- Italy
+
+Opposing it was the **Triple Entente**, linking:
+
+- France
+- Russia
+- Britain
+
+“Entente” meant an understanding rather than one single, automatic military alliance. Even so, its members increasingly cooperated because they feared the power and intentions of the opposing bloc.
+
+## Why division increased tension
+
+Several tensions reinforced this split. France distrusted Germany, Russia competed with Austria-Hungary for influence in the Balkans, and Britain became concerned about Germany’s growing power. Alliances connected these separate rivalries.
+
+A simple cause map is:
+
+**existing rivalries → alliance blocs → fear of the opposing bloc → greater risk that a local crisis would spread**
+
+For example, tension between Austria-Hungary and Russia was not isolated. Austria-Hungary could expect German support, while Russia was connected to France and Britain. This turned confrontation in one region into a potential European conflict.
+
+A common mix-up is to treat the alliances as the single cause of World War I. They did **not** make war inevitable or cause fighting by themselves. Instead, they divided Europe before 1914 and created a system through which an immediate crisis could expand rapidly. Italy’s membership in the Triple Alliance also did not mean it automatically fought beside Germany and Austria-Hungary when war began."
+
+ ❯ src/evals/streamed-world-war-one-lesson.live.test.ts:95:28
+     93|     expect(lessonResult.wordCount).toBeLessThanOrEqual(lessonBudget.ma…
+     94|     expect(lessonMarkdown).toMatch(/alliance/i);
+     95|     expect(lessonMarkdown).toMatch(/Sarajevo|Franz Ferdinand/i);
+       |                            ^
+     96|     expect(lessonMarkdown).toMatch(/1914/);
+     97|     expect(lessonMarkdown).toMatch(/mobiliz|declaration of war/i);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  23:46:19
+   Duration  23.75s (transform 292ms, setup 0ms, import 216ms, tests 23.46s, environment 0ms)
+
+
+Exit code: 1

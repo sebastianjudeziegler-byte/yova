@@ -1,0 +1,36 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts (17 tests | 1 failed) 265ms
+     × keeps case-sensitive code choices distinct at the shared choice boundary 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > keeps case-sensitive code choices distinct at the shared choice boundary
+ZodError: [
+  {
+    "code": "custom",
+    "path": [
+      "activities",
+      4,
+      "choices"
+    ],
+    "message": "Every recognition choice must be distinct."
+  }
+]
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:125:56
+    123|     question.choices = ["values.map(fn)", "values.Map(fn)", "values.fi…
+    124|     question.correctAnswer = question.choices[0]!;
+    125|     const parsed = StreamedGeneratedSessionDraftSchema.parse(draft);
+       |                                                        ^
+    126|     expect(parsed.activities.find(activity => activity.type === "multi…
+    127|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+   Start at  09:25:11
+   Duration  598ms (transform 277ms, setup 0ms, import 262ms, tests 265ms, environment 0ms)
+

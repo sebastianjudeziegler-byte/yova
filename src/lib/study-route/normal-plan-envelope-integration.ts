@@ -1,3 +1,4 @@
+import { normalPlanAmountLabel } from "@/lib/plan-generation/learner-plan-copy";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import { CORE_METHOD_CATALOG } from "@/lib/learning/method-catalog";
 import {
@@ -534,13 +535,7 @@ function expectedEnvelopeId(sequence: number) {
   return `normal-plan-envelope-${String(sequence).padStart(3, "0")}`;
 }
 
-function amountLabel(targetCount: number, evidenceCount: number, minutes: number) {
-  return [
-    `${targetCount} focused ${targetCount === 1 ? "target" : "targets"}`,
-    `${evidenceCount} evidence ${evidenceCount === 1 ? "check" : "checks"}`,
-    `about ${minutes} min`,
-  ].join(" + ");
-}
+const amountLabel = normalPlanAmountLabel;
 
 function sameSessionScalars(
   stored: LearningPlanSession,

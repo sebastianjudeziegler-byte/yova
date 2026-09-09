@@ -1,0 +1,85 @@
+[WebServer] (node:12417) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:12421) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 18 tests using 1 worker
+
+(node:12433) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop-chromium] › e2e/calendar-recurring.spec.ts:19:5 › Add recognizes the communications timetable and saves a lasting Monday/Wednesday series (9.5s)
+  ✓   2 [desktop-chromium] › e2e/calendar-recurring.spec.ts:53:5 › every two days supports a finite occurrence count and stops on the right date (3.5s)
+  ✓   3 [desktop-chromium] › e2e/calendar-recurring.spec.ts:67:5 › one occurrence can move, be cancelled and be restored without changing the series (4.6s)
+  ✓   4 [desktop-chromium] › e2e/calendar-recurring.spec.ts:86:5 › the whole series can be edited and deleted with one undoable action (5.0s)
+  ✓   5 [desktop-chromium] › e2e/calendar-recurring.spec.ts:112:5 › missing times and unsupported patterns stay editable instead of saving a guessed schedule (4.9s)
+  ✓   6 [desktop-chromium] › e2e/calendar-recurring.spec.ts:124:5 › the class keeps 11:30 local time after daylight saving ends (4.3s)
+  ✓   7 [desktop-chromium] › e2e/calendar-recurring.spec.ts:132:5 › moving an occurrence to a different month keeps its details in view (5.8s)
+  ✓   8 [desktop-chromium] › e2e/calendar-recurring.spec.ts:145:5 › moving an item into a future recurring class detects the conflict beyond the current week (5.9s)
+  ✓   9 [desktop-chromium] › e2e/calendar-recurring.spec.ts:156:5 › concurrent edits to a recurring series preserve the second tab's unsaved draft (10.7s)
+(node:12935) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  10 [mobile-chromium] › e2e/calendar-recurring.spec.ts:19:5 › Add recognizes the communications timetable and saves a lasting Monday/Wednesday series (7.9s)
+  ✓  11 [mobile-chromium] › e2e/calendar-recurring.spec.ts:53:5 › every two days supports a finite occurrence count and stops on the right date (7.2s)
+  ✓  12 [mobile-chromium] › e2e/calendar-recurring.spec.ts:67:5 › one occurrence can move, be cancelled and be restored without changing the series (6.9s)
+  ✓  13 [mobile-chromium] › e2e/calendar-recurring.spec.ts:86:5 › the whole series can be edited and deleted with one undoable action (18.1s)
+  ✓  14 [mobile-chromium] › e2e/calendar-recurring.spec.ts:112:5 › missing times and unsupported patterns stay editable instead of saving a guessed schedule (18.7s)
+  ✓  15 [mobile-chromium] › e2e/calendar-recurring.spec.ts:124:5 › the class keeps 11:30 local time after daylight saving ends (6.2s)
+  ✓  16 [mobile-chromium] › e2e/calendar-recurring.spec.ts:132:5 › moving an occurrence to a different month keeps its details in view (9.0s)
+  ✓  17 [mobile-chromium] › e2e/calendar-recurring.spec.ts:145:5 › moving an item into a future recurring class detects the conflict beyond the current week (9.9s)
+  ✘  18 [mobile-chromium] › e2e/calendar-recurring.spec.ts:156:5 › concurrent edits to a recurring series preserve the second tab's unsaved draft (17.2m)
+
+
+  1) [mobile-chromium] › e2e/calendar-recurring.spec.ts:156:5 › concurrent edits to a recurring series preserve the second tab's unsaved draft 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Calendar', exact: true })
+
+
+       at helpers/calendar.ts:176
+
+      174 |
+      175 | export async function openCalendar(page: Page, week = false) {
+    > 176 |   await page.getByRole("button", {name: "Calendar", exact: true}).click();
+          |                                                                   ^
+      177 |   await expect(page.locator(".calendar-workspace")).toHaveAttribute("aria-busy", "false");
+      178 |   if (week) await showWeek(page);
+      179 | }
+        at openCalendar (<repo>/e2e/helpers/calendar.ts:176:67)
+        at <repo>/e2e/calendar-recurring.spec.ts:159:55
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-recurring/artifacts/calendar-recurring-concurr-c637c--second-tab-s-unsaved-draft-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-recurring/artifacts/calendar-recurring-concurr-c637c--second-tab-s-unsaved-draft-mobile-chromium/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-recurring/artifacts/calendar-recurring-concurr-c637c--second-tab-s-unsaved-draft-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-recurring/artifacts/calendar-recurring-concurr-c637c--second-tab-s-unsaved-draft-mobile-chromium/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/calendar-recurring/artifacts/calendar-recurring-concurr-c637c--second-tab-s-unsaved-draft-mobile-chromium/error-context.md
+
+    attachment #6: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-recurring/artifacts/calendar-recurring-concurr-c637c--second-tab-s-unsaved-draft-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/calendar-recurring/artifacts/calendar-recurring-concurr-c637c--second-tab-s-unsaved-draft-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Slow test file: [mobile-chromium] › e2e/calendar-recurring.spec.ts (18.6m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 failed
+    [mobile-chromium] › e2e/calendar-recurring.spec.ts:156:5 › concurrent edits to a recurring series preserve the second tab's unsaved draft 
+  17 passed (19.6m)
+
+Exit code: 1

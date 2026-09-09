@@ -1,0 +1,54 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/lib/session-generation/question-context.test.ts (5 tests | 1 failed) 5ms
+     × accepts factual year recall without demanding arithmetic operands 3ms
+ ❯ src/lib/openai/streamed-teaching-generator.test.ts (60 tests | 1 failed) 579ms
+     × recovers a broader semantic failure with a server-owned compact V17 sequence 14ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/streamed-teaching-generator.test.ts > bounded streamed-skeleton repair policy > recovers a broader semantic failure with a server-owned compact V17 sequence
+AssertionError: expected undefined to be 'Spanish food and restaurant vocabulary' // Object.is equality
+
+- Expected:
+"Spanish food and restaurant vocabulary"
+
++ Received:
+undefined
+
+ ❯ src/lib/openai/streamed-teaching-generator.test.ts:1286:46
+    1284|     const recoveryPrompt = JSON.parse(recoveryInput.slice(recoveryInpu…
+    1285|     expect(recoveryPrompt.targetGroups).toHaveLength(1);
+    1286|     expect(recoveryPrompt.recognitionTarget).toBe(recoveryPrompt.targe…
+       |                                              ^
+    1287|     expect(recoveryPrompt.targetGroups[0]).toMatchObject({
+    1288|       claimCount: 2,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/session-generation/question-context.test.ts > session question context > accepts factual year recall without demanding arithmetic operands
+AssertionError: expected 'The quantitative question "Identify t…' to be null
+
+- Expected:
+null
+
++ Received:
+"The quantitative question \"Identify the war's end year\" lists numeric answers without supplying enough values or an equation to solve it."
+
+ ❯ src/lib/session-generation/question-context.test.ts:8:51
+      6|   it("accepts factual year recall without demanding arithmetic operand…
+      7|     const draft = sessionWithQuestion({ title: "Identify the war's end…
+      8|     expect(validateSessionQuestionContext(draft)).toBeNull();
+       |                                                   ^
+      9|   });
+     10|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  2 failed | 63 passed (65)
+   Start at  09:04:13
+   Duration  836ms (transform 441ms, setup 0ms, import 286ms, tests 583ms, environment 0ms)
+

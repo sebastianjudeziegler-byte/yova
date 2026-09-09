@@ -1,0 +1,603 @@
+Baseline: tracked HEAD 14a9a30, Brief A tests added; working source files restored in finally.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+ ❯ src/evals/personalization-delta.test.ts (19 tests | 14 failed) 545ms
+     × gives contrasting saved profiles at least three visible differences with unique reasons 126ms
+     × includes profile and starting context plus the fixed method in the copy prompt 33ms
+     × preserves provider objectives and profile-referencing reasons inside unchanged session slots 23ms
+     × prioritizes a named ETC difficulty after prerequisites, budgets more time and explains it without recording evidence 32ms
+     × keeps fallback titles on whole words even for long topic names 21ms
+     × routes Read the chapter and answer the quiz by task rather than generic conceptual learning 27ms
+     × routes Solve quadratic equations by task rather than generic conceptual learning 23ms
+     × uses the saved unfamiliar_entry signal to choose a visible method 32ms
+     × uses the saved first_repair signal to choose a visible method 22ms
+     × uses the saved focus_pacing signal to choose a visible method 22ms
+     × classifies a British-English memorisation goal 0ms
+     × rejects method substitutions in provider explanations while keeping a runnable plan 12ms
+     × keeps a long provider rationale within its slot when adding the starting difficulty 26ms
+     × never turns profile context into a learning-style claim in method reasons 11ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > gives contrasting saved profiles at least three visible differences with unique reasons
+AssertionError: {
+  "differences": [
+    false,
+    true,
+    false,
+    false,
+    false
+  ],
+  "P1": {
+    "title": "Understand AP Biology Cellular Energetics, Including ATP, Enzymes",
+    "rationale": "YOVA fixed this sequence from the accepted topic map, current evidence, available time, and session limits. Each session has one bounded purpose and observable completion evidence.",
+    "sessions": [
+      {
+        "title": "Build ATP and energy transfer",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and it matches the opening you said helps you make a useful first connection.",
+        "objective": "Session 1 builds an accurate explanation of ATP and energy transfer, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 25,
+        "amountLabel": "1 focused target + 1 evidence check + about 25 min",
+        "completionEvidence": [
+          "Explain ATP and energy transfer in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001"
+        ]
+      },
+      {
+        "title": "Build Enzymes and activation energy",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and it matches the opening you said helps you make a useful first connection.",
+        "objective": "Session 2 builds an accurate explanation of Enzymes and activation energy, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 25,
+        "amountLabel": "1 focused target + 1 evidence check + about 25 min",
+        "completionEvidence": [
+          "Explain Enzymes and activation energy in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000002"
+        ]
+      },
+      {
+        "title": "Build Glycolysis",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and it matches the opening you said helps you make a useful first connection.",
+        "objective": "Session 3 builds an accurate explanation of Glycolysis, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 25,
+        "amountLabel": "1 focused target + 1 evidence check + about 25 min",
+        "completionEvidence": [
+          "Explain Glycolysis in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000003"
+        ]
+      },
+      {
+        "title": "Build Krebs cycle",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and it matches the opening you said helps you make a useful first connection.",
+        "objective": "Session 4 builds an accurate explanation of Krebs cycle, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 25,
+        "amountLabel": "1 focused target + 1 evidence check + about 25 min",
+        "completionEvidence": [
+          "Explain Krebs cycle in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Build Electron transport chain",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and it matches the opening you said helps you make a useful first connection.",
+        "objective": "Session 5 builds an accurate explanation of Electron transport chain, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 15,
+        "amountLabel": "1 focused target + 1 evidence check + about 15 min",
+        "completionEvidence": [
+          "Explain Electron transport chain in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005"
+        ]
+      },
+      {
+        "title": "Build Photosynthesis",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and it matches the opening you said helps you make a useful first connection.",
+        "objective": "Session 6 builds an accurate explanation of Photosynthesis, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 25,
+        "amountLabel": "1 focused target + 1 evidence check + about 25 min",
+        "completionEvidence": [
+          "Explain Photosynthesis in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      },
+      {
+        "title": "Retrieve ATP and energy transfer, Enzymes and activation energy",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+        "objective": "Session 7 retrieves and applies ATP and energy transfer, Enzymes and activation energy without initial support, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 25,
+        "amountLabel": "2 focused targets + 2 evidence checks + about 25 min",
+        "completionEvidence": [
+          "Apply ATP and energy transfer in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Enzymes and activation energy in evidence check 2 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001",
+          "a0000000-0000-4000-8000-000000000002"
+        ]
+      },
+      {
+        "title": "Retrieve Glycolysis, Krebs cycle",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+        "objective": "Session 8 retrieves and applies Glycolysis, Krebs cycle without initial support, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 25,
+        "amountLabel": "2 focused targets + 2 evidence checks + about 25 min",
+        "completionEvidence": [
+          "Apply Glycolysis in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Krebs cycle in evidence check 2 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000003",
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Retrieve Electron transport chain, Photosynthesis",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+        "objective": "Session 9 retrieves and applies Electron transport chain, Photosynthesis without initial support, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 25,
+        "amountLabel": "2 focused targets + 2 evidence checks + about 25 min",
+        "completionEvidence": [
+          "Apply Electron transport chain in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Photosynthesis in evidence check 2 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005",
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      },
+      {
+        "title": "Apply ATP and energy transfer",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+        "objective": "Session 10 transfers ATP and energy transfer to a different example, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 15,
+        "amountLabel": "1 focused target + 1 evidence check + about 15 min",
+        "completionEvidence": [
+          "Apply ATP and energy transfer in evidence check 1 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001"
+        ]
+      },
+      {
+        "title": "Apply Enzymes and activation energy, Glycolysis",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+        "objective": "Session 11 transfers Enzymes and activation energy, Glycolysis to a different example, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 25,
+        "amountLabel": "2 focused targets + 2 evidence checks + about 25 min",
+        "completionEvidence": [
+          "Apply Enzymes and activation energy in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Glycolysis in evidence check 2 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000002",
+          "a0000000-0000-4000-8000-000000000003"
+        ]
+      },
+      {
+        "title": "Apply Krebs cycle, Electron transport chain",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+        "objective": "Session 12 transfers Krebs cycle, Electron transport chain to a different example, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 25,
+        "amountLabel": "2 focused targets + 2 evidence checks + about 25 min",
+        "completionEvidence": [
+          "Apply Krebs cycle in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Electron transport chain in evidence check 2 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000004",
+          "a0000000-0000-4000-8000-000000000005"
+        ]
+      }
+    ]
+  },
+  "P2": {
+    "title": "Understand AP Biology Cellular Energetics, Including ATP, Enzymes",
+    "rationale": "YOVA fixed this sequence from the accepted topic map, current evidence, available time, and session limits. Each session has one bounded purpose and observable completion evidence.",
+    "sessions": [
+      {
+        "title": "Build ATP and energy transfer",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 1 builds an accurate explanation of ATP and energy transfer, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 60,
+        "amountLabel": "1 focused target + 1 evidence check + about 60 min",
+        "completionEvidence": [
+          "Explain ATP and energy transfer in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001"
+        ]
+      },
+      {
+        "title": "Build Enzymes and activation energy",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 2 builds an accurate explanation of Enzymes and activation energy, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 60,
+        "amountLabel": "1 focused target + 1 evidence check + about 60 min",
+        "completionEvidence": [
+          "Explain Enzymes and activation energy in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000002"
+        ]
+      },
+      {
+        "title": "Build Glycolysis",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 3 builds an accurate explanation of Glycolysis, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 60,
+        "amountLabel": "1 focused target + 1 evidence check + about 60 min",
+        "completionEvidence": [
+          "Explain Glycolysis in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000003"
+        ]
+      },
+      {
+        "title": "Build Krebs cycle",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 4 builds an accurate explanation of Krebs cycle, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 60,
+        "amountLabel": "1 focused target + 1 evidence check + about 60 min",
+        "completionEvidence": [
+          "Explain Krebs cycle in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Build Electron transport chain",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 5 builds an accurate explanation of Electron transport chain, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 60,
+        "amountLabel": "1 focused target + 1 evidence check + about 60 min",
+        "completionEvidence": [
+          "Explain Electron transport chain in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005"
+        ]
+      },
+      {
+        "title": "Build Photosynthesis",
+        "method": "Feynman Technique",
+        "methodReason": "Feynman Technique is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 6 builds an accurate explanation of Photosynthesis, uses one concrete example, and ends with an independent check.",
+        "estimatedMinutes": 60,
+        "amountLabel": "1 focused target + 1 evidence check + about 60 min",
+        "completionEvidence": [
+          "Explain Photosynthesis in evidence check 1 in your own words after the model is hidden"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      },
+      {
+        "title": "Retrieve ATP and energy transfer, Enzymes and activation energy, Glycolysis",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 7 retrieves and applies ATP and energy transfer, Enzymes and activation energy, Glycolysis without initial support, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 60,
+        "amountLabel": "4 focused targets + 4 evidence checks + about 60 min",
+        "completionEvidence": [
+          "Apply ATP and energy transfer in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Enzymes and activation energy in evidence check 2 in one new example without initial support and correct any exposed error",
+          "Apply Glycolysis in evidence check 3 in one new example without initial support and correct any exposed error",
+          "Apply Krebs cycle in evidence check 4 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001",
+          "a0000000-0000-4000-8000-000000000002",
+          "a0000000-0000-4000-8000-000000000003",
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Retrieve Electron transport chain, Photosynthesis",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 8 retrieves and applies Electron transport chain, Photosynthesis without initial support, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 60,
+        "amountLabel": "2 focused targets + 2 evidence checks + about 60 min",
+        "completionEvidence": [
+          "Apply Electron transport chain in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Photosynthesis in evidence check 2 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005",
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      },
+      {
+        "title": "Apply ATP and energy transfer, Enzymes and activation energy, Glycolysis",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 9 transfers ATP and energy transfer, Enzymes and activation energy, Glycolysis to a different example, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 60,
+        "amountLabel": "4 focused targets + 4 evidence checks + about 60 min",
+        "completionEvidence": [
+          "Apply ATP and energy transfer in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Enzymes and activation energy in evidence check 2 in one new example without initial support and correct any exposed error",
+          "Apply Glycolysis in evidence check 3 in one new example without initial support and correct any exposed error",
+          "Apply Krebs cycle in evidence check 4 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001",
+          "a0000000-0000-4000-8000-000000000002",
+          "a0000000-0000-4000-8000-000000000003",
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Apply Electron transport chain, Photosynthesis",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 10 transfers Electron transport chain, Photosynthesis to a different example, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 60,
+        "amountLabel": "2 focused targets + 2 evidence checks + about 60 min",
+        "completionEvidence": [
+          "Apply Electron transport chain in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Photosynthesis in evidence check 2 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005",
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      },
+      {
+        "title": "Apply ATP and energy transfer, Enzymes and activation energy, Glycolysis",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 11 transfers ATP and energy transfer, Enzymes and activation energy, Glycolysis to a different example, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 60,
+        "amountLabel": "4 focused targets + 4 evidence checks + about 60 min",
+        "completionEvidence": [
+          "Apply ATP and energy transfer in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Enzymes and activation energy in evidence check 2 in one new example without initial support and correct any exposed error",
+          "Apply Glycolysis in evidence check 3 in one new example without initial support and correct any exposed error",
+          "Apply Krebs cycle in evidence check 4 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001",
+          "a0000000-0000-4000-8000-000000000002",
+          "a0000000-0000-4000-8000-000000000003",
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Apply Electron transport chain, Photosynthesis",
+        "method": "Concept Mapping",
+        "methodReason": "Concept Mapping is eligible for this task, and this approach has most often kept learning usable for you.",
+        "objective": "Session 12 transfers Electron transport chain, Photosynthesis to a different example, then corrects the exact gap or error the attempt exposes.",
+        "estimatedMinutes": 60,
+        "amountLabel": "2 focused targets + 2 evidence checks + about 60 min",
+        "completionEvidence": [
+          "Apply Electron transport chain in evidence check 1 in one new example without initial support and correct any exposed error",
+          "Apply Photosynthesis in evidence check 2 in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005",
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      }
+    ]
+  }
+}: expected 1 to be greater than or equal to 3
+ ❯ assertPersonalizationDelta src/evals/personalization-delta-fixture.ts:81:145
+     79|     learn1.objective !== learn2.objective,
+     80|   ];
+     81|   expect(differences.filter(Boolean).length, JSON.stringify({ differen…
+       |                                                                                                                                                 ^
+     82|   for (const plan of [first, second]) {
+     83|     expect(new Set(plan.sessions.map(s => s.methodReason)).size).toBe(…
+ ❯ src/evals/personalization-delta.test.ts:14:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > includes profile and starting context plus the fixed method in the copy prompt
+AssertionError: expected undefined to be 'I lose focus after 20 minutes. Show m…' // Object.is equality
+
+- Expected:
+"I lose focus after 20 minutes. Show me an example before asking me anything. Give me hints before explanations. I'm stuck on the electron transport chain."
+
++ Received:
+undefined
+
+ ❯ src/evals/personalization-delta.test.ts:20:52
+     18|     const fixture = deltaFixture(1);
+     19|     const prompt = JSON.parse(buildNormalPlanProviderFillInput(fixture…
+     20|     expect(prompt.learner_context.profile_summary).toBe(PROFILE_1);
+       |                                                    ^
+     21|     expect(prompt.learner_context.starting_context).toBe("The ETC conf…
+     22|     const plan = buildNormalPlanFromFixedEnvelope({ ...fixture, fill: …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > preserves provider objectives and profile-referencing reasons inside unchanged session slots
+NormalPlanProviderFillError: The provider fill did not match the fixed prose slots: sessions.normal-plan-envelope-001:unrecognized_keys.
+ ❯ bindNormalPlanProviderFill src/lib/plan-generation/normal-plan-provider-fill.ts:180:11
+    178|   const parsed = schema.safeParse(fill);
+    179|   if (!parsed.success) {
+    180|     throw new NormalPlanProviderFillError(
+       |           ^
+    181|       "invalid_fill",
+    182|       `The provider fill did not match the fixed prose slots: ${format…
+ ❯ buildNormalPlanFromFixedEnvelope src/lib/plan-generation/normal-plan-pipeline.ts:89:17
+ ❯ src/evals/personalization-delta.test.ts:34:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > prioritizes a named ETC difficulty after prerequisites, budgets more time and explains it without recording evidence
+AssertionError: expected 4 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 4
+
+ ❯ src/evals/personalization-delta.test.ts:44:81
+     42|     const before = structuredClone(fixture.request.knowledgeMap);
+     43|     const plan = buildNormalPlanFromFixedEnvelope({ ...fixture, fill: …
+     44|     expect(plan.sessions.findIndex(s => s.topicIds?.includes(deltaTopi…
+       |                                                                                 ^
+     45|     expect(plan.sessions[0].topicIds).toContain(deltaTopicId(0));
+     46|     const etc = plan.sessions.find(s => s.topicIds?.includes(deltaTopi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > keeps fallback titles on whole words even for long topic names
+AssertionError: expected [ 'Understanding', 'how', …(13) ] to include 't'
+ ❯ src/evals/personalization-delta.test.ts:63:30
+     61|     const session = fill.sessions[composition.envelopes[0].envelopeId];
+     62|     const last = session.title.split(" ").at(-1)!;
+     63|     expect(title.split(" ")).toContain(last);
+       |                              ^
+     64|     expect(session.title.length).toBeLessThanOrEqual(90);
+     65|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > routes Read the chapter and answer the quiz by task rather than generic conceptual learning
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > routes Solve quadratic equations by task rather than generic conceptual learning
+AssertionError: expected 'Feynman Technique' not to be 'Feynman Technique' // Object.is equality
+ ❯ src/evals/personalization-delta.test.ts:77:81
+     75|     const plan = buildNormalPlanFromFixedEnvelope({ ...fixture, fill: …
+     76|     expect(plan.sessions[0].studyRoute!.target.taskFamily).toBe(family…
+     77|     if (family !== "writing_argumentation") expect(plan.sessions[0].me…
+       |                                                                                 ^
+     78|   });
+     79|   it.each([
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > uses the saved unfamiliar_entry signal to choose a visible method
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > uses the saved first_repair signal to choose a visible method
+AssertionError: expected 'Feynman Technique' to be 'Concept Mapping' // Object.is equality
+
+Expected: "Concept Mapping"
+Received: "Feynman Technique"
+
+ ❯ src/evals/personalization-delta.test.ts:87:37
+     85|     const fixture = deltaFixture(1, { signals: [{ signalId, value, sou…
+     86|     const plan = buildNormalPlanFromFixedEnvelope({ ...fixture, fill: …
+     87|     expect(plan.sessions[0].method).toBe(expected);
+       |                                     ^
+     88|   });
+     89|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > uses the saved focus_pacing signal to choose a visible method
+AssertionError: expected 'Feynman Technique' to be 'SQ3R' // Object.is equality
+
+Expected: "SQ3R"
+Received: "Feynman Technique"
+
+ ❯ src/evals/personalization-delta.test.ts:87:37
+     85|     const fixture = deltaFixture(1, { signals: [{ signalId, value, sou…
+     86|     const plan = buildNormalPlanFromFixedEnvelope({ ...fixture, fill: …
+     87|     expect(plan.sessions[0].method).toBe(expected);
+       |                                     ^
+     88|   });
+     89|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > classifies a British-English memorisation goal
+AssertionError: expected 'conceptual_learning' to be 'memorization' // Object.is equality
+
+Expected: "memorization"
+Received: "conceptual_learning"
+
+ ❯ src/evals/personalization-delta.test.ts:91:67
+     89|
+     90|   it("classifies a British-English memorisation goal", () => {
+     91|     expect(classifyLearningTask("Memorise ATP and ADP").taskType).toBe…
+       |                                                                   ^
+     92|   });
+     93|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > rejects method substitutions in provider explanations while keeping a runnable plan
+NormalPlanProviderFillError: The provider fill did not match the fixed prose slots: sessions.normal-plan-envelope-001:unrecognized_keys.
+ ❯ bindNormalPlanProviderFill src/lib/plan-generation/normal-plan-provider-fill.ts:180:11
+    178|   const parsed = schema.safeParse(fill);
+    179|   if (!parsed.success) {
+    180|     throw new NormalPlanProviderFillError(
+       |           ^
+    181|       "invalid_fill",
+    182|       `The provider fill did not match the fixed prose slots: ${format…
+ ❯ buildNormalPlanFromFixedEnvelope src/lib/plan-generation/normal-plan-pipeline.ts:89:17
+ ❯ src/evals/personalization-delta.test.ts:115:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > keeps a long provider rationale within its slot when adding the starting difficulty
+AssertionError: expected 'ATP and energy transfer connect cellu…' to contain 'Electron transport chain'
+
+Expected: "Electron transport chain"
+Received: "ATP and energy transfer connect cellular respiration to the work cells do. ATP and energy transfer connect cellular respiration to the work cells do. ATP and energy transfer connect cellular respiration to the work cells do. ATP and energy transfer connect cellular respiration to the work cells do. ATP and energy transfer connect cellular respiration to the work cells do. ATP and energy transfer connect cellular respiration to the work cells do. ATP and energy transfer connect cellular respiration to the work cells do. ATP and energy transfer connect cellular respiration to the work cells do. ATP and energy transfer connect cellular respiration to the work cells do. ATP and energy transfer connect cellular respiration to the work cells do. ATP and energy transfer connect cellular respiration to the work cells do."
+
+ ❯ src/evals/personalization-delta.test.ts:127:28
+    125|     const plan = buildNormalPlanFromFixedEnvelope({ ...fixture, fill }…
+    126|     expect(plan.rationale.length).toBeLessThanOrEqual(900);
+    127|     expect(plan.rationale).toContain("Electron transport chain");
+       |                            ^
+    128|   });
+    129|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/14]⎯
+
+ FAIL  src/evals/personalization-delta.test.ts > Brief A permanent personalization delta > never turns profile context into a learning-style claim in method reasons
+NormalPlanProviderFillError: The provider fill did not match the fixed prose slots: sessions.normal-plan-envelope-001:unrecognized_keys.
+ ❯ bindNormalPlanProviderFill src/lib/plan-generation/normal-plan-provider-fill.ts:180:11
+    178|   const parsed = schema.safeParse(fill);
+    179|   if (!parsed.success) {
+    180|     throw new NormalPlanProviderFillError(
+       |           ^
+    181|       "invalid_fill",
+    182|       `The provider fill did not match the fixed prose slots: ${format…
+ ❯ buildNormalPlanFromFixedEnvelope src/lib/plan-generation/normal-plan-pipeline.ts:89:17
+ ❯ src/evals/personalization-delta.test.ts:134:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/14]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  14 failed | 5 passed (19)
+   Start at  20:50:00
+   Duration  916ms (transform 206ms, setup 0ms, import 293ms, tests 545ms, environment 0ms)
+
+
+Exit code: 1

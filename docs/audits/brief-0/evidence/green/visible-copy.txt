@@ -1,0 +1,12 @@
+Command: node node_modules/vitest/vitest.mjs run src/evals/session-rubric.test.ts --maxWorkers=1
+
+ RUN  v4.1.10 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  23:49:40
+   Duration  359ms (transform 180ms, setup 0ms, import 267ms, tests 20ms, environment 0ms)
+
+
+Exit code: 0

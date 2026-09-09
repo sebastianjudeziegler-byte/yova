@@ -1,0 +1,662 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "<repo>/node_modules/@playwright/test/cli.js",
+      "test",
+      "e2e/public-auth.spec.ts",
+      "--config",
+      "playwright.brief05-verification.config.ts"
+    ],
+    "configFile": "<repo>/playwright.brief05-verification.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/public-auth/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/public-auth/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/public-auth/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": false,
+      "timeout": 120000,
+      "env": {
+        "YOVA_E2E": "1",
+        "AUTH_INVITE_ONLY": "false",
+        "AUTH_PASSWORD_ACCOUNTS": "false",
+        "AUTH_CAPTCHA_ENABLED": "false",
+        "AUTH_EMAIL_CODE_VERIFICATION": "false",
+        "SITE_URL": "http://127.0.0.1:3100",
+        "NEXT_PUBLIC_SUPABASE_URL": ""
+      },
+      "environmentEvidence": {
+        "providerConfigured": false,
+        "unrelatedEnvironmentOmitted": true
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "public-auth.spec.ts",
+      "file": "public-auth.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "presents public signup without a private-alpha gate",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only in the isolated password-auth browser configuration.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:24:08.898Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only in the isolated password-auth browser configuration.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-e06da38890386784000a",
+          "file": "public-auth.spec.ts",
+          "line": 9,
+          "column": 5
+        },
+        {
+          "title": "creates a public password account with consent and a security token",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only in the isolated password-auth browser configuration.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:24:08.899Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only in the isolated password-auth browser configuration.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-70bce63e15115b6c59b8",
+          "file": "public-auth.spec.ts",
+          "line": 16,
+          "column": 5
+        },
+        {
+          "title": "keeps password errors generic and password recovery non-enumerating",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only in the isolated password-auth browser configuration.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:24:08.899Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only in the isolated password-auth browser configuration.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-b388204751a3412d5f9c",
+          "file": "public-auth.spec.ts",
+          "line": 57,
+          "column": 5
+        },
+        {
+          "title": "keeps the standalone email-confirmation page at AA text contrast",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only in the isolated password-auth browser configuration.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:24:08.899Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only in the isolated password-auth browser configuration.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-17bcf1a4c709e3377752",
+          "file": "public-auth.spec.ts",
+          "line": 85,
+          "column": 5
+        },
+        {
+          "title": "fits the public account form on a phone-sized viewport",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only in the isolated password-auth browser configuration.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:24:08.899Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only in the isolated password-auth browser configuration.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-42b42b9998f6148652c4",
+          "file": "public-auth.spec.ts",
+          "line": 126,
+          "column": 5
+        },
+        {
+          "title": "presents public signup without a private-alpha gate",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only in the isolated password-auth browser configuration.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:24:08.899Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only in the isolated password-auth browser configuration.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-49f995502f4fa7e0b0ec",
+          "file": "public-auth.spec.ts",
+          "line": 9,
+          "column": 5
+        },
+        {
+          "title": "creates a public password account with consent and a security token",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only in the isolated password-auth browser configuration.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:24:08.899Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only in the isolated password-auth browser configuration.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-51d8951874a1afaf8712",
+          "file": "public-auth.spec.ts",
+          "line": 16,
+          "column": 5
+        },
+        {
+          "title": "keeps password errors generic and password recovery non-enumerating",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only in the isolated password-auth browser configuration.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:24:08.899Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only in the isolated password-auth browser configuration.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-49f283e48b8a693eb5ee",
+          "file": "public-auth.spec.ts",
+          "line": 57,
+          "column": 5
+        },
+        {
+          "title": "keeps the standalone email-confirmation page at AA text contrast",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only in the isolated password-auth browser configuration.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:24:08.899Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only in the isolated password-auth browser configuration.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-ed959b1d9c8d714fc8c5",
+          "file": "public-auth.spec.ts",
+          "line": 85,
+          "column": 5
+        },
+        {
+          "title": "fits the public account form on a phone-sized viewport",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only in the isolated password-auth browser configuration.",
+                  "location": {
+                    "file": "<repo>/e2e/public-auth.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:24:08.899Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only in the isolated password-auth browser configuration.",
+                      "location": {
+                        "file": "<repo>/e2e/public-auth.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "64cc60d2a1fbe6ed2e47-f548f6b644f66cd5d833",
+          "file": "public-auth.spec.ts",
+          "line": 126,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-09T10:24:03.205Z",
+    "duration": 5757.541,
+    "expected": 0,
+    "skipped": 10,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

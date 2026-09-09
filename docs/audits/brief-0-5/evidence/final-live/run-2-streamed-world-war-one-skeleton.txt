@@ -1,0 +1,115 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+Exact WWI baseline skeleton {
+  generationStats: {
+    elapsedMs: 16079,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'streamed_lesson_scope',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: 'The active idea “The Sarajevo assassination set off the July Crisis, and alliance commitments plus mobilization turned it into declarations of war.” must be taught in a streamed block before its required question. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.',
+    inputTokens: 8382,
+    cachedInputTokens: 7424,
+    cacheWriteTokens: 0,
+    outputTokens: 2120,
+    validationIssueCode: 'streamed_scope_other',
+    recoveryMode: 'safe_learn',
+    strategy: 'streamed',
+    stage: 'complete'
+  },
+  coverage: {
+    focus: 'Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.',
+    essentialIdeas: [
+      'Prewar European alliances and tensions divided Europe into rival armed blocs.',
+      "The Sarajevo assassination triggered Austria-Hungary's ultimatum and Europe's war declarations.",
+      "Basic chronology from 1914 to 1918 runs from World War I's start to its end."
+    ],
+    completionEvidence: [
+      'Describe the main alliance blocs and at least three prewar tensions using the example provided',
+      'Place Sarajevo, the July Crisis, the start of the war, U.S. entry, and the armistice in order'
+    ],
+    evidenceMap: [ [Object], [Object], [Object] ],
+    deferredContent: []
+  },
+  activities: [
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 3,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'Prewar European alliances and tensions divided Europe into rival armed blocs.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 8,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: "The Sarajevo assassination triggered Austria-Hungary's ultimatum and Europe's war declarations.",
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: "Basic chronology from 1914 to 1918 runs from World War I's start to its end.",
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'repair',
+      concept: 'Prewar European alliances and tensions divided Europe into rival armed blocs.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'reexplain',
+      concept: 'Prewar European alliances and tensions divided Europe into rival armed blocs.',
+      minutes: 6,
+      ideas: []
+    },
+    {
+      type: 'multiple_choice',
+      phase: 'transfer',
+      concept: "Recognition transfer: Basic chronology from 1914 to 1918 runs from World War I's start to its end.",
+      minutes: 4,
+      ideas: []
+    },
+    {
+      type: 'reflection',
+      phase: 'schedule_return',
+      concept: null,
+      minutes: 1,
+      ideas: []
+    }
+  ]
+}
+
+ ✓ src/evals/streamed-world-war-one-skeleton.live.test.ts (2 tests | 1 skipped) 16141ms
+     ✓ creates the production 45-minute streamed teaching session  16089ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 1 skipped (2)
+   Start at  10:04:55
+   Duration  16.65s (transform 300ms, setup 22ms, import 398ms, tests 16.14s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/final-verified/run-2-streamed-world-war-one-skeleton.json
+
+Exit code: 0

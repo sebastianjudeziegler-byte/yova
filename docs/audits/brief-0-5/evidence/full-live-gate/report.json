@@ -1,0 +1,2055 @@
+{
+  "version": 1,
+  "commit": "e978f36bd0e3684f0b3595d6c2379da3e2686d0a",
+  "startedAt": "2026-09-09T11:44:02.641Z",
+  "runs": 1,
+  "files": [
+    "src/evals/launch-session-journeys.live.test.ts",
+    "src/evals/launch-lesson-streams.live.test.ts",
+    "src/evals/answer-evaluation-quality.live.test.ts",
+    "src/evals/grader-calibration.live.test.ts",
+    "src/evals/lesson-tutor.live.test.ts",
+    "src/evals/material-osmosis-session.live.test.ts",
+    "src/evals/outside-teaching-reliability.live.test.ts",
+    "src/evals/plan-creation-blockers.live.test.ts",
+    "src/evals/plan-quality.live.test.ts",
+    "src/evals/plan-session-journey.live.test.ts",
+    "src/evals/session-quality.live.test.ts",
+    "src/evals/streamed-ap-biology.live.test.ts",
+    "src/evals/streamed-melatonin-skeleton.live.test.ts",
+    "src/evals/streamed-rayleigh.live.test.ts",
+    "src/evals/streamed-world-war-one-lesson.live.test.ts",
+    "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+    "src/evals/teaching-assessment-contract.live.test.ts",
+    "src/lib/diagnostics/map-diagnostic.live.test.ts"
+  ],
+  "environment": {
+    "node": "v24.19.0",
+    "providerConfigured": true,
+    "modelOverrides": {
+      "OPENAI_LESSON_MODEL": "gpt-5.6-sol",
+      "OPENAI_PLAN_MODEL": "gpt-5.6-sol",
+      "OPENAI_SESSION_MODEL": "gpt-5.4-mini"
+    }
+  },
+  "finishedAt": "2026-09-09T12:03:05.558Z",
+  "counts": {
+    "pass": 4,
+    "fail": 6,
+    "flaky": 6,
+    "unavailable": 59
+  },
+  "exitCode": 1,
+  "rows": [
+    {
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'calculus'",
+      "file": "src/evals/launch-session-journeys.live.test.ts",
+      "name": "launch session journeys with committed recipes > 'calculus'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "KnowledgeMapGenerationError",
+          "message": "YOVA could not build the knowledge map.",
+          "failedValidator": "knowledge_map_provider_request"
+        }
+      ],
+      "durationMs": 330.84479099999993,
+      "run": 1,
+      "log": "run-1-launch-session-journeys.txt",
+      "status": "flaky",
+      "detail": "failed; baseline 2/3. YOVA could not build the knowledge map.",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'osmosis'",
+      "file": "src/evals/launch-session-journeys.live.test.ts",
+      "name": "launch session journeys with committed recipes > 'osmosis'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "KnowledgeMapGenerationError",
+          "message": "YOVA could not build the knowledge map.",
+          "failedValidator": "knowledge_map_provider_request"
+        }
+      ],
+      "durationMs": 3.2235840000000735,
+      "run": 1,
+      "log": "run-1-launch-session-journeys.txt",
+      "status": "fail",
+      "detail": "YOVA could not build the knowledge map.",
+      "classification": null
+    },
+    {
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'recall'",
+      "file": "src/evals/launch-session-journeys.live.test.ts",
+      "name": "launch session journeys with committed recipes > 'recall'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "KnowledgeMapGenerationError",
+          "message": "YOVA could not build the knowledge map.",
+          "failedValidator": "knowledge_map_provider_request"
+        }
+      ],
+      "durationMs": 2.3564159999999674,
+      "run": 1,
+      "log": "run-1-launch-session-journeys.txt",
+      "status": "fail",
+      "detail": "YOVA could not build the knowledge map.",
+      "classification": null
+    },
+    {
+      "id": "src/evals/launch-lesson-streams.live.test.ts::launch lesson delivery > streams the validated calculus teaching",
+      "file": "src/evals/launch-lesson-streams.live.test.ts",
+      "name": "launch lesson delivery > streams the validated calculus teaching",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "ENOENT: no such file or directory, open '/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/fixtures/launch/calculus-result.json'",
+          "code": "ENOENT"
+        }
+      ],
+      "durationMs": 3.5339589999999816,
+      "run": 1,
+      "log": "run-1-launch-lesson-streams.txt",
+      "status": "unavailable",
+      "detail": "Required test fixture or browser is unavailable",
+      "classification": "UNAVAILABLE"
+    },
+    {
+      "id": "src/evals/launch-lesson-streams.live.test.ts::launch lesson delivery > streams the validated osmosis teaching",
+      "file": "src/evals/launch-lesson-streams.live.test.ts",
+      "name": "launch lesson delivery > streams the validated osmosis teaching",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "ENOENT: no such file or directory, open '/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/fixtures/launch/osmosis-result.json'",
+          "code": "ENOENT"
+        }
+      ],
+      "durationMs": 0.2637910000000261,
+      "run": 1,
+      "log": "run-1-launch-lesson-streams.txt",
+      "status": "unavailable",
+      "detail": "Required test fixture or browser is unavailable",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > the requested case exists",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > the requested case exists",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 0.6872079999999983,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "Caused by: TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Caused by: Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 96.55475,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'catches confident biology keyword soup'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'catches confident biology keyword soup'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 2.4787079999999833,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'marks a materially incomplete causal …'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'marks a materially incomplete causal …'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 1.7095000000000198,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 2.592667000000006,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'does not reward a true statement that…'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'does not reward a true statement that…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 5.293582999999984,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts a concise programming explana…'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'accepts a concise programming explana…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 3.375,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 2.4174589999999796,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "Caused by: TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Caused by: Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 106.79808299999999,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'accepts a concise programming explana…'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > complete: 'accepts a concise programming explana…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 2.530124999999998,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'history: complete-history'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > complete: 'history: complete-history'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 4.428832999999997,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'biology: underspecified-biology'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'biology: underspecified-biology'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "Caused by: TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Caused by: Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 2.5559159999999963,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 2.3687089999999955,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: underspecified-history'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'history: underspecified-history'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 2.096499999999992,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'biology: missing-context-biology'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'biology: missing-context-biology'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 1.9290420000000097,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 1.6680409999999881,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: missing-context-history'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'history: missing-context-history'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 1.605209000000002,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/lesson-tutor.live.test.ts::live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it",
+      "file": "src/evals/lesson-tutor.live.test.ts",
+      "name": "live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "Caused by: TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Caused by: Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 66.7825,
+      "run": 1,
+      "log": "run-1-lesson-tutor.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/lesson-tutor.live.test.ts::live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check",
+      "file": "src/evals/lesson-tutor.live.test.ts",
+      "name": "live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "Error",
+          "message": "Connection error.",
+          "cause": {
+            "name": "Caused by: TypeError",
+            "message": "fetch failed",
+            "cause": {
+              "name": "Caused by: Error",
+              "message": "getaddrinfo ENOTFOUND api.openai.com",
+              "code": "ENOTFOUND"
+            }
+          }
+        }
+      ],
+      "durationMs": 2.132249999999999,
+      "run": 1,
+      "log": "run-1-lesson-tutor.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": null
+    },
+    {
+      "id": "src/evals/material-osmosis-session.live.test.ts::live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window",
+      "file": "src/evals/material-osmosis-session.live.test.ts",
+      "name": "live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not prepare the bounded material session from a trustworthy source.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The recovery provider request failed (Error).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 105.633375,
+      "run": 1,
+      "log": "run-1-material-osmosis-session.txt",
+      "status": "flaky",
+      "detail": "failed; baseline 2/3. YOVA could not prepare the bounded material session from a trustworthy source.",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/outside-teaching-reliability.live.test.ts::live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly",
+      "file": "src/evals/outside-teaching-reliability.live.test.ts",
+      "name": "live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "AssertionError",
+          "message": "expected [ { run: 1, …(1) }, …(2) ] to deeply equal []",
+          "actual": "[\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 0,\n      \"cause\": \"provider_request\",\n      \"elapsedMs\": 52,\n      \"failedValidator\": \"session_provider_request\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 0,\n      \"outputTokens\": 0,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.\",\n      \"repairReason\": \"none\",\n      \"repairSucceeded\": null,\n      \"stage\": \"provider\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 1,\n  },\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 0,\n      \"cause\": \"provider_request\",\n      \"elapsedMs\": 12,\n      \"failedValidator\": \"session_provider_request\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 0,\n      \"outputTokens\": 0,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.\",\n      \"repairReason\": \"none\",\n      \"repairSucceeded\": null,\n      \"stage\": \"provider\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 2,\n  },\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 0,\n      \"cause\": \"provider_request\",\n      \"elapsedMs\": 12,\n      \"failedValidator\": \"session_provider_request\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 0,\n      \"outputTokens\": 0,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.\",\n      \"repairReason\": \"none\",\n      \"repairSucceeded\": null,\n      \"stage\": \"provider\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 3,\n  },\n]",
+          "expected": "[]"
+        }
+      ],
+      "durationMs": 604.131042,
+      "run": 1,
+      "log": "run-1-outside-teaching-reliability.txt",
+      "status": "flaky",
+      "detail": "failed; baseline 1/3. expected [ { run: 1, …(1) }, …(2) ] to deeply equal [] Received: [\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 0,\n      \"cause\": \"provider_request\",\n      \"elapsedMs\": 52,\n      \"failedValidator\": \"session_provider_request\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 0,\n      \"outputTokens\": 0,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.\",\n      \"repairReason\": \"none\",\n      \"repairSucceeded\": null,\n      \"stage\": \"provider\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 1,\n  },\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 0,\n      \"cause\": \"provider_request\",\n      \"elapsedMs\": 12,\n      \"failedValidator\": \"session_provider_request\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 0,\n      \"outputTokens\": 0,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.\",\n      \"repairReason\": \"none\",\n      \"repairSucceeded\": null,\n      \"stage\": \"provider\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 2,\n  },\n  {\n    \"generationStats\": {\n      \"attempts\": 2,\n      \"cacheWriteTokens\": 0,\n      \"cachedInputTokens\": 0,\n      \"cause\": \"provider_request\",\n      \"elapsedMs\": 12,\n      \"failedValidator\": \"session_provider_request\",\n      \"firstAttemptPassed\": false,\n      \"inputTokens\": 0,\n      \"outputTokens\": 0,\n      \"repairAttempted\": true,\n      \"repairDetail\": \"The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.\",\n      \"repairReason\": \"none\",\n      \"repairSucceeded\": null,\n      \"stage\": \"provider\",\n      \"strategy\": \"full\",\n      \"validationIssueCode\": null,\n    },\n    \"run\": 3,\n  },\n] Expected: []",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP",
+      "file": "src/evals/plan-creation-blockers.live.test.ts",
+      "name": "live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "MapDiagnosticGenerationError",
+          "message": "The placement-check request failed.",
+          "failedValidator": "diagnostic_provider_request",
+          "cause": {
+            "name": "Caused by: Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "Caused by: TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Caused by: Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          }
+        }
+      ],
+      "durationMs": 74.72191700000008,
+      "run": 1,
+      "log": "run-1-plan-creation-blockers.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic",
+      "file": "src/evals/plan-creation-blockers.live.test.ts",
+      "name": "live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 69.46620800000005,
+      "run": 1,
+      "log": "run-1-plan-creation-blockers.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": null
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > the requested case exists",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > the requested case exists",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 0.6885420000000124,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Biology test with learner notes'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'Biology test with learner notes'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Caused by: Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "Caused by: TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Caused by: Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 124.48175000000003,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus problem-solving plan'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'Calculus problem-solving plan'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 3.7520000000000095,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus unit with mixed placement ev…'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'Calculus unit with mixed placement ev…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 4.221957999999972,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": null
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'One product-rule skill in short sessi…'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'One product-rule skill in short sessi…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 2.8533749999999714,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'World War I unit guide in short sessi…'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'World War I unit guide in short sessi…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 2.2649169999999685,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Full beginner calculus pathway'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'Full beginner calculus pathway'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 1.940999999999974,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'General-learning startup funding path…'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'General-learning startup funding path…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 2.084124999999972,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'History essay using outside sources'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'History essay using outside sources'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 2.1453329999999937,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Beginner JavaScript practice'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'Beginner JavaScript practice'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 8.20675,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'General-learning finance pathway'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'General-learning finance pathway'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 4.75570799999997,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > the requested journey exists",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > the requested journey exists",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 0.7302080000000046,
+      "run": 1,
+      "log": "run-1-plan-session-journey.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Caused by: Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "Caused by: TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Caused by: Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 248.00566699999996,
+      "run": 1,
+      "log": "run-1-plan-session-journey.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 3.1649580000000697,
+      "run": 1,
+      "log": "run-1-plan-session-journey.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 3.1969170000000986,
+      "run": 1,
+      "log": "run-1-plan-session-journey.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'History essay using outside sources'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'History essay using outside sources'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          },
+          "providerError": {
+            "category": "connection"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 2.6435000000000173,
+      "run": 1,
+      "log": "run-1-plan-session-journey.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: connection",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > the requested case exists",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > the requested case exists",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 0.6451250000000073,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Biology teaching from learner notes'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Biology teaching from learner notes'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "source_unavailable"
+            }
+          }
+        }
+      ],
+      "durationMs": 378.074667,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Bioenergetics multi-target retrieval …'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Bioenergetics multi-target retrieval …'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI did not return a complete, safe guided session after the bounded study attempts.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The recovery provider request failed (Error).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 7.181249999999977,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "fail",
+      "detail": "OpenAI did not return a complete, safe guided session after the bounded study attempts.",
+      "classification": null
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute temperature and reacti…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Fifteen-minute temperature and reacti…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 12.466792000000055,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute first product-rule les…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Fifteen-minute first product-rule les…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 10.03045899999995,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 9.467583999999988,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Production-shaped derivative-foundati…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Production-shaped derivative-foundati…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the guided session.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 9.717167000000018,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "flaky",
+      "detail": "failed; baseline 2/3. OpenAI could not prepare the guided session.",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'World War I teaching for a complete b…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'World War I teaching for a complete b…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "source_unavailable"
+            }
+          }
+        }
+      ],
+      "durationMs": 7.5106250000000045,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped 45-minute World War I baseline…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Mapped 45-minute World War I baseline…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 7.967957999999953,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Calculus repair after a weak check'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Calculus repair after a weak check'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI did not return a complete subject lesson after one repair attempt.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson provider request failed before YOVA received usable content.",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 3.7653750000000628,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "flaky",
+      "detail": "failed; baseline 1/3. OpenAI did not return a complete subject lesson after one repair attempt.",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Self-contained delayed calculus review'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Self-contained delayed calculus review'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI did not return a safe scheduled retrieval after one repair attempt. The scheduled-retrieval provider request failed before YOVA received a usable result.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The scheduled-retrieval provider request failed before YOVA received a usable result.",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 4.200750000000085,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "fail",
+      "detail": "OpenAI did not return a safe scheduled retrieval after one repair attempt. The scheduled-retrieval provider request failed before YOVA received a usable result.",
+      "classification": null
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History writing outside YOVA'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'History writing outside YOVA'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the guided session.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The first provider request failed transiently, so YOVA retried it once within the generation budget. The provider request failed before YOVA received a usable result.",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 10.483875000000012,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "fail",
+      "detail": "OpenAI could not prepare the guided session.",
+      "classification": null
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Beginner JavaScript with fading suppo…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Beginner JavaScript with fading suppo…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 7.890834000000041,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'General-learning finance application'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'General-learning finance application'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 6.721417000000088,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute vocabulary review'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Fifteen-minute vocabulary review'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI did not return a complete subject lesson after one repair attempt.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson provider request failed before YOVA received usable content.",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 2.6760829999999487,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "fail",
+      "detail": "OpenAI did not return a complete subject lesson after one repair attempt.",
+      "classification": null
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Startup funding foundations for a new…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Startup funding foundations for a new…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 8.739541000000031,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History reasoning from a primary-sour…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'History reasoning from a primary-sour…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "source_unavailable"
+            }
+          }
+        }
+      ],
+      "durationMs": 7.482917000000043,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Literature close reading from a short…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Literature close reading from a short…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "source_unavailable"
+            }
+          }
+        }
+      ],
+      "durationMs": 8.061707999999953,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Spanish conversation with supported t…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Spanish conversation with supported t…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 7.559500000000071,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Teaching from a thin biology study gu…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Teaching from a thin biology study gu…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "source_unavailable"
+            }
+          }
+        }
+      ],
+      "durationMs": 11.540457999999944,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/streamed-ap-biology.live.test.ts::live streamed AP Biology session > builds a topic-specific teaching skeleton",
+      "file": "src/evals/streamed-ap-biology.live.test.ts",
+      "name": "live streamed AP Biology session > builds a topic-specific teaching skeleton",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 314.06383300000005,
+      "run": 1,
+      "log": "run-1-streamed-ap-biology.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/streamed-melatonin-skeleton.live.test.ts::live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session",
+      "file": "src/evals/streamed-melatonin-skeleton.live.test.ts",
+      "name": "live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 238.32991700000002,
+      "run": 1,
+      "log": "run-1-streamed-melatonin-skeleton.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": null
+    },
+    {
+      "id": "src/evals/streamed-rayleigh.live.test.ts::live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton",
+      "file": "src/evals/streamed-rayleigh.live.test.ts",
+      "name": "live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 259.798375,
+      "run": 1,
+      "log": "run-1-streamed-rayleigh.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/streamed-world-war-one-lesson.live.test.ts::live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief",
+      "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+      "name": "live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 285.23524999999995,
+      "run": 1,
+      "log": "run-1-streamed-world-war-one-lesson.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/streamed-world-war-one-skeleton.live.test.ts::live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session",
+      "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+      "name": "live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 312.78066599999966,
+      "run": 1,
+      "log": "run-1-streamed-world-war-one-skeleton.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/streamed-world-war-one-skeleton.live.test.ts::live streamed World War I session skeleton > reliably creates a valid subject-specific session outline",
+      "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+      "name": "live streamed World War I session skeleton > reliably creates a valid subject-specific session outline",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI could not prepare the streamed teaching structure.",
+          "generationStats": {
+            "failedValidator": "session_provider_request",
+            "repairDetail": "The lesson-structure request failed before YOVA received a usable response (connection).",
+            "cause": {
+              "message": "provider_request"
+            }
+          }
+        }
+      ],
+      "durationMs": 14.617665999999645,
+      "run": 1,
+      "log": "run-1-streamed-world-war-one-skeleton.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not complete (generation telemetry)",
+      "classification": null
+    },
+    {
+      "id": "src/evals/teaching-assessment-contract.live.test.ts::live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase",
+      "file": "src/evals/teaching-assessment-contract.live.test.ts",
+      "name": "live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "StreamedLessonGenerationError",
+          "message": "The lesson stream could not be completed."
+        }
+      ],
+      "durationMs": 981385.018708,
+      "run": 1,
+      "log": "run-1-teaching-assessment-contract.txt",
+      "status": "flaky",
+      "detail": "failed; baseline 2/3. The lesson stream could not be completed.",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/lib/diagnostics/map-diagnostic.live.test.ts::live map diagnostic generation > generates from a material map and reports latency",
+      "file": "src/lib/diagnostics/map-diagnostic.live.test.ts",
+      "name": "live map diagnostic generation > generates from a material map and reports latency",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "MapDiagnosticGenerationError",
+          "message": "The placement-check request failed.",
+          "failedValidator": "diagnostic_provider_request",
+          "cause": {
+            "name": "Caused by: Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "Caused by: TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Caused by: Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          }
+        }
+      ],
+      "durationMs": 184.14829099999997,
+      "run": 1,
+      "log": "run-1-map-diagnostic.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/lib/diagnostics/map-diagnostic.live.test.ts::live map diagnostic generation > generates from a ai_generated map and reports latency",
+      "file": "src/lib/diagnostics/map-diagnostic.live.test.ts",
+      "name": "live map diagnostic generation > generates from a ai_generated map and reports latency",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "MapDiagnosticGenerationError",
+          "message": "The placement-check request failed.",
+          "failedValidator": "diagnostic_provider_request",
+          "cause": {
+            "name": "Error",
+            "message": "Connection error.",
+            "cause": {
+              "name": "TypeError",
+              "message": "fetch failed",
+              "cause": {
+                "name": "Error",
+                "message": "getaddrinfo ENOTFOUND api.openai.com",
+                "code": "ENOTFOUND"
+              }
+            }
+          }
+        }
+      ],
+      "durationMs": 3.5819589999999835,
+      "run": 1,
+      "log": "run-1-map-diagnostic.txt",
+      "status": "unavailable",
+      "detail": "Provider request could not run or complete",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "e2e/plan-launch-live.spec.ts::desktop-chromium::a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+      "file": "e2e/plan-launch-live.spec.ts",
+      "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+      "project": "desktop-chromium",
+      "state": "failed",
+      "errors": [
+        {
+          "message": "Error: ENOENT: no such file or directory, open '/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/fixtures/deadline/live-ten-minute.json'\n\n   9 | test(\"a live-generated deadline lesson streams, finishes unrated and preserves completion on reload\",async({page})=>{\n  10 |   test.setTimeout(180_000);\n> 11 |   const fixture = JSON.parse(readFileSync(liveFixturePath(\"deadline\", \"live-ten-minute.json\"),\"utf8\")) as {plan:LearningPlan;resource:SessionResource};\n     |                                          ^\n  12 |   await freezePlanClock(page, new Date(fixture.plan.createdAt));\n  13 |   const apiResults:Array<{path:string;status:number}> = [];\n  14 |   page.on(\"response\",response=>{\n    at <repo>/e2e/plan-launch-live.spec.ts:11:42"
+        }
+      ],
+      "durationMs": 9097,
+      "run": 1,
+      "log": "run-1-browser.txt",
+      "status": "unavailable",
+      "detail": "Required test fixture or browser is unavailable",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "e2e/plan-launch-live.spec.ts::mobile-chromium::a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+      "file": "e2e/plan-launch-live.spec.ts",
+      "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+      "project": "mobile-chromium",
+      "state": "failed",
+      "errors": [
+        {
+          "message": "Error: ENOENT: no such file or directory, open '/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/fixtures/deadline/live-ten-minute.json'\n\n   9 | test(\"a live-generated deadline lesson streams, finishes unrated and preserves completion on reload\",async({page})=>{\n  10 |   test.setTimeout(180_000);\n> 11 |   const fixture = JSON.parse(readFileSync(liveFixturePath(\"deadline\", \"live-ten-minute.json\"),\"utf8\")) as {plan:LearningPlan;resource:SessionResource};\n     |                                          ^\n  12 |   await freezePlanClock(page, new Date(fixture.plan.createdAt));\n  13 |   const apiResults:Array<{path:string;status:number}> = [];\n  14 |   page.on(\"response\",response=>{\n    at <repo>/e2e/plan-launch-live.spec.ts:11:42"
+        }
+      ],
+      "durationMs": 2370,
+      "run": 1,
+      "log": "run-1-browser.txt",
+      "status": "unavailable",
+      "detail": "Required test fixture or browser is unavailable",
+      "classification": "FLAKY"
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'calculus'
+calculus {
+  elapsedMs: 12168,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'session_structure',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: 'The skeleton could not be finalized because its knowledge-check structure was incomplete (multiple choice: 0, typed response: 3). [\n' +
+    '  {\n' +
+    '    "origin": "array",\n' +
+    '    "code": "too_small",\n' +
+    '    "minimum": 3,\n' +
+    '    "inclusive": true,\n' +
+    '    "path": [\n' +
+    '      "activities"\n' +
+    '    ],\n' +
+    '    "message": "Too small: expected array to have >=3 items"\n' +
+    '  }\n' +
+    '] The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.',
+  inputTokens: 9419,
+  cachedInputTokens: 3840,
+  cacheWriteTokens: 0,
+  outputTokens: 1416,
+  validationIssueCode: null,
+  recoveryMode: 'safe_learn',
+  strategy: 'streamed',
+  stage: 'complete'
+} self_explanation
+
+stderr | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'osmosis'
+osmosis SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane as a selective barrier”; “Osmosis”; “Osmosis in a simple cell example”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim.
+    at generateProductionSessionWithOpenAI (<repo>/src/lib/openai/session-generation-strategy.ts:100:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at <repo>/src/evals/launch-session-journeys.live.test.ts:42:22
+    at file://<repo>/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+  generationStats: {
+    elapsedMs: 34156,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'streamed_lesson_scope',
+    repairAttempted: true,
+    repairSucceeded: false,
+    repairReason: 'semantic_validation',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane as a selective barrier”; “Osmosis”; “Osmosis in a simple cell example”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim.",
+    inputTokens: 18706,
+    cachedInputTokens: 7680,
+    cacheWriteTokens: 0,
+    outputTokens: 3400,
+    validationIssueCode: 'streamed_target_missing',
+    stage: 'validation',
+    cause: 'semantic_validation',
+    strategy: 'streamed'
+  },
+  structuralDiagnostic: undefined
+}
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'recall'
+recall {
+  elapsedMs: 26258,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'session_method_fidelity',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: 'concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.',
+  inputTokens: 20840,
+  cachedInputTokens: 5888,
+  cacheWriteTokens: 0,
+  outputTokens: 3027,
+  validationIssueCode: null,
+  strategy: 'full',
+  stage: 'complete'
+} concept_mapping
+
+ ❯ src/evals/launch-session-journeys.live.test.ts (3 tests | 1 failed) 87258ms
+     ✓ 'calculus'  16918ms
+     × 'osmosis' 39787ms
+     ✓ 'recall'  30546ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'osmosis'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane as a selective barrier”; “Osmosis”; “Osmosis in a simple cell example”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/launch-session-journeys.live.test.ts:42:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  09:27:53
+   Duration  87.66s (transform 365ms, setup 0ms, import 300ms, tests 87.26s, environment 0ms)
+
+
+Exit code: 1

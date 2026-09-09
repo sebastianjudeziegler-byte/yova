@@ -1,0 +1,14 @@
+
+ RUN  v4.1.10 <repo>
+
+ ✓ src/evals/streamed-ap-biology.live.test.ts (1 test) 15995ms
+     ✓ builds a topic-specific teaching skeleton  15777ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  10:03:12
+   Duration  16.68s (transform 294ms, setup 20ms, import 224ms, tests 15.99s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/final-verified/run-2-streamed-ap-biology.json
+
+Exit code: 0

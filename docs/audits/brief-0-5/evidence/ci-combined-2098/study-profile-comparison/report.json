@@ -1,0 +1,40 @@
+[
+  {
+    "revision": "main",
+    "sha": "e03a082659f51172c0b06bf84daffdd5599ac773",
+    "state": "pass",
+    "exitCode": 0,
+    "tests": [
+      {
+        "name": "keeps every pre-report screen usable on common phone widths",
+        "project": "mobile-chromium",
+        "outcomes": [
+          {
+            "status": "passed",
+            "errors": []
+          }
+        ]
+      }
+    ],
+    "errors": []
+  },
+  {
+    "revision": "branch",
+    "sha": "a013b63229834d0b8e579e995040ff4613154521",
+    "state": "pass",
+    "exitCode": 0,
+    "tests": [
+      {
+        "name": "keeps every pre-report screen usable on common phone widths",
+        "project": "mobile-chromium",
+        "outcomes": [
+          {
+            "status": "passed",
+            "errors": []
+          }
+        ]
+      }
+    ],
+    "errors": []
+  }
+]

@@ -1,0 +1,84 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/streamed-rayleigh.live.test.ts[2m > [22m[2mlive streamed Rayleigh-scattering session[2m > [22m[2mbuilds the production 15-minute two-target teaching skeleton
+[22m[39mRayleigh streamed skeleton {
+  run: [33m1[39m,
+  generationStats: {
+    elapsedMs: [33m9637[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'session_required_typed_recall'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mtrue[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m'A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.'[39m,
+    inputTokens: [33m7434[39m,
+    cachedInputTokens: [33m3840[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m1247[39m,
+    validationIssueCode: [1mnull[22m,
+    recoveryMode: [32m'safe_learn'[39m,
+    strategy: [32m'streamed'[39m,
+    stage: [32m'complete'[39m
+  },
+  coverage: {
+    focus: [32m'Learn and demonstrate Light scattering in the atmosphere in this session.'[39m,
+    essentialIdeas: [
+      [32m'Light scattering in the atmosphere redirects sunlight by collisions with air molecules.'[39m
+    ],
+    completionEvidence: [
+      [32m'Demonstrate Light scattering in the atmosphere redirects sunlight by collisions with air molecules.'[39m
+    ],
+    evidenceMap: [ [36m[Object][39m ],
+    deferredContent: [ [32m'Why the sky looks blue during the day'[39m ]
+  },
+  activities: [
+    {
+      type: [32m'instruction'[39m,
+      phase: [32m'model'[39m,
+      concept: [1mnull[22m,
+      minutes: [33m3[39m,
+      ideas: [36m[Array][39m
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'explain'[39m,
+      concept: [32m'Light scattering in the atmosphere redirects sunlight by collisions with air molecules.'[39m,
+      minutes: [33m4[39m,
+      ideas: []
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'repair'[39m,
+      concept: [32m'Light scattering in the atmosphere redirects sunlight by collisions with air molecules.'[39m,
+      minutes: [33m3[39m,
+      ideas: []
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'reexplain'[39m,
+      concept: [32m'Light scattering in the atmosphere redirects sunlight by collisions with air molecules.'[39m,
+      minutes: [33m3[39m,
+      ideas: []
+    },
+    {
+      type: [32m'multiple_choice'[39m,
+      phase: [32m'transfer'[39m,
+      concept: [32m'Recognition transfer: Light scattering in the atmosphere redirects sunlight by collisions with air molecules.'[39m,
+      minutes: [33m2[39m,
+      ideas: []
+    }
+  ]
+}
+
+ [32m✓[39m src/evals/streamed-rayleigh.live.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 10074[2mms[22m[39m
+     [33m[2m✓[22m[39m builds the production 15-minute two-target teaching skeleton [33m 10072[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m   Start at [22m 09:39:17
+[2m   Duration [22m 10.70s[2m (transform 601ms, setup 0ms, import 493ms, tests 10.07s, environment 0ms)[22m
+
+
+Exit code: 0

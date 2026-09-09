@@ -1,0 +1,34 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'osmosis'
+osmosis {
+  elapsedMs: 9080,
+  attempts: 2,
+  firstAttemptPassed: false,
+  failedValidator: 'streamed_lesson_scope',
+  repairAttempted: true,
+  repairSucceeded: true,
+  repairReason: 'semantic_validation',
+  repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane as a selective barrier”; “Osmosis as water movement”. Later targets that must remain exact entries in deferredContent: “Simple osmosis example and check”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+  inputTokens: 9915,
+  cachedInputTokens: 3840,
+  cacheWriteTokens: 0,
+  outputTokens: 1780,
+  validationIssueCode: 'streamed_target_missing',
+  recoveryMode: 'safe_learn',
+  strategy: 'streamed',
+  stage: 'complete'
+} self_explanation
+
+ ✓ src/evals/launch-session-journeys.live.test.ts (3 tests | 2 skipped) 16351ms
+     ✓ 'osmosis'  16131ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 2 skipped (3)
+   Start at  10:01:17
+   Duration  16.73s (transform 369ms, setup 19ms, import 292ms, tests 16.35s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/final-verified/run-1-launch-session-journeys.json
+
+Exit code: 0

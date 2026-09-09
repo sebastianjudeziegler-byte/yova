@@ -27,6 +27,35 @@ const activities = [
 ];
 
 describe("session completion contract", () => {
+  it.each(["adding", "the sum of"])("keeps %s equivalent to a symbolic addition in the learner's check", wording => {
+    const idea = `Differentiate a product by ${wording} the derivative of each factor times the other factor.`;
+    expect(validateSessionCompletionContract({
+      essentialIdeas: [idea],
+      evidenceMap: [{ essentialIdea: idea, activityConcept: "Product rule" }],
+      activities: [{
+        type: "free_response", concept: "Product rule", requiredForCompletion: true,
+        title: "Explain the product rule", body: "State the rule and solve one product derivative.",
+        correctAnswer: "The derivative of a product is f'(x)g(x) + f(x)g'(x).",
+      }],
+    })).toBeNull();
+  });
+
+  it.each([
+    "The derivative of a product is f'(x)g'(x).",
+    "Photosynthesis converts light into chemical energy in chloroplasts.",
+  ])("does not let the addition wording or a concept label authorize an unrelated answer: %s", correctAnswer => {
+    const idea = "Differentiate a product by adding the derivative of each factor times the other factor.";
+    expect(validateSessionCompletionContract({
+      essentialIdeas: [idea],
+      evidenceMap: [{ essentialIdea: idea, activityConcept: "Product rule" }],
+      activities: [{
+        type: "free_response", concept: "Product rule", requiredForCompletion: true,
+        title: "Explain the product rule", body: "State the rule and solve one product derivative.",
+        correctAnswer, feedback: "The correct rule adds two terms: f'(x)g(x) + f(x)g'(x).",
+      }],
+    })).toMatch(/does not visibly assess/);
+  });
+
   it("accepts a required check for every stated essential idea", () => {
     expect(validateSessionCompletionContract({
       essentialIdeas: ["ATP stores usable energy", "The stages pass products forward"],

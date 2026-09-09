@@ -1,0 +1,142 @@
+Main e03a082 complete baseline 1/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'
+
+YOVA answer evaluation · accepts a correct biology paraphrase
+Expected · secure
+Received · secure
+Feedback · You correctly identified oxygen as the final electron acceptor and explained that without it electron flow stops and ATP production through oxidative phosphorylation cannot continue.
+Human label · The answer states oxygen's essential role and the consequence even though it does not copy the reference wording.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'catches confident biology keyword soup'
+
+YOVA answer evaluation · catches confident biology keyword soup
+Expected · needs_review
+Received · needs_review
+Feedback · The response does not show the key mechanism of natural selection. It suggests organisms intentionally choose helpful mutations, which is not correct. A strong answer should mention existing heritable variation, that some individuals leave more offspring than others, and that these traits become more common in the population over generations.
+Human label · The response uses relevant vocabulary but reverses causality and incorrectly describes organisms as choosing mutations.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'marks a materially incomplete causal …'
+
+YOVA answer evaluation · marks a materially incomplete causal explanation for review
+Expected · needs_review
+Received · needs_review
+Feedback · The response identifies that taxes caused anger, but it does not explain the key issue: colonists resisted because they were taxed without representation and questioned Parliament’s authority to tax them directly.
+Human label · Taxation is relevant, but the answer misses representation and the broader dispute about political authority required by the rubric.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…'
+
+YOVA answer evaluation · accepts equivalent mathematical notation
+Expected · secure
+Received · secure
+Feedback · The derivative is correct, and the explanation shows the power rule was used appropriately on both terms.
+Human label · The derivative is correct and the brief rule explanation establishes how it was obtained.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'does not reward a true statement that…'
+
+YOVA answer evaluation · does not reward a true statement that misses the mechanism
+Expected · needs_review
+Received · needs_review
+Feedback · The response shows that diversification involves holding more investments, but it does not explain why that reduces risk. It needs the idea that different assets do not move exactly together, so losses in one can be offset by others.
+Human label · Diversification can reduce risk, but merely saying there are more investments does not explain reduced exposure to any one asset or uncorrelated losses.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a concise programming explana…'
+
+YOVA answer evaluation · accepts a concise programming explanation
+Expected · secure
+Received · secure
+Feedback · You correctly explain that the base case stops the recursion and prevents endless self-calls. The stack-space consequence is also consistent with what happens without a terminating condition.
+Human label · The response correctly states that the base case terminates recursive calls and prevents unbounded recursion.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'
+
+YOVA answer evaluation · admits uncertainty when the prompt lacks necessary context
+Expected · uncertain
+Received · secure
+Feedback · The response gives the correct causal idea: the rate changed because a condition changed. It does not name the specific condition, but that is not required here.
+Human label · Neither the prompt nor the reference identifies what process changed, so several interpretations are defensible.
+
+
+ ❯ src/evals/answer-evaluation-quality.live.test.ts (8 tests | 3 failed) 15637ms
+     ✓ the requested case exists 1ms
+     × 'accepts a correct biology paraphrase' 4161ms
+     ✓ 'catches confident biology keyword soup'  3787ms
+     ✓ 'marks a materially incomplete causal …'  1648ms
+     ✓ 'accepts equivalent mathematical notat…'  1416ms
+     ✓ 'does not reward a true statement that…'  1540ms
+     × 'accepts a concise programming explana…' 1592ms
+     × 'admits uncertainty when the prompt la…' 1490ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "oxygen accepts hydrogen ions to form water",
++ ]
+
+ ❯ src/evals/answer-evaluation-quality.live.test.ts:34:35
+     32|
+     33|     if (result.verdict === "secure") {
+     34|       expect(result.missingIdeas).toEqual([]);
+       |                                   ^
+     35|       expect(result.matchedIdeas.length).toBeGreaterThan(0);
+     36|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a concise programming explana…'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "function returns back through earlier calls",
++ ]
+
+ ❯ src/evals/answer-evaluation-quality.live.test.ts:34:35
+     32|
+     33|     if (result.verdict === "secure") {
+     34|       expect(result.missingIdeas).toEqual([]);
+       |                                   ^
+     35|       expect(result.matchedIdeas.length).toBeGreaterThan(0);
+     36|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'
+AssertionError: expected [ 'uncertain' ] to include 'secure'
+ ❯ src/evals/answer-evaluation-quality.live.test.ts:29:45
+     27|     console.info(`Human label · ${evaluationCase.humanRationale}\n`);
+     28|
+     29|     expect(evaluationCase.expectedVerdicts).toContain(result.verdict);
+       |                                             ^
+     30|     expect(result.feedback).not.toMatch(forbiddenClaims);
+     31|     expect(result.feedback.length).toBeGreaterThanOrEqual(15);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 5 passed (8)
+   Start at  22:39:55
+   Duration  15.74s (transform 29ms, setup 0ms, import 23ms, tests 15.64s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-1/answer-evaluation-quality.json
+
+Exit code: 1

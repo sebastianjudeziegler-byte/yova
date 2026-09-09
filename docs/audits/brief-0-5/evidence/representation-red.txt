@@ -1,0 +1,117 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/brief-0-5-rubric.test.ts (2 tests | 2 failed) 22ms
+   × scores captured product learner content against its current session contract 19ms
+   × scores captured javascript learner content against its current session contract 3ms
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts (13 tests | 2 failed) 231ms
+     × preserves explicit function arguments without accepting different arguments or derivatives 3ms
+     × accepts a chronology check grounded in its validated Sarajevo teaching claim 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/brief-0-5-rubric.test.ts > scores captured product learner content against its current session contract
+AssertionError: expected [ Array(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "detail": "0 of 5 activities align with problem solving",
++     "earned": 0,
++     "id": "task_alignment",
++     "label": "Activities fit the learning task",
++     "passed": false,
++     "points": 15,
++     "required": true,
++   },
++   {
++     "detail": "The lesson does not use enough of the named topic or objective to be trustworthy.",
++     "earned": 0,
++     "id": "content_specificity",
++     "label": "The lesson names and teaches the actual subject content",
++     "passed": false,
++     "points": 0,
++     "required": true,
++   },
++ ]
+
+ ❯ src/evals/brief-0-5-rubric.test.ts:13:74
+     11|   const result = evaluateSessionDraft(draft, capture.context as Sessio…
+     12|     name === "product" ? "problem_solving" : "coding", [], capture.del…
+     13|   expect(result.checks.filter(check => check.required && !check.passed…
+       |                                                                          ^
+     14|   if (name === "javascript") expect(draft.activities.some(activity => …
+     15|   if (name === "product") expect(draft.coverage.deferredContent).toCon…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/evals/brief-0-5-rubric.test.ts > scores captured javascript learner content against its current session contract
+AssertionError: expected [ { id: 'answer_integrity', …(6) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "detail": "3 question activities inspected",
++     "earned": 0,
++     "id": "answer_integrity",
++     "label": "Questions include usable answers and feedback",
++     "passed": false,
++     "points": 15,
++     "required": true,
++   },
++ ]
+
+ ❯ src/evals/brief-0-5-rubric.test.ts:13:74
+     11|   const result = evaluateSessionDraft(draft, capture.context as Sessio…
+     12|     name === "product" ? "problem_solving" : "coding", [], capture.del…
+     13|   expect(result.checks.filter(check => check.required && !check.passed…
+       |                                                                          ^
+     14|   if (name === "javascript") expect(draft.activities.some(activity => …
+     15|   if (name === "product") expect(draft.coverage.deferredContent).toCon…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > preserves explicit function arguments without accepting different arguments or derivatives
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:63:85
+     61|   it("preserves explicit function arguments without accepting differen…
+     62|     const target = "Interpret and state (fg)' = f'g + fg'";
+     63|     expect(lessonIdeaSharesTargetSubject("f'(x)g(x) + f(x)g'(x)", targ…
+       |                                                                                     ^
+     64|     expect(lessonIdeaSharesTargetSubject("f'(x)g(y) + f(x)g'(y)", targ…
+     65|     expect(lessonIdeaSharesTargetSubject("f'(x)g'(x)", target, "check"…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > accepts a chronology check grounded in its validated Sarajevo teaching claim
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.
+ ❯ generateStreamedTeachingSkeletonWithOpenAI src/lib/openai/streamed-teaching-generator.ts:983:9
+    981|   if (fallbackFailure) throw fallbackFailure;
+    982|
+    983|   throw new SessionGenerationFailure(
+       |         ^
+    984|     `OpenAI did not return a complete streamed teaching skeleton after…
+    985|     {
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:71:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  4 failed | 11 passed (15)
+   Start at  09:00:37
+   Duration  585ms (transform 444ms, setup 0ms, import 543ms, tests 253ms, environment 0ms)
+

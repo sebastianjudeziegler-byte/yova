@@ -1,0 +1,290 @@
+[
+  {
+    "run": 1,
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "test": "live OpenAI answer evaluation quality 'accepts a correct biology paraphrase'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-answer-evaluation-quality.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "test": "live OpenAI answer evaluation quality 'accepts a concise programming explana…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-answer-evaluation-quality.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "test": "live OpenAI answer evaluation quality 'admits uncertainty when the prompt la…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-answer-evaluation-quality.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects complete: 'accepts a correct biology paraphrase'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-grader-calibration.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects complete: 'accepts a concise programming explana…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-grader-calibration.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects complete: 'history: complete-history'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-grader-calibration.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'biology: underspecified-biology'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-grader-calibration.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'programming: underspecified-programmi…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-grader-calibration.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'history: underspecified-history'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-grader-calibration.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'biology: missing-context-biology'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-grader-calibration.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'programming: missing-context-programm…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-grader-calibration.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'history: missing-context-history'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-grader-calibration.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+    "state": "failed",
+    "reason": "AssertionError: expected [ Array(1) ] to deeply equal []",
+    "log": "run-1-plan-session-journey.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/session-quality.live.test.ts",
+    "test": "live OpenAI session quality 'Mapped product-rule and chain-rule fi…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-session-quality.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/session-quality.live.test.ts",
+    "test": "live OpenAI session quality 'Beginner JavaScript with fading suppo…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-session-quality.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/session-quality.live.test.ts",
+    "test": "live OpenAI session quality 'Spanish conversation with supported t…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-session-quality.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/streamed-ap-biology.live.test.ts",
+    "test": "live streamed AP Biology session builds a topic-specific teaching skeleton",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-streamed-ap-biology.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+    "test": "live streamed World War I lesson delivers substantive teaching from the first generated lesson brief",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-streamed-world-war-one-lesson.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+    "test": "live exact World War I baseline skeleton creates the production 45-minute streamed teaching session",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-streamed-world-war-one-skeleton.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "test": "live OpenAI answer evaluation quality 'accepts a correct biology paraphrase'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-answer-evaluation-quality.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "test": "live OpenAI answer evaluation quality 'accepts a concise programming explana…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-answer-evaluation-quality.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/answer-evaluation-quality.live.test.ts",
+    "test": "live OpenAI answer evaluation quality 'admits uncertainty when the prompt la…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-answer-evaluation-quality.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects complete: 'accepts a correct biology paraphrase'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-grader-calibration.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects complete: 'accepts a concise programming explana…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-grader-calibration.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects complete: 'history: complete-history'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-grader-calibration.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'biology: underspecified-biology'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-grader-calibration.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'programming: underspecified-programmi…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-grader-calibration.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'history: underspecified-history'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-grader-calibration.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'biology: missing-context-biology'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-grader-calibration.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'programming: missing-context-programm…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-grader-calibration.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/grader-calibration.live.test.ts",
+    "test": "live grader calibration across subjects insufficient: 'history: missing-context-history'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-grader-calibration.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/plan-session-journey.live.test.ts",
+    "test": "live plan-to-session journeys 'One product-rule skill in short sessi…'",
+    "state": "failed",
+    "reason": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.",
+    "log": "run-2-plan-session-journey.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/session-quality.live.test.ts",
+    "test": "live OpenAI session quality 'Mapped product-rule and chain-rule fi…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-session-quality.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/session-quality.live.test.ts",
+    "test": "live OpenAI session quality 'Beginner JavaScript with fading suppo…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-session-quality.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/session-quality.live.test.ts",
+    "test": "live OpenAI session quality 'Spanish conversation with supported t…'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-session-quality.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/streamed-ap-biology.live.test.ts",
+    "test": "live streamed AP Biology session builds a topic-specific teaching skeleton",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-streamed-ap-biology.txt"
+  }
+]

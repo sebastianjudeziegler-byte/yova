@@ -1,0 +1,34 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/launch-session-journeys.live.test.ts (3 tests | 3 failed) 337ms
+     × 'calculus' 331ms
+     × 'osmosis' 3ms
+     × 'recall' 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'calculus'
+ FAIL  src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'osmosis'
+ FAIL  src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'recall'
+KnowledgeMapGenerationError: YOVA could not build the knowledge map.
+ ❯ requestKnowledgeMapOutput src/lib/knowledge-map/generate-plan-map.ts:207:11
+    205|         ? "knowledge_map_structure"
+    206|         : "knowledge_map_provider_request";
+    207|     throw new KnowledgeMapGenerationError(
+       |           ^
+    208|       failureValidator,
+    209|       metrics(),
+ ❯ generatePlanKnowledgeMap src/lib/knowledge-map/generate-plan-map.ts:259:23
+ ❯ src/evals/launch-session-journeys.live.test.ts:30:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  12:44:04
+   Duration  814ms (transform 501ms, setup 0ms, import 405ms, tests 337ms, environment 0ms)
+
+
+Exit code: 1

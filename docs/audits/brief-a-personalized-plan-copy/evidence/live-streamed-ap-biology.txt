@@ -1,0 +1,12 @@
+Real-provider canary: src/evals/streamed-ap-biology.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  21:23:07
+   Duration  12.24s (transform 286ms, setup 0ms, import 232ms, tests 11.93s, environment 0ms)
+
+
+Exit code: 0

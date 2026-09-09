@@ -1,0 +1,12 @@
+Real-provider canary: src/evals/streamed-melatonin-skeleton.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  21:23:19
+   Duration  34.97s (transform 282ms, setup 0ms, import 225ms, tests 34.66s, environment 0ms)
+
+
+Exit code: 0

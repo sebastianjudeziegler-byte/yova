@@ -1,0 +1,403 @@
+{
+  "source": "CI 34381102335 main-A15-1 session-result; unchanged output/context",
+  "context": {
+    "sessionArchitectureVersion": "streamed_teaching_v1",
+    "learningGoal": {
+      "title": "Use the Product Rule Independently",
+      "topic": "Calculus product rule",
+      "kind": "skill",
+      "deadline": null,
+      "sourceMode": "yova_generated",
+      "studyMode": "inside_yova",
+      "learningIntent": "learn"
+    },
+    "planRationale": "This is a conceptual and problem-solving plan. It begins with a complete example because the product rule is new, then moves through guided use, independent application, and mixed verification. Each session fits a 15-minute window and keeps one main action prominent.",
+    "knowledgeTopics": [
+      {
+        "id": "665efaf2-678c-421e-8d69-b87e3c655474",
+        "title": "Understand the Product Rule",
+        "description": "Build a clear procedure for differentiating a product of two functions.",
+        "subtopics": [
+          "Recognize when an expression is a product of two functions",
+          "Use (fg)' = f'g + fg' in a complete example"
+        ],
+        "prerequisiteTopicIds": [],
+        "status": "not_started",
+        "initialEvidence": null,
+        "sourceReferences": [],
+        "origin": "ai_generated",
+        "deferred": null,
+        "curriculumReference": null
+      }
+    ],
+    "journey": {
+      "currentSequence": 1,
+      "totalSessions": 4,
+      "previousSessions": [],
+      "nextSessions": [
+        {
+          "sequence": 2,
+          "title": "Apply the Procedure with Guidance",
+          "objective": "Use the product rule on a similar derivative with limited prompts.",
+          "contentTargets": [
+            "Assign f, g, f', and g' correctly",
+            "Substitute the four parts into the product-rule formula"
+          ]
+        },
+        {
+          "sequence": 3,
+          "title": "Use the Product Rule Independently",
+          "objective": "Differentiate products without step prompts and check the result.",
+          "contentTargets": [
+            "Apply the product rule without a supplied setup",
+            "Simplify the derivative accurately"
+          ]
+        },
+        {
+          "sequence": 4,
+          "title": "Verify Flexible Product-Rule Use",
+          "objective": "Choose and apply the product rule in a short mixed check.",
+          "contentTargets": [
+            "Distinguish product-rule problems from power-rule problems",
+            "Repair any error in setup, differentiation, or simplification"
+          ]
+        }
+      ]
+    },
+    "session": {
+      "title": "Understand the Product Rule",
+      "objective": "Build a clear procedure for differentiating a product of two functions.",
+      "method": "Feynman Technique",
+      "methodReason": "Connecting steps, causes, and prior knowledge can expose shallow understanding and build a more useful mental model. YOVA selected it because this session is conceptual learning work.",
+      "estimatedMinutes": 15,
+      "learningMode": "learn",
+      "topicIds": [
+        "665efaf2-678c-421e-8d69-b87e3c655474"
+      ],
+      "contentTargets": [
+        "Recognize when an expression is a product of two functions",
+        "Use (fg)' = f'g + fg' in a complete example"
+      ],
+      "completionEvidence": [
+        "Explain why differentiating both factors separately and multiplying the results is incorrect",
+        "Demonstrate each step of the product rule on one example"
+      ],
+      "reviewConcept": null,
+      "reviewType": null
+    },
+    "learnerProfile": {
+      "commonBlocker": null,
+      "guidancePreference": null,
+      "explanationPreference": "A concrete example first",
+      "focusFrequency": null,
+      "startingPattern": null,
+      "primaryImprovementGoal": null,
+      "functionalSupportNeed": null,
+      "processingPreference": "The big picture before the details",
+      "memoryChallenge": null,
+      "supportPreference": null,
+      "workspacePreference": "Show one step at a time",
+      "freeformContext": "The learner wants one complete example before trying a similar problem, prefers one visible step at a time, and often studies in 15-minute windows.",
+      "observationCorrection": null
+    },
+    "recentResults": [],
+    "recentInterruptions": [],
+    "conceptSignals": [],
+    "scaffoldSignals": [],
+    "topicCalibrationSignals": [],
+    "personalization": {
+      "decisions": [
+        {
+          "id": "decision:method_delivery:presentation:overview_first",
+          "artifact": "method_delivery",
+          "setting": "presentation",
+          "value": "overview_first",
+          "title": "Big picture first",
+          "explanation": "Show the overall relationship before the details.",
+          "signalIds": [
+            "signal:processing_entry"
+          ],
+          "evidenceLabel": "You told YOVA",
+          "methodCandidates": [],
+          "experimental": false
+        },
+        {
+          "id": "decision:workspace:layout:one_step",
+          "artifact": "workspace",
+          "setting": "layout",
+          "value": "one_step",
+          "title": "One step at a time",
+          "explanation": "Keep the current action prominent and make the full path optional.",
+          "signalIds": [
+            "signal:workspace_preference"
+          ],
+          "evidenceLabel": "You told YOVA",
+          "methodCandidates": [],
+          "experimental": false
+        }
+      ],
+      "canonicalProfile": {
+        "schemaVersion": "canonical_learner_profile_v1",
+        "questionnaireVersion": "canonical_profile_questionnaire_v1",
+        "signals": [
+          {
+            "signalId": "unfamiliar_entry",
+            "value": "big_picture",
+            "source": "legacy_deep_profile",
+            "sourceQuestionId": "deep_profile:q1",
+            "provenance": "compatible_migration"
+          },
+          {
+            "signalId": "workspace_structure",
+            "value": "one_step",
+            "source": "legacy_deep_profile",
+            "sourceQuestionId": "deep_profile:q4",
+            "provenance": "compatible_migration"
+          }
+        ]
+      },
+      "methodTie": {
+        "state": {
+          "controls": {
+            "experiments": false
+          },
+          "activeExperiment": null,
+          "experimentHistory": []
+        },
+        "signals": [
+          {
+            "id": "signal:processing_entry",
+            "key": "processing_entry",
+            "title": "How teaching begins",
+            "code": "big_picture",
+            "evidenceLabel": "You told YOVA",
+            "paused": false
+          },
+          {
+            "id": "signal:workspace_preference",
+            "key": "workspace_preference",
+            "title": "Preferred session view",
+            "code": "one_step",
+            "evidenceLabel": "You told YOVA",
+            "paused": false
+          }
+        ]
+      }
+    },
+    "materials": []
+  },
+  "draft": {
+    "topicIds": [
+      "665efaf2-678c-421e-8d69-b87e3c655474"
+    ],
+    "rationale": "This session teaches and checks Recognize when an expression is a product of two functions within today's time window. Later plan topics remain deferred.",
+    "coverage": {
+      "focus": "Learn and demonstrate Recognize when an expression is a product of two functions in this session.",
+      "essentialIdeas": [
+        "An expression is a product of two functions when it has two function factors multiplied together, so you can name it as an f times g form."
+      ],
+      "completionEvidence": [
+        "Demonstrate Recognize when an expression is a product of two functions"
+      ],
+      "evidenceMap": [
+        {
+          "essentialIdea": "An expression is a product of two functions when it has two function factors multiplied together, so you can name it as an f times g form.",
+          "activityConcept": "Recognize when an expression is a product of two functions"
+        }
+      ],
+      "deferredContent": [
+        "Use (fg)' = f'g + fg' in a complete example"
+      ]
+    },
+    "methodBriefing": {
+      "learningMode": "learn",
+      "taskType": "conceptual_learning",
+      "methodId": "self_explanation",
+      "name": "Feynman Technique",
+      "what": "Use feynman technique to learn and explain Recognize when an expression is a product of two functions.",
+      "why": "This method supports the active targets while keeping the explanation and required checks inside today's time window.",
+      "how": [
+        "Study the bounded explanation for Recognize when an expression is a product of two functions.",
+        "Complete the required checks for these active targets without adding later plan content."
+      ],
+      "completion": "Complete the required checks for Recognize when an expression is a product of two functions.",
+      "personalization": [
+        "Show the overall relationship before the details.",
+        "Keep the current action prominent and make the full path optional.",
+        "You asked for the big picture first, so YOVA will establish the overall model before the details."
+      ]
+    },
+    "sourceGrounding": null,
+    "activities": [
+      {
+        "topicId": "665efaf2-678c-421e-8d69-b87e3c655474",
+        "methodPhase": "model",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "product rule model",
+        "title": "When an expression is a product of two functions",
+        "body": "Read the explanation, then answer the next question from memory.",
+        "teaching": null,
+        "lessonBrief": {
+          "version": 1,
+          "topicIds": [
+            "665efaf2-678c-421e-8d69-b87e3c655474"
+          ],
+          "essentialIdeas": [
+            "An expression is a product of two functions when it has two function factors multiplied together, so you can name it as an f times g form."
+          ],
+          "sourceChunks": [],
+          "knowledgeSource": "model_knowledge",
+          "evidenceContext": {
+            "confirmedGaps": [],
+            "secureKnowledge": [],
+            "priorMisconceptions": []
+          },
+          "contentRequirements": {
+            "teachEveryEssentialIdea": true,
+            "includeConcreteExample": true,
+            "includeCommonMixup": true,
+            "preservePrerequisiteOrder": true
+          }
+        },
+        "practiceIntent": null,
+        "misconceptionSummary": null,
+        "type": "instruction",
+        "concept": null,
+        "choices": [],
+        "correctAnswer": null,
+        "feedback": null
+      },
+      {
+        "topicId": "665efaf2-678c-421e-8d69-b87e3c655474",
+        "methodPhase": "explain",
+        "estimatedMinutes": 3,
+        "requiredForCompletion": true,
+        "label": "Explain",
+        "title": "Explain Recognize when an expression is a product of two functions",
+        "body": "Without notes, explain Recognize when an expression is a product of two functions in one or two sentences.",
+        "teaching": null,
+        "lessonBrief": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "type": "free_response",
+        "concept": "Recognize when an expression is a product of two functions",
+        "choices": [],
+        "correctAnswer": "An expression is a product of two functions when it has two function factors multiplied together, so you can name it as an f times g form.",
+        "feedback": "Compare your response with this relationship: An expression is a product of two functions when it has two function factors multiplied together, so you can name it as an f times g form."
+      },
+      {
+        "topicId": "665efaf2-678c-421e-8d69-b87e3c655474",
+        "methodPhase": "repair",
+        "estimatedMinutes": 3,
+        "requiredForCompletion": true,
+        "label": "Repair",
+        "title": "Repair Recognize when an expression is a product of two functions",
+        "body": "Compare the earlier attempt with this active relationship: An expression is a product of two functions when it has two function factors multiplied together, so you can name it as an f times g form. Then state the corrected relationship in your own words.",
+        "teaching": null,
+        "lessonBrief": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "type": "free_response",
+        "concept": "Recognize when an expression is a product of two functions",
+        "choices": [],
+        "correctAnswer": "An expression is a product of two functions when it has two function factors multiplied together, so you can name it as an f times g form.",
+        "feedback": "Compare your response with this active relationship: An expression is a product of two functions when it has two function factors multiplied together, so you can name it as an f times g form."
+      },
+      {
+        "topicId": "665efaf2-678c-421e-8d69-b87e3c655474",
+        "methodPhase": "reexplain",
+        "estimatedMinutes": 3,
+        "requiredForCompletion": true,
+        "label": "Explain again",
+        "title": "Re-explain Recognize when an expression is a product of two functions",
+        "body": "Without reopening the model, explain Recognize when an expression is a product of two functions again in your own words after the repair.",
+        "teaching": null,
+        "lessonBrief": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "type": "free_response",
+        "concept": "Recognize when an expression is a product of two functions",
+        "choices": [],
+        "correctAnswer": "An expression is a product of two functions when it has two function factors multiplied together, so you can name it as an f times g form.",
+        "feedback": "Compare your response with this active relationship: An expression is a product of two functions when it has two function factors multiplied together, so you can name it as an f times g form."
+      },
+      {
+        "topicId": "665efaf2-678c-421e-8d69-b87e3c655474",
+        "methodPhase": "transfer",
+        "estimatedMinutes": 2,
+        "requiredForCompletion": true,
+        "label": "recognition check",
+        "title": "Identify the product form",
+        "body": "Choose the statement that matches the product form.",
+        "teaching": null,
+        "lessonBrief": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "type": "multiple_choice",
+        "concept": "Recognize when an expression is a product of two functions",
+        "choices": [
+          "Two function factors are multiplied together.",
+          "A function is added to a constant.",
+          "A single function is squared.",
+          "A function is inside another function."
+        ],
+        "correctAnswer": "Two function factors are multiplied together.",
+        "feedback": "The product form means multiplication of two function factors. The other choices describe addition, a power, or composition."
+      }
+    ]
+  },
+  "deliveryPolicy": {
+    "schemaVersion": 1,
+    "evidenceStatus": "starting_hypothesis",
+    "presentation": {
+      "mode": "overview_first",
+      "label": "Big picture first",
+      "instruction": "Show the overall relationship before the details."
+    },
+    "repair": {
+      "mode": "task_aligned",
+      "label": "Evidence-led repair",
+      "instruction": "Choose the smallest repair that addresses the demonstrated gap without lowering the target."
+    },
+    "retention": {
+      "mode": "task_aligned",
+      "label": "Task-led evidence",
+      "instruction": "Use the memory or application check that best matches the current task."
+    },
+    "workspace": {
+      "mode": "one_step",
+      "label": "One step at a time",
+      "instruction": "Keep the current action prominent and make the full path optional."
+    },
+    "pacing": {
+      "firstActionMinutes": 4,
+      "maximumActivities": 5,
+      "reason": "There is not enough repeated behavior evidence to change the normal session size."
+    },
+    "activityCadence": {
+      "mode": "task_aligned",
+      "label": "Task-aligned cadence",
+      "instruction": "Change activities only when the selected teaching method and current objective call for it."
+    },
+    "attemptSafety": {
+      "mode": "task_aligned",
+      "label": "Task-aligned attempts",
+      "instruction": "Use the attempt and feedback format best supported by the current task and selected method."
+    },
+    "knowledgeCheck": {
+      "mode": "task_aligned",
+      "label": "Task-aligned knowledge check",
+      "instruction": "Use the knowledge check required by the selected method and current learning objective."
+    },
+    "learnerFacingReasons": [
+      "Show the overall relationship before the details.",
+      "Keep the current action prominent and make the full path optional.",
+      "You asked for the big picture first, so YOVA will establish the overall model before the details."
+    ],
+    "signalsUsed": [
+      "The big picture before the details",
+      "Show one step at a time"
+    ]
+  }
+}

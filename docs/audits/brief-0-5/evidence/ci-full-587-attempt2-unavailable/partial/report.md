@@ -1,0 +1,238 @@
+# Live gate: BLOCKED — live failures
+
+Commit: 679fa3a49be4c782ecc879507414defaec99f7b5. Runs: 3. All files execute serially; quarantined flaky tests still execute.
+
+Pass: **23** · Fail: **203** · Flaky: **2** · Unavailable: **0**
+
+Flaky and unavailable rows do not block. An unavailable result is neither a pass nor a semantic failure. Unknown failures and unexpected skips block.
+
+| Test | Run | Result | Triage | Evidence |
+| --- | --- | --- | --- | --- |
+| src/evals/launch-session-journeys.live.test.ts — launch session journeys with committed recipes > 'calculus' | 1 | FLAKY | FLAKY | passed; baseline 2/3.  [log](run-1-launch-session-journeys.txt) |
+| src/evals/launch-session-journeys.live.test.ts — launch session journeys with committed recipes > 'osmosis' | 1 | PASS | unclassified | passed [log](run-1-launch-session-journeys.txt) |
+| src/evals/launch-session-journeys.live.test.ts — launch session journeys with committed recipes > 'recall' | 1 | PASS | unclassified | passed [log](run-1-launch-session-journeys.txt) |
+| src/evals/launch-lesson-streams.live.test.ts — launch lesson delivery > streams the validated calculus teaching | 1 | PASS | UNAVAILABLE | passed [log](run-1-launch-lesson-streams.txt) |
+| src/evals/launch-lesson-streams.live.test.ts — launch lesson delivery > streams the validated osmosis teaching | 1 | PASS | unclassified | passed [log](run-1-launch-lesson-streams.txt) |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > the requested case exists | 1 | PASS | unclassified | passed [log](run-1-answer-evaluation-quality.txt) |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase' | 1 | PASS | REAL | passed [log](run-1-answer-evaluation-quality.txt) |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'catches confident biology keyword soup' | 1 | PASS | unclassified | passed [log](run-1-answer-evaluation-quality.txt) |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'marks a materially incomplete causal …' | 1 | PASS | unclassified | passed [log](run-1-answer-evaluation-quality.txt) |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…' | 1 | PASS | unclassified | passed [log](run-1-answer-evaluation-quality.txt) |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'does not reward a true statement that…' | 1 | PASS | unclassified | passed [log](run-1-answer-evaluation-quality.txt) |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'accepts a concise programming explana…' | 1 | PASS | REAL | passed [log](run-1-answer-evaluation-quality.txt) |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…' | 1 | PASS | REAL | passed [log](run-1-answer-evaluation-quality.txt) |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > complete: 'accepts a correct biology paraphrase' | 1 | PASS | unclassified | passed [log](run-1-grader-calibration.txt) |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > complete: 'accepts a concise programming explana…' | 1 | PASS | unclassified | passed [log](run-1-grader-calibration.txt) |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > complete: 'history: complete-history' | 1 | PASS | unclassified | passed [log](run-1-grader-calibration.txt) |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'biology: underspecified-biology' | 1 | PASS | unclassified | passed [log](run-1-grader-calibration.txt) |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…' | 1 | PASS | unclassified | passed [log](run-1-grader-calibration.txt) |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'history: underspecified-history' | 1 | PASS | unclassified | passed [log](run-1-grader-calibration.txt) |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'biology: missing-context-biology' | 1 | PASS | unclassified | passed [log](run-1-grader-calibration.txt) |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'programming: missing-context-programm…' | 1 | PASS | unclassified | passed [log](run-1-grader-calibration.txt) |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'history: missing-context-history' | 1 | PASS | unclassified | passed [log](run-1-grader-calibration.txt) |
+| src/evals/lesson-tutor.live.test.ts — live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it | 1 | PASS | unclassified | passed [log](run-1-lesson-tutor.txt) |
+| src/evals/lesson-tutor.live.test.ts — live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check | 1 | PASS | unclassified | passed [log](run-1-lesson-tutor.txt) |
+| src/evals/material-osmosis-session.live.test.ts — live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window | 1 | FLAKY | FLAKY | passed; baseline 2/3.  [log](run-1-material-osmosis-session.txt) |
+| src/evals/outside-teaching-reliability.live.test.ts — live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly | 1 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/personalization-delta.live.test.ts — Brief A real-provider personalization delta > writes two distinct learner plans inside fixed slots using the real provider | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-creation-blockers.live.test.ts — live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-creation-blockers.live.test.ts — live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > the requested case exists | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Biology test with learner notes' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Calculus problem-solving plan' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Calculus unit with mixed placement ev…' | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'One product-rule skill in short sessi…' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'World War I unit guide in short sessi…' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Full beginner calculus pathway' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'General-learning startup funding path…' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'History essay using outside sources' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Beginner JavaScript practice' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'General-learning finance pathway' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > the requested journey exists | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'One product-rule skill in short sessi…' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'World War I unit guide in short sessi…' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'Full beginner calculus pathway' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'History essay using outside sources' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > the requested case exists | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Biology teaching from learner notes' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Bioenergetics multi-target retrieval …' | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Fifteen-minute temperature and reacti…' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Fifteen-minute first product-rule les…' | 1 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Mapped product-rule and chain-rule fi…' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Production-shaped derivative-foundati…' | 1 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'World War I teaching for a complete b…' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Mapped 45-minute World War I baseline…' | 1 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Calculus repair after a weak check' | 1 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Self-contained delayed calculus review' | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'History writing outside YOVA' | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Beginner JavaScript with fading suppo…' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'General-learning finance application' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Fifteen-minute vocabulary review' | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Startup funding foundations for a new…' | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'History reasoning from a primary-sour…' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Literature close reading from a short…' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Spanish conversation with supported t…' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Teaching from a thin biology study gu…' | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-ap-biology.live.test.ts — live streamed AP Biology session > builds a topic-specific teaching skeleton | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-melatonin-skeleton.live.test.ts — live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/streamed-rayleigh.live.test.ts — live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton | 1 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/streamed-world-war-one-lesson.live.test.ts — live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-world-war-one-skeleton.live.test.ts — live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session | 1 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-world-war-one-skeleton.live.test.ts — live streamed World War I session skeleton > reliably creates a valid subject-specific session outline | 1 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/teaching-assessment-contract.live.test.ts — live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase | 1 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/lib/diagnostics/map-diagnostic.live.test.ts — live map diagnostic generation > generates from a material map and reports latency | 1 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/lib/diagnostics/map-diagnostic.live.test.ts — live map diagnostic generation > generates from a ai_generated map and reports latency | 1 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| e2e/plan-launch-live.spec.ts — a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (desktop-chromium) | 1 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| e2e/plan-launch-live.spec.ts — a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (mobile-chromium) | 1 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > complete: 'accepts a correct biology paraphrase' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > complete: 'accepts a concise programming explana…' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > complete: 'history: complete-history' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'biology: underspecified-biology' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'history: underspecified-history' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'biology: missing-context-biology' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'programming: missing-context-programm…' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'history: missing-context-history' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > the requested case exists | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'catches confident biology keyword soup' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'marks a materially incomplete causal …' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'does not reward a true statement that…' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'accepts a concise programming explana…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/launch-lesson-streams.live.test.ts — launch lesson delivery > streams the validated calculus teaching | 2 | FAIL | UNAVAILABLE | The full live gate did not execute this collected case |
+| src/evals/launch-lesson-streams.live.test.ts — launch lesson delivery > streams the validated osmosis teaching | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/launch-session-journeys.live.test.ts — launch session journeys with committed recipes > 'calculus' | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/launch-session-journeys.live.test.ts — launch session journeys with committed recipes > 'osmosis' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/launch-session-journeys.live.test.ts — launch session journeys with committed recipes > 'recall' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/lesson-tutor.live.test.ts — live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/lesson-tutor.live.test.ts — live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/material-osmosis-session.live.test.ts — live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/outside-teaching-reliability.live.test.ts — live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/personalization-delta.live.test.ts — Brief A real-provider personalization delta > writes two distinct learner plans inside fixed slots using the real provider | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-creation-blockers.live.test.ts — live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-creation-blockers.live.test.ts — live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > the requested case exists | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Biology test with learner notes' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Calculus problem-solving plan' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Calculus unit with mixed placement ev…' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'One product-rule skill in short sessi…' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'World War I unit guide in short sessi…' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Full beginner calculus pathway' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'General-learning startup funding path…' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'History essay using outside sources' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Beginner JavaScript practice' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'General-learning finance pathway' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > the requested journey exists | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'One product-rule skill in short sessi…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'World War I unit guide in short sessi…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'Full beginner calculus pathway' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'History essay using outside sources' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > the requested case exists | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Biology teaching from learner notes' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Bioenergetics multi-target retrieval …' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Fifteen-minute temperature and reacti…' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Fifteen-minute first product-rule les…' | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Mapped product-rule and chain-rule fi…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Production-shaped derivative-foundati…' | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'World War I teaching for a complete b…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Mapped 45-minute World War I baseline…' | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Calculus repair after a weak check' | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Self-contained delayed calculus review' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'History writing outside YOVA' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Beginner JavaScript with fading suppo…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'General-learning finance application' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Fifteen-minute vocabulary review' | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Startup funding foundations for a new…' | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'History reasoning from a primary-sour…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Literature close reading from a short…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Spanish conversation with supported t…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Teaching from a thin biology study gu…' | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-ap-biology.live.test.ts — live streamed AP Biology session > builds a topic-specific teaching skeleton | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-melatonin-skeleton.live.test.ts — live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/streamed-rayleigh.live.test.ts — live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton | 2 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/streamed-world-war-one-lesson.live.test.ts — live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-world-war-one-skeleton.live.test.ts — live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session | 2 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-world-war-one-skeleton.live.test.ts — live streamed World War I session skeleton > reliably creates a valid subject-specific session outline | 2 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/teaching-assessment-contract.live.test.ts — live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/lib/diagnostics/map-diagnostic.live.test.ts — live map diagnostic generation > generates from a material map and reports latency | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/lib/diagnostics/map-diagnostic.live.test.ts — live map diagnostic generation > generates from a ai_generated map and reports latency | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| e2e/plan-launch-live.spec.ts — a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (desktop-chromium) | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| e2e/plan-launch-live.spec.ts — a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (mobile-chromium) | 2 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > complete: 'accepts a correct biology paraphrase' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > complete: 'accepts a concise programming explana…' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > complete: 'history: complete-history' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'biology: underspecified-biology' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'history: underspecified-history' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'biology: missing-context-biology' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'programming: missing-context-programm…' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/grader-calibration.live.test.ts — live grader calibration across subjects > insufficient: 'history: missing-context-history' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > the requested case exists | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'catches confident biology keyword soup' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'marks a materially incomplete causal …' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'does not reward a true statement that…' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'accepts a concise programming explana…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/answer-evaluation-quality.live.test.ts — live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/launch-lesson-streams.live.test.ts — launch lesson delivery > streams the validated calculus teaching | 3 | FAIL | UNAVAILABLE | The full live gate did not execute this collected case |
+| src/evals/launch-lesson-streams.live.test.ts — launch lesson delivery > streams the validated osmosis teaching | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/launch-session-journeys.live.test.ts — launch session journeys with committed recipes > 'calculus' | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/launch-session-journeys.live.test.ts — launch session journeys with committed recipes > 'osmosis' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/launch-session-journeys.live.test.ts — launch session journeys with committed recipes > 'recall' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/lesson-tutor.live.test.ts — live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/lesson-tutor.live.test.ts — live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/material-osmosis-session.live.test.ts — live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/outside-teaching-reliability.live.test.ts — live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/personalization-delta.live.test.ts — Brief A real-provider personalization delta > writes two distinct learner plans inside fixed slots using the real provider | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-creation-blockers.live.test.ts — live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-creation-blockers.live.test.ts — live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > the requested case exists | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Biology test with learner notes' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Calculus problem-solving plan' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Calculus unit with mixed placement ev…' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'One product-rule skill in short sessi…' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'World War I unit guide in short sessi…' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Full beginner calculus pathway' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'General-learning startup funding path…' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'History essay using outside sources' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'Beginner JavaScript practice' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-quality.live.test.ts — live OpenAI plan quality > 'General-learning finance pathway' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > the requested journey exists | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'One product-rule skill in short sessi…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'World War I unit guide in short sessi…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'Full beginner calculus pathway' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/plan-session-journey.live.test.ts — live plan-to-session journeys > 'History essay using outside sources' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > the requested case exists | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Biology teaching from learner notes' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Bioenergetics multi-target retrieval …' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Fifteen-minute temperature and reacti…' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Fifteen-minute first product-rule les…' | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Mapped product-rule and chain-rule fi…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Production-shaped derivative-foundati…' | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'World War I teaching for a complete b…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Mapped 45-minute World War I baseline…' | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Calculus repair after a weak check' | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Self-contained delayed calculus review' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'History writing outside YOVA' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Beginner JavaScript with fading suppo…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'General-learning finance application' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Fifteen-minute vocabulary review' | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Startup funding foundations for a new…' | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'History reasoning from a primary-sour…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Literature close reading from a short…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Spanish conversation with supported t…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/session-quality.live.test.ts — live OpenAI session quality > 'Teaching from a thin biology study gu…' | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-ap-biology.live.test.ts — live streamed AP Biology session > builds a topic-specific teaching skeleton | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-melatonin-skeleton.live.test.ts — live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/streamed-rayleigh.live.test.ts — live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton | 3 | FAIL | STALE | The full live gate did not execute this collected case |
+| src/evals/streamed-world-war-one-lesson.live.test.ts — live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-world-war-one-skeleton.live.test.ts — live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session | 3 | FAIL | REAL | The full live gate did not execute this collected case |
+| src/evals/streamed-world-war-one-skeleton.live.test.ts — live streamed World War I session skeleton > reliably creates a valid subject-specific session outline | 3 | FAIL | unclassified | The full live gate did not execute this collected case |
+| src/evals/teaching-assessment-contract.live.test.ts — live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/lib/diagnostics/map-diagnostic.live.test.ts — live map diagnostic generation > generates from a material map and reports latency | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| src/lib/diagnostics/map-diagnostic.live.test.ts — live map diagnostic generation > generates from a ai_generated map and reports latency | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| e2e/plan-launch-live.spec.ts — a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (desktop-chromium) | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |
+| e2e/plan-launch-live.spec.ts — a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (mobile-chromium) | 3 | FAIL | FLAKY | The full live gate did not execute this collected case |

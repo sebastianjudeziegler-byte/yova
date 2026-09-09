@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { learnerCopyPreference, normalPlanAmountLabel, startingDifficultyRationale, wordBoundedText } from "@/lib/plan-generation/learner-plan-copy";
 import { deriveLearningTitle } from "@/lib/intake/interpret";
 import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 import {
@@ -48,8 +49,9 @@ export class NormalPlanProviderFillError extends Error {
 
 export type NormalPlanProviderSessionFill = {
   title: string;
-  /** Compatibility-only fill slot; code owns the operational objective. */
+  /** Learner-facing outcome inside this fixed topic slot. */
   objective: string;
+  methodReason: string;
   /** Compatibility-only fill slots; code owns each target-bound check. */
   evidence: Record<string, string>;
 };
@@ -120,7 +122,7 @@ const SessionTitleSchema = z.string().trim().min(3).max(
 );
 
 const SessionObjectiveSchema = z.string().trim().min(10).max(280).describe(
-  "Compatibility prose slot. YOVA replaces this with its deterministic target-bound objective before materialization.",
+  "What the learner will be able to do with these exact topics after the session. Use the saved profile and starting context.",
 );
 
 const EvidenceCopySchema = z.string().trim().min(8).max(
@@ -187,19 +189,18 @@ export function bindNormalPlanProviderFill({
   const fallback = buildFallbackFromValidatedBoundary(boundary);
   const safeFill = sanitizeProviderFill(providerFill, fallback, boundary);
   const topicsById = boundary.topicsById;
+  const difficultyRationale = startingDifficultyRationale(boundary.request);
   const draft = GeneratedPlanDraftSchema.parse({
     title: safeFill.plan.title,
     topic: safeFill.plan.topic,
     kind: resolveNormalPlanKindFromParsedRequest(boundary.request),
     deadline: boundary.request.deadline,
-    rationale: boundary.composition.capacityRecovery
-      ? boundary.composition.capacityRecovery.explanation
-      : safeFill.plan.rationale,
+    rationale: wordBoundedText(boundary.composition.capacityRecovery?.explanation ?? safeFill.plan.rationale, 900 - difficultyRationale.length) + difficultyRationale,
     deferredTopics: boundary.composition.deferrals.map((deferral) => ({
       topicId: deferral.topicId,
       reason: safeFallbackText(
-        deferral.reason,
-        "This accepted target is deferred because it does not fit within the current plan boundary.",
+        deferral.reason.replace(/\btargets?\b/giu, "topic"),
+        "This topic will wait because it does not fit in the time available.",
         8,
         300,
       ),
@@ -212,7 +213,7 @@ export function bindNormalPlanProviderFill({
       ));
       return {
         title: displayCopy.title,
-        objective: operationalCopy.objective,
+        objective: displayCopy.objective,
         ...NORMAL_PLAN_INTERNAL_METHOD_SCAFFOLD,
         scheduledFor: envelope.scheduledFor,
         estimatedMinutes: envelope.timing.activeMinutes,
@@ -390,6 +391,7 @@ function buildSchemaFromValidatedBoundary(boundary: ValidatedBoundary) {
     sessions[envelope.envelopeId] = z.object({
       title: SessionTitleSchema,
       objective: SessionObjectiveSchema,
+      methodReason: z.string().trim().min(10).max(600).describe("Explain why the fixed method suits this learner and these topics. Reference the profile or starting context. Do not change the method or promise a different sequence."),
       evidence: z.object(evidence).strict(),
     }).strict();
   }
@@ -407,7 +409,7 @@ function buildFallbackFromValidatedBoundary(
 
   for (const envelope of boundary.composition.envelopes) {
     const topicTitles = envelope.topicIds.map((topicId) => boundary.topicsById.get(topicId)!.title);
-    const focus = safeFallbackText(topicTitles.slice(0, 3).join(", "), "the assigned learning targets", 3, 140);
+    const focus = safeFallbackText(topicTitles.slice(0, 3).join(", "), "the topics for this session", 3, 140);
     const evidence: Record<string, string> = {};
     normalPlanEvidenceSlotIds(envelope).forEach((slotId, index) => {
       const topicTitle = topicTitles[index % topicTitles.length] ?? focus;
@@ -415,16 +417,16 @@ function buildFallbackFromValidatedBoundary(
         envelope,
         safeFallbackText(
           topicTitle,
-          `Accepted learning target ${index + 1}`,
+          `Learning topic ${index + 1}`,
           3,
           120,
         ),
-        index + 1,
       );
     });
     sessions[envelope.envelopeId] = {
       title: fallbackSessionTitle(envelope, focus),
-      objective: fallbackSessionObjective(envelope, focus),
+      objective: fallbackSessionObjective(envelope, focus, boundary.request),
+      methodReason: "Code supplies the topic-specific reason after choosing the method.",
       evidence,
     };
   }
@@ -439,7 +441,7 @@ function buildFallbackFromValidatedBoundary(
       ),
       topic: safeFallbackText(
         scheduledTitles.slice(0, 3).join(", "),
-        "The accepted learning targets",
+        "The topics in your plan",
         3,
         180,
       ),
@@ -465,7 +467,6 @@ function sanitizeProviderFill(
       candidate.envelopeId === envelopeId
     ))!;
     const sessionAnchors = meaningfulAnchorTokens([
-      boundary.request.goal,
       ...envelope.topicIds.flatMap((topicId) => {
         const topic = boundary.topicsById.get(topicId)!;
         return [topic.title, topic.description, ...topic.subtopics];
@@ -480,7 +481,8 @@ function sanitizeProviderFill(
         false,
         sessionAnchors,
       ),
-      objective: fallbackSession.objective,
+      objective: safeProviderText(providerSession.objective, fallbackSession.objective, 10, 280, true, sessionAnchors),
+      methodReason: providerSession.methodReason,
       evidence: { ...fallbackSession.evidence },
     };
   }
@@ -523,12 +525,13 @@ function safeProviderText(
   requireActiveEvidence = false,
   requiredAnchorTokens?: ReadonlySet<string>,
 ) {
-  const cleaned = cleanInterfaceText(value).slice(0, maximum).trim();
+  const cleaned = wordBoundedText(cleanInterfaceText(value), maximum);
   if (
     cleaned.length < minimum
     || describesLearnerAsAType(cleaned)
     || RAW_INTERFACE_FORMATTING_PATTERN.test(cleaned)
     || (requireActiveEvidence && !isActiveCompletionEvidence(cleaned))
+    || /\b(targets?|envelopes?)\b|evidence check \d/iu.test(cleaned)
     || containsStructuralAuthorityClaim(cleaned)
     || (
       requiredAnchorTokens !== undefined
@@ -544,7 +547,7 @@ function safeFallbackText(
   minimum: number,
   maximum: number,
 ) {
-  const cleaned = cleanInterfaceText(candidate).slice(0, maximum).trim();
+  const cleaned = wordBoundedText(cleanInterfaceText(candidate), maximum);
   if (
     cleaned.length >= minimum
     && !describesLearnerAsAType(cleaned)
@@ -571,30 +574,26 @@ function fallbackSessionTitle(envelope: NormalPlanSessionEnvelope, focus: string
         ? "Apply"
         : "Practice";
   const title = `${prefix} ${focus}`;
-  // Include the next character so an exact word-boundary fit stays intact.
-  // A topic name that cannot fit even one whole word uses the generic title.
-  const bounded = title.length <= LEARNING_TITLE_CHARACTER_LIMIT
-    ? title
-    : title.slice(0, LEARNING_TITLE_CHARACTER_LIMIT + 1).replace(/\s+\S*$/u, "").trim();
+  const bounded = wordBoundedText(title, LEARNING_TITLE_CHARACTER_LIMIT);
   return safeFallbackText(
     bounded.length > prefix.length ? bounded : "",
-    envelope.learningMode === "learn" ? "Build the next foundation" : "Practice the next target",
+    envelope.learningMode === "learn" ? "Build the next foundation" : "Practice the next idea",
     3,
     LEARNING_TITLE_CHARACTER_LIMIT,
   );
 }
 
-function fallbackSessionObjective(envelope: NormalPlanSessionEnvelope, focus: string) {
-  const candidate = envelope.learningMode === "learn"
-    ? `Session ${envelope.sequence} builds an accurate explanation of ${focus}, uses one concrete example, and ends with an independent check.`
-    : envelope.kind === "additional_practice"
-      ? `Session ${envelope.sequence} transfers ${focus} to a different example, then corrects the exact gap or error the attempt exposes.`
-      : `Session ${envelope.sequence} retrieves and applies ${focus} without initial support, then corrects the exact gap or error the attempt exposes.`;
+function fallbackSessionObjective(envelope: NormalPlanSessionEnvelope, focus: string, request: PlanGenerationRequest) {
+  const preference = learnerCopyPreference(request).objective;
+  const action = envelope.taskFamily === "problem_solving" ? "Solve a problem about"
+    : envelope.taskFamily === "writing_argumentation" ? "Draft a clear argument about"
+      : envelope.taskFamily === "memorization" ? "Recall the key facts about" : "Explain";
+  const candidate = `${action} ${focus} ${envelope.learningMode === "learn" ? preference : envelope.kind === "additional_practice" ? `in a fresh situation for practice round ${envelope.sequence}, then explain what changed` : "without notes, then correct any mistakes"}.`;
   return safeFallbackText(
     candidate,
     envelope.learningMode === "learn"
-      ? `Session ${envelope.sequence} builds an accurate model of the assigned targets, uses one example, and ends with an independent check.`
-      : `Session ${envelope.sequence} attempts the assigned targets without initial support, then corrects the exact gap or error the attempt exposes.`,
+      ? `Session ${envelope.sequence} builds an accurate model of the topics for this session, uses one example, and ends with an independent check.`
+      : `Session ${envelope.sequence} attempts the topics for this session without initial support, then corrects the exact gap or error the attempt exposes.`,
     10,
     280,
   );
@@ -603,9 +602,8 @@ function fallbackSessionObjective(envelope: NormalPlanSessionEnvelope, focus: st
 function fallbackEvidence(
   envelope: NormalPlanSessionEnvelope,
   target: string,
-  evidenceNumber: number,
 ) {
-  const evidenceQualifier = ` in evidence check ${evidenceNumber}`;
+  const evidenceQualifier = "";
   const candidate = envelope.taskFamily === "problem_solving"
     ? `Solve one representative problem for ${target}${evidenceQualifier} without copying the model and explain the key step`
     : envelope.taskFamily === "programming"
@@ -617,7 +615,7 @@ function fallbackEvidence(
           : envelope.taskFamily === "reading_to_quiz"
             ? `Recall the central idea in ${target}${evidenceQualifier} after closing the source and correct the missing detail`
             : envelope.learningMode === "learn"
-              ? `Explain ${target}${evidenceQualifier} in your own words after the model is hidden`
+              ? `Explain ${target}${evidenceQualifier} in your own words with your notes closed`
               : `Apply ${target}${evidenceQualifier} in one new example without initial support and correct any exposed error`;
   const generic = envelope.taskFamily === "problem_solving"
     ? "Solve one representative problem without copying the model and explain the key step"
@@ -626,10 +624,10 @@ function fallbackEvidence(
       : envelope.taskFamily === "writing_argumentation"
         ? "Draft one bounded section and match each claim to supporting evidence"
         : envelope.taskFamily === "memorization"
-          ? "Recall each assigned target without notes and correct every exposed gap"
+          ? "Recall each topic without notes and correct every exposed gap"
           : envelope.learningMode === "learn"
-            ? "Explain each assigned target in your own words after the model is hidden"
-            : "Apply each assigned target in one new example and correct any exposed error";
+            ? "Explain each topic in your own words with your notes closed"
+            : "Apply each topic in one new example and correct any exposed error";
   const result = safeFallbackText(candidate, generic, 8, PROVIDER_EVIDENCE_MAX_LENGTH);
   return isActiveCompletionEvidence(result) ? result : generic;
 }
@@ -664,19 +662,13 @@ function mapAuthoritativeContentTarget(
     : `${topic.title.trim()}: ${topic.description.trim()}`;
   return safeFallbackText(
     candidate,
-    `Accepted learning target ${targetNumber}`,
+    `Learning topic ${targetNumber}`,
     5,
     180,
   );
 }
 
-function amountLabel(targetCount: number, evidenceCount: number, minutes: number) {
-  return [
-    `${targetCount} focused ${targetCount === 1 ? "target" : "targets"}`,
-    `${evidenceCount} evidence ${evidenceCount === 1 ? "check" : "checks"}`,
-    `about ${minutes} min`,
-  ].join(" + ");
-}
+const amountLabel = normalPlanAmountLabel;
 
 function resolveNormalPlanKindFromParsedRequest(
   request: ValidatedBoundary["request"],

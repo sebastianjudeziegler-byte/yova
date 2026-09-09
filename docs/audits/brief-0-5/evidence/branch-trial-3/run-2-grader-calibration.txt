@@ -1,0 +1,110 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'
+biology-paraphrase {
+  verdict: 'secure',
+  feedback: 'Your response establishes the required idea. oxygen is the final electron acceptor electron acceptance allows oxidative phosphorylation to continue',
+  matchedIdeas: [
+    'oxygen is the final electron acceptor',
+    'electron acceptance allows oxidative phosphorylation to continue'
+  ],
+  missingIdeas: []
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > complete: 'accepts a concise programming explana…'
+programming-concise {
+  verdict: 'secure',
+  feedback: 'Your response establishes the required idea. base case stops recursion base case provides a stopping condition',
+  matchedIdeas: [
+    'base case stops recursion',
+    'base case provides a stopping condition'
+  ],
+  missingIdeas: []
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > complete: 'history: complete-history'
+complete-history {
+  verdict: 'secure',
+  feedback: 'Your response establishes the required idea. dispute over taxation without representation',
+  matchedIdeas: [ 'dispute over taxation without representation' ],
+  missingIdeas: []
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'biology: underspecified-biology'
+underspecified-biology {
+  verdict: 'needs_review',
+  feedback: 'The response is too vague to show the biology relationship. It does not establish that oxygen is the final electron acceptor or that removing oxygen stops electron flow in the chain.',
+  matchedIdeas: [],
+  missingIdeas: [
+    'oxygen is the final electron acceptor',
+    'electron flow stops without oxygen',
+    'oxidative phosphorylation cannot continue'
+  ]
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…'
+underspecified-programming {
+  verdict: 'needs_review',
+  feedback: 'The response is too vague to show why a base case is necessary. It does not establish that the base case stops recursive calls or prevents unbounded recursion.',
+  matchedIdeas: [],
+  missingIdeas: [
+    'base case is a stopping condition',
+    'base case terminates recursive calls'
+  ]
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'history: underspecified-history'
+underspecified-history {
+  verdict: 'needs_review',
+  feedback: "The response does not establish the key reason for resistance: lack of representation or a challenge to Parliament's authority to tax. It only describes general unhappiness about changed conditions.",
+  matchedIdeas: [],
+  missingIdeas: [
+    'lack of representation as the reason for resistance',
+    "challenge to Parliament's authority to tax"
+  ]
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'biology: missing-context-biology'
+missing-context-biology {
+  verdict: 'uncertain',
+  feedback: 'This check does not give enough context for a reliable judgment. The activity gives no observations or identified changed condition, so there is not enough evidence to evaluate the claimed cause of the respiration-rate change.',
+  matchedIdeas: [],
+  missingIdeas: []
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'
+missing-context-programming {
+  verdict: 'uncertain',
+  feedback: 'This check does not give enough context for a reliable judgment. The activity explicitly lacks the code and the inputs/outputs needed to identify the state change between calls.',
+  matchedIdeas: [],
+  missingIdeas: []
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'history: missing-context-history'
+missing-context-history {
+  verdict: 'uncertain',
+  feedback: 'This check does not give enough context for a reliable judgment. No source excerpt, observations, or concrete details about the crisis, government, or policy change are provided, so the intended causal relationship cannot be verified reliably.',
+  matchedIdeas: [],
+  missingIdeas: []
+}
+
+ ✓ src/evals/grader-calibration.live.test.ts (9 tests) 23875ms
+     ✓ complete: 'accepts a correct biology paraphrase'  4207ms
+     ✓ complete: 'accepts a concise programming explana…'  1678ms
+     ✓ complete: 'history: complete-history'  1381ms
+     ✓ insufficient: 'biology: underspecified-biology'  3199ms
+     ✓ insufficient: 'programming: underspecified-programmi…'  1784ms
+     ✓ insufficient: 'history: underspecified-history'  1719ms
+     ✓ insufficient: 'biology: missing-context-biology'  4300ms
+     ✓ insufficient: 'programming: missing-context-programm…'  1587ms
+     ✓ insufficient: 'history: missing-context-history'  3663ms
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  09:09:13
+   Duration  23.98s (transform 257ms, setup 18ms, import 10ms, tests 23.87s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/branch-verified/run-2-grader-calibration.json
+
+Exit code: 0

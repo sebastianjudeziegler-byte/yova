@@ -1,0 +1,43 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'
+
+YOVA answer evaluation · accepts a correct biology paraphrase
+Expected · secure
+Received · secure
+Feedback · Your response establishes the required idea. oxygen is the final electron acceptor electron acceptance allows oxidative phosphorylation to continue
+Human label · The answer states oxygen's essential role and the consequence even though it does not copy the reference wording.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a concise programming explana…'
+
+YOVA answer evaluation · accepts a concise programming explanation
+Expected · secure
+Received · secure
+Feedback · Your response establishes the required idea. Base case terminates recursive calls
+Human label · The response correctly states that the base case terminates recursive calls and prevents unbounded recursion.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'
+
+YOVA answer evaluation · admits uncertainty when the prompt lacks necessary context
+Expected · uncertain
+Received · uncertain
+Feedback · This check does not give enough context for a reliable judgment. The prompt and rubric do not provide the actual observations or identify the changed condition, so the required causal detail cannot be verified.
+Human label · Neither the prompt nor the reference identifies what process changed, so several interpretations are defensible.
+
+
+ ✓ src/evals/answer-evaluation-quality.live.test.ts (8 tests | 5 skipped) 5049ms
+     ✓ 'accepts a correct biology paraphrase'  1635ms
+     ✓ 'accepts a concise programming explana…'  1331ms
+     ✓ 'admits uncertainty when the prompt la…'  1702ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed | 5 skipped (8)
+   Start at  09:09:08
+   Duration  5.14s (transform 267ms, setup 18ms, import 9ms, tests 5.05s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/branch-verified/run-2-answer-evaluation-quality.json
+
+Exit code: 0

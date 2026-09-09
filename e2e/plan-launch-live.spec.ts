@@ -1,12 +1,15 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { freezePlanClock } from "./helpers/frozen-clock";
+import { liveFixturePath } from "../src/evals/live-fixtures";
 import type { LearningPlan, SessionResource } from "../src/lib/domain";
 
 test.skip(process.env.YOVA_RUN_LIVE_BROWSER_CANARY !== "1", "Explicit live-provider canary only.");
 
 test("a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",async({page})=>{
   test.setTimeout(180_000);
-  const fixture = JSON.parse(readFileSync("docs/audits/2026-09-07-plan-creation/consolidated/evidence/live-ten-minute.json","utf8")) as {plan:LearningPlan;resource:SessionResource};
+  const fixture = JSON.parse(readFileSync(liveFixturePath("deadline", "live-ten-minute.json"),"utf8")) as {plan:LearningPlan;resource:SessionResource};
+  await freezePlanClock(page, new Date(fixture.plan.createdAt));
   const apiResults:Array<{path:string;status:number}> = [];
   page.on("response",response=>{
     const path = new URL(response.url()).pathname;
@@ -47,14 +50,26 @@ test("a live-generated deadline lesson streams, finishes unrated and preserves c
       const snapshot = JSON.parse(localStorage.getItem("yova.preview.v1")??"{}");
       return snapshot.plans?.find((plan:LearningPlan)=>plan.id===planId)?.sessions[0]?.resource;
     },fixture.plan.id) as SessionResource | undefined;
-    const current = (currentResource??fixture.resource).activities.find(activity=>activity.title===activityHeading);
+    // A teaching block and its recall can share the same visible title.
+    // Select the question's answer, not the preceding instruction's fallback.
+    const current = (currentResource??fixture.resource).activities.find(activity=>activity.title===activityHeading && (activity.type==="free_response" || activity.type==="multiple_choice"));
     const confidence = page.getByRole("button",{name:"Somewhat sure",exact:true});
     if(await confidence.isVisible() && await confidence.isEnabled())await confidence.click();
     const written = page.locator(".recall-response textarea");
     if(await written.isVisible() && await written.isEnabled()){
       await written.fill(current?.correctAnswer??"ATP hydrolysis forms ADP and inorganic phosphate. This reaction releases free energy that can be coupled to cellular work.");
       await page.getByRole("button",{name:"Check my answer",exact:true}).click();
-      await page.getByRole("button",{name:"I got the key idea",exact:true}).click({timeout:60_000});
+      const selfRating = page.getByRole("button",{name:"I got the key idea",exact:true});
+      const noEvidence = page.getByText("YOVA did not record a correct or incorrect result from this check. Continue after comparing with the model answer.",{exact:true});
+      // Since 1fe44f62 (Aug 31), uncertain/unavailable checks explicitly
+      // continue without a learner rating or manufactured learning evidence.
+      await expect(selfRating.or(noEvidence)).toBeVisible({timeout:60_000});
+      if(await noEvidence.isVisible()){
+        await expect(selfRating).toHaveCount(0);
+        await expect(page.getByText("Your typed answer is not saved, and this uncertain or unavailable check created no concept or method evidence.",{exact:true})).toBeVisible();
+      } else {
+        await selfRating.click();
+      }
     } else if(current?.correctAnswer && await page.locator(".answer-grid").isVisible()) {
       await page.locator(".answer-grid").getByRole("button",{name:current.correctAnswer,exact:true}).click();
     }
@@ -64,7 +79,7 @@ test("a live-generated deadline lesson streams, finishes unrated and preserves c
   }
   await expect(page.getByText("SESSION COMPLETE",{exact:true})).toBeVisible();
   await expect(page.locator(".completion-feedback .selected")).toHaveCount(0);
-  await page.screenshot({path:"docs/audits/2026-09-07-plan-creation/consolidated/evidence/live-lesson-complete.png",fullPage:true});
+  await page.screenshot({path:test.info().outputPath("lesson-complete.png"),fullPage:true});
   await page.getByRole("button",{name:"Finish and continue",exact:true}).click();
   await page.reload();
   const saved = await page.evaluate(planId=>{
@@ -75,5 +90,5 @@ test("a live-generated deadline lesson streams, finishes unrated and preserves c
   expect(saved.completion.feedback).toBeNull();
   expect(saved.completion.totalAnswers).toBeGreaterThan(0);
   expect(apiResults.some(result=>result.path.includes("/lesson") && result.status===200)).toBe(true);
-  writeFileSync("docs/audits/2026-09-07-plan-creation/consolidated/evidence/live-browser-completion.json",JSON.stringify({apiResults,saved},null,2));
+  writeFileSync(test.info().outputPath("completion.json"),JSON.stringify({apiResults,saved},null,2));
 });

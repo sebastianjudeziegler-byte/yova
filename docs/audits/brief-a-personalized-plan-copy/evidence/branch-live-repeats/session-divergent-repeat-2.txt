@@ -1,0 +1,122 @@
+Four previously differing cases; predeclared three repeats. Commit: d99f1278e9e2e1e2b81574651ad6f8e7ce8a9578
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Production-shaped derivative-foundati…'
+
+YOVA session evaluation · Production-shaped derivative-foundations verification · 100/100
+Generation · gpt-5.4-mini-2026-03-17 · 8.9s · 1 attempt · 9,472 cached input tokens
+Repair trigger · YOVA restored the evidence-derived practice-intent metadata without changing the question, answer, phase, support, or misconception content, then reran the complete validator.
+free_response    Derivative meaning and notation · Meaning of notation
+instruction      none · Focus
+multiple_choice  Basic derivative rules · Basic derivative rules
+free_response    Basic derivative rules · Changed derivative
+
+PASS  Activity count fits the session (10/10) · 4/5 maximum focused activities for 25 minutes
+PASS  Session requires active learner effort (15/15) · 3 retrieval or knowledge-check activities
+PASS  Questions include usable answers and feedback (15/15) · 3 question activities inspected
+PASS  Activities fit the learning task (15/15) · 4 of 4 activities align with problem solving
+PASS  Session progresses through active study (10/10) · Checked ordered retrieval or knowledge-check activities
+PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+PASS  Known review concepts are addressed (10/10) · No prior review signal
+PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+PASS  Method briefing explains what, why, how, and done (0/0) · practice_problems for problem_solving
+PASS  Activities actually execute the named learning method (0/0) · Required practice_problems phases appear in order
+PASS  The session starts with the method's correct first action (0/0) · practice_problems starts with independent_practice
+PASS  Required content fits the stated time window (0/0) · 19 required and 21 total minutes inside a 25-minute window
+PASS  Every target idea has required learning evidence (0/0) · 2 essential ideas mapped to 3 required checks
+PASS  Every question includes the context needed to answer (0/0) · 3 self-contained questions inspected
+PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+PASS  Learning sessions teach before they test (0/0) · 1 modeled or streamed teaching activities inspected
+PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 1 learner-facing adjustment explanations inspected
+PASS  The session explains why it is structured this way (5/5) · 223 rationale characters
+PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+
+stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Calculus repair after a weak check'
+
+YOVA session evaluation · Calculus repair after a weak check · 100/100
+Generation · gpt-5.4-mini-2026-03-17 · 7.1s · 2 attempts · 0 cached input tokens
+Repair trigger · The required knowledge check mapped to “For y=f(x)/g(x), use (g f' - f g')/g^2, with the denominator squared.” does not visibly assess that essential idea.
+multiple_choice  Quotient rule · Quotient rule setup
+free_response    Quotient rule · Apply the quotient rule
+reflection       none · Name the Quotient rule decision
+
+PASS  Activity count fits the session (10/10) · 3/5 maximum focused activities for 25 minutes
+PASS  Session requires active learner effort (15/15) · 2 retrieval or knowledge-check activities
+PASS  Questions include usable answers and feedback (15/15) · 2 question activities inspected
+PASS  Activities fit the learning task (15/15) · 3 of 3 activities align with problem solving
+PASS  Session progresses through active study (10/10) · Checked ordered retrieval or knowledge-check activities
+PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+PASS  Known review concepts are addressed (10/10) · Review concepts: Quotient rule
+PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+PASS  Method briefing explains what, why, how, and done (0/0) · practice_problems for problem_solving
+PASS  Activities actually execute the named learning method (0/0) · Required practice_problems phases appear in order
+PASS  The session starts with the method's correct first action (0/0) · practice_problems starts with independent_practice
+PASS  Required content fits the stated time window (0/0) · 25 required and 26 total minutes inside a 25-minute window
+PASS  Every target idea has required learning evidence (0/0) · 1 essential ideas mapped to 2 required checks
+PASS  Every question includes the context needed to answer (0/0) · 2 self-contained questions inspected
+PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+PASS  Learning sessions teach before they test (0/0) · 0 modeled or streamed teaching activities inspected
+PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 1 learner-facing adjustment explanations inspected
+PASS  The session explains why it is structured this way (5/5) · 180 rationale characters
+PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+
+ ❯ src/evals/session-quality.live.test.ts (20 tests | 2 failed | 16 skipped) 41484ms
+     ↓ the requested case exists
+     ↓ 'Biology teaching from learner notes'
+     ↓ 'Bioenergetics multi-target retrieval …'
+     ↓ 'Fifteen-minute temperature and reacti…'
+     ↓ 'Fifteen-minute first product-rule les…'
+     ↓ 'Mapped product-rule and chain-rule fi…'
+     ✓ 'Production-shaped derivative-foundati…'  9427ms
+     ↓ 'World War I teaching for a complete b…'
+     × 'Mapped 45-minute World War I baseline…' 14562ms
+     ✓ 'Calculus repair after a weak check'  7142ms
+     ↓ 'Self-contained delayed calculus review'
+     ↓ 'History writing outside YOVA'
+     × 'Beginner JavaScript with fading suppo…' 10350ms
+     ↓ 'General-learning finance application'
+     ↓ 'Fifteen-minute vocabulary review'
+     ↓ 'Startup funding foundations for a new…'
+     ↓ 'History reasoning from a primary-sour…'
+     ↓ 'Literature close reading from a short…'
+     ↓ 'Spanish conversation with supported t…'
+     ↓ 'Teaching from a thin biology study gu…'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Mapped 45-minute World War I baseline…'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Beginner JavaScript with fading suppo…'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed | 16 skipped (20)
+   Start at  22:20:42
+   Duration  41.71s (transform 388ms, setup 0ms, import 129ms, tests 41.48s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-a-comparison/branch/session-divergent-repeat-2.json
+
+Exit code: 1

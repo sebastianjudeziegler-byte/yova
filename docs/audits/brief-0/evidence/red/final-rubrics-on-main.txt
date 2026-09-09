@@ -1,0 +1,100 @@
+Exact e03a082 rubric implementations replayed against final, type-valid Brief 0 tests.
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/session-rubric.test.ts (7 tests | 3 failed) 20ms
+     × accepts a fifteen-minute model, explanation, repair, re-explanation and recognition sequence 12ms
+     × does not count a future retrieval reminder as focused session work 2ms
+     × accepts two focused retrieval checks plus a delayed return for a study session 2ms
+ ❯ src/evals/plan-rubric.test.ts (3 tests | 1 failed) 11ms
+     × does not invent a missing-map failure for a learner's otherwise valid plan 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-rubric.test.ts > evaluatePlanDraft > does not invent a missing-map failure for a learner's otherwise valid plan
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Every mapped topic is scheduled or explicitly deferred",
++ ]
+
+ ❯ src/evals/plan-rubric.test.ts:53:89
+     51|     const noMap = { ...evaluationCase.request, knowledgeMap: undefined…
+     52|     expect(draft.sessions.map(({ title }) => title)).toEqual(["Study w…
+     53|     expect(evaluatePlanDraft(draft, noMap, evaluationCase.taskFamily).…
+       |                                                                                         ^
+     54|     expect(evaluatePlanDraft(draft, requestWithMap, evaluationCase.tas…
+     55|     for (const topicIds of [[], ["22222222-2222-4222-8222-222222222222…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/evals/session-rubric.test.ts > session quality rubric > accepts a fifteen-minute model, explanation, repair, re-explanation and recognition sequence
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/evals/session-rubric.test.ts:147:28
+    145|       .checks.find((item) => item.id === "activity_pacing");
+    146|     expect(draft.activities.map(({ title }) => title)).toContain("Reco…
+    147|     expect(pacing?.passed).toBe(true);
+       |                            ^
+    148|     // Extra exercises and extra minutes still fail: the recipe is no …
+    149|     const overloaded = { ...draft, activities: Array.from({ length: 9 …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/evals/session-rubric.test.ts > session quality rubric > does not count a future retrieval reminder as focused session work
+AssertionError: expected '4/4 maximum focused activities for 15…' to contain '4 focused activities; production time…'
+
+Expected: "4 focused activities; production time budget passed"
+Received: "4/4 maximum focused activities for 15 minutes"
+
+ ❯ src/evals/session-rubric.test.ts:328:28
+    326|     const pacing = result.checks.find((item) => item.id === "activity_…
+    327|     expect(pacing?.passed).toBe(true);
+    328|     expect(pacing?.detail).toContain("4 focused activities; production…
+       |                            ^
+    329|   });
+    330|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/evals/session-rubric.test.ts > session quality rubric > accepts two focused retrieval checks plus a delayed return for a study session
+AssertionError: expected { id: 'activity_pacing', …(6) } to match object { passed: true, …(1) }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "detail": "2 focused activities; production time budget passed for 25 minutes",
++   "detail": "2/5 maximum focused activities for 25 minutes",
+    "passed": true,
+  }
+
+ ❯ src/evals/session-rubric.test.ts:375:73
+    373|       passed: true,
+    374|     });
+    375|     expect(result.checks.find((item) => item.id === "activity_pacing")…
+       |                                                                         ^
+    376|       passed: true,
+    377|       detail: "2 focused activities; production time budget passed for…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  4 failed | 6 passed (10)
+   Start at  23:29:31
+   Duration  515ms (transform 179ms, setup 0ms, import 346ms, tests 31ms, environment 0ms)
+
+
+Exit code: 1

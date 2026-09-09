@@ -1,0 +1,17 @@
+[WebServer] (node:15740) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:15765) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 6 tests using 1 worker
+
+  -  1 [desktop-chromium] › e2e/cloud-sync-recovery.spec.ts:43:5 › Retry retires two permanently rejected terminal events without losing their recovery export
+  -  2 [desktop-chromium] › e2e/cloud-sync-recovery.spec.ts:78:5 › startup retires a stale routed completion from a ready session using cloud route authority
+  -  3 [desktop-chromium] › e2e/cloud-sync-recovery.spec.ts:114:5 › cloud-only private-export metadata keeps AA text contrast
+  -  4 [mobile-chromium] › e2e/cloud-sync-recovery.spec.ts:43:5 › Retry retires two permanently rejected terminal events without losing their recovery export
+  -  5 [mobile-chromium] › e2e/cloud-sync-recovery.spec.ts:78:5 › startup retires a stale routed completion from a ready session using cloud route authority
+  -  6 [mobile-chromium] › e2e/cloud-sync-recovery.spec.ts:114:5 › cloud-only private-export metadata keeps AA text contrast
+
+  6 skipped
+
+Exit code: 0

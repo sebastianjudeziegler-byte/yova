@@ -1,0 +1,21 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'One product-rule skill in short sessi…'
+[22m[39m
+YOVA connected journey · One product-rule skill in short sessions
+Plan · 4 sessions · 100/100 · 18.4s
+First session · learn · Worked Examples · 15 min
+Lesson · 4 activities · 100/100 · 8.3s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+ [32m✓[39m src/evals/plan-session-journey.live.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 27161[2mms[22m[39m
+     [33m[2m✓[22m[39m 'One product-rule skill in short sessi…' [33m 26749[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 17:34:50
+[2m   Duration [22m 28.11s[2m (transform 832ms, setup 47ms, import 768ms, tests 27.16s, environment 0ms)[22m
+
+JSON report written to /home/runner/work/yova/yova/test-results/release-observations/release-A15-1.json

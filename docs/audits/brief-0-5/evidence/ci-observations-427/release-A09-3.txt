@@ -1,0 +1,27 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/plan-quality.live.test.ts[2m > [22m[2mlive OpenAI plan quality[2m > [22m[2m'World War I unit guide in short sessi…'
+[22m[39m
+YOVA plan evaluation · World War I unit guide in short sessions · 100/100
+PASS  Plan size fits the requested scope (10/10) · 4 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 15/15 min; Saturday: 15/15 min; Monday: 15/15 min; Wednesday: 15/15 min
+PASS  No work is scheduled after the deadline (15/15) · Deadline: 2026-09-30T23:00:00.000Z
+PASS  Methods fit each session's actual task (20/20) · 4 of 4 sessions pass YOVA's task-to-method router (conceptual evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → learn → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 4 distinct objectives across 4 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · Source-grounded rationale reviewed
+
+ [32m✓[39m src/evals/plan-quality.live.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 22795[2mms[22m[39m
+     [33m[2m✓[22m[39m 'World War I unit guide in short sessi…' [33m 22207[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 10:17:19
+[2m   Duration [22m 23.27s[2m (transform 656ms, setup 44ms, import 304ms, tests 22.80s, environment 0ms)[22m
+
+JSON report written to /home/runner/work/yova/yova/test-results/release-observations/release-A09-3.json

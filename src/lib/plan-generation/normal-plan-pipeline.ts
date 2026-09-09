@@ -1,3 +1,4 @@
+import { normalPlanAmountLabel } from "@/lib/plan-generation/learner-plan-copy";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import { LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import { classifyLearningTask } from "@/lib/learning/method-router";
@@ -116,6 +117,7 @@ export function buildNormalPlanFromFixedEnvelope(
     plan: envelopeBound,
     request,
     context: input.methodContext,
+    methodReasons: input.composition.envelopes.map(envelope => (input.fill as import("@/lib/plan-generation/normal-plan-provider-fill").NormalPlanProviderFill).sessions[envelope.envelopeId].methodReason),
   });
 
   assertNormalPlanMethodScaffoldReplaced(scaffoldAssertionProjection(routed));
@@ -634,13 +636,7 @@ function expectedEnvelopeId(sequence: number) {
   return `normal-plan-envelope-${String(sequence).padStart(3, "0")}`;
 }
 
-function amountLabel(targetCount: number, evidenceCount: number, minutes: number) {
-  return [
-    `${targetCount} focused ${targetCount === 1 ? "target" : "targets"}`,
-    `${evidenceCount} evidence ${evidenceCount === 1 ? "check" : "checks"}`,
-    `about ${minutes} min`,
-  ].join(" + ");
-}
+const amountLabel = normalPlanAmountLabel;
 
 function sameValues(left: readonly string[], right: readonly string[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);

@@ -1,0 +1,14 @@
+
+ RUN  v4.1.10 <repo>
+
+ ✓ src/evals/lesson-tutor.live.test.ts (2 tests) 7558ms
+     ✓ answers a genuinely off-topic question instead of refusing it  3320ms
+     ✓ does not reveal the answer to a later protected knowledge check  4235ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  09:30:07
+   Duration  7.72s (transform 22ms, setup 0ms, import 50ms, tests 7.56s, environment 0ms)
+
+
+Exit code: 0

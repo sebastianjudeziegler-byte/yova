@@ -1,0 +1,34 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/plan-session-journey.live.test.ts (5 tests | 1 failed | 4 skipped) 43383ms
+     ↓ the requested journey exists
+     × 'One product-rule skill in short sessi…' 43178ms
+     ↓ 'World War I unit guide in short sessi…'
+     ↓ 'Full beginner calculus pathway'
+     ↓ 'History essay using outside sources'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ tmp/brief-0-5/capture.ts:17:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 skipped (5)
+   Start at  09:20:48
+   Duration  43.83s (transform 375ms, setup 21ms, import 347ms, tests 43.38s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/final-live/run-2-plan-session-journey.json
+
+Exit code: 1

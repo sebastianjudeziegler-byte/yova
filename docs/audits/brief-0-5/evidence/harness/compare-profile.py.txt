@@ -1,0 +1,28 @@
+from pathlib import Path
+import subprocess, os, json
+branch='codex/brief-0-5-grader-and-validators'
+docs=['docs/audits/BACKLOG.md','docs/audits/brief-0-5/EVIDENCE.md','next-env.d.ts']
+work={p:Path(p).read_bytes() for p in docs}
+backup=Path('/private/tmp/yova-brief05-profile-baseline-backup');backup.mkdir(exist_ok=True)
+for path,data in work.items():(backup/Path(path).name).write_bytes(data)
+results=[]
+root=Path('docs/audits/brief-0-5/evidence/profile-browser-comparison');root.mkdir(parents=True,exist_ok=True)
+cmd=['node','node_modules/@playwright/test/cli.js','test','e2e/study-profile.spec.ts','--project','mobile-chromium','--grep','keeps every pre-report screen usable on common phone widths','--config','playwright.brief05-verification.config.ts']
+def run(label):
+ out=(root/label).resolve();out.mkdir(parents=True,exist_ok=True)
+ env=dict(os.environ,BRIEF05_BROWSER_OUTPUT=str(out))
+ with (out/'run.txt').open('w') as log:r=subprocess.run(cmd,env=env,stdout=log,stderr=subprocess.STDOUT)
+ results.append({'revision':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'label':label,'exitCode':r.returncode})
+ print(label,r.returncode,flush=True)
+try:
+ for p in docs:Path(p).write_bytes(subprocess.check_output(['git','show','HEAD:'+p]))
+ subprocess.run(['git','switch','--detach','e03a082'],check=True)
+ assert not subprocess.check_output(['git','diff','--name-only','e03a082','--','src'],text=True).strip()
+ run('main')
+finally:
+ Path('next-env.d.ts').write_bytes(subprocess.check_output(['git','show','HEAD:next-env.d.ts']))
+ subprocess.run(['git','switch',branch],check=True)
+ for p,data in work.items():Path(p).write_bytes(data)
+ print('Restored Brief 0.5 branch and audit notes.',flush=True)
+run('branch')
+(root/'manifest.json').write_text(json.dumps({'serial':True,'runnerRetries':0,'command':cmd,'results':results},indent=2)+'\n')

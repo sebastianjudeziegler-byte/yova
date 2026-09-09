@@ -1,0 +1,69 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/grader-calibration.live.test.ts (9 tests | 9 failed) 127ms
+     × complete: 'accepts a correct biology paraphrase' 107ms
+     × complete: 'accepts a concise programming explana…' 3ms
+     × complete: 'history: complete-history' 4ms
+     × insufficient: 'biology: underspecified-biology' 3ms
+     × insufficient: 'programming: underspecified-programmi…' 2ms
+     × insufficient: 'history: underspecified-history' 2ms
+     × insufficient: 'biology: missing-context-biology' 2ms
+     × insufficient: 'programming: missing-context-programm…' 2ms
+     × insufficient: 'history: missing-context-history' 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > complete: 'accepts a concise programming explana…'
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > complete: 'history: complete-history'
+Error: Connection error.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/src/client.ts:850:12
+ ❯ requestAnswerEvaluation src/lib/openai/answer-evaluator.ts:73:20
+     71|   repairUnexpectedScript = false,
+     72| ) {
+     73|   const response = await getOpenAIClient().responses.parse({
+       |                    ^
+     74|     model,
+     75|     instructions: ANSWER_EVALUATOR_INSTRUCTIONS,
+ ❯ evaluateAnswerWithOpenAI src/lib/openai/answer-evaluator.ts:49:19
+ ❯ src/evals/grader-calibration.live.test.ts:8:20
+
+Caused by: TypeError: fetch failed
+Caused by: Error: getaddrinfo ENOTFOUND api.openai.com
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -3008, code: 'ENOTFOUND', syscall: 'getaddrinfo', hostname: 'api.openai.com' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'biology: underspecified-biology'
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…'
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'history: underspecified-history'
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'biology: missing-context-biology'
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'history: missing-context-history'
+Error: Connection error.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/src/client.ts:850:12
+ ❯ requestAnswerEvaluation src/lib/openai/answer-evaluator.ts:73:20
+     71|   repairUnexpectedScript = false,
+     72| ) {
+     73|   const response = await getOpenAIClient().responses.parse({
+       |                    ^
+     74|     model,
+     75|     instructions: ANSWER_EVALUATOR_INSTRUCTIONS,
+ ❯ evaluateAnswerWithOpenAI src/lib/openai/answer-evaluator.ts:49:19
+ ❯ src/evals/grader-calibration.live.test.ts:18:20
+
+Caused by: TypeError: fetch failed
+Caused by: Error: getaddrinfo ENOTFOUND api.openai.com
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -3008, code: 'ENOTFOUND', syscall: 'getaddrinfo', hostname: 'api.openai.com' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  9 failed (9)
+   Start at  12:44:06
+   Duration  284ms (transform 29ms, setup 0ms, import 24ms, tests 127ms, environment 0ms)
+
+
+Exit code: 1

@@ -1,0 +1,172 @@
+Main e03a082 complete baseline 3/3. Serial, all existing live opt-ins enabled, case filters cleared.
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+Exact WWI baseline generation failure {
+  message: 'OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.',
+  generationStats: {
+    elapsedMs: 13567,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'streamed_lesson_scope',
+    repairAttempted: true,
+    repairSucceeded: false,
+    repairReason: 'semantic_validation',
+    repairDetail: 'This 45-minute lesson needs at least 2 interleaved teaching blocks for 3 active ideas. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.',
+    inputTokens: 8323,
+    cachedInputTokens: 7424,
+    cacheWriteTokens: 0,
+    outputTokens: 2128,
+    validationIssueCode: 'streamed_target_subject',
+    stage: 'validation',
+    cause: 'semantic_validation',
+    recoveryMode: 'safe_learn',
+    strategy: 'streamed'
+  }
+}
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live streamed World War I session skeleton > reliably creates a valid subject-specific session outline
+WWI streamed skeleton run {
+  run: 1,
+  elapsedMs: 12833,
+  attempts: 2,
+  firstAttemptPassed: false,
+  repairAttempted: true,
+  repairSucceeded: true,
+  failedValidator: 'session_required_typed_recall',
+  repairDetail: 'A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.',
+  requiredMinutes: 9,
+  activeIdeas: [
+    'Prewar European alliances and tensions divided major powers into rival blocs before 1914.'
+  ],
+  deferredContent: [
+    'Basic chronology from 1914 to 1918',
+    'Sequence from the Sarajevo assassination to declarations of war'
+  ]
+}
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live streamed World War I session skeleton > reliably creates a valid subject-specific session outline
+WWI streamed skeleton run {
+  run: 2,
+  elapsedMs: 11263,
+  attempts: 2,
+  firstAttemptPassed: false,
+  repairAttempted: true,
+  repairSucceeded: true,
+  failedValidator: 'streamed_lesson_scope',
+  repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+  requiredMinutes: 9,
+  activeIdeas: [
+    'Prewar European alliances and tensions divided Europe into rival blocs before 1914.'
+  ],
+  deferredContent: [
+    'Basic chronology from 1914 to 1918',
+    'Sequence from the Sarajevo assassination to declarations of war'
+  ]
+}
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live streamed World War I session skeleton > reliably creates a valid subject-specific session outline
+WWI streamed skeleton run {
+  run: 3,
+  elapsedMs: 8676,
+  attempts: 1,
+  firstAttemptPassed: false,
+  repairAttempted: true,
+  repairSucceeded: true,
+  failedValidator: 'session_practice_variation',
+  repairDetail: 'YOVA restored 3 evidence-derived practice-intent labels without changing question content or learning phases.',
+  requiredMinutes: 15,
+  activeIdeas: [
+    'Prewar European alliances and tensions made a local crisis more dangerous because rival blocs and military planning increased the chance that one conflict would pull in others.'
+  ],
+  deferredContent: [
+    'Basic chronology from 1914 to 1918',
+    'Sequence from the Sarajevo assassination to declarations of war'
+  ]
+}
+WWI streamed skeleton reliability [
+  {
+    run: 1,
+    elapsedMs: 12833,
+    attempts: 2,
+    firstAttemptPassed: false,
+    repairAttempted: true,
+    repairSucceeded: true,
+    failedValidator: 'session_required_typed_recall',
+    repairDetail: 'A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.',
+    requiredMinutes: 9,
+    activeIdeas: [
+      'Prewar European alliances and tensions divided major powers into rival blocs before 1914.'
+    ],
+    deferredContent: [
+      'Basic chronology from 1914 to 1918',
+      'Sequence from the Sarajevo assassination to declarations of war'
+    ]
+  },
+  {
+    run: 2,
+    elapsedMs: 11263,
+    attempts: 2,
+    firstAttemptPassed: false,
+    repairAttempted: true,
+    repairSucceeded: true,
+    failedValidator: 'streamed_lesson_scope',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”. Later targets that must remain exact entries in deferredContent: “Basic chronology from 1914 to 1918”; “Sequence from the Sarajevo assassination to declarations of war”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
+    requiredMinutes: 9,
+    activeIdeas: [
+      'Prewar European alliances and tensions divided Europe into rival blocs before 1914.'
+    ],
+    deferredContent: [
+      'Basic chronology from 1914 to 1918',
+      'Sequence from the Sarajevo assassination to declarations of war'
+    ]
+  },
+  {
+    run: 3,
+    elapsedMs: 8676,
+    attempts: 1,
+    firstAttemptPassed: false,
+    repairAttempted: true,
+    repairSucceeded: true,
+    failedValidator: 'session_practice_variation',
+    repairDetail: 'YOVA restored 3 evidence-derived practice-intent labels without changing question content or learning phases.',
+    requiredMinutes: 15,
+    activeIdeas: [
+      'Prewar European alliances and tensions made a local crisis more dangerous because rival blocs and military planning increased the chance that one conflict would pull in others.'
+    ],
+    deferredContent: [
+      'Basic chronology from 1914 to 1918',
+      'Sequence from the Sarajevo assassination to declarations of war'
+    ]
+  }
+]
+
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts (2 tests | 1 failed) 46414ms
+     × creates the production 45-minute streamed teaching session 13632ms
+     ✓ reliably creates a valid subject-specific session outline  32781ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts:21:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  23:22:33
+   Duration  46.87s (transform 279ms, setup 0ms, import 381ms, tests 46.41s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-0/baseline-3/streamed-world-war-one-skeleton.json
+
+Exit code: 1

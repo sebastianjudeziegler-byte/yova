@@ -1,0 +1,48 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/answer-evaluation-quality.live.test.ts (8 tests | 7 failed) 116ms
+     ✓ the requested case exists 1ms
+     × 'accepts a correct biology paraphrase' 97ms
+     × 'catches confident biology keyword soup' 2ms
+     × 'marks a materially incomplete causal …' 2ms
+     × 'accepts equivalent mathematical notat…' 3ms
+     × 'does not reward a true statement that…' 5ms
+     × 'accepts a concise programming explana…' 3ms
+     × 'admits uncertainty when the prompt la…' 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'catches confident biology keyword soup'
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'marks a materially incomplete causal …'
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…'
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'does not reward a true statement that…'
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a concise programming explana…'
+ FAIL  src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'
+Error: Connection error.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/src/client.ts:850:12
+ ❯ requestAnswerEvaluation src/lib/openai/answer-evaluator.ts:73:20
+     71|   repairUnexpectedScript = false,
+     72| ) {
+     73|   const response = await getOpenAIClient().responses.parse({
+       |                    ^
+     74|     model,
+     75|     instructions: ANSWER_EVALUATOR_INSTRUCTIONS,
+ ❯ evaluateAnswerWithOpenAI src/lib/openai/answer-evaluator.ts:49:19
+ ❯ src/evals/answer-evaluation-quality.live.test.ts:21:20
+
+Caused by: TypeError: fetch failed
+Caused by: Error: getaddrinfo ENOTFOUND api.openai.com
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -3008, code: 'ENOTFOUND', syscall: 'getaddrinfo', hostname: 'api.openai.com' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 1 passed (8)
+   Start at  12:44:06
+   Duration  211ms (transform 29ms, setup 0ms, import 21ms, tests 116ms, environment 0ms)
+
+
+Exit code: 1
