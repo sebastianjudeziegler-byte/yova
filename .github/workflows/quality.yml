@@ -102,6 +102,19 @@ jobs:
       - name: Run public authentication journey
         run: pnpm test:e2e:auth
 
+      - name: Compare the Study Profile phone-width case on main and release
+        if: ${{ !cancelled() }}
+        run: node scripts/compare-study-profile-ci.mjs
+
+      - name: Upload Study Profile comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: study-profile-phone-comparison-${{ github.run_id }}
+          path: test-results/study-profile-comparison
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Run full live gate on the combined release
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
         run: pnpm test:live
