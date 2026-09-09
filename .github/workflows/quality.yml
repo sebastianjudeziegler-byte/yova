@@ -103,7 +103,7 @@ jobs:
         run: pnpm test:e2e:auth
 
       - name: Run full live gate on the combined release
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
         run: pnpm test:live
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

@@ -205,3 +205,11 @@ The founder authorized merge/deployment, then explicitly authorized the minimal 
 ### Combined release for CI
 
 The release branch incorporates Brief A commit `340c8b6` and Brief 0 commit `d108e89` before the authorized merge. Conflicts were limited to the audit backlog and browser-test imports: both backlog histories are retained, and Brief 0.5's explicit frozen-clock setup plus Brief 0's live fixture import are retained. Brief A application changes merge without conflicts. This permits CI to test the exact combined release instead of claiming compatibility from separate branch runs.
+
+### Remote release verification update
+
+At combined release `0922ffa`, [GitHub Actions run 34350488557](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34350488557) passed dependency installation, the security audit, configuration validation, every migration replay, database lint/boundary checks, unit tests, lint and build. The browser step had started when the provider configuration was resolved. This run is superseded by a fresh run after the founder added the Actions secret.
+
+The sharp audit is now **red → green** on GitHub: original run `34349726024` failed the advisory; combined run `34350488557` passed the same audit command with sharp 0.35.4. No local verification was used.
+
+Read-only GitHub Settings inspection confirmed no repository/environment secrets existed. The founder subsequently confirmed adding `OPENAI_API_KEY`. A fresh quality run is required to pick up the newly configured secret. The full live step executes serially even if an earlier check fails, ensuring its artifact is produced; failures in earlier steps are not suppressed. Both live browser journeys and Brief A compatibility are included in the combined source. No production setting was changed.

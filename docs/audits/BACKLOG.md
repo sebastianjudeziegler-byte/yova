@@ -99,7 +99,7 @@ Repro: run the `osmosis` case in `src/evals/launch-session-journeys.live.test.ts
 
 ### Release audit — sharp dependency (authorized follow-up)
 
-Repro: PR #84 CI run 34349726024, `pnpm audit --prod --audit-level high`, rejects `next > sharp 0.35.3` under GHSA-rgj7-g3m4-5g8c (high); quality gates after audit do not run. Founder explicitly authorized the minimal patched dependency update on 2026-09-09; sharp 0.35.4 and matching image binaries are prepared, CI confirmation pending. No product-scope expansion or local verification.
+Repro: PR #84 CI run 34349726024, `pnpm audit --prod --audit-level high`, rejects `next > sharp 0.35.3` under GHSA-rgj7-g3m4-5g8c (high); quality gates after audit do not run. Founder explicitly authorized the minimal patched dependency update on 2026-09-09; sharp 0.35.4 and matching image binaries passed the same audit in GitHub Actions run 34350488557 (red/green recorded in Brief 0.5 EVIDENCE.md). No product-scope expansion or local verification.
 
 ## Brief A historical baseline (retained)
 
