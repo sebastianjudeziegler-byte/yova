@@ -33,6 +33,17 @@ jobs:
           mkdir -p tmp/brief-0-5 test-results/release-repro
           cp docs/audits/brief-0-5/evidence/harness/ci-capture.ts.txt tmp/brief-0-5/capture.ts
           cp docs/audits/brief-0-5/evidence/harness/vitest.config.mts.txt tmp/release-capture.config.mts
+      - name: Replay adapted regression against old notation
+        run: |
+          git fetch origin 002f955321c03e761f2c0aeb756997f2a5a6257c
+          cp src/lib/session-generation/learning-notation.ts /tmp/yova-green-notation.ts
+          restore_notation() { cp /tmp/yova-green-notation.ts src/lib/session-generation/learning-notation.ts; }
+          trap restore_notation EXIT
+          git show 002f955321c03e761f2c0aeb756997f2a5a6257c:src/lib/session-generation/learning-notation.ts > src/lib/session-generation/learning-notation.ts
+          result=0
+          pnpm exec vitest run src/lib/session-generation/question-context.test.ts src/lib/openai/streamed-validator-calibration.test.ts src/lib/session-generation/completion-contract.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-repro/old-notation-red.json || result=$?
+          test "$result" -eq 1
+          node -e 'const r=require("./test-results/release-repro/old-notation-red.json"); if(r.numFailedTests !== 3 || r.numPassedTests !== 45) process.exit(1)'
       - name: Verify date recall and captured addition with negative checks
         run: pnpm exec vitest run src/lib/session-generation/question-context.test.ts src/lib/openai/streamed-validator-calibration.test.ts src/lib/session-generation/completion-contract.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-repro/date-recall.json
       - name: Capture three unchanged mapped-calculus attempts
@@ -45,31 +56,6 @@ jobs:
           result=0
           for sample in 1 2 3; do
             BRIEF05_CAPTURE="test-results/release-repro/calculus-$sample.jsonl" pnpm exec vitest run src/evals/session-quality.live.test.ts --config tmp/release-capture.config.mts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile="test-results/release-repro/calculus-$sample.json" || result=1
-          done
-          exit "$result"
-      - name: Compare new legacy failure reasons on unchanged main
-        if: ${{ !cancelled() }}
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          YOVA_RUN_LIVE_EVALS: "1"
-          YOVA_RUN_LIVE_SESSION_EVALS: "1"
-        run: |
-          git fetch origin e03a082659f51172c0b06bf84daffdd5599ac773
-          git fetch origin d108e890e3f64e4393f617fe821ac0eb3b7b3c8e
-          mkdir -p /tmp/yova-baseline-evals
-          git show d108e890e3f64e4393f617fe821ac0eb3b7b3c8e:src/evals/plan-rubric.ts > /tmp/yova-baseline-evals/plan-rubric.ts
-          git show d108e890e3f64e4393f617fe821ac0eb3b7b3c8e:src/evals/session-rubric.ts > /tmp/yova-baseline-evals/session-rubric.ts
-          git archive HEAD src > /tmp/yova-branch-src.tar
-          restore_source() { rm -rf src; tar -xf /tmp/yova-branch-src.tar; }
-          trap restore_source EXIT
-          rm -rf src
-          git archive e03a082659f51172c0b06bf84daffdd5599ac773 src | tar -x
-          git diff --exit-code e03a082659f51172c0b06bf84daffdd5599ac773 -- src/lib
-          cp /tmp/yova-baseline-evals/*.ts src/evals/
-          result=0
-          for sample in 1 2 3; do
-            pnpm exec vitest run src/evals/plan-quality.live.test.ts -t 'Calculus problem-solving plan|World War I unit guide' --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile="test-results/release-repro/main-plans-$sample.json" || result=1
-            pnpm exec vitest run src/evals/session-quality.live.test.ts -t 'General-learning finance application' --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile="test-results/release-repro/main-finance-$sample.json" || result=1
           done
           exit "$result"
       - name: Upload diagnostic evidence

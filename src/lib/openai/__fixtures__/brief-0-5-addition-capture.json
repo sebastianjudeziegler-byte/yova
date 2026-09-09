@@ -285,6 +285,45 @@
           "targetId": "target_2"
         }
       ]
+    },
+    {
+      "items": [
+        {
+          "essentialIdea": "Differentiate a product by adding the derivative of the first factor times the second factor and the first factor times the derivative of the second factor.",
+          "concept": "product rule formula",
+          "check": {
+            "title": "Explain the product rule",
+            "prompt": "State the rule in your own words and then solve one product derivative.",
+            "referenceAnswer": "The derivative of a product is f'(x)g(x) + f(x)g'(x). For example, if y = x^2 sin x, then y' = 2x sin x + x^2 cos x.",
+            "feedback": "A complete answer names both terms in the product rule and applies them to one product. A common gap is changing only one factor or multiplying the derivatives together."
+          },
+          "independentCheck": null
+        },
+        {
+          "essentialIdea": "Chain rule differentiates a composite by multiplying outer and inner derivatives.",
+          "concept": "chain rule formula",
+          "check": {
+            "title": "Differentiate a composite",
+            "prompt": "How do you differentiate y = f(g(x))?",
+            "referenceAnswer": "Differentiate the outer function at g(x), then multiply by g'(x): y' = f'(g(x))g'(x).",
+            "feedback": "The outer derivative stays evaluated at the inner function, then you multiply by the inner derivative."
+          },
+          "independentCheck": null
+        }
+      ],
+      "recognitionCheck": {
+        "title": "Identify the chain rule",
+        "prompt": "Which derivative rule applies to y = f(g(x))?",
+        "choices": [
+          "Differentiate the outer function at g(x), then multiply by g'(x).",
+          "Multiply f(x) and g(x) first, then differentiate the result.",
+          "Differentiate each function separately and add the derivatives.",
+          "Differentiate the inner function first, then subtract it from the outer derivative."
+        ],
+        "correctAnswer": "Differentiate the outer function at g(x), then multiply by g'(x).",
+        "feedback": "This is the chain rule because the function is composite."
+      }
     }
-  ]
+  ],
+  "fixtureNote": "The normal response is captured verbatim. The captured passing recovery is adapted only to replay the normal response\u2019s exact product-rule claim and check in the server-owned recovery shape; its second claim and recognition are unchanged."
 }
