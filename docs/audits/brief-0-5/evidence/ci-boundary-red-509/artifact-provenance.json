@@ -1,0 +1,9 @@
+{
+  "run": 34382604180,
+  "job": 102570899338,
+  "head": "5096304996466081ac2c7de930807a4c96cf2589",
+  "artifact": 10116463349,
+  "sha256": "3b8a7073c7ab5161d240946bafac1e79a66792a648ad0db95a6a273a9028ae57",
+  "grader": "12 passed",
+  "validators": "7 expected failures, 56 passed"
+}

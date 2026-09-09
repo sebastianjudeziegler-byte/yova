@@ -1,4 +1,4 @@
-import { preservesTargetEquation } from "./learning-notation";
+import { isCompleteSymbolicEquation, preservesTargetEquation } from "./learning-notation";
 import type { MaterialExcerpt } from "@/lib/materials/context";
 import type { ConceptSignal } from "@/lib/learning/concept-evidence";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
@@ -49,12 +49,11 @@ export function enrichStreamedLessonBriefs(
   const assignedIdeaKeys = new Set<string>();
   const ideasByActivity = new Map<number, string[]>();
 
-  // Preserve valid model assignments first, but never let a short teaching
-  // block inherit the full session outline. Runtime delivery is generated one
-  // activity at a time, so the activity's minutes are its real content budget.
+  // Give each teaching block one distinct proposed claim before allocating
+  // spare capacity. Otherwise an early block can consume all claims and the
+  // final empty-block fallback manufactures duplicate teaching.
   draft.activities.forEach((activity, index) => {
     if (activity.type !== "instruction" || !activity.lessonBrief) return;
-    const capacity = lessonIdeaCapacityForMinutes(activity.estimatedMinutes);
     const proposedCandidates = unique(activity.lessonBrief.essentialIdeas.flatMap((idea) => {
       const key = normalize(idea);
       const coverageIdea = coverageIdeaByKey.get(key);
@@ -66,7 +65,7 @@ export function enrichStreamedLessonBriefs(
     const proposedIdeas = proposedCandidates.filter((idea) => (
       !firstAuthoritativeTopicId
       || authoritativeTopicIdForIdea(idea, context) === firstAuthoritativeTopicId
-    )).slice(0, capacity);
+    )).slice(0, 1);
     proposedIdeas.forEach((idea) => assignedIdeaKeys.add(normalize(idea)));
     ideasByActivity.set(index, proposedIdeas);
   });
@@ -77,21 +76,24 @@ export function enrichStreamedLessonBriefs(
     const key = normalize(coverageIdea);
     if (assignedIdeaKeys.has(key)) continue;
     const authoritativeTopicId = authoritativeTopicIdForIdea(coverageIdea, context);
-    const availableIndex = draft.activities.findIndex((activity, index) => {
+    const availableIndexes = draft.activities.flatMap((activity, index) => {
       if (
         activity.type !== "instruction"
         || !activity.lessonBrief
         || (ideasByActivity.get(index)?.length ?? 0) >= lessonIdeaCapacityForMinutes(activity.estimatedMinutes)
-      ) return false;
+      ) return [];
       const allocatedTopicIds = unique((ideasByActivity.get(index) ?? []).flatMap((idea) => {
         const topicId = authoritativeTopicIdForIdea(idea, context);
         return topicId ? [topicId] : [];
       }));
-      return !authoritativeTopicId
+      const compatible = !authoritativeTopicId
         || allocatedTopicIds.length === 0
         || (allocatedTopicIds.length === 1 && allocatedTopicIds[0] === authoritativeTopicId);
+      return compatible ? [index] : [];
     });
-    if (availableIndex < 0) continue;
+    const availableIndex = availableIndexes.find(index => (ideasByActivity.get(index)?.length ?? 0) === 0)
+      ?? availableIndexes[0];
+    if (availableIndex === undefined) continue;
     ideasByActivity.set(availableIndex, [
       ...(ideasByActivity.get(availableIndex) ?? []),
       coverageIdea,
@@ -373,6 +375,7 @@ export function validateStreamedLessonScope(
 }
 
 export function isCompleteLessonClaim(value: string) {
+  if (isCompleteSymbolicEquation(value)) return true;
   const words = value.match(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu) ?? [];
   if (words.length < 5) return false;
   // Longer subject statements are accepted without a brittle subject-specific

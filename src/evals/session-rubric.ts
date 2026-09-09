@@ -40,7 +40,7 @@ export type SessionQualityResult = {
 
 const TASK_PATTERNS: Record<SessionTaskFamily, RegExp> = {
   conceptual: /explain|connect|compare|concept|model|retriev|recall|apply|process/i,
-  problem_solving: /worked|example|solve|problem|practice|calculate|step|equation|derivativ|differentia|rule|setup/i,
+  problem_solving: /worked|example|solve|problem|practice|calculate|step|equation|derivativ|differentia|rule|setup|\bfunction factors?\b|\bproduct of (?:two )?functions?\b|\bmultipl(?:y|ied|ication)\b/i,
   reading: /passage|text|detail|evidence|interpret|imagery|setting|claim|annotat|quote|read/i,
   writing: /thesis|evidence|outline|draft|write|claim|revise|argument/i,
   coding: /code|implement|debug|trace|array|function|program|map|filter|reduce/i,

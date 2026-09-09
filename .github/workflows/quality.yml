@@ -1,4 +1,4 @@
-name: YOVA quality — release boundary red
+name: YOVA quality — release boundary green
 on:
   pull_request:
   push:
@@ -10,7 +10,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -26,17 +26,29 @@ jobs:
         run: |
           mkdir -p test-results/release-boundaries
           pnpm exec vitest run src/lib/openai/answer-evaluator.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-boundaries/grader-green.json
-      - name: Establish equation, allocation and rubric red with negatives
-        if: ${{ !cancelled() }}
+      - name: Verify equation, allocation and rubric green with negatives
         run: |
-          result=0
-          pnpm exec vitest run src/lib/session-generation/lesson-brief.test.ts src/lib/openai/streamed-validator-calibration.test.ts src/evals/brief-0-5-rubric.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-boundaries/validator-red.json || result=$?
-          test "$result" -eq 1
-          node -e 'const r=require("./test-results/release-boundaries/validator-red.json"); if(r.numFailedTests !== 7 || r.numPassedTests < 30) process.exit(1)'
+          pnpm exec vitest run src/lib/session-generation/lesson-brief.test.ts src/lib/openai/streamed-validator-calibration.test.ts src/evals/brief-0-5-rubric.test.ts src/lib/session-generation/completion-contract.test.ts src/lib/session-generation/content-specificity.test.ts src/lib/session-generation/streamed-skeleton.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-boundaries/validator-green.json
+      - name: Run three serial live samples with pass-through capture
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          mkdir -p tmp/brief-0-5
+          cp docs/audits/brief-0-5/evidence/harness/ci-capture.ts.txt tmp/brief-0-5/capture.ts
+          cp docs/audits/brief-0-5/evidence/harness/vitest.config.mts.txt tmp/release-capture.config.mts
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          source = Path('docs/audits/brief-0-5/evidence/harness/new-observations.py.txt').read_text()
+          source = source.replace('results = []', "cases = [case for case in cases if case[0] in ('A15', 'A27', 'misconception')]\nresults = []")
+          Path('tmp/release-boundaries.py').write_text(source)
+          PYTHON
+          python3 tmp/release-boundaries.py release
       - name: Upload per-test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release-boundaries-${{ github.run_id }}
-          path: test-results/release-boundaries
+          path: |
+            test-results/release-boundaries
+            test-results/release-observations
           retention-days: 30

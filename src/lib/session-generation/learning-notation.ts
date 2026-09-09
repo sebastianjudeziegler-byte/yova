@@ -16,6 +16,37 @@ export function hasDistinctLearningChoices(choices: string[]) {
   return new Set(choices.map(choice => learningContentKey(choice, true))).size === choices.length;
 }
 
+/** A complete algebraic equality is a claim even without five prose words. */
+export function isCompleteSymbolicEquation(value: string) {
+  const equation = learningContentKey(value).replace(/\s/g, "");
+  if (!/^[a-z0-9.'()+*/^=\-]+$/i.test(equation) || /[a-z]{4,}/i.test(equation)) return false;
+  const sides = equation.split("=");
+  if (sides.length !== 2) return false;
+  return sides.every(side => {
+    if (!side) return false;
+    const tokens = side.match(/\d+(?:\.\d+)?|[a-z]|['()+*/^\-]/gi) ?? [];
+    if (tokens.join("") !== side) return false;
+    let depth = 0;
+    let needsOperand = true;
+    for (const token of tokens) {
+      if (token === "(") { depth += 1; needsOperand = true; }
+      else if (token === ")") {
+        if (needsOperand || depth === 0) return false;
+        depth -= 1;
+      } else if (token === "'") {
+        if (needsOperand) return false;
+      } else if (/^[+*/^\-]$/.test(token)) {
+        if (needsOperand) return false;
+        needsOperand = true;
+      } else {
+        // Adjacent factors and f(x) use ordinary implicit multiplication.
+        needsOperand = false;
+      }
+    }
+    return depth === 0 && !needsOperand;
+  });
+}
+
 /** Symbolic relations are subject content, even when variables are one letter. */
 export function mathematicalSubjectTerms(value: string): string[] {
   const notation = learningContentKey(value);
