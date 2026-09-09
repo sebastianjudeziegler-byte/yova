@@ -51,6 +51,18 @@ export function LivingPlanRevision({ plan, initialDelta, initialTopicId, initial
       .flatMap(event => expandRecurringEvent(event, from, to))
       .map(event => ({ id: event.id, startsAt: event.startsAt, endsAt: event.endsAt }));
   }
+  function savedAvailability() {
+    if (plan.schedulePreferences?.availability.length) return plan.schedulePreferences.availability;
+    // Older Study Now goals retain their actual block, but not a separate
+    // schedule-preferences object. Use that existing time as the preimage.
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const time = (date: Date) => date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
+    return plan.sessions.slice(0, 14).map(session => {
+      const start = new Date(session.scheduledFor);
+      const end = new Date(start.getTime() + session.estimatedMinutes * 60_000);
+      return { day: start.toLocaleDateString("en-US", { weekday: "long", timeZone }), window: `${time(start)}–${time(end)}`, minutes: session.estimatedMinutes };
+    });
+  }
   async function preview(delta: MapDelta, controls: RevisionControls): Promise<SignedPreview> {
     const context = draft ? { kind: "draft", plan, ...draft } : client.developmentPreview ? {
       kind: "development", plan, plans: client.plans, expectedRevisionId: plan.revisionId ?? plan.id,
@@ -59,7 +71,7 @@ export function LivingPlanRevision({ plan, initialDelta, initialTopicId, initial
         materialMode: plan.sourceMode === "user_materials" ? "upload" : "none", materials: plan.materials ?? [],
         studyMode: plan.studyMode === "outside_yova" ? "outside" : "inside", deadline: plan.deadline,
         timeZone: plan.schedulePreferences?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
-        availability: plan.schedulePreferences?.availability ?? [], profileSummary: client.profileSummary,
+        availability: savedAvailability(), profileSummary: client.profileSummary,
         previewCanonicalProfile: client.previewCanonicalProfile, knowledgeMap: plan.knowledgeMap, diagnosticResponses: [],
       },
     } : { kind: "active", planId: plan.id, expectedRevisionId: plan.revisionId ?? plan.id };

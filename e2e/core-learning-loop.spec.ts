@@ -466,6 +466,7 @@ test("an inactive-plan generation response cannot open a stale built-in lesson",
 });
 
 test("a visibly shortened inside recipe keeps its method in the fallback workpad", async ({ page }) => {
+  await freezePlanClock(page);
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
       status: 502,
@@ -1059,6 +1060,7 @@ test("a fallback method workpad resumes its timer and checked targets after relo
 });
 
 test("a 10-minute outside teaching-first session loads its built-in method lesson", async ({ page }) => {
+  await freezePlanClock(page);
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
       status: 502,

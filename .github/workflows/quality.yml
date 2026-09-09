@@ -3,7 +3,7 @@ name: YOVA quality
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, codex/brief-b-living-plan]
 
 concurrency:
   group: yova-quality-${{ github.ref }}
@@ -115,20 +115,49 @@ jobs:
           PYTHON
           pnpm exec playwright install --with-deps chromium
 
+      - name: Prepare closeout evidence
+        if: ${{ !cancelled() }}
+        run: mkdir -p artifacts/quality
+
       - name: Run learning-engine tests
-        run: pnpm test
+        if: ${{ !cancelled() }}
+        run: |
+          pnpm exec vitest run --reporter=default --reporter=json --outputFile=artifacts/quality/unit.json
+          node --test --test-concurrency=1 scripts/live-gate/*.test.mjs
 
       - name: Check code quality
+        if: ${{ !cancelled() }}
         run: pnpm lint
 
+      - name: Check TypeScript
+        if: ${{ !cancelled() }}
+        run: pnpm exec tsc --noEmit
+
       - name: Build production app
+        if: ${{ !cancelled() }}
         run: pnpm build
 
       - name: Run core learner journey
-        run: pnpm test:e2e
+        if: ${{ !cancelled() }}
+        run: pnpm test:e2e --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/browser.json
+
+      - name: Preserve core and founder browser evidence
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/quality/core-browser; fi
 
       - name: Run public authentication journey
-        run: pnpm test:e2e:auth
+        if: ${{ !cancelled() }}
+        run: pnpm test:e2e:auth --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/auth.json
+
+      - name: Preserve authentication evidence
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/quality/auth-browser; fi
 
       - name: Compare the Study Profile phone-width case on main and release
         if: ${{ !cancelled() }}
@@ -162,6 +191,7 @@ jobs:
           pnpm test:live --runs "$LIVE_GATE_RUNS"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_DELTA_PRINTOUT: ${{ github.workspace }}/test-results/live-gate/profile-plans.json
           # Three serial release samples; ordinary main/PR gates retain one.
           LIVE_GATE_RUNS: ${{ github.head_ref == 'codex/brief-0-5-grader-and-validators' && '3' || '1' }}
 
@@ -181,11 +211,13 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: Upload browser evidence on failure
-        if: failure()
+      - name: Upload closeout evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: yova-browser-test-evidence
-          path: test-results
+          name: yova-quality-evidence-${{ github.run_id }}
+          path: |
+            artifacts/quality
+            test-results
           if-no-files-found: ignore
           retention-days: 7

@@ -1,9 +1,10 @@
 # Session-writing paths after Brief B
 
-This inventory separates plan revision from the runtime/lifecycle writes that Brief B explicitly leaves in place. There is one **topic/calendar-delta rebuilding pipeline**. There are still multiple session-table writers; claiming otherwise would hide the required method-choice and runtime authorities.
+This inventory separates plan revision from the runtime/lifecycle writes that Brief B explicitly leaves in place. There is exactly one **normal-plan composition/revision pipeline**: `composeNormalPlanEnvelopes` → fixed-slot Brief A provider fill → `buildNormalPlanFromFixedEnvelope` / materialization. Initial creation calls it for the whole map; `buildPlanRevision` calls it only for affected future work. The revision wrapper is not a second composer. There are still multiple session-table writers; claiming otherwise would hide the required method-choice and runtime authorities.
 
 | Entry point | Authority / write path | Scope |
 | --- | --- | --- |
+| Initial normal-plan creation | `/api/plans/generate` → the same composer, fixed fill and materializer | Initial whole-map composition; unchanged creation authority |
 | Active plan Adjust, learned-elsewhere, source attachment; draft content/schedule/starting-level controls; legacy Calendar/tutor adjustment entry points | `/api/plans/adjust`: strict MapDelta → `buildPlanRevision` → `composeNormalPlanEnvelopes` → fixed-slot Brief A fill → materialize affected future sessions | Single revision builder; the provider cannot select structure or submit sessions |
 | Confirm / Undo on an active plan | `persistAcceptedPlanRevision` → service-only `apply_plan_revision` | One atomic revision writer, owner/revision/map/preimage checks, durable receipt; Undo applies an inverse patch |
 | Confirm / Undo on a draft | Same signed builder/projection; fresh bounded activation receipt | Changes the draft only; no active session row is written |
@@ -15,6 +16,6 @@ This inventory separates plan revision from the runtime/lifecycle writes that Br
 | Legacy duration endpoint | `/api/sessions/duration` → `adjust_plan_session_duration` | Existing legacy-only scalar boundary; routed sessions reject this path; no live UI caller found |
 | Archive/delete | `/api/plans/status` | Existing plan lifecycle, unchanged |
 
-Retired HTTP writers: the former wholesale `/api/plans/adjust` payload and `/api/materials/attach` return preview-required errors. Free-text direction remains rejected, including the Sept 7 photosynthesis case. `plan-redirector.ts` has no live import. Historical adjustment helpers/migrations remain for retained evidence; direct old-RPC containment is separately verified in the database tests.
+Retired HTTP writers: the former wholesale `/api/plans/adjust` payload and `/api/materials/attach` return preview-required errors. Free-text direction remains rejected, including the Sept 7 photosynthesis case. `plan-redirector.ts` has no live import. Historical adjustment helpers/migrations remain for retained evidence; direct calls to `adjust_learning_plan_with_routes` and `attach_materials_to_plan` are revoked for public, anonymous, authenticated and service roles, and denial is verified in the database tests.
 
 All tests and captures for this inventory run in GitHub Actions. No production settings or runtime validator changes are part of this branch.
