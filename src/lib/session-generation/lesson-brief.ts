@@ -431,8 +431,9 @@ export function lessonIdeaSharesTargetSubject(
   idea: string,
   target: string,
   surface: "claim" | "check" = "claim",
+  questionContext?: string,
 ) {
-  const equationMatch = preservesTargetEquation(idea, target);
+  const equationMatch = preservesTargetEquation(idea, target, questionContext);
   if (equationMatch !== null) return equationMatch;
   const ideaTokens = meaningfulScopeTokens(idea);
   const targetTokens = meaningfulScopeTokens(target);

@@ -1697,6 +1697,7 @@ function validateCompactIndependentCheck({
   validateCompactCheckScope({
     learnerSurface: [check.title, check.prompt, check.referenceAnswer, check.feedback].join(" "),
     answerSurface: [check.referenceAnswer, check.feedback].join(" "),
+    questionContext: check.prompt,
     slot, taughtIdea, currentSessionScope, label: "independent application",
   });
 }
@@ -1712,15 +1713,17 @@ function validateCompactRecognitionCheck({
   validateCompactCheckScope({
     learnerSurface: [check.title, check.prompt, ...check.choices, check.feedback].join(" "),
     answerSurface: [check.correctAnswer, check.feedback].join(" "),
+    questionContext: check.prompt,
     slot, currentSessionScope, label: "recognition check", taughtIdea,
   });
 }
 
 function validateCompactCheckScope({
-  learnerSurface, answerSurface, slot, currentSessionScope, label, taughtIdea,
+  learnerSurface, answerSurface, questionContext, slot, currentSessionScope, label, taughtIdea,
 }: {
   learnerSurface: string;
   answerSurface: string;
+  questionContext: string;
   slot: CompactRecoverySlot;
   currentSessionScope: StreamedCurrentSessionScope;
   label: "independent application" | "recognition check";
@@ -1743,7 +1746,7 @@ function validateCompactCheckScope({
   // A familiar heading cannot authorize an unrelated answer. Subject proof
   // comes from the answer and explanation, without short-claim length caps.
   const answerReferences = [...references, taughtIdea];
-  if (!answerReferences.some(reference => lessonIdeaSharesTargetSubject(answerSurface, reference, "check"))) {
+  if (!answerReferences.some(reference => lessonIdeaSharesTargetSubject(answerSurface, reference, "check", questionContext))) {
     throw new CurrentSessionScopeError(
       `${currentSessionScopeForRepair(currentSessionScope)} The ${label} does not preserve its active target's subject terms.`,
       "streamed_target_subject",

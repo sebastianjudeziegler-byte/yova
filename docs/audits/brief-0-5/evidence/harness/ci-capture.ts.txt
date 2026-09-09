@@ -5,8 +5,8 @@ vi.mock('server-only', () => ({}));
 beforeAll(async () => {
   const claims = await import('../../src/lib/session-generation/lesson-brief');
   const match = claims.lessonIdeaSharesTargetSubject;
-  vi.spyOn(claims, 'lessonIdeaSharesTargetSubject').mockImplementation((idea, target, surface) => {
-    const result = match(idea, target, surface);
+  vi.spyOn(claims, 'lessonIdeaSharesTargetSubject').mockImplementation((idea, target, surface, questionContext) => {
+    const result = match(idea, target, surface, questionContext);
     if (!result && process.env.BRIEF05_CAPTURE) appendFileSync(process.env.BRIEF05_CAPTURE, JSON.stringify({ format: 'subject-rejection', idea, target, stack: new Error().stack }) + '\n');
     return result;
   });
