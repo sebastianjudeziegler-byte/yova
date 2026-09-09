@@ -1,3 +1,4 @@
+import { authorizeRevisionSources } from "@/lib/plan-revision/source-authority";
 import { loadActiveRevisionContext } from "@/lib/plan-revision/active-context";
 import "server-only";
 import type { z } from "zod";
@@ -49,6 +50,8 @@ export async function previewPlanRevision({ input, supabase, userId, development
     timeZone: plan.schedulePreferences?.timeZone ?? "UTC", availability: plan.schedulePreferences?.availability ?? [],
     profileSummary: "No established behavioral preferences yet.", diagnosticResponses: [], knowledgeMap: plan.knowledgeMap,
   });
+  const verifiedMaterials = await authorizeRevisionSources({ plan, delta: input.delta, excluded: input.controls.excludedOperationIndexes, supabase, userId, now });
+  request.materials = verifiedMaterials.map(material => ({ ...material, processingStatus: "ready" as const }));
   const authorized = await loadAuthorizedNormalDurationContext(developmentPreview ? { developmentPreview, now } : { supabase: supabase!, authenticatedUserId: userId!, now });
   const rolloutDecision = resolveServerPersonalizationRollout({ subjectKey: userId ?? (developmentPreview ? "development_preview" : null) });
   const personalization = GenerationPersonalizationContextSchema.parse({ ...authorized.methodEvidence.personalization,

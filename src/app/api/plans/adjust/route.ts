@@ -1,3 +1,4 @@
+import { resolveRequestNow } from "@/lib/server/test-clock";
 import { undoPlanRevision } from "@/lib/plan-revision/undo-service";
 import { applyPlanRevision } from "@/lib/plan-revision/apply-service";
 import { RevisionConflict } from "@/lib/plan-revision/revision-patch";
@@ -55,7 +56,7 @@ export async function PATCH(request: Request) {
     const revision = body.action === "undo" ? PlanRevisionUndoRequestSchema.safeParse(body) : body.action === "apply" ? PlanRevisionApplyRequestSchema.safeParse(body) : PlanRevisionPreviewRequestSchema.safeParse(body);
     if (!revision.success) return NextResponse.json({ error: "Review the topic changes and preview controls." }, { status: 422 });
     try {
-      const dependencies = { supabase, userId: user?.id ?? null, developmentPreview, now: new Date() };
+      const dependencies = { supabase, userId: user?.id ?? null, developmentPreview, now: new Date(resolveRequestNow(request)) };
       const result = revision.data.action === "undo"
         ? await undoPlanRevision({ input: revision.data, ...dependencies })
         : revision.data.action === "apply"

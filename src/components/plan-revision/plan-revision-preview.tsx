@@ -72,7 +72,9 @@ export function PlanRevisionPreview(props: Props) {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    if (props.initialDelta.operations.length) void refresh(props.initialDelta, EMPTY_CONTROLS);
+    if (props.initialDelta.operations.length) {
+      queueMicrotask(() => { void refresh(props.initialDelta, EMPTY_CONTROLS); });
+    }
     // The parent mounts this editor with a key for the plan/revision. Avoid
     // duplicate provider calls from changing callback identities/Strict Mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps

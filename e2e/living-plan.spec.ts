@@ -24,7 +24,7 @@ async function snapshot(page: Page) {
   return page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.at(-1) as LearningPlan);
 }
 
-async function createAndActivate(page: Page) {
+async function createAndActivate(page: Page, activate = true) {
   await freezePlanClock(page, NOW);
   // The accepted topic map is the deterministic fixture. Creation, fixed-slot
   // fill, activation and revision still use their real application routes.
@@ -53,6 +53,7 @@ async function createAndActivate(page: Page) {
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
   await expect(page.getByText("Plan ready", { exact: true })).toBeVisible({ timeout: 30_000 });
+  if (!activate) return;
   await page.getByRole("button", { name: "Use this plan" }).click();
   await expect(page.getByRole("heading", { name: "Your plan", exact: true })).toBeVisible();
 }
@@ -85,7 +86,11 @@ async function completeFirstSession(page: Page) {
       await expect(rating.or(unscored)).toBeVisible({ timeout: 30_000 });
       if (await rating.isVisible()) await rating.click();
     } else if (question?.correctAnswer && await page.locator(".answer-grid").isVisible()) {
-      await page.locator(".answer-grid").getByRole("button", { name: question.correctAnswer, exact: true }).click();
+      const answerIndex = question.choices.indexOf(question.correctAnswer);
+      expect(answerIndex, "The stored correct answer must be one of the displayed choices").toBeGreaterThanOrEqual(0);
+      const choice = page.locator(".answer-grid").getByRole("button").nth(answerIndex);
+      await expect(choice).toContainText(question.correctAnswer.split("→")[0]!.trim());
+      await choice.click();
     }
     const next = page.locator(".session-action-bar").getByRole("button");
     await expect(next).toBeEnabled({ timeout: 30_000 });
@@ -94,13 +99,15 @@ async function completeFirstSession(page: Page) {
   await expect(page.getByText("SESSION COMPLETE", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Finish and continue", exact: true }).click();
   await page.getByRole("button", { name: "Learning", exact: true }).click();
-  await page.locator(".learning-goal-card").filter({ hasText: before.title }).getByRole("button", { name: "Open goal", exact: true }).click();
+  const openGoal = page.locator(".learning-goal-card").filter({ hasText: before.title }).getByRole("button", { name: "Open goal", exact: true });
+  if (await openGoal.isVisible()) await openGoal.click();
+  await expect(page.getByRole("heading", { name: "Your plan", exact: true })).toBeVisible();
   expect((await snapshot(page)).sessions[0]!.status).toBe("complete");
 }
 
 test("active topics offer learned-elsewhere and source actions without a verification quiz", async ({ page }) => {
   await createAndActivate(page);
-  const water = page.locator(".knowledge-topic-list li").filter({ hasText: "1.1 Water polarity" });
+  const water = page.locator(`.knowledge-topic-list li[data-topic-id="${WATER}"]`);
   await expect(water.getByRole("button", { name: "I already learned this", exact: true })).toBeVisible();
   await expect(water.getByRole("button", { name: "Attach a source", exact: true })).toBeVisible();
 });
@@ -114,7 +121,7 @@ test("founder journey preserves completed work, previews two topic changes, save
   expect(waterBefore.learningMode).toBe("learn");
   await page.screenshot({ path: testInfo.outputPath("01-before.png"), fullPage: true });
 
-  await page.locator(".knowledge-topic-list li").filter({ hasText: "1.1 Water polarity" }).getByRole("button", { name: "I already learned this", exact: true }).click();
+  await page.locator(`.knowledge-topic-list li[data-topic-id="${WATER}"]`).getByRole("button", { name: "I already learned this", exact: true }).click();
   await expect(page.getByRole("region", { name: "Plan change preview" })).toBeVisible();
   await page.getByRole("button", { name: "Add another change", exact: true }).click();
   await page.getByLabel("Change topic").selectOption(CARBON);
@@ -174,7 +181,7 @@ test("a failed revision save shows no success receipt and preserves the original
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "The plan change could not be saved. Your current plan is unchanged." }) });
     } else await route.continue();
   });
-  await page.locator(".knowledge-topic-list li").filter({ hasText: "1.1 Water polarity" }).getByRole("button", { name: "I already learned this", exact: true }).click();
+  await page.locator(`.knowledge-topic-list li[data-topic-id="${WATER}"]`).getByRole("button", { name: "I already learned this", exact: true }).click();
   const preview = page.getByRole("region", { name: "Plan change preview" });
   await preview.getByRole("button", { name: "Confirm changes", exact: true }).click();
   await expect(preview.getByRole("alert")).toContainText("could not be saved");
@@ -187,4 +194,31 @@ test("a failed revision save shows no success receipt and preserves the original
   expect(after.id).toBe(before.id);
   expect(after.sessions).toHaveLength(before.sessions.length);
   expect(after.sessions.find(session => session.topicIds?.includes(WATER))!.learningMode).toBe("study");
+});
+
+
+test("draft topic edits use the reviewed delta and keep the other sessions for activation", async ({ page }) => {
+  let original: LearningPlan | undefined;
+  page.on("response", async response => {
+    if (new URL(response.url()).pathname === "/api/plans/generate" && response.request().method() === "POST") {
+      const body = await response.json().catch(() => null);
+      if (body?.plan && !original) original = body.plan;
+    }
+  });
+  await createAndActivate(page, false);
+  expect(original).toBeDefined();
+  await page.locator(".generated-topic-map li").filter({ hasText: "1.1 Water polarity" }).getByRole("button", { name: "I already learned this", exact: true }).click();
+  const preview = page.getByRole("region", { name: "Plan change preview" });
+  await expect(preview).toContainText("Practice");
+  await preview.getByRole("button", { name: "Confirm changes", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
+  await page.getByRole("button", { name: "Use this plan" }).click();
+  await expect(page.getByRole("heading", { name: "Your plan", exact: true })).toBeVisible();
+  const after = await snapshot(page);
+  expect(after.sessions.find(session => session.topicIds?.includes(WATER))!.learningMode).toBe("study");
+  for (const session of original!.sessions.filter(session => !session.topicIds?.includes(WATER))) {
+    const current = after.sessions.find(item => item.id === session.id)!;
+    expect({ ...current, studyRoute: session.studyRoute }).toEqual(session);
+  }
+  expect(after.knowledgeMap!.placementCheck).toEqual(original!.knowledgeMap!.placementCheck);
 });

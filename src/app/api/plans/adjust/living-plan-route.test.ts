@@ -413,6 +413,16 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(mocks.fill).not.toHaveBeenCalled();
   });
 
+  it("requires a structured reviewed delta instead of executing the retired adjustment payload", async () => {
+    const response = await PATCH(new Request("http://localhost/api/plans/adjust", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planId: deterministicDeltaPlan(1).id, deadline: "2026-10-01T23:59:00.000Z", studyMode: "inside_yova", futureSessionMinutes: 25 }),
+    }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "plan_revision_preview_required" });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   async function activePreview(operations: Operation[], mutate?: (plan: LearningPlan) => void) {
     const plan = commitPlanStudyRoutes({ ...deterministicDeltaPlan(1), status: "active" as const }, DELTA_NOW.toISOString());
     mutate?.(plan);

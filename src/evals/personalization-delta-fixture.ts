@@ -86,3 +86,26 @@ export function assertPersonalizationDelta(first: LearningPlan, second: Learning
     expect(JSON.stringify(learnerPrintout(plan))).not.toMatch(/evidence check \d|\btargets?\b|\benvelope\b/i);
   }
 }
+
+/** Same accepted map and schedule, revised through the shared fixed-slot path. */
+export async function coveredPersonalizationDelta(profile: 1 | 2, fill?: (input: import("@/lib/plan-generation/normal-plan-provider-prompt").NormalPlanProviderFillInputOptions) => Promise<unknown>) {
+  const { buildPlanRevision } = await import("@/lib/plan-revision/build-plan-revision");
+  const fixture = deltaFixture(profile);
+  const plan = deterministicDeltaPlan(profile);
+  return buildPlanRevision({ ...fixture, plan, delta: { operations: [{ op: "mark_covered", topic_id: deltaTopicId(4) }] },
+    controls: { excludedOperationIndexes: [], sessionEdits: [] }, protections: [], otherReservations: [], contextKind: "draft",
+    fill: fill ?? (async input => buildNormalPlanFallbackFill(input)),
+  });
+}
+
+export function assertCoveredPersonalizationDelta(first: LearningPlan, second: LearningPlan) {
+  const p1 = first.sessions.find(session => session.topicIds?.includes(deltaTopicId(4)))!;
+  const p2 = second.sessions.find(session => session.topicIds?.includes(deltaTopicId(4)))!;
+  expect([p1.learningMode, p2.learningMode]).toEqual(["study", "study"]);
+  expect(p1.amountLabel).not.toBe(p2.amountLabel);
+  expect(p1.studyRoute!.execution.activityLimit).toBeLessThan(p2.studyRoute!.execution.activityLimit);
+  expect(p1.studyRoute!.execution.initialSupport).toBe("supported_start");
+  expect(p2.studyRoute!.execution.initialSupport).toBe("independent_start");
+  expect(p1.methodReason).toMatch(/hint|example|focus|short/i);
+  expect(p2.methodReason).toMatch(/own words|explain|direct|hour|reflect/i);
+}

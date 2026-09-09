@@ -46,7 +46,7 @@ export async function undoPlanRevision({ input, supabase, userId, developmentPre
     // Activation commits the reviewed provisional identity. Verify every
     // material field against that exact identity, then use the committed view
     // as the expected preimage; do not mistake commit metadata for an edit.
-    const before = patch.after && live?.studyRoute?.identity.routeRevisionId === patch.after.studyRoute?.identity.routeRevisionId
+    const before = patch.after && live && live.studyRoute?.identity.routeRevisionId === patch.after.studyRoute?.identity.routeRevisionId
       ? { ...patch.after, studyRoute: live.studyRoute } as LearningPlan["sessions"][number] : patch.after;
     let after = patch.before;
     if (after?.studyRoute && live?.studyRoute?.identity.lifecycleStatus === "committed" && original.contextKind !== "draft") {

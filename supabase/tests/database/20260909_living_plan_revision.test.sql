@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
-select extensions.plan(10);
+select extensions.plan(11);
 
 insert into auth.users(id,email) values ('b1000000-0000-4000-8000-000000000001','living-plan-boundary@example.com');
 insert into public.learning_items(id,user_id,title,kind,topic,source_mode,study_mode)
@@ -41,5 +41,8 @@ select extensions.ok(coalesce((select not has_function_privilege('authenticated'
 select extensions.ok(coalesce((select has_function_privilege('service_role',p.oid,'execute') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='apply_plan_revision'),false),'only the signing server can submit an accepted patch');
 select extensions.ok(coalesce((select not has_table_privilege('authenticated',c.oid,'insert,update,delete') from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname='plan_revisions'),false),'revision history cannot be forged by a browser');
 select extensions.is((select knowledge_map->'placementCheck' from public.plans where id='b1000000-0000-4000-8000-000000000003'),(select payload#>'{expectedMap,placementCheck}' from revision_payload),'the placement ledger remains unchanged');
+insert into public.plans(id,user_id,learning_item_id,rationale,knowledge_map,generation_inputs)
+values ('b1000000-0000-4000-8000-000000000009','b1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000002','Keep the accepted draft revision.', '{}', '{"planRevisionId":"b1000000-0000-4000-8000-000000000010"}');
+select extensions.is((select to_jsonb(p)->>'current_revision_id' from public.plans p where id='b1000000-0000-4000-8000-000000000009'),'b1000000-0000-4000-8000-000000000010','activation retains the accepted draft revision for the next preview');
 select * from extensions.finish();
 rollback;
