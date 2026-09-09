@@ -43,13 +43,19 @@ describe("Study Profile validation and report assembly", () => {
 
     expect(report.overview).toHaveLength(6);
     expect(report.scoringRevision).toBe(STUDY_PROFILE_SCORING_REVISION);
-    expect(report.contentVersion).toBe("study_profile_report_v3");
+    expect(report.contentVersion).toBe("study_profile_report_v4");
     expect(report.pattern).toMatchObject({
       id: "evidence_doubter",
       name: "The Evidence Doubter",
       dimension: "calibration_risk",
     });
-    expect(report.profileNarrative.heading).toBe("The Evidence Doubter");
+    expect(report.subtype).toMatchObject({
+      pairedPattern: {
+        dimension: profile.secondaryPattern.dimension,
+      },
+      highestLeverageMove: expect.any(String),
+    });
+    expect(report.profileNarrative.heading).toBe(report.subtype?.heading);
     expect(report.freeInsight.body).toMatch(/confidence|results|chose/i);
     expect(report.whyThisIsHappening.body).toMatch(/best place to start/i);
     expect(report.sectionHeadings.overview).toBe("What your answers show");
@@ -105,7 +111,9 @@ describe("Study Profile validation and report assembly", () => {
     expect(lowReport.playbook.methods.map(({ id }) => id))
       .not.toEqual(highReport.playbook.methods.map(({ id }) => id));
     expect(lowReport.pattern.id).toBe("all_rounder");
+    expect(lowReport.subtype).toBeNull();
     expect(highReport.pattern.id).toBe("evidence_doubter");
+    expect(highReport.subtype).not.toBeNull();
     expect(lowReport.playbook.methods[0].tonightVersion).not.toBe("");
     expect(highReport.playbook.methods[0].tonightVersion).not.toBe("");
   });
@@ -159,7 +167,7 @@ describe("Study Profile validation and report assembly", () => {
     expect(underReport.playbook.nextSession.checkingRule).toMatch(/record correct/i);
   });
 
-  it("keeps profile_model_v1 snapshots readable when optional v3 fields are absent", () => {
+  it("keeps profile_model_v1 snapshots readable when optional current fields are absent", () => {
     const current = scoreStudyProfile(answerEveryQuestion("b"));
     const legacy = JSON.parse(JSON.stringify(current)) as Record<string, unknown>;
     delete legacy.lowSignal;
@@ -185,7 +193,7 @@ describe("Study Profile validation and report assembly", () => {
 
     expect(parsed.modelVersion).toBe("profile_model_v1");
     expect(stored.metadata.studyGoal).toBeUndefined();
-    expect(report.contentVersion).toBe("study_profile_report_v3");
+    expect(report.contentVersion).toBe("study_profile_report_v4");
     expect(report.scoringRevision).toBe(STUDY_PROFILE_LEGACY_SCORING_REVISION);
     expect(report.pattern.id).toBe("all_rounder");
     expect(report.whyThisIsHappening.body).not.toContain("You chose");

@@ -16,6 +16,13 @@
   background: var(--off-white, #f7f8fc);
 }
 
+.landingPage {
+  background:
+    radial-gradient(circle at 92% 9%, rgba(36, 80, 199, .1), transparent 27%),
+    radial-gradient(circle at 6% 54%, rgba(122, 92, 255, .07), transparent 24%),
+    var(--off-white, #f7f8fc);
+}
+
 .landingPage,
 .assessmentPage,
 .reportPage,
@@ -177,8 +184,7 @@
 }
 
 .primaryButton:disabled,
-.secondaryCta:disabled,
-.landingWaitlistForm button:disabled {
+.secondaryCta:disabled {
   cursor: not-allowed;
   opacity: .55;
   transform: none;
@@ -188,8 +194,7 @@
 .heroEyebrow,
 .sectionEyebrow,
 .lightEyebrow,
-.darkEyebrow,
-.previewLabel {
+.darkEyebrow {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -221,7 +226,6 @@
 
 .heroCopy h1,
 .landingSectionHeading h2,
-.sampleResultCopy h2,
 .yovaIntroSection h2,
 .finalCtaSection h2,
 .questionScreen h1,
@@ -287,19 +291,20 @@
 .heroTrust span { display: inline-flex; align-items: center; gap: 5px; }
 .heroTrust svg { color: var(--sp-success); }
 
-.reportPreview {
+.questionPreview {
   position: relative;
-  padding: 23px;
+  padding: 22px;
   overflow: hidden;
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, .13);
+  color: var(--text, #33415f);
+  border: 1px solid rgba(255, 255, 255, .9);
   border-radius: var(--sp-hero-radius);
-  background: var(--sp-dark);
-  box-shadow: 0 26px 64px rgba(11, 16, 32, .2);
+  background: rgba(255, 255, 255, .82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .96), 0 26px 64px rgba(24, 36, 70, .13);
+  backdrop-filter: blur(18px);
 }
 
-.reportPreview::after,
-.sampleReportCard::after,
+.questionPreview::after,
+.reportProofSection::after,
 .patternReveal::after,
 .sessionPlan::after,
 .shareSection::after {
@@ -312,78 +317,128 @@
   pointer-events: none;
 }
 
-.reportPreview::after { top: -190px; right: -130px; }
-.reportPreview > * { position: relative; z-index: 1; }
-.previewLabel { color: #a9bbf4; }
+.questionPreview::after { top: -210px; right: -150px; }
+.questionPreview > * { position: relative; z-index: 1; }
 
-.reportPreview h2 {
-  margin: 12px 0 5px;
-  color: #fff;
+.questionPreviewMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--blue, #2450c7);
+  font: 700 10px/1.4 var(--font-mono, "JetBrains Mono"), monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.questionPreviewMeta small {
+  color: var(--muted, #667085);
+  font: inherit;
+  letter-spacing: .04em;
+}
+
+.questionPreviewProgress {
+  height: 5px;
+  margin-top: 13px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(24, 36, 70, .08);
+}
+
+.questionPreviewProgress span {
+  width: 21.4%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: var(--grad-bar, linear-gradient(90deg, #2f5fe0, #182446));
+}
+
+.questionPreview h2 {
+  margin: 20px 0 16px;
+  color: var(--ink, #0b1020);
   font-family: var(--font-newsreader, "Newsreader"), serif;
-  font-size: 30px;
-  font-weight: 500;
-  line-height: 1.1;
+  font-size: clamp(25px, 3vw, 32px);
+  font-weight: 400;
+  line-height: 1.12;
 }
 
-.reportPreview > p {
+.questionPreview ol {
   margin: 0;
-  color: #c6cede;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.previewChart {
-  margin-top: 22px;
+  padding: 0;
   display: grid;
   gap: 8px;
+  list-style: none;
 }
 
-.previewChart > div {
+.questionPreview li {
+  min-height: 52px;
+  padding: 9px 11px;
   display: grid;
-  grid-template-columns: minmax(90px, .8fr) minmax(120px, 1.2fr);
+  grid-template-columns: 30px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 10px;
+  border: 1px solid rgba(11, 16, 32, .09);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .7);
 }
 
-.previewChart > div > span { color: #dce2ed; font-size: 11px; }
-.previewChart i { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-.previewChart b { height: 5px; border-radius: 999px; background: rgba(255, 255, 255, .12); }
-.previewChart b[data-active="true"] { background: linear-gradient(90deg, #8facff, #d6dfff); }
-
-.previewFooter {
-  margin-top: 18px;
-  padding: 13px 14px;
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  color: #c6cede;
-  border: 1px solid rgba(255, 255, 255, .1);
-  border-radius: 13px;
-  background: rgba(255, 255, 255, .06);
-  font-size: 12px;
-  line-height: 1.5;
+.questionPreview li > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: var(--muted, #667085);
+  border: 1px solid rgba(11, 16, 32, .1);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .82);
+  font: 700 10px/1 var(--font-mono, "JetBrains Mono"), monospace;
 }
 
-.previewFooter svg { flex: none; color: #a9bbf4; }
-.previewFooter strong { display: block; color: #fff; }
+.questionPreview li p { margin: 0; color: var(--secondary, #475069); font-size: 12px; line-height: 1.4; }
+.questionPreview li i { width: 16px; height: 16px; border: 1px solid rgba(11, 16, 32, .15); border-radius: 50%; }
+.questionPreviewNote { margin: 13px 0 0; color: var(--muted, #667085); font-size: 11px; line-height: 1.5; text-align: center; }
 
-.valueSection,
+.landingFacts,
+.reportProofSection,
 .howItWorks,
-.sampleResultSection,
 .yovaIntroSection,
 .researchStrip,
+.faqSection,
 .finalCtaSection {
   width: min(1100px, calc(100% - 32px));
   margin-inline: auto;
 }
 
-.valueSection,
-.howItWorks { padding: 62px 0; }
+.landingFacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.landingFacts > div {
+  min-height: 96px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid var(--glass-border, #fff);
+  border-radius: 16px;
+  background: var(--glass-bg, rgba(255, 255, 255, .82));
+  box-shadow: var(--glass-shadow, inset 0 1px 0 rgba(255, 255, 255, .9), 0 10px 26px rgba(24, 36, 70, .06));
+  text-align: center;
+}
+
+.landingFacts strong { color: var(--ink, #0b1020); font: 500 28px/1 var(--font-newsreader, "Newsreader"), serif; }
+.landingFacts span { color: var(--muted, #667085); font-size: 11px; font-weight: 650; line-height: 1.35; }
+
+.howItWorks,
+.faqSection { padding: 66px 0; }
 
 .landingSectionHeading { max-width: 760px; }
 
 .landingSectionHeading h2,
-.sampleResultCopy h2,
 .yovaIntroSection h2,
 .finalCtaSection h2 {
   margin: 11px 0 10px;
@@ -391,15 +446,9 @@
   line-height: 1.08;
 }
 
-.proofGrid {
-  margin-top: 28px;
-  display: grid;
-  gap: 12px;
-}
-
-.proofGrid article,
 .howItWorks li,
 .yovaIntroSection,
+.faqGrid article,
 .finalCtaSection,
 .emailGate,
 .freeInsight,
@@ -414,13 +463,6 @@
   box-shadow: var(--glass-shadow, inset 0 1px 0 rgba(255, 255, 255, .9), 0 10px 26px rgba(24, 36, 70, .06));
 }
 
-.proofGrid article {
-  min-height: 190px;
-  padding: 23px;
-  border-radius: var(--sp-card-radius);
-}
-
-.proofGrid article > span,
 .waitlistIcon,
 .methodCardHeader > span,
 .sessionPlanHeader > span,
@@ -435,16 +477,7 @@
   background: rgba(36, 80, 199, .08);
 }
 
-.proofGrid h3 {
-  margin: 20px 0 8px;
-  color: var(--ink, #0b1020);
-  font-size: 18px;
-  line-height: 1.25;
-}
-
-.proofGrid p,
 .landingSectionHeading p,
-.sampleResultCopy p,
 .yovaIntroSection p,
 .finalCtaSection p {
   margin: 0;
@@ -484,7 +517,7 @@
 .howItWorks strong { color: var(--ink, #0b1020); font-size: 16px; }
 .howItWorks p { margin: 5px 0 0; color: var(--muted, #667085); font-size: 14px; line-height: 1.6; }
 
-.sampleResultSection,
+.reportProofSection,
 .shareSection {
   position: relative;
   overflow: hidden;
@@ -495,69 +528,92 @@
   box-shadow: 0 24px 56px rgba(11, 16, 32, .16);
 }
 
-.sampleResultSection {
-  margin-block: 62px;
-  padding: 26px;
-  display: grid;
-  gap: 24px;
+.reportProofSection {
+  margin-block: 54px;
+  padding: 28px;
 }
 
-.sampleResultCopy,
-.sampleReportCard,
+.reportProofSection::after { top: -170px; right: -120px; }
+.reportProofSection > * { position: relative; z-index: 1; }
+
+.reportProofHeading {
+  display: grid;
+  gap: 14px;
+}
+
+.reportProofHeading h2 {
+  margin: 11px 0 0;
+  color: #fff;
+  font: 400 clamp(33px, 8vw, 48px)/1.07 var(--font-newsreader, "Newsreader"), serif;
+  letter-spacing: -.012em;
+  text-wrap: balance;
+}
+
+.reportProofHeading > p {
+  max-width: 560px;
+  margin: 0;
+  color: #c1cada;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.reportProofGrid {
+  margin-top: 26px;
+  display: grid;
+  gap: 12px;
+}
+
+.reportProofCard {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, .07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+
+.reportProofCardHeader { display: flex; align-items: center; gap: 10px; }
+.reportProofCardHeader > span { width: 36px; height: 36px; display: grid; place-items: center; flex: none; color: #b9c8ff; border: 1px solid rgba(185, 200, 255, .17); border-radius: 11px; background: rgba(143, 172, 255, .09); }
+.reportProofCardHeader small { color: #a9bbf4; font: 700 12px/1.35 var(--font-mono, "JetBrains Mono"), monospace; letter-spacing: .07em; text-transform: uppercase; }
+.reportProofCard h3 { margin: 16px 0 8px; color: #fff; font-size: 17px; line-height: 1.32; }
+.reportProofCard > p { margin: 0; color: #c1cada; font-size: 13px; line-height: 1.55; }
+
+.reportProofDetail {
+  margin-top: 17px;
+  padding: 12px 13px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .065);
+}
+
+.reportProofDetail strong,
+.reportProofDetail span { display: block; }
+.reportProofDetail strong { color: #a9bbf4; font: 700 11px/1.35 var(--font-mono, "JetBrains Mono"), monospace; letter-spacing: .07em; text-transform: uppercase; }
+.reportProofDetail span { margin-top: 4px; color: #fff; font-size: 14px; line-height: 1.45; }
+
+.methodProofCard ol { margin: 17px 0 12px; padding: 0; display: grid; gap: 7px; list-style: none; }
+.methodProofCard li { min-height: 38px; padding: 7px 10px; display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 9px; border-radius: 10px; background: rgba(255, 255, 255, .065); }
+.methodProofCard li b { color: #a9bbf4; font: 700 11px/1 var(--font-mono, "JetBrains Mono"), monospace; }
+.methodProofCard li span { color: #fff; font-size: 14px; font-weight: 650; }
+
+.sessionProofStats { margin: 18px 0 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.sessionProofStats span { min-width: 0; padding: 11px 5px; color: #c1cada; border-radius: 10px; background: rgba(255, 255, 255, .065); font-size: 11px; line-height: 1.35; text-align: center; }
+.sessionProofStats strong { display: block; margin-bottom: 3px; color: #fff; font: 500 23px/1 var(--font-newsreader, "Newsreader"), serif; }
+
+.reportProofSection > .secondaryCta { width: 100%; margin-top: 18px; color: #fff; border-color: rgba(255, 255, 255, .3); }
+
+.reportProofCard,
 .sharePreview,
 .shareCopy { position: relative; z-index: 1; }
-.sampleResultCopy h2 { color: #fff; }
-.sampleResultCopy p { color: #c1cada; }
-.sampleResultCopy .secondaryCta { margin-top: 21px; color: #fff; border-color: rgba(255, 255, 255, .3); }
-
-.sampleReportCard {
-  padding: 22px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, .15);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, .075);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1);
-}
-
-.sampleReportCard::after { top: -210px; right: -170px; }
-.sampleReportCard > * { position: relative; z-index: 1; }
-.sampleReportCard > span { color: #a9bbf4; font: 700 11px/1.4 var(--font-mono, "JetBrains Mono"), monospace; text-transform: uppercase; letter-spacing: .08em; }
-.sampleReportCard h3 { margin: 14px 0 6px; color: #fff; font: 500 30px/1.08 var(--font-newsreader, "Newsreader"), serif; }
-.sampleReportCard p { margin: 0; color: #c8d0df; font-size: 14px; line-height: 1.55; }
-.sampleReportCard > div { margin-top: 22px; padding: 15px; border-radius: 13px; background: rgba(255, 255, 255, .07); }
-.sampleReportCard > div strong { display: block; color: #a9bbf4; font: 700 11px/1.4 var(--font-mono, "JetBrains Mono"), monospace; text-transform: uppercase; }
-.sampleReportCard > div span { display: block; margin-top: 5px; color: #fff; font-size: 14px; }
 
 .yovaIntroSection,
 .finalCtaSection {
-  margin-block: 62px;
-  padding: 25px;
+  margin-block: 54px;
+  padding: 28px;
   display: grid;
   gap: 25px;
   border-radius: var(--sp-hero-radius);
 }
 
-.yovaIntroSection p + p { margin-top: 12px; }
-
-.landingWaitlistForm { min-width: 0; }
-.landingWaitlistForm > label:first-child { display: block; margin-bottom: 8px; color: var(--secondary, #475069); font-size: 13px; font-weight: 700; }
-.landingWaitlistForm > div { display: grid; gap: 8px; }
-.landingWaitlistForm input {
-  width: 100%;
-  min-width: 0;
-  min-height: 50px;
-  padding: 0 14px;
-  color: var(--ink, #0b1020);
-  border: 1px solid rgba(11, 16, 32, .12);
-  border-radius: 13px;
-  background: rgba(255, 255, 255, .78);
-  font-size: 16px;
-}
-
-.landingWaitlistForm input:focus { border-color: var(--blue, #2450c7); box-shadow: 0 0 0 4px rgba(36, 80, 199, .1); outline: none; }
-.landingWaitlistForm button { min-height: 50px; padding: 0 18px; color: #fff; border: 0; border-radius: 999px; background: var(--grad-primary, linear-gradient(180deg, #2f5fe0, #182446)); font-size: 14px; font-weight: 700; }
-
-.waitlistConsent,
 .consentRow {
   min-height: 46px;
   margin-top: 11px;
@@ -571,12 +627,9 @@
   cursor: pointer;
 }
 
-.waitlistConsent input,
 .consentRow input { width: 19px; height: 19px; margin: 1px 0 0; accent-color: var(--blue, #2450c7); }
 .consentRow strong { color: var(--ink, #0b1020); }
 
-.waitlistInlineSuccess,
-.waitlistInlinePending,
 .interestSuccess,
 .interestPending {
   padding: 14px;
@@ -591,18 +644,9 @@
   line-height: 1.5;
 }
 
-.waitlistInlineSuccess svg,
-.waitlistInlinePending svg,
 .interestSuccess svg,
 .interestPending svg { flex: none; }
-.waitlistInlineSuccess strong,
 .interestSuccess strong { display: block; color: #105f42; }
-.waitlistInlinePending {
-  color: #33466d;
-  border-color: rgba(36, 80, 199, .18);
-  background: rgba(232, 239, 255, .82);
-}
-.waitlistInlinePending strong { display: block; color: #183f9a; }
 .interestPending {
   color: #33466d;
   border-color: rgba(36, 80, 199, .18);
@@ -624,6 +668,29 @@
 .interestPending button:disabled { opacity: .58; cursor: wait; }
 .interestPending small { margin-top: 6px; display: block; color: #526588; font-size: 11px; line-height: 1.45; }
 
+.yovaIntroCopy { min-width: 0; }
+.yovaProductSteps { margin-top: 22px; display: grid; gap: 9px; }
+.yovaProductSteps > div { padding: 12px; display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 11px; border: 1px solid rgba(36, 80, 199, .1); border-radius: 13px; background: rgba(255, 255, 255, .62); }
+.yovaProductSteps > div > span { width: 36px; height: 36px; display: grid; place-items: center; color: var(--blue, #2450c7); border-radius: 11px; background: rgba(36, 80, 199, .08); }
+.yovaProductSteps p { font-size: 14px; line-height: 1.5; }
+.yovaProductSteps strong { display: block; margin-bottom: 2px; color: var(--ink, #0b1020); font-size: 15px; }
+
+.waitlistPitch {
+  min-width: 0;
+  padding: 23px;
+  border: 1px solid var(--tint-border, rgba(36, 80, 199, .3));
+  border-radius: 18px;
+  background: var(--tint-bg, linear-gradient(180deg, rgba(36, 80, 199, .1), rgba(36, 80, 199, .04)));
+}
+
+.waitlistPitch h3 { margin: 18px 0 9px; color: var(--ink, #0b1020); font: 500 27px/1.1 var(--font-newsreader, "Newsreader"), serif; letter-spacing: -.012em; }
+.waitlistPitch > p { margin: 0; color: var(--secondary, #475069); font-size: 13px; line-height: 1.55; }
+.waitlistPitch ul { margin: 17px 0; padding: 0; display: grid; gap: 8px; color: var(--secondary, #475069); font-size: 14px; list-style: none; }
+.waitlistPitch li { display: flex; align-items: center; gap: 8px; }
+.waitlistPitch li svg { flex: none; color: var(--sp-success); }
+.waitlistPitch .primaryButton { width: 100%; min-width: 0; }
+.waitlistPitch > small { margin-top: 10px; display: block; color: var(--muted, #667085); font-size: 12px; line-height: 1.5; text-align: center; }
+
 .researchStrip {
   margin-block: 62px;
   padding: 22px;
@@ -639,8 +706,24 @@
 .researchStrip strong { color: #fff; font-size: 15px; }
 .researchStrip p { margin: 6px 0 0; color: #b8c1d2; font-size: 14px; line-height: 1.65; }
 
-.finalCtaSection { margin-bottom: 74px; }
-.landingWaitlistCompact { padding-top: 20px; border-top: var(--hairline, 1px solid rgba(11, 16, 32, .06)); }
+.faqGrid { margin-top: 26px; display: grid; gap: 11px; }
+.faqGrid article { min-height: 150px; padding: 21px; border-radius: var(--sp-card-radius); }
+.faqGrid h3 { margin: 0 0 8px; color: var(--ink, #0b1020); font-size: 16px; line-height: 1.3; }
+.faqGrid p { margin: 0; color: var(--muted, #667085); font-size: 13px; line-height: 1.6; }
+
+.finalCtaSection {
+  margin-bottom: 68px;
+  color: #fff;
+  border-color: rgba(255, 255, 255, .12);
+  background: var(--sp-dark);
+  box-shadow: 0 22px 52px rgba(11, 16, 32, .16);
+}
+
+.finalCtaSection h2 { color: #fff; }
+.finalCtaSection p { color: #c1cada; }
+.finalCtaSection .heroEyebrow { color: #c8d5ff; border-color: rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .08); }
+.finalCtaAction { display: flex; flex-direction: column; align-items: center; gap: 11px; }
+.finalCtaAction > span { display: inline-flex; align-items: center; gap: 6px; color: #b8c1d2; font-size: 11px; }
 
 .publicFooter {
   min-height: 104px;
@@ -881,6 +964,10 @@
 .sectionNumber { width: 40px; height: 40px; }
 .whySection h2 { margin: 8px 0 8px; font-size: clamp(28px, 7vw, 42px); line-height: 1.08; }
 .whySection p { margin: 0; color: var(--secondary, #475069); font-size: 15px; line-height: 1.7; }
+.subtypeInsight { margin-top: 18px; padding-top: 18px; display: grid; gap: 15px; border-top: 1px solid rgba(36, 80, 199, .14); }
+.subtypeMove { padding: 14px 16px; display: grid; gap: 5px; border: 1px solid rgba(36, 80, 199, .13); border-radius: 13px; background: rgba(255, 255, 255, .66); }
+.subtypeMove strong { color: var(--blue, #2450c7); font: 700 11px/1.4 var(--font-mono, "JetBrains Mono"), monospace; letter-spacing: .06em; text-transform: uppercase; }
+.subtypeMove span { color: var(--ink, #0b1020); font-size: 15px; font-weight: 650; line-height: 1.45; }
 
 .reportSection { padding-top: 70px; }
 .sectionHeading { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; }
@@ -1063,8 +1150,9 @@
   .landingHero { padding: 18px 0 48px; gap: 27px; }
   .heroCopy,
   .landingSectionHeading,
-  .sampleResultCopy,
+  .reportProofHeading,
   .yovaIntroSection,
+  .faqSection,
   .finalCtaSection { text-align: center; }
   .heroEyebrow,
   .sectionEyebrow { margin-inline: auto; }
@@ -1075,30 +1163,38 @@
   .heroCopy > p { line-height: 1.62; }
   .heroActions { margin-top: 21px; }
   .heroActions .primaryButton,
-  .sampleResultCopy .secondaryCta,
   .finalCtaSection .primaryButton { width: 100%; }
   .heroTrust { justify-content: center; gap: 8px 13px; }
-  .reportPreview { padding: 21px; }
+  .questionPreview { padding: 20px 17px; }
+  .questionPreviewMeta { flex-direction: column; justify-content: center; gap: 2px; text-align: center; }
+  .questionPreview h2 { margin-inline: auto; text-align: center; }
+  .questionPreview li { grid-template-columns: 30px minmax(0, 1fr) 30px; text-align: center; }
+  .questionPreview li i { justify-self: center; }
 
-  .valueSection,
-  .howItWorks { padding-block: 46px; }
-  .proofGrid article { min-height: 0; padding: 20px; text-align: center; }
-  .proofGrid article > span { margin-inline: auto; }
-  .proofGrid h3 { margin-top: 16px; }
+  .howItWorks,
+  .faqSection { padding-block: 48px; }
   .howItWorks li { grid-template-columns: 1fr; justify-items: center; text-align: center; }
-  .sampleResultSection,
+  .reportProofSection,
   .yovaIntroSection,
   .researchStrip,
   .finalCtaSection { margin-block: 46px; }
-  .sampleResultSection,
+  .reportProofSection,
   .yovaIntroSection,
   .finalCtaSection { padding: 22px; }
+  .reportProofHeading > p { margin-inline: auto; }
+  .reportProofCard { text-align: center; }
+  .reportProofCardHeader { justify-content: center; }
+  .methodProofCard li { grid-template-columns: 28px minmax(0, 1fr) 28px; }
+  .methodProofCard li::after { content: ""; }
+  .yovaProductSteps > div { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .waitlistPitch { text-align: center; }
+  .waitlistPitch .heroEyebrow { margin-inline: auto; }
+  .waitlistPitch ul { width: fit-content; max-width: 100%; margin-inline: auto; }
+  .waitlistPitch li { justify-content: center; }
+  .faqGrid article { min-height: 0; text-align: center; }
   .researchStrip { padding: 20px; }
   .finalCtaSection { margin-bottom: 54px; }
-  .landingWaitlistCompact { padding-top: 18px; }
-  .landingWaitlistForm > label:first-child { text-align: center; }
-  .landingWaitlistForm > div { width: min(100%, 430px); margin-inline: auto; }
-  .waitlistConsent { width: fit-content; max-width: 100%; margin-inline: auto; text-align: left; }
+  .finalCtaAction { width: 100%; }
 
   .progressShell { margin-top: 1px; }
   .assessmentMain { margin-top: 8px; }
@@ -1140,8 +1236,7 @@
   }
   .unlockList { width: fit-content; max-width: 100%; margin: 15px auto 10px; gap: 8px; text-align: left; }
   .unlockList span { font-size: 13px; }
-  .consentRow,
-  .waitlistConsent { width: fit-content; max-width: 100%; margin: 4px auto 0; padding-block: 7px; align-items: center; text-align: left; }
+  .consentRow { width: fit-content; max-width: 100%; margin: 4px auto 0; padding-block: 7px; align-items: center; text-align: left; }
   .emailGate .primaryButton { width: min(100%, 500px); min-height: 52px; margin: 12px auto 0; }
 
   .deliveryNotice,
@@ -1185,7 +1280,7 @@
   .contextChoices > button:hover { border-color: rgba(36, 80, 199, .28); background: rgba(255, 255, 255, .9); transform: translateY(-1px); }
   .catalogCard summary:hover { background: rgba(36, 80, 199, .045); }
   .publicFooter a:hover { color: var(--blue, #2450c7); }
-  .sampleResultCopy .secondaryCta:hover,
+  .reportProofSection > .secondaryCta:hover,
   .shareCopy .secondaryCta:hover { color: #fff; background: rgba(255, 255, 255, .08); }
 }
 
@@ -1198,11 +1293,12 @@
   .assessmentHeader,
   .publicFooter,
   .landingHero { width: min(1180px, calc(100% - 56px)); }
-  .valueSection,
+  .landingFacts,
+  .reportProofSection,
   .howItWorks,
-  .sampleResultSection,
   .yovaIntroSection,
   .researchStrip,
+  .faqSection,
   .finalCtaSection { width: min(1100px, calc(100% - 56px)); }
   .progressShell,
   .assessmentMain { width: min(760px, calc(100% - 56px)); }
@@ -1212,11 +1308,11 @@
   .heroActions { flex-direction: row; align-items: center; }
   .heroActions > span { justify-content: flex-start; }
   .primaryButton { min-width: 210px; }
-  .proofGrid,
+  .landingFacts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .reportProofGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .faqGrid,
   .howItWorks ol { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .howItWorks li { grid-template-columns: 1fr; }
-  .landingWaitlistForm > div { grid-template-columns: minmax(0, 1fr) auto; }
-  .landingWaitlistForm button { min-width: 150px; }
   .yovaIntroSection,
   .finalCtaSection { padding: 34px; }
   .publicFooter { min-height: 92px; flex-direction: row; justify-content: space-between; text-align: left; }
@@ -1248,14 +1344,15 @@
 }
 
 @media (min-width: 900px) {
-  .landingHero { min-height: 660px; padding: 46px 0 74px; grid-template-columns: minmax(0, 1.06fr) minmax(370px, .8fr); gap: 66px; }
-  .reportPreview { transform: rotate(.7deg); }
-  .valueSection,
-  .howItWorks { padding-block: 82px; }
-  .sampleResultSection { padding: 46px; grid-template-columns: minmax(0, 1fr) minmax(330px, .75fr); align-items: center; gap: 58px; }
+  .landingHero { padding: 42px 0 62px; grid-template-columns: minmax(0, 1.03fr) minmax(390px, .82fr); gap: 58px; }
+  .questionPreview { transform: rotate(.35deg); }
+  .howItWorks,
+  .faqSection { padding-block: 72px; }
+  .reportProofSection { padding: 42px; }
+  .reportProofHeading { grid-template-columns: minmax(0, .9fr) minmax(330px, .72fr); align-items: end; gap: 54px; }
   .yovaIntroSection { grid-template-columns: minmax(0, 1fr) minmax(330px, .8fr); align-items: center; gap: 52px; }
   .finalCtaSection { grid-template-columns: minmax(0, 1fr) minmax(330px, .8fr); align-items: center; gap: 52px; }
-  .landingWaitlistCompact { padding: 0 0 0 30px; border-top: 0; border-left: var(--hairline, 1px solid rgba(11, 16, 32, .06)); }
+  .finalCtaAction { align-items: flex-end; }
   .reportHero { min-height: 500px; padding: 60px 5.5%; grid-template-columns: minmax(0, 1.15fr) minmax(340px, .85fr); align-items: center; gap: 58px; }
   .whySection { margin-top: 78px; }
   .reportSection { padding-top: 90px; }
@@ -1294,11 +1391,12 @@
   .publicHeader,
   .assessmentHeader,
   .landingHero,
-  .valueSection,
+  .landingFacts,
+  .reportProofSection,
   .howItWorks,
-  .sampleResultSection,
   .yovaIntroSection,
   .researchStrip,
+  .faqSection,
   .finalCtaSection,
   .progressShell,
   .assessmentMain,

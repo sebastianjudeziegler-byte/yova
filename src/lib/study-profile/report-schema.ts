@@ -6,6 +6,7 @@ import {
   STUDY_PROFILE_METHOD_FITS,
   STUDY_PROFILE_MODEL_VERSION,
   STUDY_PROFILE_NAMED_PATTERN_IDS,
+  STUDY_PROFILE_OPPORTUNITY_PATTERN_IDS,
   STUDY_PROFILE_REPORT_CONTENT_VERSION,
   STUDY_PROFILE_SCORING_REVISIONS,
   type StudyProfileReport,
@@ -49,6 +50,17 @@ const NamedPatternSchema = z.object({
   tell: ReportTextSchema,
   twist: ReportTextSchema,
   modifier: ReportTextSchema.nullable(),
+}).strict();
+
+const SubtypeSchema = z.object({
+  pairedPattern: z.object({
+    id: z.enum(STUDY_PROFILE_OPPORTUNITY_PATTERN_IDS),
+    name: ReportTextSchema,
+    dimension: DimensionSchema,
+  }).strict(),
+  heading: ReportTextSchema,
+  body: ReportTextSchema,
+  highestLeverageMove: ReportTextSchema,
 }).strict();
 
 const DimensionReportSchema = z.object({
@@ -143,6 +155,7 @@ const StudyProfileReportSchemaBase = z.object({
   contentVersion: z.literal(STUDY_PROFILE_REPORT_CONTENT_VERSION),
   isBalanced: z.boolean(),
   pattern: NamedPatternSchema,
+  subtype: SubtypeSchema.nullable(),
   freeInsight: z.object({
     heading: ReportTextSchema,
     body: ReportTextSchema,
@@ -232,6 +245,39 @@ const StudyProfileReportSchemaBase = z.object({
       message: "Primary pattern must match its overview entry.",
     });
   }
+
+  const subtypeShouldExist = !report.isBalanced
+    && report.secondaryPattern.classification !== "low";
+  if (subtypeShouldExist !== Boolean(report.subtype)) {
+    context.addIssue({
+      code: "custom",
+      path: ["subtype"],
+      message: subtypeShouldExist
+        ? "A moderate or high secondary pattern requires a subtype."
+        : "Balanced and low-secondary reports cannot include a subtype.",
+    });
+  }
+  if (
+    report.subtype
+    && report.subtype.pairedPattern.dimension !== report.secondaryPattern.dimension
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["subtype", "pairedPattern", "dimension"],
+      message: "Subtype dimension must match the secondary pattern.",
+    });
+  }
+  if (
+    report.subtype
+    && !patternIdsForDimension(report.subtype.pairedPattern.dimension)
+      .includes(report.subtype.pairedPattern.id)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["subtype", "pairedPattern", "id"],
+      message: "Subtype pattern must match its dimension.",
+    });
+  }
   if (!sameDimensionReport(
     overviewByDimension.get(report.secondaryPattern.dimension),
     report.secondaryPattern,
@@ -267,7 +313,7 @@ const StudyProfileReportSchemaBase = z.object({
 });
 
 /**
- * Strict client-safe validator for persisted v3 reports. Every nested object
+ * Strict client-safe validator for persisted v4 reports. Every nested object
  * rejects unknown keys, and the refinements protect the complete overview and
  * method catalog from partial or internally inconsistent stored payloads.
  */
@@ -307,4 +353,17 @@ function sameDimensionReport(
     && left.classification === right.classification
     && left.summary === right.summary
     && left.detail === right.detail;
+}
+
+function patternIdsForDimension(
+  dimension: (typeof STUDY_PROFILE_DIMENSIONS)[number],
+): readonly (typeof STUDY_PROFILE_OPPORTUNITY_PATTERN_IDS)[number][] {
+  switch (dimension) {
+    case "starting_friction": return ["stalled_starter"];
+    case "structure_need": return ["scattershot"];
+    case "attention_variability": return ["drifter"];
+    case "calibration_risk": return ["familiarity_trap", "evidence_doubter"];
+    case "mistake_sensitivity": return ["polisher"];
+    case "cognitive_stamina": return ["sprinter"];
+  }
 }

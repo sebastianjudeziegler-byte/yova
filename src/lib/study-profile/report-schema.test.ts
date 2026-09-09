@@ -15,7 +15,7 @@ describe("StudyProfileReportSchema", () => {
     const parsed: StudyProfileReport = StudyProfileReportSchema.parse(report);
 
     expect(parsed).toEqual(report);
-    expect(parsed.contentVersion).toBe("study_profile_report_v3");
+    expect(parsed.contentVersion).toBe("study_profile_report_v4");
     expect(parsed.overview).toHaveLength(6);
     expect(parsed.methodCatalog).toHaveLength(15);
     expect(parsed.playbook.methods).toHaveLength(3);
@@ -82,6 +82,50 @@ describe("StudyProfileReportSchema", () => {
 
     expect(StudyProfileReportSchema.safeParse(missingMethodSteps).success).toBe(false);
     expect(StudyProfileReportSchema.safeParse(repeatedMethod).success).toBe(false);
+  });
+
+  it("requires a valid subtype for an eligible secondary pattern", () => {
+    const report = generatedReport();
+    expect(report.subtype).not.toBeNull();
+
+    expect(StudyProfileReportSchema.safeParse({ ...report, subtype: null }).success)
+      .toBe(false);
+    expect(StudyProfileReportSchema.safeParse({
+      ...report,
+      subtype: {
+        ...report.subtype,
+        pairedPattern: {
+          ...report.subtype?.pairedPattern,
+          id: "all_rounder",
+        },
+      },
+    }).success).toBe(false);
+    expect(StudyProfileReportSchema.safeParse({
+      ...report,
+      subtype: {
+        ...report.subtype,
+        pairedPattern: {
+          ...report.subtype?.pairedPattern,
+          dimension: report.primaryPattern.dimension,
+        },
+      },
+    }).success).toBe(false);
+  });
+
+  it("keeps a balanced report free of a subtype", () => {
+    const answers = answerEveryQuestion("b");
+    const report = buildStudyProfileReport(scoreStudyProfile(answers), {
+      energyWindow: "varies",
+      schoolLevel: "college",
+      studyGoal: "better_habits",
+    }, answers);
+
+    expect(report.subtype).toBeNull();
+    expect(StudyProfileReportSchema.safeParse(report).success).toBe(true);
+    expect(StudyProfileReportSchema.safeParse({
+      ...report,
+      subtype: generatedReport().subtype,
+    }).success).toBe(false);
   });
 });
 

@@ -6,7 +6,7 @@ export const STUDY_PROFILE_SCORING_REVISIONS = [
   STUDY_PROFILE_SCORING_REVISION,
 ] as const;
 export type StudyProfileScoringRevision = (typeof STUDY_PROFILE_SCORING_REVISIONS)[number];
-export const STUDY_PROFILE_REPORT_CONTENT_VERSION = "study_profile_report_v3" as const;
+export const STUDY_PROFILE_REPORT_CONTENT_VERSION = "study_profile_report_v4" as const;
 
 export const STUDY_PROFILE_DIMENSIONS = [
   "starting_friction",
@@ -74,7 +74,7 @@ export const STUDY_PROFILE_STUDY_GOALS = [
 ] as const;
 export type StudyProfileStudyGoal = (typeof STUDY_PROFILE_STUDY_GOALS)[number];
 
-export const STUDY_PROFILE_NAMED_PATTERN_IDS = [
+export const STUDY_PROFILE_OPPORTUNITY_PATTERN_IDS = [
   "stalled_starter",
   "scattershot",
   "drifter",
@@ -82,6 +82,11 @@ export const STUDY_PROFILE_NAMED_PATTERN_IDS = [
   "evidence_doubter",
   "polisher",
   "sprinter",
+] as const;
+export type StudyProfileOpportunityPatternId = (typeof STUDY_PROFILE_OPPORTUNITY_PATTERN_IDS)[number];
+
+export const STUDY_PROFILE_NAMED_PATTERN_IDS = [
+  ...STUDY_PROFILE_OPPORTUNITY_PATTERN_IDS,
   "all_rounder",
 ] as const;
 export type StudyProfileNamedPatternId = (typeof STUDY_PROFILE_NAMED_PATTERN_IDS)[number];
@@ -161,6 +166,17 @@ export type StudyProfileNamedPattern = {
   tell: string;
   twist: string;
   modifier: string | null;
+};
+
+export type StudyProfileSubtype = {
+  pairedPattern: {
+    id: StudyProfileOpportunityPatternId;
+    name: string;
+    dimension: StudyProfileDimension;
+  };
+  heading: string;
+  body: string;
+  highestLeverageMove: string;
 };
 
 export type StudyProfileInteractionId =
@@ -305,6 +321,7 @@ export type StudyProfileReport = {
   contentVersion: typeof STUDY_PROFILE_REPORT_CONTENT_VERSION;
   isBalanced: boolean;
   pattern: StudyProfileNamedPattern;
+  subtype: StudyProfileSubtype | null;
   freeInsight: {
     heading: string;
     body: string;

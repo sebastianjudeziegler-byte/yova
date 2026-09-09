@@ -166,7 +166,11 @@ export function StudyProfileReportView({
             <h1 id="report-title" ref={reportHeadingRef} tabIndex={-1}>{report.pattern.name}.</h1>
             <p className={styles.patternTell}>{report.pattern.tell}</p>
             <strong className={styles.patternTwist}>{report.pattern.twist}</strong>
-            {report.pattern.modifier && <span className={styles.patternModifier}>{report.pattern.modifier}</span>}
+            {report.subtype && (
+              <span className={styles.patternModifier}>
+                Paired with {report.subtype.pairedPattern.name}
+              </span>
+            )}
             <div className={styles.contextPills} aria-label="Profile context">
               <span><Zap size={14} aria-hidden="true" /> Best focus time: {ENERGY_LABELS[storedResponse.metadata.energyWindow]}</span>
               {goal && <span><Target size={14} aria-hidden="true" /> {goal}</span>}
@@ -183,7 +187,22 @@ export function StudyProfileReportView({
         <div className={styles.reportBody}>
           <section className={styles.whySection} aria-labelledby="why-heading">
             <div className={styles.sectionNumber}>01</div>
-            <div><span className={styles.sectionEyebrow}>Matched from your answers</span><h2 id="why-heading">{report.whyThisIsHappening.heading}</h2><p>{report.whyThisIsHappening.body}</p></div>
+            <div>
+              <span className={styles.sectionEyebrow}>Matched from your answers</span>
+              <h2 id="why-heading">
+                {report.subtype?.heading ?? report.whyThisIsHappening.heading}
+              </h2>
+              <p>{report.whyThisIsHappening.body}</p>
+              {report.subtype && (
+                <div className={styles.subtypeInsight}>
+                  <p>{report.subtype.body}</p>
+                  <div className={styles.subtypeMove}>
+                    <strong>Highest leverage move</strong>
+                    <span>{report.subtype.highestLeverageMove}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </section>
 
           <section className={styles.reportSection} aria-labelledby="top-methods-heading">
