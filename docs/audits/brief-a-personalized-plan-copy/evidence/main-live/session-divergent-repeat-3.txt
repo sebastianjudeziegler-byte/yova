@@ -1,0 +1,127 @@
+Four previously differing cases; predeclared three repeats. Commit: e03a082659f51172c0b06bf84daffdd5599ac773
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Beginner JavaScript with fading suppo…'
+
+YOVA session evaluation · Beginner JavaScript with fading support · 85/100
+Generation · gpt-5.4-mini-2026-03-17 · 8.3s · 1 attempt · 5,888 cached input tokens
+instruction      none · Name the right method
+multiple_choice  Choose map for transforming every item · Name the right method
+instruction      none · Choose for a small task
+free_response    Choose filter for keeping only matching items · Choose for a small task
+multiple_choice  Choose map for transforming every item · Pick the method again
+
+PASS  Activity count fits the session (10/10) · 5/5 maximum focused activities for 30 minutes
+PASS  Session requires active learner effort (15/15) · 3 retrieval or knowledge-check activities
+FAIL  Questions include usable answers and feedback (0/15) · 3 question activities inspected
+PASS  Activities fit the learning task (15/15) · 3 of 5 activities align with coding
+PASS  Session moves from support into practice (10/10) · Checked teaching and question order
+PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+PASS  Known review concepts are addressed (10/10) · No prior review signal
+PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+PASS  Method briefing explains what, why, how, and done (0/0) · worked_example_fading for programming
+PASS  Activities actually execute the named learning method (0/0) · Required worked_example_fading phases appear in order
+PASS  The session starts with the method's correct first action (0/0) · worked_example_fading starts with model
+PASS  Required content fits the stated time window (0/0) · 30 required and 30 total minutes inside a 30-minute window
+PASS  Every target idea has required learning evidence (0/0) · 2 essential ideas mapped to 3 required checks
+PASS  Every question includes the context needed to answer (0/0) · 3 self-contained questions inspected
+PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+PASS  Learning sessions teach before they test (0/0) · 2 modeled or streamed teaching activities inspected
+PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 1 learner-facing adjustment explanations inspected
+PASS  The session explains why it is structured this way (5/5) · 154 rationale characters
+PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+
+ ❯ src/evals/session-quality.live.test.ts (20 tests | 4 failed | 16 skipped) 62085ms
+     ↓ the requested case exists
+     ↓ 'Biology teaching from learner notes'
+     ↓ 'Bioenergetics multi-target retrieval …'
+     ↓ 'Fifteen-minute temperature and reacti…'
+     ↓ 'Fifteen-minute first product-rule les…'
+     ↓ 'Mapped product-rule and chain-rule fi…'
+     × 'Production-shaped derivative-foundati…' 27126ms
+     ↓ 'World War I teaching for a complete b…'
+     × 'Mapped 45-minute World War I baseline…' 18488ms
+     × 'Calculus repair after a weak check' 8100ms
+     ↓ 'Self-contained delayed calculus review'
+     ↓ 'History writing outside YOVA'
+     × 'Beginner JavaScript with fading suppo…' 8369ms
+     ↓ 'General-learning finance application'
+     ↓ 'Fifteen-minute vocabulary review'
+     ↓ 'Startup funding foundations for a new…'
+     ↓ 'History reasoning from a primary-sour…'
+     ↓ 'Literature close reading from a short…'
+     ↓ 'Spanish conversation with supported t…'
+     ↓ 'Teaching from a thin biology study gu…'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Production-shaped derivative-foundati…'
+SessionGenerationFailure: OpenAI did not return a complete, safe guided session after the bounded repair attempts. The required knowledge check mapped to “Use constant, power, constant-multiple, and sum or difference rules on simple functions.” does not visibly assess that essential idea.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Mapped 45-minute World War I baseline…'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery contradicted its required independent-check shape.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Calculus repair after a weak check'
+SessionGenerationFailure: OpenAI did not return a complete subject lesson after one repair attempt.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Beginner JavaScript with fading suppo…'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Questions include usable answers and feedback",
++ ]
+
+ ❯ src/evals/session-quality.live.test.ts:41:37
+     39|     }
+     40|
+     41|     expect(result.requiredFailures).toEqual([]);
+       |                                     ^
+     42|     expect(result.score).toBeGreaterThanOrEqual(80);
+     43|     if (evaluationCase.expectedGroundingMode) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 16 skipped (20)
+   Start at  22:15:36
+   Duration  62.26s (transform 280ms, setup 0ms, import 112ms, tests 62.08s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-a-comparison/main/session-divergent-repeat-3.json
+
+Exit code: 1

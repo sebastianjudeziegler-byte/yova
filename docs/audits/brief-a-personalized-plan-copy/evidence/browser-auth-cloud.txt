@@ -1,0 +1,192 @@
+[WebServer] (node:76841) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:76842) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 16 tests using 1 worker
+
+(node:76854) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] [browser] YOVA session interruption sync failed [08006:temporary_connection_failure]
+[WebServer]     at eval (src/lib/supabase/learning-state-repository.ts:1520:19)
+[WebServer]     at async withinAuthenticatedLearningMutationDeadline (src/lib/supabase/learning-state-repository.ts:334:12)
+[WebServer]     at async eval (src/lib/supabase/learning-state-repository.ts:1506:7)
+[WebServer]     at async sequenceAuthenticatedAccountLearningMutation (src/lib/supabase/learning-state-repository.ts:866:12)
+[WebServer]     at async recordAuthenticatedSessionInterruption (src/lib/supabase/learning-state-repository.ts:1505:5)
+[WebServer]     at async runQueuedSessionInterruptionFlush (src/lib/sync/session-interruption-outbox.ts:309:9)
+[WebServer]     at async runQueuedSessionTerminalFlush (src/lib/sync/session-terminal-outbox.ts:62:25)
+[WebServer]     at async syncPendingCloudWork (src/lib/sync/pending-cloud-work.ts:46:26)
+[WebServer]   1518 |             ? error.message
+[WebServer]   1519 |             : "unclassified";
+[WebServer] > 1520 |           console.error(`YOVA session interruption sync failed [${code}:${reason}]`);
+[WebServer]        |                   ^
+[WebServer]   1521 |           if (rejection) {
+[WebServer]   1522 |             throw new NonRetryableSessionTerminalMutationError("interruption", rejection);
+[WebServer]   1523 |           } (src/lib/supabase/learning-state-repository.ts:1520:19)
+[WebServer] [browser] YOVA session completion sync failed [08006:temporary_connection_failure]
+[WebServer]     at eval (src/lib/supabase/learning-state-repository.ts:1345:15)
+[WebServer]     at async withinAuthenticatedLearningMutationDeadline (src/lib/supabase/learning-state-repository.ts:334:12)
+[WebServer]     at async sequenceAuthenticatedAccountLearningMutation (src/lib/supabase/learning-state-repository.ts:866:12)
+[WebServer]     at async completeAuthenticatedPlanSession (src/lib/supabase/learning-state-repository.ts:1355:7)
+[WebServer]     at async flushQueuedSessionCompletions (src/lib/sync/session-completion-outbox.ts:418:7)
+[WebServer]     at async runQueuedSessionTerminalFlush (src/lib/sync/session-terminal-outbox.ts:102:32)
+[WebServer]     at async syncPendingCloudWork (src/lib/sync/pending-cloud-work.ts:46:26)
+[WebServer]   1343 |         ? error.message
+[WebServer]   1344 |         : "unclassified";
+[WebServer] > 1345 |       console.error(`YOVA session completion sync failed [${code}:${reason}]`);
+[WebServer]        |               ^
+[WebServer]   1346 |       if (rejection) {
+[WebServer]   1347 |         throw new NonRetryableSessionTerminalMutationError("completion", rejection);
+[WebServer]   1348 |       } (src/lib/supabase/learning-state-repository.ts:1345:15)
+[WebServer] [browser] YOVA session interruption sync failed [40001:study_route_interruption_conflict]
+[WebServer]     at eval (src/lib/supabase/learning-state-repository.ts:1520:19)
+[WebServer]     at async withinAuthenticatedLearningMutationDeadline (src/lib/supabase/learning-state-repository.ts:334:12)
+[WebServer]     at async eval (src/lib/supabase/learning-state-repository.ts:1506:7)
+[WebServer]     at async sequenceAuthenticatedAccountLearningMutation (src/lib/supabase/learning-state-repository.ts:866:12)
+[WebServer]     at async recordAuthenticatedSessionInterruption (src/lib/supabase/learning-state-repository.ts:1505:5)
+[WebServer]     at async runQueuedSessionInterruptionFlush (src/lib/sync/session-interruption-outbox.ts:309:9)
+[WebServer]     at async runQueuedSessionTerminalFlush (src/lib/sync/session-terminal-outbox.ts:62:25)
+[WebServer]     at async syncPendingCloudWork (src/lib/sync/pending-cloud-work.ts:46:26)
+[WebServer]     at async retryCloudSync (src/components/yova-prototype.tsx:4189:43)
+[WebServer]     at async retry (src/components/yova-prototype.tsx:4944:7)
+[WebServer]   1518 |             ? error.message
+[WebServer]   1519 |             : "unclassified";
+[WebServer] > 1520 |           console.error(`YOVA session interruption sync failed [${code}:${reason}]`);
+[WebServer]        |                   ^
+[WebServer]   1521 |           if (rejection) {
+[WebServer]   1522 |             throw new NonRetryableSessionTerminalMutationError("interruption", rejection);
+[WebServer]   1523 |           } (src/lib/supabase/learning-state-repository.ts:1520:19)
+[WebServer] [browser] YOVA session completion sync failed [40001:study_route_completion_retry_conflict]
+[WebServer]     at eval (src/lib/supabase/learning-state-repository.ts:1345:15)
+[WebServer]     at async withinAuthenticatedLearningMutationDeadline (src/lib/supabase/learning-state-repository.ts:334:12)
+[WebServer]     at async sequenceAuthenticatedAccountLearningMutation (src/lib/supabase/learning-state-repository.ts:866:12)
+[WebServer]     at async completeAuthenticatedPlanSession (src/lib/supabase/learning-state-repository.ts:1355:7)
+[WebServer]     at async flushQueuedSessionCompletions (src/lib/sync/session-completion-outbox.ts:418:7)
+[WebServer]     at async runQueuedSessionTerminalFlush (src/lib/sync/session-terminal-outbox.ts:102:32)
+[WebServer]     at async syncPendingCloudWork (src/lib/sync/pending-cloud-work.ts:46:26)
+[WebServer]     at async retryCloudSync (src/components/yova-prototype.tsx:4189:43)
+[WebServer]     at async retry (src/components/yova-prototype.tsx:4944:7)
+[WebServer]   1343 |         ? error.message
+[WebServer]   1344 |         : "unclassified";
+[WebServer] > 1345 |       console.error(`YOVA session completion sync failed [${code}:${reason}]`);
+[WebServer]        |               ^
+[WebServer]   1346 |       if (rejection) {
+[WebServer]   1347 |         throw new NonRetryableSessionTerminalMutationError("completion", rejection);
+[WebServer]   1348 |       } (src/lib/supabase/learning-state-repository.ts:1345:15)
+  ✓   1 [desktop-chromium] › e2e/cloud-sync-recovery.spec.ts:43:5 › Retry retires two permanently rejected terminal events without losing their recovery export (4.3s)
+[WebServer] [browser] YOVA session completion sync failed [08006:temporary_connection_failure]
+[WebServer]     at eval (src/lib/supabase/learning-state-repository.ts:1345:15)
+[WebServer]     at async withinAuthenticatedLearningMutationDeadline (src/lib/supabase/learning-state-repository.ts:334:12)
+[WebServer]     at async sequenceAuthenticatedAccountLearningMutation (src/lib/supabase/learning-state-repository.ts:866:12)
+[WebServer]     at async completeAuthenticatedPlanSession (src/lib/supabase/learning-state-repository.ts:1355:7)
+[WebServer]     at async flushQueuedSessionCompletions (src/lib/sync/session-completion-outbox.ts:418:7)
+[WebServer]     at async runQueuedSessionTerminalFlush (src/lib/sync/session-terminal-outbox.ts:102:32)
+[WebServer]     at async openYova (src/components/yova-prototype.tsx:1290:11)
+[WebServer]   1343 |         ? error.message
+[WebServer]   1344 |         : "unclassified";
+[WebServer] > 1345 |       console.error(`YOVA session completion sync failed [${code}:${reason}]`);
+[WebServer]        |               ^
+[WebServer]   1346 |       if (rejection) {
+[WebServer]   1347 |         throw new NonRetryableSessionTerminalMutationError("completion", rejection);
+[WebServer]   1348 |       } (src/lib/supabase/learning-state-repository.ts:1345:15)
+  ✓   2 [desktop-chromium] › e2e/cloud-sync-recovery.spec.ts:78:5 › startup retires a stale routed completion from a ready session using cloud route authority (1.9s)
+  ✓   3 [desktop-chromium] › e2e/cloud-sync-recovery.spec.ts:114:5 › cloud-only private-export metadata keeps AA text contrast (1.7s)
+  ✓   4 [desktop-chromium] › e2e/public-auth.spec.ts:9:5 › presents public signup without a private-alpha gate (1.6s)
+  ✓   5 [desktop-chromium] › e2e/public-auth.spec.ts:16:5 › creates a public password account with consent and a security token (1.8s)
+  ✓   6 [desktop-chromium] › e2e/public-auth.spec.ts:57:5 › keeps password errors generic and password recovery non-enumerating (1.8s)
+  ✓   7 [desktop-chromium] › e2e/public-auth.spec.ts:85:5 › keeps the standalone email-confirmation page at AA text contrast (1.0s)
+  -   8 [desktop-chromium] › e2e/public-auth.spec.ts:126:5 › fits the public account form on a phone-sized viewport
+(node:76890) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] [browser] YOVA session interruption sync failed [08006:temporary_connection_failure]
+[WebServer]     at eval (src/lib/supabase/learning-state-repository.ts:1520:19)
+[WebServer]     at async withinAuthenticatedLearningMutationDeadline (src/lib/supabase/learning-state-repository.ts:334:12)
+[WebServer]     at async eval (src/lib/supabase/learning-state-repository.ts:1506:7)
+[WebServer]     at async sequenceAuthenticatedAccountLearningMutation (src/lib/supabase/learning-state-repository.ts:866:12)
+[WebServer]     at async recordAuthenticatedSessionInterruption (src/lib/supabase/learning-state-repository.ts:1505:5)
+[WebServer]     at async runQueuedSessionInterruptionFlush (src/lib/sync/session-interruption-outbox.ts:309:9)
+[WebServer]     at async runQueuedSessionTerminalFlush (src/lib/sync/session-terminal-outbox.ts:62:25)
+[WebServer]     at async syncPendingCloudWork (src/lib/sync/pending-cloud-work.ts:46:26)
+[WebServer]   1518 |             ? error.message
+[WebServer]   1519 |             : "unclassified";
+[WebServer] > 1520 |           console.error(`YOVA session interruption sync failed [${code}:${reason}]`);
+[WebServer]        |                   ^
+[WebServer]   1521 |           if (rejection) {
+[WebServer]   1522 |             throw new NonRetryableSessionTerminalMutationError("interruption", rejection);
+[WebServer]   1523 |           } (src/lib/supabase/learning-state-repository.ts:1520:19)
+[WebServer] [browser] YOVA session completion sync failed [08006:temporary_connection_failure]
+[WebServer]     at eval (src/lib/supabase/learning-state-repository.ts:1345:15)
+[WebServer]     at async withinAuthenticatedLearningMutationDeadline (src/lib/supabase/learning-state-repository.ts:334:12)
+[WebServer]     at async sequenceAuthenticatedAccountLearningMutation (src/lib/supabase/learning-state-repository.ts:866:12)
+[WebServer]     at async completeAuthenticatedPlanSession (src/lib/supabase/learning-state-repository.ts:1355:7)
+[WebServer]     at async flushQueuedSessionCompletions (src/lib/sync/session-completion-outbox.ts:418:7)
+[WebServer]     at async runQueuedSessionTerminalFlush (src/lib/sync/session-terminal-outbox.ts:102:32)
+[WebServer]     at async syncPendingCloudWork (src/lib/sync/pending-cloud-work.ts:46:26)
+[WebServer]   1343 |         ? error.message
+[WebServer]   1344 |         : "unclassified";
+[WebServer] > 1345 |       console.error(`YOVA session completion sync failed [${code}:${reason}]`);
+[WebServer]        |               ^
+[WebServer]   1346 |       if (rejection) {
+[WebServer]   1347 |         throw new NonRetryableSessionTerminalMutationError("completion", rejection);
+[WebServer]   1348 |       } (src/lib/supabase/learning-state-repository.ts:1345:15)
+[WebServer] [browser] YOVA session interruption sync failed [40001:study_route_interruption_conflict]
+[WebServer]     at eval (src/lib/supabase/learning-state-repository.ts:1520:19)
+[WebServer]     at async withinAuthenticatedLearningMutationDeadline (src/lib/supabase/learning-state-repository.ts:334:12)
+[WebServer]     at async eval (src/lib/supabase/learning-state-repository.ts:1506:7)
+[WebServer]     at async sequenceAuthenticatedAccountLearningMutation (src/lib/supabase/learning-state-repository.ts:866:12)
+[WebServer]     at async recordAuthenticatedSessionInterruption (src/lib/supabase/learning-state-repository.ts:1505:5)
+[WebServer]     at async runQueuedSessionInterruptionFlush (src/lib/sync/session-interruption-outbox.ts:309:9)
+[WebServer]     at async runQueuedSessionTerminalFlush (src/lib/sync/session-terminal-outbox.ts:62:25)
+[WebServer]     at async syncPendingCloudWork (src/lib/sync/pending-cloud-work.ts:46:26)
+[WebServer]     at async retryCloudSync (src/components/yova-prototype.tsx:4189:43)
+[WebServer]     at async retry (src/components/yova-prototype.tsx:4944:7)
+[WebServer]   1518 |             ? error.message
+[WebServer]   1519 |             : "unclassified";
+[WebServer] > 1520 |           console.error(`YOVA session interruption sync failed [${code}:${reason}]`);
+[WebServer]        |                   ^
+[WebServer]   1521 |           if (rejection) {
+[WebServer]   1522 |             throw new NonRetryableSessionTerminalMutationError("interruption", rejection);
+[WebServer]   1523 |           } (src/lib/supabase/learning-state-repository.ts:1520:19)
+[WebServer] [browser] YOVA session completion sync failed [40001:study_route_completion_retry_conflict]
+[WebServer]     at eval (src/lib/supabase/learning-state-repository.ts:1345:15)
+[WebServer]     at async withinAuthenticatedLearningMutationDeadline (src/lib/supabase/learning-state-repository.ts:334:12)
+[WebServer]     at async sequenceAuthenticatedAccountLearningMutation (src/lib/supabase/learning-state-repository.ts:866:12)
+[WebServer]     at async completeAuthenticatedPlanSession (src/lib/supabase/learning-state-repository.ts:1355:7)
+[WebServer]     at async flushQueuedSessionCompletions (src/lib/sync/session-completion-outbox.ts:418:7)
+[WebServer]     at async runQueuedSessionTerminalFlush (src/lib/sync/session-terminal-outbox.ts:102:32)
+[WebServer]     at async syncPendingCloudWork (src/lib/sync/pending-cloud-work.ts:46:26)
+[WebServer]     at async retryCloudSync (src/components/yova-prototype.tsx:4189:43)
+[WebServer]     at async retry (src/components/yova-prototype.tsx:4944:7)
+[WebServer]   1343 |         ? error.message
+[WebServer]   1344 |         : "unclassified";
+[WebServer] > 1345 |       console.error(`YOVA session completion sync failed [${code}:${reason}]`);
+[WebServer]        |               ^
+[WebServer]   1346 |       if (rejection) {
+[WebServer]   1347 |         throw new NonRetryableSessionTerminalMutationError("completion", rejection);
+[WebServer]   1348 |       } (src/lib/supabase/learning-state-repository.ts:1345:15)
+  ✓   9 [mobile-chromium] › e2e/cloud-sync-recovery.spec.ts:43:5 › Retry retires two permanently rejected terminal events without losing their recovery export (4.7s)
+[WebServer] [browser] YOVA session completion sync failed [08006:temporary_connection_failure]
+[WebServer]     at eval (src/lib/supabase/learning-state-repository.ts:1345:15)
+[WebServer]     at async withinAuthenticatedLearningMutationDeadline (src/lib/supabase/learning-state-repository.ts:334:12)
+[WebServer]     at async sequenceAuthenticatedAccountLearningMutation (src/lib/supabase/learning-state-repository.ts:866:12)
+[WebServer]     at async completeAuthenticatedPlanSession (src/lib/supabase/learning-state-repository.ts:1355:7)
+[WebServer]     at async flushQueuedSessionCompletions (src/lib/sync/session-completion-outbox.ts:418:7)
+[WebServer]     at async runQueuedSessionTerminalFlush (src/lib/sync/session-terminal-outbox.ts:102:32)
+[WebServer]     at async openYova (src/components/yova-prototype.tsx:1290:11)
+[WebServer]   1343 |         ? error.message
+[WebServer]   1344 |         : "unclassified";
+[WebServer] > 1345 |       console.error(`YOVA session completion sync failed [${code}:${reason}]`);
+[WebServer]        |               ^
+[WebServer]   1346 |       if (rejection) {
+[WebServer]   1347 |         throw new NonRetryableSessionTerminalMutationError("completion", rejection);
+[WebServer]   1348 |       } (src/lib/supabase/learning-state-repository.ts:1345:15)
+  ✓  10 [mobile-chromium] › e2e/cloud-sync-recovery.spec.ts:78:5 › startup retires a stale routed completion from a ready session using cloud route authority (2.1s)
+  ✓  11 [mobile-chromium] › e2e/cloud-sync-recovery.spec.ts:114:5 › cloud-only private-export metadata keeps AA text contrast (2.0s)
+  ✓  12 [mobile-chromium] › e2e/public-auth.spec.ts:9:5 › presents public signup without a private-alpha gate (1.8s)
+  ✓  13 [mobile-chromium] › e2e/public-auth.spec.ts:16:5 › creates a public password account with consent and a security token (1.8s)
+  ✓  14 [mobile-chromium] › e2e/public-auth.spec.ts:57:5 › keeps password errors generic and password recovery non-enumerating (1.9s)
+  ✓  15 [mobile-chromium] › e2e/public-auth.spec.ts:85:5 › keeps the standalone email-confirmation page at AA text contrast (141ms)
+  ✓  16 [mobile-chromium] › e2e/public-auth.spec.ts:126:5 › fits the public account form on a phone-sized viewport (1.7s)
+
+  1 skipped
+  15 passed (37.6s)

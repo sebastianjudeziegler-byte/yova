@@ -770,6 +770,7 @@ export async function POST(request: Request) {
   if (isOpenAIPlanConfigured()) {
     try {
       const generated = await generateNormalPlanFillWithOpenAI({
+        methodContext,
         request: planRequest,
         composition: normalPlanComposition,
         now: normalPlanNow,

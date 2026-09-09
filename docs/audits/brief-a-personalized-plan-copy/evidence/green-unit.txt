@@ -1,0 +1,8 @@
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+   Start at  20:50:01
+   Duration  861ms (transform 186ms, setup 0ms, import 257ms, tests 542ms, environment 0ms)

@@ -1,0 +1,92 @@
+▲ Next.js 16.3.3 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 58ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 971ms
+  Running TypeScript ...
+  Finished TypeScript in 13.8s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/53) ...
+  Generating static pages using 7 workers (13/53)
+  Generating static pages using 7 workers (26/53)
+  Generating static pages using 7 workers (39/53)
+✓ Generating static pages using 7 workers (53/53) in 639ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/account
+├ ƒ /api/account/data-export
+├ ƒ /api/account/learning-data
+├ ƒ /api/errors
+├ ƒ /api/events
+├ ƒ /api/founder/people/export
+├ ƒ /api/founder/people/query
+├ ƒ /api/founder/testers/invite
+├ ƒ /api/intake/interpret
+├ ƒ /api/internal/account-export-cleanup
+├ ƒ /api/materials
+├ ƒ /api/materials/attach
+├ ƒ /api/materials/link
+├ ƒ /api/milestones
+├ ƒ /api/plans/[planId]/diagnostic
+├ ƒ /api/plans/activate
+├ ƒ /api/plans/adjust
+├ ƒ /api/plans/diagnostic/score
+├ ƒ /api/plans/generate
+├ ƒ /api/plans/method-choice
+├ ƒ /api/plans/status
+├ ƒ /api/sessions/allowance
+├ ƒ /api/sessions/duration
+├ ƒ /api/sessions/evaluate
+├ ƒ /api/sessions/generate
+├ ƒ /api/sessions/lesson
+├ ƒ /api/sessions/method-choice
+├ ƒ /api/sessions/repair
+├ ƒ /api/sessions/schedule
+├ ƒ /api/study-profile/events
+├ ƒ /api/study-profile/interest/[token]
+├ ƒ /api/study-profile/reports/[token]
+├ ƒ /api/study-profile/responses
+├ ƒ /api/study-profile/waitlist
+├ ƒ /api/study-profile/waitlist/confirm
+├ ƒ /api/support
+├ ƒ /api/system/status
+├ ƒ /api/teaching-visual
+├ ƒ /api/tutor
+├ ƒ /auth/callback
+├ ƒ /auth/confirm
+├ ƒ /auth/set-password
+├ ○ /dev/personalization
+├ ƒ /founder
+├ ƒ /founder/overview
+├ ƒ /founder/people
+├ ƒ /founder/reliability
+├ ƒ /founder/study-profile
+├ ƒ /founder/testers
+├ ○ /icon.png
+├ ○ /manifest.webmanifest
+├ ○ /opengraph-image
+├ ○ /privacy
+├ ○ /robots.txt
+├ ○ /sitemap.xml
+├ ○ /study-profile
+├ ○ /study-profile/opengraph-image
+├ ƒ /study-profile/report/[token]
+├ ○ /study-profile/setup
+├ ○ /study-profile/twitter-image
+├ ƒ /study-profile/waitlist/confirm
+├ ○ /support
+├ ○ /terms
+└ ○ /twitter-image
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+Exit code: 0

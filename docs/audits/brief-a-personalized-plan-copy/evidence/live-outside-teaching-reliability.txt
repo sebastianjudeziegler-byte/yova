@@ -1,0 +1,126 @@
+Real-provider canary: src/evals/outside-teaching-reliability.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+stdout | src/evals/outside-teaching-reliability.live.test.ts > live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly
+Outside teaching failure {
+  run: 1,
+  message: 'OpenAI did not return a complete, safe guided session after the bounded repair attempts. The session produced a error_repair runtime, but self_explanation does not use a method runtime.',
+  generationStats: {
+    elapsedMs: 19418,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'session_method_runtime',
+    repairAttempted: true,
+    repairSucceeded: false,
+    repairReason: 'semantic_validation',
+    repairDetail: 'reexplain is attached to an activity type that cannot perform that learning phase. Follow-up repair failure: The session produced a error_repair runtime, but self_explanation does not use a method runtime.',
+    inputTokens: 24043,
+    cachedInputTokens: 6912,
+    cacheWriteTokens: 0,
+    outputTokens: 3286,
+    validationIssueCode: null,
+    stage: 'validation',
+    cause: 'semantic_validation',
+    strategy: 'full'
+  }
+}
+
+stdout | src/evals/outside-teaching-reliability.live.test.ts > live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly
+Outside teaching generation {
+  run: 2,
+  generationStats: {
+    elapsedMs: 8398,
+    attempts: 1,
+    firstAttemptPassed: true,
+    failedValidator: null,
+    repairAttempted: false,
+    repairSucceeded: null,
+    repairReason: 'none',
+    repairDetail: null,
+    inputTokens: 11980,
+    cachedInputTokens: 11520,
+    cacheWriteTokens: 0,
+    outputTokens: 1614,
+    validationIssueCode: null,
+    strategy: 'full',
+    stage: 'complete'
+  }
+}
+
+stdout | src/evals/outside-teaching-reliability.live.test.ts > live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly
+Outside teaching generation {
+  run: 3,
+  generationStats: {
+    elapsedMs: 11786,
+    attempts: 1,
+    firstAttemptPassed: false,
+    failedValidator: 'session_practice_variation',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: 'YOVA restored the evidence-derived practice-intent metadata without changing the question, answer, phase, support, or misconception content, then reran the complete validator.',
+    inputTokens: 11980,
+    cachedInputTokens: 11520,
+    cacheWriteTokens: 0,
+    outputTokens: 1624,
+    validationIssueCode: 'session_practice_metadata',
+    strategy: 'full',
+    stage: 'complete'
+  }
+}
+
+ ❯ src/evals/outside-teaching-reliability.live.test.ts (1 test | 1 failed) 40013ms
+     × builds an arbitrary three-target teaching-first session repeatedly 40012ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/outside-teaching-reliability.live.test.ts > live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly
+AssertionError: expected [ { run: 1, …(1) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "generationStats": {
++       "attempts": 2,
++       "cacheWriteTokens": 0,
++       "cachedInputTokens": 6912,
++       "cause": "semantic_validation",
++       "elapsedMs": 19418,
++       "failedValidator": "session_method_runtime",
++       "firstAttemptPassed": false,
++       "inputTokens": 24043,
++       "outputTokens": 3286,
++       "repairAttempted": true,
++       "repairDetail": "reexplain is attached to an activity type that cannot perform that learning phase. Follow-up repair failure: The session produced a error_repair runtime, but self_explanation does not use a method runtime.",
++       "repairReason": "semantic_validation",
++       "repairSucceeded": false,
++       "stage": "validation",
++       "strategy": "full",
++       "validationIssueCode": null,
++     },
++     "run": 1,
++   },
++ ]
+
+ ❯ src/evals/outside-teaching-reliability.live.test.ts:121:22
+    119|     }
+    120|
+    121|     expect(failures).toEqual([]);
+       |                      ^
+    122|   }, 240_000);
+    123| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  21:10:20
+   Duration  40.12s (transform 268ms, setup 0ms, import 19ms, tests 40.01s, environment 0ms)
+
+
+Exit code: 1

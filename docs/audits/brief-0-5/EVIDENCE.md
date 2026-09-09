@@ -201,3 +201,7 @@ The founder authorized merge/deployment, then explicitly authorized the minimal 
 - **Red (GitHub Actions):** [run 34349726024](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34349726024), job `verify`, `Audit production dependencies`, exited 1 for `next > sharp 0.35.3`, [GHSA-rgj7-g3m4-5g8c](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c). Subsequent quality gates were skipped, not passed.
 - **Change:** pin `sharp` to the advisory's patched `0.35.4`, with its matching `@img/sharp*` binaries and libvips `1.3.3`. Preserve every unrelated resolved dependency (including Next 16.3.3). Lockfile preparation only; no local install/build/test/browser run.
 - **Green:** pending the pushed revision's GitHub Actions audit and full quality run. No passing result claimed yet.
+
+### Combined release for CI
+
+The release branch incorporates Brief A commit `340c8b6` and Brief 0 commit `d108e89` before the authorized merge. Conflicts were limited to the audit backlog and browser-test imports: both backlog histories are retained, and Brief 0.5's explicit frozen-clock setup plus Brief 0's live fixture import are retained. Brief A application changes merge without conflicts. This permits CI to test the exact combined release instead of claiming compatibility from separate branch runs.

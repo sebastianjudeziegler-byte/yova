@@ -1,0 +1,25 @@
+Real-provider canary: src/evals/plan-creation-blockers.live.test.ts. All live opt-ins enabled; all case filters cleared. Serial execution.
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+ ❯ src/evals/plan-creation-blockers.live.test.ts (2 tests | 1 failed) 30127ms
+     × real placement questions and a map-only scope correction preserve demonstrated ATP 19466ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-creation-blockers.live.test.ts > live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP
+MapDiagnosticGenerationError: At least one placement question has an ambiguous or unsupported answer. Skip this optional check or try again.
+ ❯ Module.generateMapDiagnostic src/lib/diagnostics/map-diagnostic.ts:139:17
+
+ ❯ src/evals/plan-creation-blockers.live.test.ts:25:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  21:11:42
+   Duration  30.79s (transform 413ms, setup 0ms, import 591ms, tests 30.13s, environment 0ms)
+
+
+Exit code: 1

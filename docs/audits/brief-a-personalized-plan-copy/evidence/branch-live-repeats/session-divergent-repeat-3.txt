@@ -1,0 +1,111 @@
+Four previously differing cases; predeclared three repeats. Commit: d99f1278e9e2e1e2b81574651ad6f8e7ce8a9578
+
+ RUN  v4.1.10 /Users/sebastianziegler/Documents/YOVA
+
+stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Mapped 45-minute World War I baseline…'
+
+YOVA session evaluation · Mapped 45-minute World War I baseline lesson · 100/100
+Generation · gpt-5.4-mini-2026-03-17 · 14.2s · 2 attempts · 7,424 cached input tokens
+Repair trigger · The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”; “Sequence from the Sarajevo assassination to declarations of war”; “Basic chronology from 1914 to 1918”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.
+instruction      none · Rival blocs before war
+free_response    Prewar European alliances and tensions split Europe into rival blocs before 1914. · Rival blocs before war
+instruction      none · From Sarajevo to war
+free_response    The Sarajevo assassination triggered a crisis that led from Austria-Hungary to wider · From Sarajevo to war
+free_response    Basic chronology from 1914 to 1918 places World War I in the years of fighting. · War years in order
+free_response    Prewar European alliances and tensions split Europe into rival blocs before 1914. · Repair the first explanation
+free_response    Prewar European alliances and tensions split Europe into rival blocs before 1914. · Explain the corrected relationship again
+multiple_choice  Recognition transfer: Basic chronology from 1914 to 1918 places World War I in the years of fighting. · Identify the war timeline
+reflection       none · Check today's ideas again later
+
+PASS  Activity count fits the session (10/10) · 8/8 maximum focused activities for 45 minutes
+PASS  Session requires active learner effort (15/15) · 6 retrieval or knowledge-check activities
+PASS  Questions include usable answers and feedback (15/15) · 6 question activities inspected
+PASS  Activities fit the learning task (15/15) · 7 of 9 activities align with conceptual
+PASS  Session moves from support into practice (10/10) · Checked teaching and question order
+PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+PASS  Known review concepts are addressed (10/10) · No prior review signal
+PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+PASS  Method briefing explains what, why, how, and done (0/0) · self_explanation for conceptual_learning
+PASS  Activities actually execute the named learning method (0/0) · Required self_explanation phases appear in order
+PASS  The session starts with the method's correct first action (0/0) · self_explanation starts with model
+PASS  Required content fits the stated time window (0/0) · 33 required and 46 total minutes inside a 45-minute window
+PASS  Every target idea has required learning evidence (0/0) · 3 essential ideas mapped to 4 required checks
+PASS  Every question includes the context needed to answer (0/0) · 6 self-contained questions inspected
+PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+PASS  Learning sessions teach before they test (0/0) · 2 modeled or streamed teaching activities inspected
+PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 3 learner-facing adjustment explanations inspected
+PASS  The session explains why it is structured this way (5/5) · 191 rationale characters
+PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+
+ ❯ src/evals/session-quality.live.test.ts (20 tests | 3 failed | 16 skipped) 50266ms
+     ↓ the requested case exists
+     ↓ 'Biology teaching from learner notes'
+     ↓ 'Bioenergetics multi-target retrieval …'
+     ↓ 'Fifteen-minute temperature and reacti…'
+     ↓ 'Fifteen-minute first product-rule les…'
+     ↓ 'Mapped product-rule and chain-rule fi…'
+     × 'Production-shaped derivative-foundati…' 16983ms
+     ↓ 'World War I teaching for a complete b…'
+     ✓ 'Mapped 45-minute World War I baseline…'  14219ms
+     × 'Calculus repair after a weak check' 9424ms
+     ↓ 'Self-contained delayed calculus review'
+     ↓ 'History writing outside YOVA'
+     × 'Beginner JavaScript with fading suppo…' 9638ms
+     ↓ 'General-learning finance application'
+     ↓ 'Fifteen-minute vocabulary review'
+     ↓ 'Startup funding foundations for a new…'
+     ↓ 'History reasoning from a primary-sour…'
+     ↓ 'Literature close reading from a short…'
+     ↓ 'Spanish conversation with supported t…'
+     ↓ 'Teaching from a thin biology study gu…'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Production-shaped derivative-foundati…'
+SessionGenerationFailure: OpenAI did not return a complete, safe guided session after the bounded repair attempts. The required knowledge check mapped to “Apply constant, power, constant-multiple, and sum or difference rules” does not visibly assess that essential idea.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Calculus repair after a weak check'
+SessionGenerationFailure: OpenAI did not return a complete subject lesson after one repair attempt.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/evals/session-quality.live.test.ts > live OpenAI session quality > 'Beginner JavaScript with fading suppo…'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_assignment_duplicate:other). Stage: finalize.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/session-quality.live.test.ts:19:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed | 16 skipped (20)
+   Start at  22:21:24
+   Duration  50.52s (transform 344ms, setup 0ms, import 142ms, tests 50.27s, environment 0ms)
+
+JSON report written to /tmp/yova-brief-a-comparison/branch/session-divergent-repeat-3.json
+
+Exit code: 1
