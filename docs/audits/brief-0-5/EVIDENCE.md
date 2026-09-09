@@ -193,3 +193,11 @@ After restoration, all 3,918 unit tests and 12 runner checks passed again, along
 The unchanged main comparison reproduced the desktop cross-tab Calendar failure and the desktop misconception-repair/evaluation timeout; the other eight comparison attempts passed. Both observations are now in BACKLOG and receive no product fix here. The [completed main/branch comparison](evidence/browser-comparison/report.md) is 8 pass / 2 fail on main and 9 pass / 1 fail on the branch. The only remaining branch failure is the identical desktop cross-tab Calendar timeout. The broader browser coverage follows below.
 
 Raw browser trace/video archives are retained locally with SHA-256 hashes in [local-trace-archive.json](evidence/ordinary-browser/local-trace-archive.json); screenshots, reports, error contexts, and logs remain in this PR. Unrelated environment fields and credential values are omitted from published browser JSON.
+
+## Authorized release dependency follow-up — 2026-09-09
+
+The founder authorized merge/deployment, then explicitly authorized the minimal dependency update after the release audit failed. The prior no-local-verification instruction remains in force.
+
+- **Red (GitHub Actions):** [run 34349726024](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34349726024), job `verify`, `Audit production dependencies`, exited 1 for `next > sharp 0.35.3`, [GHSA-rgj7-g3m4-5g8c](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c). Subsequent quality gates were skipped, not passed.
+- **Change:** pin `sharp` to the advisory's patched `0.35.4`, with its matching `@img/sharp*` binaries and libvips `1.3.3`. Preserve every unrelated resolved dependency (including Next 16.3.3). Lockfile preparation only; no local install/build/test/browser run.
+- **Green:** pending the pushed revision's GitHub Actions audit and full quality run. No passing result claimed yet.
