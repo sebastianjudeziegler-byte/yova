@@ -19,7 +19,7 @@ export async function loadActiveRevisionContext(supabase: Awaited<ReturnType<typ
   const result = await supabase.rpc("read_plan_revision_context", { target_plan_id: planId });
   if (result.error || !result.data) throw new Error("YOVA could not load this saved plan safely. Nothing was changed.");
   const context = ActiveRevisionContextSchema.parse(result.data);
-  if (context.plan.id !== planId || context.plan.status !== "active" || context.plan.creationIntent !== "plan" || !context.plan.knowledgeMap) throw new Error("This plan is no longer available for revision.");
+  if (context.plan.id !== planId || context.plan.status !== "active" || !context.plan.knowledgeMap) throw new Error("This plan is no longer available for revision.");
   const plan = context.plan;
   const generationRequest = PlanGenerationRequestSchema.parse({
     ...context.generationRequest, intent: "plan", learningIntent: plan.learningIntent,

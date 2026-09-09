@@ -3795,10 +3795,16 @@ export function YovaPrototype({
     const plan = plansRef.current.find(candidate => candidate.id === input.planId);
     if (!plan) throw new Error("YOVA could not find that plan.");
     if (awaitingRevision.current) throw new Error("Finish or cancel the open plan preview first.");
-    const delta: MapDelta = { operations: input.deadline && input.deadline !== plan.deadline
-      ? [{ op: "set_deadline", iso: input.deadline }] : [] };
+    const requestedMinutes = [10, 15, 25, 45, 60].find(minutes => minutes === input.futureSessionMinutes) as 10 | 15 | 25 | 45 | 60 | undefined;
+    const selectedSessions = plan.sessions.filter(session => ["ready", "upcoming"].includes(session.status) && !session.resource && !session.reviewType);
+    const reviewDuration = !input.direction && requestedMinutes !== undefined && plan.schedulePreferences && selectedSessions.some(session => session.estimatedMinutes !== requestedMinutes);
+    const delta: MapDelta = { operations: reviewDuration
+      ? [{ op: "set_availability", availability: plan.schedulePreferences!.availability }]
+      : input.deadline && input.deadline !== plan.deadline ? [{ op: "set_deadline", iso: input.deadline }] : [] };
+    if (reviewDuration && input.deadline && input.deadline !== plan.deadline) delta.operations.push({ op: "set_deadline", iso: input.deadline });
     const saved = new Promise<void>((resolve, reject) => { awaitingRevision.current = { resolve, reject }; });
     setRevisionLaunch({ key: makeUuid(), planId: plan.id, delta,
+      ...(reviewDuration ? { controls: { excludedOperationIndexes: [], sessionEdits: selectedSessions.filter(session => session.estimatedMinutes !== requestedMinutes).map(session => ({ sessionId: session.id, operationIndex: 0, durationMinutes: requestedMinutes })) } } : {}),
       type: input.direction ? "add_topic" : "set_availability" });
     setSelectedPlanId(plan.id); setLearningDetailPlanId(plan.id);
     setStage("app"); setActiveTab("Learning");
@@ -5309,7 +5315,7 @@ function LearningPlanDetail({ revisionClient, plan, view, completions, interrupt
     {view === "recent" && <section className="learning-history-summary"><div><span>{presentAsCompleted ? "Completed" : "Plan state"}</span><strong>{presentAsCompleted ? formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt) : "Unfinished work"}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
     {view === "archive" && <section className="learning-history-summary" aria-label="Archived goal history"><div><span>Started</span><strong>{formatCompletionDate(plan.createdAt)}</strong></div><div><span>Progress kept</span><strong>{completeCount} of {plan.sessions.length} sessions</strong></div><div><span>Attached materials</span><strong>{plan.materials?.length ?? 0}</strong></div></section>}
     <PlanKnowledgeMapPanel onReviseTopic={canManagePlan ? reviseTopic : undefined} plan={plan} completions={completions} canExtend={canManagePlan} extending={extendingMap} error={mapError} onExtend={() => void extendDeferredTopics()} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} />
-    {canManagePlan && revisionRequest && <LivingPlanRevision key={revisionRequest.key} plan={plan} client={revisionClient} initialDelta={revisionRequest.delta} initialTopicId={revisionRequest.topicId} initialType={revisionRequest.type} onClose={() => { setRevisionRequest(null); revisionClient.onReviewClosed?.(); }} />}
+    {canManagePlan && revisionRequest && <LivingPlanRevision key={revisionRequest.key} plan={plan} client={revisionClient} initialDelta={revisionRequest.delta} initialTopicId={revisionRequest.topicId} initialType={revisionRequest.type} initialControls={revisionRequest.controls} onClose={() => { setRevisionRequest(null); revisionClient.onReviewClosed?.(); }} />}
     <section className="section-block plan-timeline"><div className="section-title"><div><h3>{view === "recent" ? presentAsCompleted ? "What you completed" : "Sessions in this study" : "Your plan"}</h3><p>{view === "recent" && !presentAsCompleted ? "Completed sessions are checked. Unfinished sessions remain listed without being counted as completed." : "The sequence YOVA will guide you through, one session at a time."}</p></div><span>{plan.sessions.length} sessions</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small><b>{selectSessionLearningMode(plan, session) === "learn" ? "Teaching first" : "Practice first"}</b> · {selectSessionMethodName(plan, session)} · {formatSessionTime(session.scheduledFor)}</small></div><span>{selectSessionActiveMinutes(plan, session)} min</span></div>)}</div></section>
     <PlanAdaptations plan={plan} />
     <PlanSources plan={plan} editable={canManagePlan} onReview={() => setRevisionRequest({ key: makeUuid(), delta: { operations: [] }, type: "attach_source" })} />
@@ -5492,7 +5498,7 @@ function PlanSources({ plan, editable, onReview }: { plan: LearningPlan; editabl
   const materials = plan.materials ?? [];
   return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3>{editable && <button className="button secondary" onClick={onReview}><Plus size={15} /> Add file or link</button>}</div>
     {materials.length ? <div className="source-material-list">{materials.map(material => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span></div>)}</div>
-      : <p>Teaching and practice created by YOVA. Attach a source to a topic to plan time for it; completed work stays saved.</p>}
+      : <p><strong>Created by YOVA</strong>. Teaching and practice for this goal. Attach a source to a topic to plan time for it; completed work stays saved.</p>}
   </section>;
 }
 

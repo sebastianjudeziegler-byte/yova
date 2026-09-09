@@ -12,6 +12,7 @@ type Choices = { methods: Array<{ value: CoreMethodId; label: string }>; times: 
 type Props = {
   plan: LearningPlan;
   initialDelta: MapDelta;
+  initialControls?: RevisionControls;
   initialTopicId?: string;
   initialType?: MapDeltaOperation["op"];
   onPreview: (delta: MapDelta, controls: RevisionControls) => Promise<SignedPreview>;
@@ -34,7 +35,7 @@ function topicsFirst(plan: LearningPlan) { return plan.knowledgeMap?.topics.find
 
 export function PlanRevisionPreview(props: Props) {
   const [delta, setDelta] = useState(props.initialDelta);
-  const [controls, setControls] = useState<RevisionControls>(EMPTY_CONTROLS);
+  const [controls, setControls] = useState<RevisionControls>(props.initialControls ?? EMPTY_CONTROLS);
   const [preview, setPreview] = useState<SignedPreview | null>(null);
   const [pending, setPending] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -75,7 +76,7 @@ export function PlanRevisionPreview(props: Props) {
     if (started.current) return;
     started.current = true;
     if (props.initialDelta.operations.length) {
-      queueMicrotask(() => { void refresh(props.initialDelta, EMPTY_CONTROLS); });
+      queueMicrotask(() => { void refresh(props.initialDelta, props.initialControls ?? EMPTY_CONTROLS); });
     }
     // The parent mounts this editor with a key for the plan/revision. Avoid
     // duplicate provider calls from changing callback identities/Strict Mode.
@@ -98,7 +99,7 @@ export function PlanRevisionPreview(props: Props) {
     const previous = controls.sessionEdits.find(matches);
     void refresh(delta, { ...controls, sessionEdits: [
       ...controls.sessionEdits.filter(edit => !matches(edit)),
-      { ...previous, ...(existing ? { sessionId } : { operationIndex }), ...patch },
+      { ...previous, ...(existing ? { sessionId, operationIndex } : { operationIndex }), ...patch },
     ] });
   }
   async function confirm() {
@@ -197,11 +198,11 @@ export function PlanRevisionPreview(props: Props) {
         <label>Choose a source file<input type="file" onChange={event => void stage(event.target.files?.[0])} /></label>
         {stagedFile && <p>{stagedFile.name}</p>}
       </>}
-      {newType === "add_topic" && <><label>Topic title<input value={newTitle} onChange={event => setNewTitle(event.target.value)} /></label><label>What should this topic cover?<textarea value={newDescription} onChange={event => setNewDescription(event.target.value)} /></label></>}
+      {newType === "add_topic" && <><label>Topic title<input value={newTitle} onChange={event => setNewTitle(event.target.value)} /></label><label>What should this topic cover?<textarea aria-invalid={newDescription.length > 400 || undefined} aria-describedby="revision-description-limit" value={newDescription} onChange={event => setNewDescription(event.target.value)} /><small id="revision-description-limit" role={newDescription.length > 400 ? "alert" : undefined}>{newDescription.length}/400 characters</small></label></>}
       {["add_topic", "reorder"].includes(newType) && <label>After topic<select value={afterTopic} onChange={event => setAfterTopic(event.target.value)}>{topics.map(topic => <option key={topic.id} value={topic.id}>{topic.title}</option>)}</select></label>}
       {newType === "set_deadline" && <label>Deadline<input type="datetime-local" value={deadline} onChange={event => setDeadline(event.target.value)} /></label>}
       {newType === "set_availability" && <><label>Day<select aria-label="Day" value={day} onChange={event => setDay(event.target.value)}>{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(value => <option key={value}>{value}</option>)}</select></label><label>Time window<input value={window} onChange={event => setWindow(event.target.value)} /></label><label>Minutes<input type="number" min={10} max={180} value={minutes} onChange={event => setMinutes(Number(event.target.value))} /></label><div>{(props.plan.schedulePreferences?.availability ?? []).map((slot, index) => <label key={index}><input type="checkbox" checked={keptWindows.includes(index)} onChange={event => setKeptWindows(previous => event.target.checked ? [...previous, index] : previous.filter(value => value !== index))} />Keep existing window: {slot.day} {slot.window}</label>)}</div><p>Keep the windows you still want, and add the time above.</p></>}
-      <button type="button" className="button secondary" onClick={addChange} disabled={!newTopic || (newType === "attach_source" && !stagedFile && !sourceUrl.trim())}>{newType === "attach_source" ? "Preview source attachment" : "Preview change"}</button>
+      <button type="button" className="button secondary" onClick={addChange} disabled={!newTopic || (newType === "add_topic" && (!newTitle.trim() || !newDescription.trim() || newDescription.length > 400)) || (newType === "attach_source" && !stagedFile && !sourceUrl.trim())}>{newType === "attach_source" ? "Preview source attachment" : "Preview change"}</button>
     </fieldset>}
     <footer><button type="button" className="button secondary" disabled={saving} onClick={props.onCancel}>Cancel</button>
       <button type="button" className="button primary" disabled={saving || pending || adding || !preview?.proposal.canApply} onClick={() => void confirm()}>{saving ? "Saving…" : "Confirm changes"}</button></footer>

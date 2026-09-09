@@ -353,6 +353,18 @@ describe("authenticated learning-state startup", () => {
     expect(plan?.title).not.toMatch(/Effects on Animal and Plant Cells Using/i);
   });
 
+  it("keeps an undone source out of the restored plan after reload while retaining the learner file", async () => {
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      items: [{ id: "item-revision", title: "Water polarity", topic: "Water polarity", kind: "topic", deadline: null, source_mode: "yova_generated", study_mode: "inside_yova", created_at: NOW }],
+      plans: [{ id: "plan-revision", learning_item_id: "item-revision", status: "active", rationale: "Restore the previous source list.", generation_inputs: { learningIntent: "learn", intent: "plan", revisionMaterialIds: [] }, knowledge_map: null, created_at: NOW }],
+      materials: [{ id: "material-revision", learning_item_id: "item-revision", filename: "Water notes.txt", mime_type: "text/plain", byte_size: 100, processing_status: "ready", metadata: {} }],
+    });
+    const state = await loadAuthenticatedLearningState();
+    expect(state?.plans[0]?.materials).toEqual([]);
+    expect(state?.calendarMaterials).toContainEqual(expect.objectContaining({ id: "material-revision", name: "Water notes.txt" }));
+  });
+
   it("projects failed and processing materials to Calendar without attaching them to a plan", async () => {
     mockCloudQueries({
       profile: { display_name: "Learner", onboarding_completed_at: NOW },

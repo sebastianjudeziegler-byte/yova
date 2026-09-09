@@ -84,7 +84,8 @@ begin
   where s.plan_id=p.id and s.user_id=p.user_id
     and not (s.status='skipped' and (coalesce(s.step_data->>'revisionRetired','false')='true' or s.step_data ? 'routeAdjustmentRetiredAt'));
   select coalesce(jsonb_agg(jsonb_build_object('id',m.id,'name',m.filename,'mimeType',m.mime_type,'sizeBytes',m.byte_size,
-    'processingStatus','ready','textContent',null,'understanding',m.metadata->'understanding')),'[]'::jsonb) into materials from public.materials m where m.learning_item_id=i.id and m.user_id=p.user_id;
+    'processingStatus','ready','textContent',null,'understanding',m.metadata->'understanding')),'[]'::jsonb) into materials from public.materials m where m.learning_item_id=i.id and m.user_id=p.user_id
+    and (not (p.generation_inputs ? 'revisionMaterialIds') or p.generation_inputs->'revisionMaterialIds' ? m.id::text);
   return jsonb_build_object('plan',jsonb_build_object(
     'id',p.id,'revisionId',coalesce(p.current_revision_id,p.id),'learningItemId',i.id,'title',i.title,'topic',i.topic,'kind',i.kind,
     'deadline',i.deadline,'status',p.status,'sourceMode',i.source_mode,'studyMode',i.study_mode,
@@ -231,7 +232,7 @@ begin
   update public.learning_items set deadline=(payload->>'deadline')::timestamptz,
     source_mode=case payload#>>'{generationRequest,materialMode}' when 'upload' then 'user_materials' when 'none' then 'yova_generated' else source_mode end where id=p.learning_item_id and user_id=actor_user_id;
   update public.plans set knowledge_map=payload->'knowledgeMap',current_revision_id=next_revision,
-    generation_inputs=coalesce(generation_inputs,'{}'::jsonb)||coalesce(payload->'generationRequest','{}'::jsonb)
+    generation_inputs=coalesce(generation_inputs,'{}'::jsonb)||coalesce(payload->'generationRequest','{}'::jsonb)||jsonb_build_object('revisionMaterialIds',(select coalesce(jsonb_agg(material->>'id'),'[]'::jsonb) from jsonb_array_elements(coalesce(payload#>'{generationRequest,materials}','[]'::jsonb)) material))
     where id=p.id and user_id=actor_user_id;
   insert into public.plan_revisions(id,user_id,plan_id,previous_revision_id,revision_id,proposal,receipt,request_fingerprint)
     values(operation_id,actor_user_id,p.id,expected_revision,next_revision,payload->'proposal',payload->'receipt',write_hash);
@@ -281,3 +282,16 @@ $migration$;
 -- Historical implementations stay available only inside privileged migrations/tests.
 revoke all on function public.adjust_learning_plan_with_routes(jsonb) from public, anon, authenticated, service_role;
 revoke all on function public.attach_materials_to_plan(jsonb) from public, anon, authenticated, service_role;
+
+-- Preserve reviewed draft controls through the existing protected activation
+-- implementation; no change to its permit, owner, material or route guards.
+do $migration$
+declare
+  definition text := pg_catalog.pg_get_functiondef('public.save_generated_plan(jsonb)'::regprocedure);
+  anchor text := '''amountLabel'', session ->> ''amountLabel'',';
+begin
+  if position(anchor in definition)=0 then raise exception 'Reviewed draft activation patch did not match the protected writer'; end if;
+  definition := replace(definition, anchor, '''revisionEditedFields'', session -> ''revisionEditedFields'',' || E'\n        ' || anchor);
+  execute definition;
+end;
+$migration$;

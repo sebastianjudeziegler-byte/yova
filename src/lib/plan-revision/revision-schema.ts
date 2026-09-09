@@ -25,7 +25,7 @@ export const RevisionControlsSchema = z.object({
     methodId: z.enum(CORE_METHOD_IDS).optional(),
     scheduledFor: z.string().datetime({ offset: true }).optional(),
     durationMinutes: z.union([z.literal(10), z.literal(15), z.literal(25), z.literal(45), z.literal(60)]).optional(),
-  }).strict().refine(edit => (edit.sessionId !== undefined) !== (edit.operationIndex !== undefined), "Choose one existing session or new-topic line.")).max(28).default([]),
+  }).strict().refine(edit => edit.sessionId !== undefined || edit.operationIndex !== undefined, "Choose an existing session or new-topic line.")).max(28).default([]),
 }).strict().default({ excludedOperationIndexes: [], sessionEdits: [] });
 export const RevisionFixedEventSchema = z.object({
   id: z.string().trim().min(1).max(160),

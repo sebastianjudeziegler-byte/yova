@@ -70,8 +70,8 @@ export async function undoPlanRevision({ input, supabase, userId, developmentPre
   });
   const sessions = applySessionRevisionPatches({ current: current.sessions, patches, protectedSessionIds: new Set(active?.protections.filter(item => item.savedWork && current.sessions.find(session => session.id === item.sessionId)?.status !== "skipped").map(item => item.sessionId) ?? []) });
   const knowledgeMap = mergeRevisionMapChanges({ before: original.after.knowledgeMap!, after: original.before.knowledgeMap!, current: current.knowledgeMap!, undoAddedTopics: true });
-  const restored = { ...current, knowledgeMap, sessions, deadline: original.before.deadline, schedulePreferences: original.before.schedulePreferences, revisionId: original.baseRevisionId };
-  const generationRequest = { ...original.generationRequest, knowledgeMap, deadline: restored.deadline,
+  const restored = { ...current, materials: original.before.materials, sourceMode: original.before.sourceMode, knowledgeMap, sessions, deadline: original.before.deadline, schedulePreferences: original.before.schedulePreferences, revisionId: original.baseRevisionId };
+  const generationRequest = { ...original.generationRequest, materials: restored.materials, materialMode: restored.materials.length ? "upload" as const : "none" as const, knowledgeMap, deadline: restored.deadline,
     ...(restored.schedulePreferences ? restored.schedulePreferences : {}) };
   const receipt = { revisionId: original.baseRevisionId, previousRevisionId: original.revisionId, message: "Previous revision restored; everything else unchanged." };
   if (original.contextKind === "draft") {

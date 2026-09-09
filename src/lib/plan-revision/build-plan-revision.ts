@@ -49,10 +49,20 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     return { sessionId: session.id, savedWork: protection?.savedWork ?? false, pinnedTime: protection?.pinnedTime || editedFields.includes("scheduledFor"), editedFields };
   });
   const applied = applyMapDelta({ request, delta, now, excluded: controls.excludedOperationIndexes });
+  // A reviewed calendar line may change a block's duration/method/time while
+  // retaining the same weekly windows. It still needs a visible before/after.
+  delta.operations.forEach((operation, index) => {
+    if (operation.op === "set_availability" && !controls.excludedOperationIndexes.includes(index)
+      && !applied.lines.some(line => line.operationIndex === index)
+      && controls.sessionEdits.some(edit => edit.sessionId && (edit.operationIndex === undefined || edit.operationIndex === index))) {
+      applied.lines.push({ id: `operation-${index}`, operationIndex: index, topicId: null, description: "Change selected study blocks" });
+    }
+  });
+  const acceptedEdits = controls.sessionEdits.filter(edit => edit.operationIndex === undefined || applied.lines.some(line => line.operationIndex === edit.operationIndex));
   const nextMap = applied.request.knowledgeMap!;
   const slots = normalPlanAvailability({ request: applied.request, now, searchDays: 366, revisionContext: { reservations: otherReservations, priorSessions: [] } });
   const fitsSchedule = (session: LearningPlanSession) => slots.some(slot => Date.parse(session.scheduledFor) >= Date.parse(slot.startsAt) && finish(session) <= Date.parse(slot.endsAt));
-  const scope = selectRevisionSessionScope({ plan, applied, operations: delta.operations, protections: protections.map(protection => controls.sessionEdits.some(edit => edit.sessionId === protection.sessionId && edit.scheduledFor) ? { ...protection, pinnedTime: false } : protection), now, fitsSchedule });
+  const scope = selectRevisionSessionScope({ plan, applied, operations: delta.operations, protections: protections.map(protection => acceptedEdits.some(edit => edit.sessionId === protection.sessionId && edit.scheduledFor) ? { ...protection, pinnedTime: false } : protection), now, fitsSchedule });
   const affected = new Set(scope.affectedSessionIds);
   const removed = new Set(scope.removedTopicIds);
   const protectedIds = new Set(scope.protectedSessionIds);
@@ -60,12 +70,12 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
   const protectionById = new Map(protections.map(item => [item.sessionId, item]));
   const editKeys = controls.sessionEdits.map(edit => edit.sessionId ?? `new:${edit.operationIndex}`);
   if (new Set(editKeys).size !== editKeys.length || controls.sessionEdits.some(edit => edit.sessionId
-    ? !originalById.has(edit.sessionId)
+    ? !originalById.has(edit.sessionId) || (edit.operationIndex !== undefined && !delta.operations[edit.operationIndex])
     : edit.operationIndex === undefined || delta.operations[edit.operationIndex]?.op !== "add_topic")) {
     throw new Error("Choose an existing session or a new topic from this preview before editing its method or time.");
   }
-  const edits = new Map(controls.sessionEdits.flatMap(edit => edit.sessionId && applied.lines.some(line => line.topicId === null || originalById.get(edit.sessionId!)?.topicIds?.includes(line.topicId)) ? [[edit.sessionId, edit] as const] : []));
-  const newEdits = new Map(controls.sessionEdits.flatMap(edit => edit.operationIndex !== undefined && !controls.excludedOperationIndexes.includes(edit.operationIndex) ? [[edit.operationIndex, edit] as const] : []));
+  const edits = new Map(acceptedEdits.flatMap(edit => edit.sessionId && applied.lines.some(line => line.topicId === null || originalById.get(edit.sessionId!)?.topicIds?.includes(line.topicId)) ? [[edit.sessionId, edit] as const] : []));
+  const newEdits = new Map(acceptedEdits.flatMap(edit => !edit.sessionId && edit.operationIndex !== undefined ? [[edit.operationIndex, edit] as const] : []));
   for (const id of edits.keys()) {
     if (protectedIds.has(id)) throw new Error("That session has saved work and cannot be changed.");
     affected.add(id);

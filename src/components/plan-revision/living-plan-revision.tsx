@@ -12,7 +12,7 @@ import { loadCalendarPrototypeState } from "@/lib/calendar/persistence";
 import { expandRecurringEvent } from "@/lib/calendar/recurrence";
 import { uploadMaterialFiles } from "@/lib/materials/intake";
 
-export type RevisionLaunch = { key: string; planId: string; delta: MapDelta; type?: MapDeltaOperation["op"]; topicId?: string };
+export type RevisionLaunch = { key: string; planId: string; delta: MapDelta; type?: MapDeltaOperation["op"]; topicId?: string; controls?: RevisionControls };
 export type RevisionClient = {
   launch?: RevisionLaunch | null;
   onReviewClosed?: () => void;
@@ -25,8 +25,8 @@ export type RevisionClient = {
   onOpenCalendar: () => void;
 };
 type DraftAuthority = { generationRequest: PlanGenerationRequest; draftReceipt: string | null };
-export function LivingPlanRevision({ plan, initialDelta, initialTopicId, initialType, client, draft, onDraftSaved, onReviewed, onClose }: {
-  plan: LearningPlan; initialDelta: MapDelta; initialTopicId?: string; initialType?: MapDeltaOperation["op"]; client: RevisionClient;
+export function LivingPlanRevision({ plan, initialDelta, initialTopicId, initialType, initialControls, client, draft, onDraftSaved, onReviewed, onClose }: {
+  plan: LearningPlan; initialDelta: MapDelta; initialTopicId?: string; initialType?: MapDeltaOperation["op"]; initialControls?: RevisionControls; client: RevisionClient;
   draft?: DraftAuthority;
   onDraftSaved?: (plan: LearningPlan, request: PlanGenerationRequest, receipt: string | null) => void;
   onReviewed?: () => void;
@@ -95,7 +95,7 @@ export function LivingPlanRevision({ plan, initialDelta, initialTopicId, initial
     <div role="status"><p>{message}</p>{!undone && <button className="button secondary" disabled={undoing} onClick={() => void undo()}>{undoing ? "Restoring…" : "Undo"}</button>}</div>
     {error && <p role="alert">{error}</p>}
   </div>;
-  return <PlanRevisionPreview plan={plan} initialDelta={initialDelta} initialTopicId={initialTopicId} initialType={initialType} onPreview={preview} onApply={apply} onCancel={onClose}
+  return <PlanRevisionPreview plan={plan} initialDelta={initialDelta} initialControls={initialControls} initialTopicId={initialTopicId} initialType={initialType} onPreview={preview} onApply={apply} onCancel={onClose}
     onStageFile={async file => {
       const { accepted, errors } = await uploadMaterialFiles([file], plan.materials ?? []);
       if (!accepted[0]) throw new Error(errors[0] ?? "The source could not be uploaded.");

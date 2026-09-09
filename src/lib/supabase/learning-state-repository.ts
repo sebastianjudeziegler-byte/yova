@@ -567,7 +567,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       rationale: planRow.rationale,
       createdAt: planRow.created_at || item.created_at,
       knowledgeMap,
-      materials: materialsByItemId.get(item.id) ?? [],
+      materials: (materialsByItemId.get(item.id) ?? []).filter(material => !Array.isArray(readProperty(planRow.generation_inputs, "revisionMaterialIds")) || readStringArrayProperty(planRow.generation_inputs, "revisionMaterialIds").includes(material.id)),
       sessions,
     }];
   });

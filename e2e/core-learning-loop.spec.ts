@@ -2964,6 +2964,7 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
 
   const adjustmentPanel = page.getByRole("region", { name: "Plan change preview" });
+  await adjustmentPanel.getByLabel("Change type").selectOption("attach_source");
   await adjustmentPanel.getByLabel("Source URL").fill("https://example.com/plate-boundary-notes");
   await adjustmentPanel.getByRole("button", { name: "Preview source attachment" }).click();
   await expect(adjustmentPanel).toContainText("Study this source, then practice");
@@ -4088,7 +4089,11 @@ async function rebuildLatestStudyNowPlanForMinutes(page: Page, minutes: number) 
   await adjustmentPanel.getByLabel("Change type").selectOption("set_availability");
   const savedWindow = await page.evaluate(() => {
     const plan = JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.at(-1);
-    return plan.schedulePreferences.availability[0];
+    if (plan.schedulePreferences?.availability?.[0]) return plan.schedulePreferences.availability[0];
+    const start = new Date(plan.sessions[0].scheduledFor);
+    const end = new Date(start.getTime() + 60 * 60_000);
+    const time = (date: Date) => date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+    return { day: start.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }), window: `${time(start)}–${time(end)}` };
   });
   const kept = adjustmentPanel.getByRole("checkbox", { name: /^Keep existing window/ });
   for (let index = 0; index < await kept.count(); index += 1) await kept.nth(index).uncheck();

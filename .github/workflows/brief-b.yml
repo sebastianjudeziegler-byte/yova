@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 20
+          fetch-depth: 50
       - uses: pnpm/action-setup@v4
         with:
           version: 11.16.0
@@ -33,6 +33,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Prepare evidence directory
         run: mkdir -p artifacts/brief-b-baseline
+      - name: Capture source-list reload red against 58ba8f5
+        continue-on-error: true
+        run: |
+          source=src/lib/supabase/learning-state-repository.ts
+          cp "$source" "$RUNNER_TEMP/brief-b-repository.ts"
+          trap 'cp "$RUNNER_TEMP/brief-b-repository.ts" "$source"' EXIT
+          git show 58ba8f5:"$source" > "$source"
+          pnpm exec vitest run src/lib/supabase/learning-state-repository.test.ts -t 'keeps an undone source out' 2>&1 | tee artifacts/brief-b-baseline/source-reload-red.txt
       - name: Capture route contract baseline
         env:
           YOVA_DB_FIXTURE_PATH: /tmp/yova-living-plan-routed.test.sql
@@ -50,9 +58,18 @@ jobs:
       - name: Initialize isolated database
         if: always()
         run: pnpm exec supabase init
-      - name: Replay main migrations for the new persistence contract
+      - name: Capture source-list database red against 58ba8f5
+        continue-on-error: true
+        run: |
+          source=supabase/migrations/202609090001_living_plan_revisions.sql
+          cp "$source" "$RUNNER_TEMP/brief-b-migration.sql"
+          trap 'cp "$RUNNER_TEMP/brief-b-migration.sql" "$source"' EXIT
+          git show 58ba8f5:"$source" > "$source"
+          pnpm exec supabase db start
+          pnpm exec supabase test db supabase/tests/database/20260909_living_plan_revision.test.sql --local 2>&1 | tee artifacts/brief-b-baseline/source-database-red.txt
+      - name: Replay corrected migrations for the persistence contract
         if: always()
-        run: pnpm exec supabase db start
+        run: pnpm exec supabase db reset --local
       - name: Capture persistence baseline
         if: always()
         continue-on-error: true
