@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import captures from "./__fixtures__/brief-0-5-validator-captures.json";
+import additionCapture from "./__fixtures__/brief-0-5-addition-capture.json";
 import type { SessionGenerationContext } from "./session-generator";
 import { StreamedGeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 import { lessonIdeaSharesTargetSubject } from "@/lib/session-generation/lesson-brief";
@@ -56,6 +57,17 @@ describe("Brief 0.5 preserved subject and notation boundaries", () => {
     expect(result.draft.coverage.essentialIdeas).toHaveLength(2);
     expect(result.draft.coverage.essentialIdeas[0]).toContain("plus");
     expect(result.draft.activities.filter(activity => activity.type === "free_response").map(activity => activity.correctAnswer).join(" ")).toContain("f'(x)g(x)+f(x)g'(x)");
+  });
+
+  it("preserves the captured adding relation and both derivative lessons without consuming a repair", async () => {
+    supply(additionCapture.outputs);
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(additionCapture.context as SessionGenerationContext);
+    expect(result.draft.coverage.essentialIdeas).toHaveLength(2);
+    expect(result.draft.coverage.essentialIdeas[0]).toContain("adding");
+    expect(result.draft.activities.filter(activity => activity.type === "free_response").map(activity => activity.correctAnswer).join(" ")).toContain("f'(x)g(x) + f(x)g'(x)");
+    expect(result.generationStats.attempts).toBe(1);
+    expect(parse).toHaveBeenCalledTimes(1);
   });
 
   it("grounds the typed independent comparison in the same validated claim as recognition", async () => {

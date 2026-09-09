@@ -33,8 +33,8 @@ jobs:
           mkdir -p tmp/brief-0-5 test-results/release-repro
           cp docs/audits/brief-0-5/evidence/harness/ci-capture.ts.txt tmp/brief-0-5/capture.ts
           cp docs/audits/brief-0-5/evidence/harness/vitest.config.mts.txt tmp/release-capture.config.mts
-      - name: Date-recall red and existing negative checks
-        run: pnpm exec vitest run src/lib/session-generation/question-context.test.ts src/lib/openai/streamed-validator-calibration.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-repro/date-recall.json
+      - name: Date-recall green and addition red with negative checks
+        run: pnpm exec vitest run src/lib/session-generation/question-context.test.ts src/lib/openai/streamed-validator-calibration.test.ts src/lib/session-generation/completion-contract.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-repro/date-recall.json
       - name: Capture three unchanged mapped-calculus attempts
         if: ${{ !cancelled() }}
         env:
@@ -45,6 +45,29 @@ jobs:
           result=0
           for sample in 1 2 3; do
             BRIEF05_CAPTURE="test-results/release-repro/calculus-$sample.jsonl" pnpm exec vitest run src/evals/session-quality.live.test.ts --config tmp/release-capture.config.mts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile="test-results/release-repro/calculus-$sample.json" || result=1
+          done
+          exit "$result"
+      - name: Compare new legacy failure reasons on unchanged main
+        if: ${{ !cancelled() }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_RUN_LIVE_PLAN_EVALS: "1"
+          YOVA_RUN_LIVE_SESSION_EVALS: "1"
+        run: |
+          git fetch origin e03a082659f51172c0b06bf84daffdd5599ac773
+          mkdir -p /tmp/yova-baseline-evals
+          cp src/evals/plan-rubric.ts src/evals/session-rubric.ts /tmp/yova-baseline-evals/
+          git archive HEAD src > /tmp/yova-branch-src.tar
+          restore_source() { rm -rf src; tar -xf /tmp/yova-branch-src.tar; }
+          trap restore_source EXIT
+          rm -rf src
+          git archive e03a082659f51172c0b06bf84daffdd5599ac773 src | tar -x
+          git diff --exit-code e03a082659f51172c0b06bf84daffdd5599ac773 -- src/lib
+          cp /tmp/yova-baseline-evals/*.ts src/evals/
+          result=0
+          for sample in 1 2 3; do
+            pnpm exec vitest run src/evals/plan-quality.live.test.ts -t 'Calculus problem-solving plan|World War I unit guide' --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile="test-results/release-repro/main-plans-$sample.json" || result=1
+            pnpm exec vitest run src/evals/session-quality.live.test.ts -t 'General-learning finance application' --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile="test-results/release-repro/main-finance-$sample.json" || result=1
           done
           exit "$result"
       - name: Upload diagnostic evidence
