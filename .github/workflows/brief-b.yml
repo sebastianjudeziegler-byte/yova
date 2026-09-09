@@ -32,9 +32,11 @@ jobs:
       - name: Prepare evidence directory
         run: mkdir -p artifacts/brief-b-baseline
       - name: Capture route contract baseline
+        env:
+          YOVA_DB_FIXTURE_PATH: /tmp/yova-living-plan-routed.test.sql
         id: route
         continue-on-error: true
-        run: pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.test.ts src/lib/knowledge-map/topic-evidence-regressions.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-b-baseline/routes.json
+        run: pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.test.ts src/lib/knowledge-map/topic-evidence-regressions.test.ts src/evals/personalization-delta.test.ts src/lib/plan-revision/database-contract.fixture.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-b-baseline/routes.json
       - name: Capture typecheck
         if: always()
         continue-on-error: true
@@ -53,6 +55,10 @@ jobs:
         if: always()
         continue-on-error: true
         run: pnpm exec supabase test db supabase/tests/database/20260909_living_plan_revision.test.sql --local 2>&1 | tee artifacts/brief-b-baseline/database.txt
+      - name: Capture actual routed patch persistence
+        if: always()
+        continue-on-error: true
+        run: pnpm exec supabase test db /tmp/yova-living-plan-routed.test.sql --local 2>&1 | tee artifacts/brief-b-baseline/routed-database.txt
       - name: Stop isolated database
         if: always()
         run: pnpm exec supabase stop --no-backup

@@ -423,6 +423,14 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it("budgets time to study a newly attached source before practice and says so in the preview", async () => {
+    const { response, body, before } = await preview([{ op: "attach_source", topic_id: ETC, url: VIDEO }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(firstSession(body.proposal.after, ETC).estimatedMinutes).toBeGreaterThan(firstSession(before, ETC).estimatedMinutes);
+    expect(body.proposal.lines[0].after.join(" ")).toMatch(/study (?:this |the )?source.*practice/i);
+    expect(body.proposal.lines[0].after.join(" ")).toContain(VIDEO);
+  });
+
   async function activePreview(operations: Operation[], mutate?: (plan: LearningPlan) => void) {
     const plan = commitPlanStudyRoutes({ ...deterministicDeltaPlan(1), status: "active" as const }, DELTA_NOW.toISOString());
     mutate?.(plan);
