@@ -1282,7 +1282,10 @@ describe("bounded streamed-skeleton repair policy", () => {
     );
     const recoveryInput = parseResponse.mock.calls[1]?.[0]?.input as string;
     const recoveryPrompt = JSON.parse(recoveryInput.slice(recoveryInput.indexOf("\n") + 1));
-    expect(recoveryPrompt.ideaSlots[0]).toMatchObject({
+    expect(recoveryPrompt.targetGroups).toHaveLength(1);
+    expect(recoveryPrompt.targetGroups[0]).toMatchObject({
+      claimCount: 2,
+      requiresIndependentCheck: false,
       topic: "Spanish food and restaurant vocabulary",
       topicDescription: "High-frequency Spanish food nouns and polite restaurant request phrases used in a short exchange.",
       topicSubtopics: ["foods and drinks", "polite requests", "short restaurant exchange"],
@@ -1326,10 +1329,10 @@ describe("bounded streamed-skeleton repair policy", () => {
     ]);
     const recoveryInput = parseResponse.mock.calls[1]?.[0]?.input as string;
     const recoveryPrompt = JSON.parse(recoveryInput.slice(recoveryInput.indexOf("\n") + 1));
-    expect(recoveryPrompt.ideaSlots.map((slot: { target: string }) => slot.target)).toEqual([
+    expect(recoveryPrompt.targetGroups.map((slot: { target: string }) => slot.target)).toEqual([
       ...THREE_TARGET_SPANISH_TARGETS.slice(0, 2),
     ]);
-    expect(recoveryPrompt.ideaSlots[0]).toMatchObject({
+    expect(recoveryPrompt.targetGroups[0]).toMatchObject({
       topic: THREE_TARGET_SPANISH_TARGETS[0],
       topicDescription: "High-frequency Spanish words for common foods and drinks, especially items likely to appear on a basic quiz.",
     });
@@ -1375,20 +1378,20 @@ describe("bounded streamed-skeleton repair policy", () => {
     ]);
     const recoveryInput = parseResponse.mock.calls[1]?.[0]?.input as string;
     const recoveryPrompt = JSON.parse(recoveryInput.slice(recoveryInput.indexOf("\n") + 1));
-    expect(recoveryPrompt.ideaSlots.map((slot: { target: string }) => slot.target)).toEqual([
+    expect(recoveryPrompt.targetGroups.map((slot: { target: string }) => slot.target)).toEqual([
       ...WORLD_WAR_TARGETS.slice(0, 2),
     ]);
-    expect(recoveryPrompt.ideaSlots.map((slot: { topic: string }) => slot.topic)).toEqual([
+    expect(recoveryPrompt.targetGroups.map((slot: { topic: string }) => slot.topic)).toEqual([
       ...WORLD_WAR_TARGETS.slice(0, 2),
     ]);
-    expect(recoveryPrompt.ideaSlots).toEqual(expect.arrayContaining([
+    expect(recoveryPrompt.targetGroups).toEqual(expect.arrayContaining([
       expect.objectContaining({ topicDescription: "", topicSubtopics: [] }),
     ]));
     expect(recoveryPrompt).not.toHaveProperty("deferredTargets");
     expect(recoveryPrompt).not.toHaveProperty("learningGoal");
     expect(recoveryPrompt).not.toHaveProperty("session");
     expect(recoveryPrompt).not.toHaveProperty("learnerDelivery");
-    expect(recoveryPrompt.ideaSlots.every((slot: Record<string, unknown>) => (
+    expect(recoveryPrompt.targetGroups.every((slot: Record<string, unknown>) => (
       !("targetId" in slot) && !("practiceIntent" in slot)
     ))).toBe(true);
     expect(JSON.stringify(recoveryPrompt)).not.toContain(WORLD_WAR_TARGETS[2]);
@@ -3119,7 +3122,8 @@ describe("runtime session-window scoping", () => {
       currentSessionScope,
     });
 
-    expect(targetSubjectReferences).toEqual({});
+    expect(targetSubjectReferences.target_1).toEqual(["foods and drinks"]);
+    expect(targetSubjectReferences.target_2).not.toContain("foods and drinks");
     const firstTargetIdea = "High-frequency Spanish foods and drinks include agua, pan, and sopa.";
     const duplicateFirstTargetClaim = "High-frequency Spanish foods and drinks also include leche, arroz, and carne.";
     expect(() => validateStreamedTargetAssignments({

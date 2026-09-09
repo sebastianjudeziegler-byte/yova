@@ -335,6 +335,51 @@
       "file": "e2e/plan-launch-live.spec.ts",
       "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
       "project": "mobile-chromium"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'accepts a concise programming explana\u2026'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > complete: 'accepts a concise programming explana\u2026'"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'history: complete-history'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > complete: 'history: complete-history'"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'biology: underspecified-biology'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'biology: underspecified-biology'"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'programming: underspecified-programmi\u2026'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'programming: underspecified-programmi\u2026'"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: underspecified-history'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'history: underspecified-history'"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'biology: missing-context-biology'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'biology: missing-context-biology'"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'programming: missing-context-programm\u2026'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'programming: missing-context-programm\u2026'"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: missing-context-history'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'history: missing-context-history'"
     }
   ],
   "cases": {

@@ -3,6 +3,7 @@ import { buildSessionEvaluationCases } from "@/evals/session-cases";
 import { StreamedGeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 import { isRubricLikeReferenceAnswer } from "@/lib/session-generation/content-specificity";
 import { coverageTargetsMatch } from "@/lib/openai/session-generator";
+import { validateStreamedTeachingPacing } from "@/lib/session-generation/streamed-pacing";
 
 vi.mock("server-only", () => ({}));
 
@@ -32,13 +33,23 @@ describe.skipIf(!exactBaselineEvaluationEnabled)("live exact World War I baselin
         })),
       });
       const focusedActivities = draft.activities.filter((activity) => activity.methodPhase !== "schedule_return");
-      expect(focusedActivities.filter((activity) => (
-        activity.type === "instruction" && activity.lessonBrief
-      ))).toHaveLength(3);
-      expect(focusedActivities.filter((activity) => (
-        activity.requiredForCompletion
-        && (activity.type === "multiple_choice" || activity.type === "free_response")
-      ))).toHaveLength(3);
+      // b8f5e102 (Sep 1) reserves the selected method's repair/re-explain
+      // phases and recognition. Its pacing contract replaces a universal
+      // three-lessons/three-questions shape; every idea still needs teaching
+      // followed by its own required check within the full 45 minutes.
+      expect(validateStreamedTeachingPacing({
+        draft, availableMinutes: 45,
+        maximumFocusedActivities: result.deliveryPolicy?.pacing.maximumActivities,
+      })).toBeNull();
+      for (const mapping of draft.coverage.evidenceMap) {
+        const lessonIndex = focusedActivities.findIndex(activity => activity.lessonBrief?.essentialIdeas.includes(mapping.essentialIdea));
+        const checkIndex = focusedActivities.findIndex(activity => activity.requiredForCompletion && activity.concept === mapping.activityConcept && activity.type === "free_response");
+        expect(lessonIndex).toBeGreaterThanOrEqual(0);
+        expect(checkIndex).toBeGreaterThan(lessonIndex);
+      }
+      const lastTeachingIndex = focusedActivities.findLastIndex(activity => activity.type === "instruction" && activity.lessonBrief);
+      const recognitionIndex = focusedActivities.findIndex(activity => activity.type === "multiple_choice" && activity.methodPhase === "transfer" && activity.requiredForCompletion);
+      expect(recognitionIndex).toBeGreaterThan(lastTeachingIndex);
       expect(focusedActivities.reduce((total, activity) => total + activity.estimatedMinutes, 0))
         .toBe(45);
       expect(draft.coverage.essentialIdeas).toHaveLength(3);

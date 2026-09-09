@@ -1,3 +1,4 @@
+import { preservesTargetEquation } from "./learning-notation";
 import type { MaterialExcerpt } from "@/lib/materials/context";
 import type { ConceptSignal } from "@/lib/learning/concept-evidence";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
@@ -426,7 +427,10 @@ export function lessonIdeaMatchesTarget(idea: string, target: string) {
 export function lessonIdeaSharesTargetSubject(
   idea: string,
   target: string,
+  surface: "claim" | "check" = "claim",
 ) {
+  const equationMatch = preservesTargetEquation(idea, target);
+  if (equationMatch !== null) return equationMatch;
   const ideaTokens = meaningfulScopeTokens(idea);
   const targetTokens = meaningfulScopeTokens(target);
   if (ideaTokens.length === 0 || targetTokens.length === 0) return false;
@@ -450,7 +454,7 @@ export function lessonIdeaSharesTargetSubject(
     ));
     return !coordinatesAnotherSubject
       && ideaTokens.some((token) => scopeTokensMatch(token, targetTokens[0]!))
-      && ideaTokens.length <= 13;
+      && (surface === "check" || ideaTokens.length <= 13);
   }
   if (targetTokens.length === 2) {
     const genericTargetTerms = new Set([
@@ -464,7 +468,7 @@ export function lessonIdeaSharesTargetSubject(
     const preservesSubject = requiredTargetTokens.some((targetToken) => (
       ideaTokens.some((ideaToken) => scopeTokensMatch(ideaToken, targetToken))
     ));
-    return preservesSubject && ideaTokens.length <= targetTokens.length + 12;
+    return preservesSubject && (surface === "check" || ideaTokens.length <= targetTokens.length + 12);
   }
   const overlap = targetTokens.filter((targetToken) => (
     ideaTokens.some((ideaToken) => scopeTokensMatch(ideaToken, targetToken))

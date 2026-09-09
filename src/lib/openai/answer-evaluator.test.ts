@@ -44,7 +44,17 @@ const repairedEvaluation: AnswerEvaluationDraft = {
 };
 
 function completed(output: AnswerEvaluationDraft) {
-  return { status: "completed", output_parsed: output };
+  return { status: "completed", output_parsed: {
+    ...output,
+    assessment: {
+      contextSufficient: true, contextReason: "The activity provides the relevant context.",
+      criteria: [
+        ...output.matchedIdeas.map(idea => ({ idea, required: true, status: "established" })),
+        ...output.missingIdeas.map(idea => ({ idea, required: true, status: "missing" })),
+      ],
+    },
+    ...("assessment" in output ? { assessment: output.assessment } : {}),
+  } };
 }
 
 describe("evaluateAnswerWithOpenAI output language", () => {
@@ -97,7 +107,83 @@ describe("evaluateAnswerWithOpenAI output language", () => {
     mocks.parse.mockResolvedValueOnce(completed(mathematicalEvaluation));
 
     const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/answer-evaluator");
-    await expect(evaluateAnswerWithOpenAI(request)).resolves.toEqual(mathematicalEvaluation);
+    const result = await evaluateAnswerWithOpenAI(request);
+    expect(result).toMatchObject({ verdict: "secure", matchedIdeas: mathematicalEvaluation.matchedIdeas, missingIdeas: [] });
+    expect(result.feedback).toMatch(/θ.*π/);
     expect(mocks.parse).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("answer evaluation calibration", () => {
+  beforeEach(() => mocks.parse.mockReset());
+
+  it("withholds secure evidence when the assessment lacks the required observations", async () => {
+    mocks.parse.mockResolvedValue(completed({
+      verdict: "secure", feedback: "The answer identifies changed conditions as the cause.",
+      matchedIdeas: ["Conditions changed."], missingIdeas: [],
+      ...{ assessment: { contextSufficient: false, contextReason: "The observations and changed condition are not supplied.", criteria: [{ idea: "Identify the changed condition.", required: true, status: "established" }] } },
+    }));
+    const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/answer-evaluator");
+    const result = await evaluateAnswerWithOpenAI(request);
+    expect(result.verdict).toBe("uncertain");
+    expect(result.feedback).toMatch(/observations|not supplied/i);
+    expect(result.matchedIdeas).toEqual([]);
+    expect(result.missingIdeas).toEqual([]);
+  });
+
+  it("does not call an under-specified response secure even when the provider verdict does", async () => {
+    mocks.parse.mockResolvedValue(completed({
+      verdict: "secure", feedback: "The answer establishes the main causal relationship.",
+      matchedIdeas: ["The answer mentions conditions."], missingIdeas: [],
+      ...{ assessment: { contextSufficient: true, contextReason: "The experiment is described.", criteria: [{ idea: "Connect oxygen availability to electron flow.", required: true, status: "unclear" }] } },
+    }));
+    const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/answer-evaluator");
+    const result = await evaluateAnswerWithOpenAI(request);
+    expect(result.verdict).toBe("uncertain");
+    expect(result.feedback).not.toMatch(/answer establishes/i);
+  });
+
+  it("returns no missing details for a complete answer when only optional reference facts are absent", async () => {
+    mocks.parse.mockResolvedValue(completed({
+      verdict: "secure", feedback: "Your answer is correct but is missing return unwinding.",
+      matchedIdeas: ["The base case stops recursion."], missingIdeas: ["Earlier calls return."],
+      ...{ assessment: { contextSufficient: true, contextReason: "The role of the base case is specified.", criteria: [
+        { idea: "The base case stops recursion.", required: true, status: "established" },
+        { idea: "Earlier calls return.", required: false, status: "missing" },
+      ] } },
+    }));
+    const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/answer-evaluator");
+    const result = await evaluateAnswerWithOpenAI(request);
+    expect(result.verdict).toBe("secure");
+    expect(result.missingIdeas).toEqual([]);
+    expect(result.matchedIdeas).toContain("The base case stops recursion.");
+    expect(result.feedback).not.toMatch(/missing|unwinding/i);
+  });
+
+  it("does not let free-form feedback call a complete answer incomplete", async () => {
+    mocks.parse.mockResolvedValue(completed({
+      verdict: "secure", feedback: "Your answer is missing return unwinding, so add it next time.",
+      matchedIdeas: ["The base case stops recursion."], missingIdeas: [],
+      ...{ assessment: { contextSufficient: true, contextReason: "The role of the base case is specified.", criteria: [
+        { idea: "The base case stops recursion.", required: true, status: "established" },
+      ] } },
+    }));
+    const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/answer-evaluator");
+    const result = await evaluateAnswerWithOpenAI(request);
+    expect(result.verdict).toBe("secure");
+    expect(result.feedback).not.toMatch(/missing|unwinding|add it/i);
+    expect(result.feedback).toMatch(/base case|recursion/i);
+  });
+
+  it("keeps a genuinely missing required idea visible and prevents secure evidence", async () => {
+    mocks.parse.mockResolvedValue(completed({
+      verdict: "secure", feedback: "The answer establishes all the required ideas.", matchedIdeas: [], missingIdeas: [],
+      ...{ assessment: { contextSufficient: true, contextReason: "The taxation question has enough context.", criteria: [{ idea: "Colonists disputed taxation without representation.", required: true, status: "missing" }] } },
+    }));
+    const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/answer-evaluator");
+    const result = await evaluateAnswerWithOpenAI(request);
+    expect(result.verdict).toBe("needs_review");
+    expect(result.missingIdeas).toContain("Colonists disputed taxation without representation.");
+    expect(result.feedback).not.toMatch(/establishes all/i);
   });
 });
