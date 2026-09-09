@@ -3,6 +3,15 @@ import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
 import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
 
 describe("session question context", () => {
+  it("accepts factual year recall without demanding arithmetic operands", () => {
+    const draft = sessionWithQuestion({ title: "Identify the war's end year", body: "In which year did World War I end?", choices: ["1914", "1916", "1918", "1920"] });
+    expect(validateSessionQuestionContext(draft)).toBeNull();
+  });
+
+  it("still requires supplied values when calculating a year", () => {
+    const draft = sessionWithQuestion({ title: "Calculate the year", body: "In which year will the loan end after all its payments?", choices: ["2028", "2029", "2030", "2031"] });
+    expect(validateSessionQuestionContext(draft)).toMatch(/without supplying enough values/);
+  });
   it("rejects a delayed quantitative check with hidden values", () => {
     const draft = sessionWithQuestion({
       title: "Estimate from nearby values",

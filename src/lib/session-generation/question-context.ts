@@ -16,7 +16,7 @@ export function validateSessionQuestionContext(draft: GeneratedSessionDraft) {
       return `The question "${activity.title}" depends on a previous or hidden prompt. Restate all information needed to answer it.`;
     }
 
-    if (activity.type === "multiple_choice" && activity.choices.every(isNumericChoice)) {
+    if (activity.type === "multiple_choice" && activity.choices.every(isNumericChoice) && !isFactualYearRecall(prompt, activity.choices)) {
       const numbers = prompt.match(/-?\d+(?:\.\d+)?/g) ?? [];
       if (new Set(numbers).size < 2 && !containsDefinedEquation(prompt)) {
         return `The quantitative question "${activity.title}" lists numeric answers without supplying enough values or an equation to solve it.`;
@@ -25,6 +25,14 @@ export function validateSessionQuestionContext(draft: GeneratedSessionDraft) {
   }
 
   return null;
+}
+
+function isFactualYearRecall(prompt: string, choices: string[]) {
+  // Recalling a named event's year needs no arithmetic operands. Calculating
+  // a date/duration still needs supplied data, even when every choice is a year.
+  return choices.every(choice => /^\s*\d{4}\s*$/.test(choice))
+    && /\b(?:what|which) year\b|\byear (?:did|was|were|of)\b/i.test(prompt)
+    && !/\b(?:calculat\w*|comput\w*|estimat\w*|difference|duration|elapsed|after|before|earlier|later|how many)\b/i.test(prompt);
 }
 
 function isNumericChoice(value: string) {

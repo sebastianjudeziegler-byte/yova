@@ -58,6 +58,27 @@ describe("Brief 0.5 preserved subject and notation boundaries", () => {
     expect(lessonIdeaSharesTargetSubject("The formula (fg)' = f'g' multiplies the derivatives.", "The formula (fg)' = f'g + fg'")).toBe(false);
   });
 
+  it("preserves explicit function arguments without accepting different arguments or derivatives", () => {
+    const target = "Interpret and state (fg)' = f'g + fg'";
+    expect(lessonIdeaSharesTargetSubject("f'(x)g(x) + f(x)g'(x)", target, "check")).toBe(true);
+    expect(lessonIdeaSharesTargetSubject("f'(x)g(y) + f(x)g'(y)", target, "check")).toBe(false);
+    expect(lessonIdeaSharesTargetSubject("f'(x)g'(x)", target, "check")).toBe(false);
+  });
+
+  it("accepts a short chronology answer grounded in its validated armistice teaching claim", async () => {
+    supply(captures.history_answer.outputs);
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(captures.history_answer.context as SessionGenerationContext);
+    expect(result.draft.coverage.essentialIdeas.join(" ")).toMatch(/1918.*armistice|armistice.*1918/);
+    expect(result.draft.activities.find(activity => activity.type === "multiple_choice")?.correctAnswer).toBe("1918");
+  });
+
+  it("still rejects a neighboring claim's answer in the final claim's recognition slot", async () => {
+    supply([{}, captures.history_neighbor]);
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(captures.history_answer.context as SessionGenerationContext)).rejects.toThrow(/streamed_target_subject/);
+  });
+
   it("accepts a complete on-topic check without treating its four choices as one short claim", () => {
     const surface = "Use the product rule. Which derivative correctly differentiates the product f(x)g(x)? The product rule gives f'(x)g(x) + f(x)g'(x). Keep both derivative terms rather than multiplying the derivatives together.";
     expect(lessonIdeaSharesTargetSubject(surface, "Product rule", "check")).toBe(true);

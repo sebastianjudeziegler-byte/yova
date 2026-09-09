@@ -25,7 +25,13 @@ export function preservesTargetEquation(idea: string, target: string): boolean |
     .replace(/\bequals\b/gi, "=").replace(/\bplus\b/gi, "+")
     .replace(/\bminus\b/gi, "-"));
   const expected = canonical(equation);
-  const actual = canonical(idea);
+  let actual = canonical(idea);
+  // f(x) and f are the same factor notation in a rule stated for one common
+  // argument. Mixed arguments or composite expressions are not elided.
+  const argumentsUsed = [...actual.matchAll(/[a-z]'?\(([a-z])\)/g)].map(match => match[1]);
+  if (argumentsUsed.length > 0 && new Set(argumentsUsed).size === 1) {
+    actual = actual.replace(/([a-z]'?)\([a-z]\)/g, "$1");
+  }
   const fullIndex = actual.indexOf(expected);
   const endsExpression = (end: number) => !/[a-z0-9'()+*/^\-]/i.test(actual[end] ?? "");
   if (fullIndex >= 0 && endsExpression(fullIndex + expected.length)) return true;

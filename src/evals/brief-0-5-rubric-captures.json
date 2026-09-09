@@ -1,0 +1,697 @@
+{
+  "product": {
+    "context": {
+      "sessionArchitectureVersion": "streamed_teaching_v1",
+      "learningGoal": {
+        "title": "Use the Product Rule Independently",
+        "topic": "Calculus product rule for derivatives",
+        "kind": "skill",
+        "deadline": null,
+        "sourceMode": "yova_generated",
+        "studyMode": "inside_yova",
+        "learningIntent": "learn"
+      },
+      "planRationale": "This problem-solving plan begins with the meaning and procedure of the product rule, then moves to guided use and independent practice. It assumes the power rule is familiar but briefly verifies it. Four short sessions fit the available 15-minute windows, keep one action prominent at a time, and include a complete example before a similar attempt.",
+      "knowledgeTopics": [
+        {
+          "id": "7e1dcd1e-3a01-428e-a763-9dd573c3a877",
+          "title": "Why the Product Rule Is Needed",
+          "description": "Understand when and why the product rule applies.",
+          "subtopics": [
+            "Recognize a product of two differentiable functions",
+            "Connect the product rule formula to its two derivative terms"
+          ],
+          "prerequisiteTopicIds": [],
+          "status": "not_started",
+          "initialEvidence": null,
+          "sourceReferences": [],
+          "origin": "ai_generated",
+          "deferred": null,
+          "curriculumReference": null
+        }
+      ],
+      "journey": {
+        "currentSequence": 1,
+        "totalSessions": 4,
+        "previousSessions": [],
+        "nextSessions": [
+          {
+            "sequence": 2,
+            "title": "Follow the Product Rule Procedure",
+            "objective": "Use a reliable sequence to differentiate a product.",
+            "contentTargets": [
+              "Identify the two factors and their derivatives",
+              "Substitute correctly into (fg)' = f'g + fg'"
+            ]
+          },
+          {
+            "sequence": 3,
+            "title": "Handle Algebra and Function Variations",
+            "objective": "Apply the rule when factors require simplification or different derivative rules.",
+            "contentTargets": [
+              "Differentiate products involving constants and polynomial factors",
+              "Simplify the resulting derivative without losing a term"
+            ]
+          },
+          {
+            "sequence": 4,
+            "title": "Independent Product Rule Check",
+            "objective": "Choose and apply the product rule independently, then repair any error.",
+            "contentTargets": [
+              "Decide whether a derivative requires the product rule",
+              "Apply the complete rule independently"
+            ]
+          }
+        ]
+      },
+      "session": {
+        "title": "Why the Product Rule Is Needed",
+        "objective": "Understand when and why the product rule applies.",
+        "method": "Feynman Technique",
+        "methodReason": "Connecting steps, causes, and prior knowledge can expose shallow understanding and build a more useful mental model. YOVA selected it because this session is conceptual learning work.",
+        "estimatedMinutes": 15,
+        "learningMode": "learn",
+        "topicIds": [
+          "7e1dcd1e-3a01-428e-a763-9dd573c3a877"
+        ],
+        "contentTargets": [
+          "Recognize a product of two differentiable functions",
+          "Connect the product rule formula to its two derivative terms"
+        ],
+        "completionEvidence": [
+          "Explain why differentiating each factor and multiplying the results is incorrect",
+          "Apply the product rule to one problem that uses simple power-rule derivatives"
+        ],
+        "reviewConcept": null,
+        "reviewType": null
+      },
+      "learnerProfile": {
+        "commonBlocker": null,
+        "guidancePreference": null,
+        "explanationPreference": "A concrete example first",
+        "focusFrequency": null,
+        "startingPattern": null,
+        "primaryImprovementGoal": null,
+        "functionalSupportNeed": null,
+        "processingPreference": "The big picture before the details",
+        "memoryChallenge": null,
+        "supportPreference": null,
+        "workspacePreference": "Show one step at a time",
+        "freeformContext": "The learner wants one complete example before trying a similar problem, prefers one visible step at a time, and often studies in 15-minute windows.",
+        "observationCorrection": null
+      },
+      "recentResults": [],
+      "recentInterruptions": [],
+      "conceptSignals": [],
+      "scaffoldSignals": [],
+      "topicCalibrationSignals": [],
+      "personalization": {
+        "decisions": [
+          {
+            "id": "decision:method_delivery:presentation:overview_first",
+            "artifact": "method_delivery",
+            "setting": "presentation",
+            "value": "overview_first",
+            "title": "Big picture first",
+            "explanation": "Show the overall relationship before the details.",
+            "signalIds": [
+              "signal:processing_entry"
+            ],
+            "evidenceLabel": "You told YOVA",
+            "methodCandidates": [],
+            "experimental": false
+          },
+          {
+            "id": "decision:workspace:layout:one_step",
+            "artifact": "workspace",
+            "setting": "layout",
+            "value": "one_step",
+            "title": "One step at a time",
+            "explanation": "Keep the current action prominent and make the full path optional.",
+            "signalIds": [
+              "signal:workspace_preference"
+            ],
+            "evidenceLabel": "You told YOVA",
+            "methodCandidates": [],
+            "experimental": false
+          }
+        ],
+        "canonicalProfile": {
+          "schemaVersion": "canonical_learner_profile_v1",
+          "questionnaireVersion": "canonical_profile_questionnaire_v1",
+          "signals": [
+            {
+              "signalId": "unfamiliar_entry",
+              "value": "big_picture",
+              "source": "legacy_deep_profile",
+              "sourceQuestionId": "deep_profile:q1",
+              "provenance": "compatible_migration"
+            },
+            {
+              "signalId": "workspace_structure",
+              "value": "one_step",
+              "source": "legacy_deep_profile",
+              "sourceQuestionId": "deep_profile:q4",
+              "provenance": "compatible_migration"
+            }
+          ]
+        },
+        "methodTie": {
+          "state": {
+            "controls": {
+              "experiments": false
+            },
+            "activeExperiment": null,
+            "experimentHistory": []
+          },
+          "signals": [
+            {
+              "id": "signal:processing_entry",
+              "key": "processing_entry",
+              "title": "How teaching begins",
+              "code": "big_picture",
+              "evidenceLabel": "You told YOVA",
+              "paused": false
+            },
+            {
+              "id": "signal:workspace_preference",
+              "key": "workspace_preference",
+              "title": "Preferred session view",
+              "code": "one_step",
+              "evidenceLabel": "You told YOVA",
+              "paused": false
+            }
+          ]
+        }
+      },
+      "materials": []
+    },
+    "draft": {
+      "topicIds": [
+        "7e1dcd1e-3a01-428e-a763-9dd573c3a877"
+      ],
+      "rationale": "This session teaches and checks Recognize a product of two differentiable functions within today's time window. Later plan topics remain deferred.",
+      "coverage": {
+        "focus": "Learn and demonstrate Recognize a product of two differentiable functions in this session.",
+        "essentialIdeas": [
+          "A product of two differentiable functions is differentiable at points where both factors are differentiable."
+        ],
+        "completionEvidence": [
+          "Demonstrate A product of two differentiable functions is differentiable at points where both factors are"
+        ],
+        "evidenceMap": [
+          {
+            "essentialIdea": "A product of two differentiable functions is differentiable at points where both factors are differentiable.",
+            "activityConcept": "A product of two differentiable functions is differentiable at points where both factors are"
+          }
+        ],
+        "deferredContent": [
+          "Connect the product rule formula to its two derivative terms"
+        ]
+      },
+      "methodBriefing": {
+        "learningMode": "learn",
+        "taskType": "conceptual_learning",
+        "methodId": "self_explanation",
+        "name": "Feynman Technique",
+        "what": "Use feynman technique to learn and explain Recognize a product of two differentiable functions.",
+        "why": "This method supports the active targets while keeping the explanation and required checks inside today's time window.",
+        "how": [
+          "Study the bounded explanation for Recognize a product of two differentiable functions.",
+          "Complete the required checks for these active targets without adding later plan content."
+        ],
+        "completion": "Complete the required checks for Recognize a product of two differentiable functions.",
+        "personalization": [
+          "Show the overall relationship before the details.",
+          "Keep the current action prominent and make the full path optional.",
+          "You asked for the big picture first, so YOVA will establish the overall model before the details."
+        ]
+      },
+      "sourceGrounding": null,
+      "activities": [
+        {
+          "topicId": "7e1dcd1e-3a01-428e-a763-9dd573c3a877",
+          "methodPhase": "model",
+          "estimatedMinutes": 3,
+          "requiredForCompletion": true,
+          "label": "Learn",
+          "title": "Recognizing a product",
+          "body": "Read the explanation, then answer the next question from memory.",
+          "teaching": null,
+          "lessonBrief": {
+            "version": 1,
+            "topicIds": [
+              "7e1dcd1e-3a01-428e-a763-9dd573c3a877"
+            ],
+            "essentialIdeas": [
+              "A product of two differentiable functions is differentiable at points where both factors are differentiable."
+            ],
+            "sourceChunks": [],
+            "knowledgeSource": "model_knowledge",
+            "evidenceContext": {
+              "confirmedGaps": [],
+              "secureKnowledge": [],
+              "priorMisconceptions": []
+            },
+            "contentRequirements": {
+              "teachEveryEssentialIdea": true,
+              "includeConcreteExample": true,
+              "includeCommonMixup": true,
+              "preservePrerequisiteOrder": true
+            }
+          },
+          "practiceIntent": null,
+          "misconceptionSummary": null,
+          "type": "instruction",
+          "concept": null,
+          "choices": [],
+          "correctAnswer": null,
+          "feedback": null
+        },
+        {
+          "topicId": "7e1dcd1e-3a01-428e-a763-9dd573c3a877",
+          "methodPhase": "explain",
+          "estimatedMinutes": 4,
+          "requiredForCompletion": true,
+          "label": "Explain",
+          "title": "Explain A product of two differentiable functions is differentiable at points where both factors are",
+          "body": "Without notes, explain A product of two differentiable functions is differentiable at points where both factors are in one or two sentences.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "A product of two differentiable functions is differentiable at points where both factors are",
+          "choices": [],
+          "correctAnswer": "A product of two differentiable functions is differentiable at points where both factors are differentiable.",
+          "feedback": "Compare your response with this relationship: A product of two differentiable functions is differentiable at points where both factors are differentiable."
+        },
+        {
+          "topicId": "7e1dcd1e-3a01-428e-a763-9dd573c3a877",
+          "methodPhase": "repair",
+          "estimatedMinutes": 3,
+          "requiredForCompletion": false,
+          "label": "Repair",
+          "title": "Repair A product of two differentiable functions is differentiable at points where both factors are",
+          "body": "Compare the earlier attempt with this active relationship: A product of two differentiable functions is differentiable at points where both factors are differentiable. Then state the corrected relationship in your own words.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "A product of two differentiable functions is differentiable at points where both factors are",
+          "choices": [],
+          "correctAnswer": "A product of two differentiable functions is differentiable at points where both factors are differentiable.",
+          "feedback": "Compare your response with this active relationship: A product of two differentiable functions is differentiable at points where both factors are differentiable."
+        },
+        {
+          "topicId": "7e1dcd1e-3a01-428e-a763-9dd573c3a877",
+          "methodPhase": "reexplain",
+          "estimatedMinutes": 3,
+          "requiredForCompletion": false,
+          "label": "Explain again",
+          "title": "Re-explain A product of two differentiable functions is differentiable at points where both factors are",
+          "body": "Without reopening the model, explain A product of two differentiable functions is differentiable at points where both factors are again in your own words after the repair.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "A product of two differentiable functions is differentiable at points where both factors are",
+          "choices": [],
+          "correctAnswer": "A product of two differentiable functions is differentiable at points where both factors are differentiable.",
+          "feedback": "Compare your response with this active relationship: A product of two differentiable functions is differentiable at points where both factors are differentiable."
+        },
+        {
+          "topicId": "7e1dcd1e-3a01-428e-a763-9dd573c3a877",
+          "methodPhase": "transfer",
+          "estimatedMinutes": 2,
+          "requiredForCompletion": true,
+          "label": "Recall check",
+          "title": "Spot the product form",
+          "body": "Which expression is a product of two differentiable functions?",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "multiple_choice",
+          "concept": "Recognition transfer: A product of two differentiable functions is differentiable at points where both factors are",
+          "choices": [
+            "(x^2+1)(sin x)",
+            "x^2+1+sin x",
+            "(x^2+1)/(sin x)",
+            "sin(x^2+1)"
+          ],
+          "correctAnswer": "(x^2+1)(sin x)",
+          "feedback": "Only the first choice is a direct product of two factors."
+        }
+      ]
+    },
+    "deliveryPolicy": {
+      "schemaVersion": 1,
+      "evidenceStatus": "starting_hypothesis",
+      "presentation": {
+        "mode": "overview_first",
+        "label": "Big picture first",
+        "instruction": "Show the overall relationship before the details."
+      },
+      "repair": {
+        "mode": "task_aligned",
+        "label": "Evidence-led repair",
+        "instruction": "Choose the smallest repair that addresses the demonstrated gap without lowering the target."
+      },
+      "retention": {
+        "mode": "task_aligned",
+        "label": "Task-led evidence",
+        "instruction": "Use the memory or application check that best matches the current task."
+      },
+      "workspace": {
+        "mode": "one_step",
+        "label": "One step at a time",
+        "instruction": "Keep the current action prominent and make the full path optional."
+      },
+      "pacing": {
+        "firstActionMinutes": 4,
+        "maximumActivities": 5,
+        "reason": "There is not enough repeated behavior evidence to change the normal session size."
+      },
+      "activityCadence": {
+        "mode": "task_aligned",
+        "label": "Task-aligned cadence",
+        "instruction": "Change activities only when the selected teaching method and current objective call for it."
+      },
+      "attemptSafety": {
+        "mode": "task_aligned",
+        "label": "Task-aligned attempts",
+        "instruction": "Use the attempt and feedback format best supported by the current task and selected method."
+      },
+      "knowledgeCheck": {
+        "mode": "task_aligned",
+        "label": "Task-aligned knowledge check",
+        "instruction": "Use the knowledge check required by the selected method and current learning objective."
+      },
+      "learnerFacingReasons": [
+        "Show the overall relationship before the details.",
+        "Keep the current action prominent and make the full path optional.",
+        "You asked for the big picture first, so YOVA will establish the overall model before the details."
+      ],
+      "signalsUsed": [
+        "The big picture before the details",
+        "Show one step at a time"
+      ]
+    }
+  },
+  "javascript": {
+    "context": {
+      "learningGoal": {
+        "title": "JavaScript array methods",
+        "topic": "Use map, filter, and reduce in small programs",
+        "kind": "skill",
+        "deadline": null,
+        "sourceMode": "yova_generated",
+        "studyMode": "inside_yova",
+        "learningIntent": "learn"
+      },
+      "planRationale": "Begin with one traceable example, then fade support before an independent coding decision.",
+      "materials": [],
+      "session": {
+        "title": "Choose and use array methods",
+        "objective": "Distinguish map, filter, and reduce, then choose the correct method for a small transformation.",
+        "method": "Scaffolded example, code tracing, then independent practice",
+        "methodReason": "The learner can read simple code but cannot yet select and write an array-method solution independently.",
+        "estimatedMinutes": 30,
+        "learningMode": "learn",
+        "topicIds": [
+          "11111111-1111-4111-8111-111111111111"
+        ]
+      },
+      "learnerProfile": {
+        "commonBlocker": "Open-ended coding prompts create hesitation",
+        "guidancePreference": "Fade support after one complete example",
+        "explanationPreference": "Concise explanations tied to code",
+        "focusFrequency": "Prefers 30-minute sessions",
+        "startingPattern": "Begins with a concrete example",
+        "primaryImprovementGoal": "Write small programs without help"
+      },
+      "recentResults": [],
+      "recentInterruptions": [],
+      "conceptSignals": [],
+      "knowledgeTopics": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "title": "Choose and use array methods",
+          "description": "Distinguish map, filter, and reduce, then choose the correct method for a small transformation.",
+          "subtopics": [],
+          "prerequisiteTopicIds": [],
+          "status": "not_started",
+          "initialEvidence": null,
+          "sourceReferences": [],
+          "origin": "ai_generated",
+          "deferred": null
+        }
+      ]
+    },
+    "draft": {
+      "topicIds": [
+        "11111111-1111-4111-8111-111111111111"
+      ],
+      "rationale": "One bounded programming cluster, taught with a worked example and then faded into independent use.",
+      "coverage": {
+        "focus": "Choose and use array methods in small JavaScript programs.",
+        "essentialIdeas": [
+          "Use map when every item stays and each one becomes a transformed value.",
+          "Use filter when you keep only the items that pass a condition."
+        ],
+        "completionEvidence": [
+          "The learner can tell map and filter apart in a short code situation."
+        ],
+        "evidenceMap": [
+          {
+            "essentialIdea": "Use map when every item stays and each one becomes a transformed value.",
+            "activityConcept": "map"
+          },
+          {
+            "essentialIdea": "Use filter when you keep only the items that pass a condition.",
+            "activityConcept": "filter"
+          }
+        ],
+        "deferredContent": []
+      },
+      "methodBriefing": {
+        "learningMode": "learn",
+        "taskType": "programming",
+        "methodId": "worked_example_fading",
+        "name": "Worked Examples",
+        "what": "Study one complete array-method solution, then solve a similar task with less support and finally on your own.",
+        "why": "A complete example lowers load for a new coding choice, and fading checks whether the choice is usable without help.",
+        "how": [
+          "Study the model and note why the method fits the goal.",
+          "Answer the guided check with part of the support removed.",
+          "Answer the independent check without the solution visible.",
+          "Fix the specific step named in feedback if you miss."
+        ],
+        "completion": "You complete the comparable task independently or show the exact step that needs repair.",
+        "personalization": [
+          "You asked for concise explanations, so YOVA will connect each brief explanation directly to the task you perform."
+        ]
+      },
+      "sourceGrounding": null,
+      "activities": [
+        {
+          "topicId": "11111111-1111-4111-8111-111111111111",
+          "methodPhase": "model",
+          "estimatedMinutes": 6,
+          "requiredForCompletion": true,
+          "label": "Learn",
+          "title": "Choose map or filter",
+          "body": "Read the explanation, then answer the next question from memory.",
+          "teaching": null,
+          "lessonBrief": {
+            "version": 1,
+            "topicIds": [
+              "11111111-1111-4111-8111-111111111111"
+            ],
+            "essentialIdeas": [
+              "Use map when every item stays and each one becomes a transformed value."
+            ],
+            "sourceChunks": [],
+            "knowledgeSource": "model_knowledge",
+            "evidenceContext": {
+              "confirmedGaps": [],
+              "secureKnowledge": [],
+              "priorMisconceptions": []
+            },
+            "contentRequirements": {
+              "teachEveryEssentialIdea": true,
+              "includeConcreteExample": true,
+              "includeCommonMixup": true,
+              "preservePrerequisiteOrder": true
+            }
+          },
+          "practiceIntent": null,
+          "misconceptionSummary": null,
+          "type": "instruction",
+          "concept": null,
+          "choices": [],
+          "correctAnswer": null,
+          "feedback": null
+        },
+        {
+          "topicId": "11111111-1111-4111-8111-111111111111",
+          "methodPhase": "guided_practice",
+          "estimatedMinutes": 4,
+          "requiredForCompletion": true,
+          "label": "Trace the code",
+          "title": "Choose map or filter",
+          "body": "Pick the method for each small result. Use the example as support.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "multiple_choice",
+          "concept": "map",
+          "choices": [
+            "map",
+            "filter",
+            "reduce",
+            "forEach"
+          ],
+          "correctAnswer": "map",
+          "feedback": "map fits when every item is kept and changed to a new value."
+        },
+        {
+          "topicId": "11111111-1111-4111-8111-111111111111",
+          "methodPhase": "model",
+          "estimatedMinutes": 9,
+          "requiredForCompletion": true,
+          "label": "Learn",
+          "title": "Write the method name",
+          "body": "Read the explanation, then answer the next question from memory.",
+          "teaching": null,
+          "lessonBrief": {
+            "version": 1,
+            "topicIds": [
+              "11111111-1111-4111-8111-111111111111"
+            ],
+            "essentialIdeas": [
+              "Use filter when you keep only the items that pass a condition."
+            ],
+            "sourceChunks": [],
+            "knowledgeSource": "model_knowledge",
+            "evidenceContext": {
+              "confirmedGaps": [],
+              "secureKnowledge": [],
+              "priorMisconceptions": []
+            },
+            "contentRequirements": {
+              "teachEveryEssentialIdea": true,
+              "includeConcreteExample": true,
+              "includeCommonMixup": true,
+              "preservePrerequisiteOrder": true
+            }
+          },
+          "practiceIntent": null,
+          "misconceptionSummary": null,
+          "type": "instruction",
+          "concept": null,
+          "choices": [],
+          "correctAnswer": null,
+          "feedback": null
+        },
+        {
+          "topicId": "11111111-1111-4111-8111-111111111111",
+          "methodPhase": "independent_practice",
+          "estimatedMinutes": 7,
+          "requiredForCompletion": true,
+          "label": "Solve from memory",
+          "title": "Write the method name",
+          "body": "Name the array method for this job: keep only the numbers greater than 10.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "free_response",
+          "concept": "filter",
+          "choices": [],
+          "correctAnswer": "filter",
+          "feedback": "A complete answer names filter because the task keeps only items that pass a condition."
+        },
+        {
+          "topicId": "11111111-1111-4111-8111-111111111111",
+          "methodPhase": "transfer",
+          "estimatedMinutes": 4,
+          "requiredForCompletion": true,
+          "label": "Check the final choice",
+          "title": "Select the best method",
+          "body": "Choose the array method for this job: turn every price into its price with tax.",
+          "teaching": null,
+          "lessonBrief": null,
+          "practiceIntent": "baseline",
+          "misconceptionSummary": null,
+          "type": "multiple_choice",
+          "concept": "map",
+          "choices": [
+            "map",
+            "filter",
+            "reduce",
+            "sort"
+          ],
+          "correctAnswer": "map",
+          "feedback": "map fits because every item stays and each value changes to a new value."
+        }
+      ]
+    },
+    "deliveryPolicy": {
+      "schemaVersion": 1,
+      "evidenceStatus": "starting_hypothesis",
+      "presentation": {
+        "mode": "task_aligned",
+        "label": "Concise explanation",
+        "instruction": "keep the explanation brief and tie every rule to the action the learner must perform."
+      },
+      "repair": {
+        "mode": "task_aligned",
+        "label": "Evidence-led repair",
+        "instruction": "Choose the smallest repair that addresses the demonstrated gap without lowering the target."
+      },
+      "retention": {
+        "mode": "task_aligned",
+        "label": "Task-led evidence",
+        "instruction": "Use the memory or application check that best matches the current task."
+      },
+      "workspace": {
+        "mode": "task_aligned",
+        "label": "Focused workspace",
+        "instruction": "Show one obvious current action with the session path available nearby."
+      },
+      "pacing": {
+        "firstActionMinutes": 4,
+        "maximumActivities": 5,
+        "reason": "There is not enough repeated behavior evidence to change the normal session size."
+      },
+      "activityCadence": {
+        "mode": "task_aligned",
+        "label": "Task-aligned cadence",
+        "instruction": "Change activities only when the selected teaching method and current objective call for it."
+      },
+      "attemptSafety": {
+        "mode": "task_aligned",
+        "label": "Task-aligned attempts",
+        "instruction": "Use the attempt and feedback format best supported by the current task and selected method."
+      },
+      "knowledgeCheck": {
+        "mode": "task_aligned",
+        "label": "Task-aligned knowledge check",
+        "instruction": "Use the knowledge check required by the selected method and current learning objective."
+      },
+      "learnerFacingReasons": [
+        "You asked for concise explanations, so YOVA will connect each brief explanation directly to the task you perform."
+      ],
+      "signalsUsed": [
+        "Concise explanations tied to code",
+        "Open-ended coding prompts create hesitation",
+        "Begins with a concrete example"
+      ]
+    }
+  }
+}

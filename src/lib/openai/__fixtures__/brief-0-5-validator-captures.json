@@ -1261,8 +1261,8 @@
             "choices": [
               "Yo me levanto a las siete.",
               "Levantar.",
-              "S\u00ed, por favor.",
-              "\u00bfCu\u00e1ndo?"
+              "Sí, por favor.",
+              "¿Cuándo?"
             ],
             "correctAnswer": "Yo me levanto a las siete.",
             "feedback": "The correct choice is the full present-tense sentence. The other options are a verb form, a polite phrase, or only a question word."
@@ -1318,5 +1318,197 @@
         }
       }
     ]
+  },
+  "history_answer": {
+    "context": {
+      "sessionArchitectureVersion": "streamed_teaching_v1",
+      "learningGoal": {
+        "title": "World War I Test Preparation",
+        "topic": "World War I causes, escalation, major fronts, and consequences",
+        "kind": "test",
+        "deadline": "2026-08-22T23:00:00.000Z",
+        "sourceMode": "yova_generated",
+        "studyMode": "inside_yova",
+        "learningIntent": "study"
+      },
+      "planRationale": "The learner is starting from zero and asked for the big picture first. Establish a coherent World War I cause map before later sessions examine fronts, turning points, and consequences.",
+      "journey": {
+        "currentSequence": 1,
+        "totalSessions": 5,
+        "previousSessions": [],
+        "nextSessions": [
+          {
+            "sequence": 2,
+            "title": "Connect alliances and mobilization",
+            "objective": "Explain how alliance commitments and military timetables widened the July Crisis.",
+            "contentTargets": [
+              "Alliance commitments",
+              "Mobilization timetables"
+            ]
+          }
+        ]
+      },
+      "materials": [],
+      "knowledgeTopics": [
+        {
+          "id": "8ec325f4-0000-4000-8000-000000000001",
+          "title": "World War I cause map",
+          "description": "The prewar tensions, outbreak sequence, and basic chronology from 1914 to 1918.",
+          "subtopics": [
+            "Prewar European alliances and tensions",
+            "Sequence from the Sarajevo assassination to declarations of war",
+            "Basic chronology from 1914 to 1918"
+          ],
+          "prerequisiteTopicIds": [],
+          "status": "not_started",
+          "initialEvidence": null,
+          "sourceReferences": [],
+          "origin": "ai_generated",
+          "deferred": null
+        }
+      ],
+      "session": {
+        "title": "Baseline Check and WWI Map",
+        "objective": "Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.",
+        "method": "Self-explanation",
+        "methodReason": "The learner is starting from zero and asked for the big picture first, so establish a connected causal model before asking for independent explanation.",
+        "estimatedMinutes": 45,
+        "learningMode": "learn",
+        "topicIds": [
+          "8ec325f4-0000-4000-8000-000000000001"
+        ],
+        "contentTargets": [
+          "Prewar European alliances and tensions",
+          "Sequence from the Sarajevo assassination to declarations of war",
+          "Basic chronology from 1914 to 1918"
+        ],
+        "completionEvidence": [
+          "Describe the main alliance blocs and at least three prewar tensions using the example provided",
+          "Place Sarajevo, the July Crisis, the start of the war, U.S. entry, and the armistice in order",
+          "Label each uncertain idea as a cause, event, or consequence"
+        ],
+        "reviewConcept": null,
+        "reviewType": null
+      },
+      "learnerProfile": {
+        "commonBlocker": "Large amounts of new information feel overwhelming",
+        "guidancePreference": "Show one visible step at a time",
+        "explanationPreference": "Give the big picture before the details and one concrete example first",
+        "focusFrequency": "Can complete a 45-minute guided session",
+        "startingPattern": "Starts more consistently when the first action is small and specific",
+        "primaryImprovementGoal": "Understand the story first, then remember the details",
+        "processingPreference": "Big picture before details",
+        "memoryChallenge": "I forget some ideas after a few days",
+        "supportPreference": "Give a small hint before showing the answer",
+        "workspacePreference": "One step at a time",
+        "freeformContext": "I know almost nothing about World War I yet.",
+        "observationCorrection": null
+      },
+      "recentResults": [],
+      "recentInterruptions": [],
+      "conceptSignals": [],
+      "scaffoldSignals": []
+    },
+    "outputs": [
+      {},
+      {
+        "items": [
+          {
+            "essentialIdea": "Prewar European alliances split powers into Triple Entente and Triple Alliance blocs.",
+            "concept": "alliances",
+            "check": {
+              "title": "Alliance blocs before war",
+              "prompt": "How did prewar European alliances divide the major powers?",
+              "referenceAnswer": "They divided the major powers into the Triple Entente and the Triple Alliance blocs.",
+              "feedback": "The key point is the two opposing alliance blocs, not a single general alliance system."
+            },
+            "independentCheck": null
+          },
+          {
+            "essentialIdea": "The Sarajevo assassination triggered Austria-Hungary's ultimatum, then Serbia, then wider war.",
+            "concept": "Sarajevo sequence",
+            "check": {
+              "title": "From assassination to war",
+              "prompt": "What sequence followed the Sarajevo assassination before the war widened?",
+              "referenceAnswer": "Austria-Hungary issued an ultimatum to Serbia, Serbia responded, and the conflict widened into war.",
+              "feedback": "The sequence matters: assassination first, then ultimatum, then responses and escalation."
+            },
+            "independentCheck": null
+          },
+          {
+            "essentialIdea": "1914 began the war, and 1918 ended it with the armistice.",
+            "concept": "war dates",
+            "check": {
+              "title": "War start and end",
+              "prompt": "Which years mark the start and end of World War I?",
+              "referenceAnswer": "World War I began in 1914 and ended in 1918 with the armistice.",
+              "feedback": "Use the start and end years together; 1918 is tied to the armistice ending the fighting."
+            },
+            "independentCheck": null
+          }
+        ],
+        "recognitionCheck": {
+          "title": "Identify the war's end year",
+          "prompt": "Which year ended World War I with the armistice?",
+          "choices": [
+            "1914",
+            "1916",
+            "1918",
+            "1919"
+          ],
+          "correctAnswer": "1918",
+          "feedback": "1918 is the armistice year that ended the fighting."
+        }
+      }
+    ]
+  },
+  "history_neighbor": {
+    "items": [
+      {
+        "essentialIdea": "Prewar European alliances and tensions split powers into hostile, militarized blocs.",
+        "concept": "alliances and blocs",
+        "check": {
+          "title": "Alliance divisions",
+          "prompt": "How did prewar European alliances and tensions shape the political landscape before World War I?",
+          "referenceAnswer": "They divided Europe into hostile, militarized alliance blocs, increasing suspicion and the risk that a local crisis would spread.",
+          "feedback": "The key link is that alliances turned rivalry into two opposed blocs and raised the chance of wider war."
+        },
+        "independentCheck": null
+      },
+      {
+        "essentialIdea": "The Sarajevo assassination triggered Austria-Hungary's ultimatum and the war declarations that followed.",
+        "concept": "Sarajevo crisis",
+        "check": {
+          "title": "After Sarajevo",
+          "prompt": "What chain of events followed the Sarajevo assassination?",
+          "referenceAnswer": "The assassination led Austria-Hungary to issue an ultimatum to Serbia, then to declare war, which set off further declarations by other powers.",
+          "feedback": "Focus on the immediate escalation from assassination to ultimatum to war declarations."
+        },
+        "independentCheck": null
+      },
+      {
+        "essentialIdea": "From 1914 to 1918, World War I moved from rapid expansion to armistice in 1918.",
+        "concept": "1914-1918 chronology",
+        "check": {
+          "title": "War ends in 1918",
+          "prompt": "What is the basic chronology from 1914 to 1918 in World War I?",
+          "referenceAnswer": "World War I began in 1914 and ended with the 1918 armistice.",
+          "feedback": "The important point is the war's span from outbreak in 1914 to armistice in 1918."
+        },
+        "independentCheck": null
+      }
+    ],
+    "recognitionCheck": {
+      "title": "War outbreak sequence",
+      "prompt": "Which event came first in the outbreak sequence?",
+      "choices": [
+        "The Sarajevo assassination",
+        "The 1918 armistice",
+        "The end of World War I in 1918",
+        "The signing of the armistice after four years of war"
+      ],
+      "correctAnswer": "The Sarajevo assassination",
+      "feedback": "The assassination was the starting event; the other choices describe later war outcomes."
+    }
   }
 }

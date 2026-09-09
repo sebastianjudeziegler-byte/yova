@@ -234,7 +234,7 @@ Requirements:
 - check.referenceAnswer directly answers the prompt with the actual subject facts. It is never phrased as “a strong answer should” or “the learner should mention.”
 - check.feedback explains the relationship and one useful correction point.
 - When requiresIndependentCheck is true, independentCheck is a genuinely fresh application of the same target. Otherwise independentCheck is null.
-- Return exactly one recognitionCheck for the final claim. It must ask one self-contained multiple-choice question after teaching, include exactly four distinct plausible choices, and copy the correct choice exactly into correctAnswer.
+- Return exactly one recognitionCheck for the final claim within recognitionTarget. This target is chosen by the server. Test that claim, not an earlier group's claim. It must ask one self-contained multiple-choice question after teaching, include exactly four distinct plausible choices, and copy the correct choice exactly into correctAnswer.
 - Keep every recognition choice inside that final active target. A wrong choice may alter one relationship already present in the active slot, but it must not introduce a new name, date, term, procedure, or neighboring curriculum target.
 - Use only the supplied active target and its topic context. Do not introduce neighboring curriculum content.
 - Do not use em dashes, en dashes, markdown headings, markdown emphasis, or bullet glyphs.
@@ -1102,6 +1102,7 @@ async function generateCompactStreamedTeachingRecovery({
       input: `Build the compact streamed teaching recovery from this bounded context:\n${JSON.stringify({
         methodId: routing.suggestedPrimaryMethodId,
         targetGroups,
+        recognitionTarget: targetGroups.at(-1)!.target,
       })}`,
       reasoning: { effort: "none" },
       text: {
@@ -1452,9 +1453,20 @@ function buildCompactStreamedRecoveryDraft({
   });
   const recognitionIndex = items.length - 1;
   const recognitionSlot = slots[recognitionIndex]!;
+  // A short check answer can name one fact from an explanatory claim without
+  // repeating its curriculum label. Establish claim authority first; unchecked
+  // provider prose must never authorize its own off-topic answer.
+  validateStreamedTargetAssignments({
+    essentialIdeas: items.map(item => item.essentialIdea),
+    targetAssignments: items.map((item, index) => ({ essentialIdea: item.essentialIdea, targetId: slots[index]!.targetId })),
+    currentSessionScope: currentScope,
+    targetSubjectReferences: buildStreamedTargetSubjectReferences({ context, currentSessionScope: currentScope }),
+    targetIsolationMode: "server_bounded_recovery",
+  });
   validateCompactRecognitionCheck({
     check: recognitionCheck,
     slot: recognitionSlot,
+    taughtIdea: items[recognitionIndex]!.essentialIdea,
     currentSessionScope: currentScope,
   });
   const recognitionActivity = (
@@ -1687,27 +1699,29 @@ function validateCompactIndependentCheck({
 }
 
 function validateCompactRecognitionCheck({
-  check, slot, currentSessionScope,
+  check, slot, taughtIdea, currentSessionScope,
 }: {
   check: z.infer<typeof CompactStreamedRecoveryRecognitionCheckSchema>;
   slot: CompactRecoverySlot;
+  taughtIdea: string;
   currentSessionScope: StreamedCurrentSessionScope;
 }) {
   validateCompactCheckScope({
     learnerSurface: [check.title, check.prompt, ...check.choices, check.feedback].join(" "),
     answerSurface: [check.correctAnswer, check.feedback].join(" "),
-    slot, currentSessionScope, label: "recognition check",
+    slot, currentSessionScope, label: "recognition check", taughtIdea,
   });
 }
 
 function validateCompactCheckScope({
-  learnerSurface, answerSurface, slot, currentSessionScope, label,
+  learnerSurface, answerSurface, slot, currentSessionScope, label, taughtIdea,
 }: {
   learnerSurface: string;
   answerSurface: string;
   slot: CompactRecoverySlot;
   currentSessionScope: StreamedCurrentSessionScope;
   label: "independent application" | "recognition check";
+  taughtIdea?: string;
 }) {
   if (!slot.target) return;
   const references = [slot.target, slot.topicDescription, ...slot.topicSubtopics].filter(Boolean);
@@ -1725,7 +1739,8 @@ function validateCompactCheckScope({
   }
   // A familiar heading cannot authorize an unrelated answer. Subject proof
   // comes from the answer and explanation, without short-claim length caps.
-  if (!references.some(reference => lessonIdeaSharesTargetSubject(answerSurface, reference, "check"))) {
+  const answerReferences = [...references, ...(taughtIdea ? [taughtIdea] : [])];
+  if (!answerReferences.some(reference => lessonIdeaSharesTargetSubject(answerSurface, reference, "check"))) {
     throw new CurrentSessionScopeError(
       `${currentSessionScopeForRepair(currentSessionScope)} The ${label} does not preserve its active target's subject terms.`,
       "streamed_target_subject",

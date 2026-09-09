@@ -1283,6 +1283,7 @@ describe("bounded streamed-skeleton repair policy", () => {
     const recoveryInput = parseResponse.mock.calls[1]?.[0]?.input as string;
     const recoveryPrompt = JSON.parse(recoveryInput.slice(recoveryInput.indexOf("\n") + 1));
     expect(recoveryPrompt.targetGroups).toHaveLength(1);
+    expect(recoveryPrompt.recognitionTarget).toBe(recoveryPrompt.targetGroups.at(-1).target);
     expect(recoveryPrompt.targetGroups[0]).toMatchObject({
       claimCount: 2,
       requiresIndependentCheck: false,
