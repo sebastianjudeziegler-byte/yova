@@ -423,6 +423,30 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it("attaches an owner-ready file without duplicating topics and Undo restores the previous source list", async () => {
+    const materialId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const row = { id: materialId, filename: "ETC notes.txt", mime_type: "text/plain", byte_size: 100,
+      processing_status: "ready", expires_at: "2026-09-30T00:00:00.000Z", metadata: {} };
+    const read = (table: string) => {
+      const chain = { select: () => chain, eq: () => chain, in: () => chain,
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: table === "material_uploads" ? [row] : [], error: null }).then(resolve) };
+      return chain;
+    };
+    mocks.client.mockResolvedValue({ auth: { getUser: async () => ({ data: { user: { id: USER } }, error: null }) }, from: read, rpc: mocks.rpc });
+    const { response, body, before } = await preview([{ op: "attach_source", topic_id: ETC, material_id: materialId }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(topic(body.proposal.after, ETC).attachedSources).toEqual([{ material_id: materialId }]);
+    expect(body.proposal.after.knowledgeMap.topics.map((item: { id: string }) => item.id)).toEqual(before.knowledgeMap!.topics.map(item => item.id));
+    expect(body.proposal.lines[0].after.join(" ")).toContain("ETC notes.txt");
+    const undo = await PATCH(new Request("http://localhost/api/plans/adjust", { method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "undo", planId: before.id, expectedRevisionId: body.proposal.revisionId, proposal: body.proposal, proposalReceipt: body.proposalReceipt }) }));
+    const restored = await undo.json();
+    expect(undo.status, JSON.stringify(restored)).toBe(200);
+    expect(restored.plan.materials).toEqual(before.materials);
+    expect(restored.generationRequest.materials).toEqual(before.materials);
+    expect(topic(restored.plan, ETC).attachedSources).toEqual(topic(before, ETC).attachedSources);
+  });
+
   it("budgets time to study a newly attached source before practice and says so in the preview", async () => {
     const plan = structuredClone(deterministicDeltaPlan(1));
     // Allow an expanded block without asking to move any neighboring session.

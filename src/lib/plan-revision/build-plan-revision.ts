@@ -43,6 +43,11 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
   contextKind: "active" | "draft" | "development";
   draftReceiptWindow?: { issuedAt: string; expiresAt: string };
 }): Promise<PlanRevisionProposal> {
+  protections = plan.sessions.map(session => {
+    const protection = protections.find(item => item.sessionId === session.id);
+    const editedFields = [...new Set([...(session.revisionEditedFields ?? []), ...(protection?.editedFields ?? [])])];
+    return { sessionId: session.id, savedWork: protection?.savedWork ?? false, pinnedTime: protection?.pinnedTime || editedFields.includes("scheduledFor"), editedFields };
+  });
   const applied = applyMapDelta({ request, delta, now, excluded: controls.excludedOperationIndexes });
   const nextMap = applied.request.knowledgeMap!;
   const slots = normalPlanAvailability({ request: applied.request, now, searchDays: 366, revisionContext: { reservations: otherReservations, priorSessions: [] } });
@@ -53,11 +58,17 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
   const protectedIds = new Set(scope.protectedSessionIds);
   const originalById = new Map(plan.sessions.map(session => [session.id, session]));
   const protectionById = new Map(protections.map(item => [item.sessionId, item]));
-  const edits = new Map(controls.sessionEdits.filter(edit => applied.lines.some(line => line.topicId === null || originalById.get(edit.sessionId)?.topicIds?.includes(line.topicId))).map(item => [item.sessionId, item]));
-  if (new Set(controls.sessionEdits.map(edit => edit.sessionId)).size !== controls.sessionEdits.length || controls.sessionEdits.some(edit => !originalById.has(edit.sessionId))) throw new Error("Choose an existing session from this preview before editing its method or time.");
-  for (const edit of edits.values()) {
-    if (protectedIds.has(edit.sessionId)) throw new Error("That session has saved work and cannot be changed.");
-    affected.add(edit.sessionId);
+  const editKeys = controls.sessionEdits.map(edit => edit.sessionId ?? `new:${edit.operationIndex}`);
+  if (new Set(editKeys).size !== editKeys.length || controls.sessionEdits.some(edit => edit.sessionId
+    ? !originalById.has(edit.sessionId)
+    : edit.operationIndex === undefined || delta.operations[edit.operationIndex]?.op !== "add_topic")) {
+    throw new Error("Choose an existing session or a new topic from this preview before editing its method or time.");
+  }
+  const edits = new Map(controls.sessionEdits.flatMap(edit => edit.sessionId && applied.lines.some(line => line.topicId === null || originalById.get(edit.sessionId!)?.topicIds?.includes(line.topicId)) ? [[edit.sessionId, edit] as const] : []));
+  const newEdits = new Map(controls.sessionEdits.flatMap(edit => edit.operationIndex !== undefined && !controls.excludedOperationIndexes.includes(edit.operationIndex) ? [[edit.operationIndex, edit] as const] : []));
+  for (const id of edits.keys()) {
+    if (protectedIds.has(id)) throw new Error("That session has saved work and cannot be changed.");
+    affected.add(id);
   }
   const units: Unit[] = [];
   const replacements = new Map<string, LearningPlanSession>();
@@ -93,7 +104,7 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     const [unit] = remaining.splice(availableIndex, 1);
     const topic = mapById.get(unit!.topicId)!;
     if (topic.removed || topic.deferred) continue;
-    const edit = unit!.original ? edits.get(unit!.original.id) : undefined;
+    const edit = unit!.original ? edits.get(unit!.original.id) : newEdits.get(unit!.operationIndex);
     const protection = unit!.original ? protectionById.get(unit!.original.id) : undefined;
     const explicitReorder = delta.operations.some(operation => operation.op === "reorder" && operation.topic_id === unit!.topicId);
     const existingStart = unit!.original && !edit?.scheduledFor && !applied.scheduleChanged && !explicitReorder ? Date.parse(unit!.original.scheduledFor) : now.getTime();
@@ -108,17 +119,17 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     const priorSessions = plan.sessions.filter(session => session.status !== "skipped" && unit!.original && session.sequence < unit!.original.sequence && session.topicIds?.includes(topic.id)).map(session => ({ key: `existing:${session.id}`, topicIds: [topic.id] }));
     const revisionContext: NormalPlanRevisionContext = { reservations: [...reservations], earliestStart: selectedTime ?? new Date(earliest).toISOString(), priorSessions };
     const chosenMethod = edit?.methodId ?? (unit!.original?.studyRoute?.agency.selectedBy === "learner" ? unit!.original.studyRoute.approach.primaryMethodId : undefined);
-    const scopedMethodContext = { ...methodContext, ...(chosenMethod ? { methodChoicesBySequence: { 1: { methodId: chosenMethod, evidenceRef: `learner-choice:plan-revision:${plan.id}:${unit!.original!.id}:${chosenMethod}` } } } : {}) };
+    const scopedMethodContext = { ...methodContext, ...(chosenMethod ? { methodChoicesBySequence: { 1: { methodId: chosenMethod, evidenceRef: `learner-choice:plan-revision:${plan.id}:${unit!.original?.id ?? unit!.topicId}:${chosenMethod}` } } } : {}) };
     const sourceAdded = delta.operations.some((operation, index) => !controls.excludedOperationIndexes.includes(index) && operation.op === "attach_source" && operation.topic_id === topic.id);
     const sourceBudget = sourceAdded && unit!.original
       ? [10, 15, 25, 45, 60].find(minutes => minutes >= unit!.original!.estimatedMinutes + 5) ?? 60
       : undefined;
-    const requestedDuration = edit?.durationMinutes ?? (protection?.editedFields.includes("estimatedMinutes") ? unit!.original!.estimatedMinutes : sourceBudget);
+    const requestedDuration = edit?.durationMinutes ?? (protection?.editedFields.includes("estimatedMinutes") ? unit!.original!.estimatedMinutes : undefined);
     const selectedDuration = requestedDuration === undefined ? undefined : z.union([z.literal(10), z.literal(15), z.literal(25), z.literal(45), z.literal(60)]).parse(requestedDuration);
     try {
       const composition = composeNormalPlanEnvelopes({
         request: subRequest, now, revisionContext,
-        durationContext: { ...durationContext, ...(selectedDuration ? { learnerOverrideMinutes: selectedDuration } : {}) },
+        durationContext: { ...durationContext, ...(selectedDuration ? { learnerOverrideMinutes: selectedDuration } : sourceBudget ? { sourceStudyBudgetMinutes: sourceBudget as 10 | 15 | 25 | 45 | 60 } : {}) },
         learningIntentRecommendation: { intent: subRequest.learningIntent, basis: "Apply the accepted topic change while keeping all other work unchanged." },
       });
       if (selectedTime && composition.envelopes[0]?.scheduledFor !== selectedTime) {
@@ -158,6 +169,10 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
         const original = unit.keepOriginalId && index === 0 ? unit.original : null;
         const id = original?.id ?? makeUuid();
         const rebound = bindRevisionSession({ plan, session, original, id, now, protection });
+        const edit = original ? edits.get(original.id) : index === 0 ? newEdits.get(unit.operationIndex) : undefined;
+        const editedFields = [...new Set([...(original?.revisionEditedFields ?? protection?.editedFields ?? []),
+          ...(edit?.scheduledFor ? ["scheduledFor" as const] : []), ...(edit?.durationMinutes ? ["estimatedMinutes" as const] : []), ...(edit?.methodId ? ["method" as const] : [])])];
+        if (editedFields.length) rebound.revisionEditedFields = editedFields;
         if (original) replacements.set(id, rebound);
         else addedSessions.push(rebound);
       }
@@ -211,7 +226,7 @@ function bindRevisionSession({ plan, session, original, id, now, protection }: {
     if (field === "scheduledFor" || field === "estimatedMinutes" || field === "method") continue;
     if (original) Object.assign(candidate, { [field]: original[field] });
   }
-  let route = StudyRouteSchema.parse({ ...candidate.studyRoute!, target: { ...candidate.studyRoute!.target, desiredOutcome: candidate.objective.slice(0, 500) }, identity: { ...candidate.studyRoute!.identity, planId: plan.id, sessionId: id } });
+  let route = StudyRouteSchema.parse({ ...candidate.studyRoute!, ...(original && protection?.editedFields.includes("methodReason") ? { explanation: { ...candidate.studyRoute!.explanation, shortReason: original.methodReason } } : {}), target: { ...candidate.studyRoute!.target, desiredOutcome: candidate.objective.slice(0, 500) }, identity: { ...candidate.studyRoute!.identity, planId: plan.id, sessionId: id } });
   if (original?.studyRoute?.identity.lifecycleStatus === "committed") {
     if (!materialStudyRouteChanges(original.studyRoute, route).length) return { ...candidate, ...studyRouteToLegacySessionProjection(original.studyRoute), studyRoute: original.studyRoute };
     const changedAt = new Date(Math.max(now.getTime(), Date.parse(original.studyRoute.identity.committedAt ?? original.studyRoute.identity.createdAt))).toISOString();

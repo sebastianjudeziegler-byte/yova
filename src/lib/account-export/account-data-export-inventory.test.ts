@@ -20,6 +20,7 @@ const TABLE_INVENTORY = {
     "material_uploads",
     "materials",
     "plan_sessions",
+    "plan_revisions",
     "plans",
     "product_events",
     "profiles",

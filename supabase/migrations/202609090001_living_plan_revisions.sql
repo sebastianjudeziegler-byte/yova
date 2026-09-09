@@ -56,6 +56,7 @@ begin
   select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
     'id',s.id,'sequence',s.sequence,'title',s.title,'objective',s.objective,'method',s.method,'methodReason',s.method_rationale,
     'scheduledFor',coalesce(s.scheduled_for,p.created_at),'estimatedMinutes',s.estimated_minutes,'status',s.status,
+    'revisionEditedFields',s.step_data->'revisionEditedFields',
     'amountLabel',coalesce(s.step_data->>'amountLabel',s.estimated_minutes||' min'),
     'learningMode',coalesce(s.step_data->>'learningMode','study'),
     'topicIds',coalesce(s.step_data->'topicIds','[]'::jsonb),'contentTargets',coalesce(s.step_data->'contentTargets','[]'::jsonb),
@@ -75,7 +76,7 @@ begin
   coalesce(jsonb_agg(jsonb_build_object('sessionId',s.id,
     'savedWork',s.status not in ('ready','upcoming') or s.step_data ?| array['generatedSession','activeSessionCheckpoint']
       or exists(select 1 from public.learning_events e where e.user_id=p.user_id and e.plan_session_id=s.id and e.event_type='session_interrupted'),
-    'pinnedTime',exists(select 1 from public.learning_events e where e.user_id=p.user_id and e.plan_session_id=s.id and e.event_type='session_rescheduled'),
+    'pinnedTime',coalesce(s.step_data->'revisionEditedFields' ? 'scheduledFor',false) or exists(select 1 from public.learning_events e where e.user_id=p.user_id and e.plan_session_id=s.id and e.event_type='session_rescheduled'),
     'editedFields',coalesce(s.step_data->'revisionEditedFields','[]'::jsonb)
   )),'[]'::jsonb)
   into sessions,fingerprints,protections
@@ -237,3 +238,40 @@ begin
 end $$;
 revoke all on function public.apply_plan_revision(uuid,jsonb) from public, anon, authenticated;
 grant execute on function public.apply_plan_revision(uuid,jsonb) to service_role;
+
+-- Include the learner-owned plan revisions in the existing bounded, claimed export.
+-- Preserve its authorization, transaction lock, receipt and size checks.
+do $migration$
+declare
+  definition text := pg_catalog.pg_get_functiondef('public.export_yova_account_data_without_study_routes()'::regprocedure);
+  count_anchor text := 'union all select count(*) from public.session_attempts where user_id = current_user_id';
+  actual_anchor text := 'union all select pg_catalog.jsonb_array_length(result -> ''sessionAttempts'')::bigint';
+  section_anchor text := '''sessionAttempts'', coalesce((';
+begin
+  if position(count_anchor in definition)=0 or position(actual_anchor in definition)=0
+    or position(section_anchor in definition)=0 then
+    raise exception 'Plan revision export patch did not match the protected exporter';
+  end if;
+  definition := replace(definition, count_anchor, count_anchor || E'\n    union all select count(*) from public.plan_revisions where user_id = current_user_id');
+  definition := replace(definition, actual_anchor, actual_anchor || E'\n    union all select pg_catalog.jsonb_array_length(result -> ''planRevisions'')::bigint');
+  definition := replace(definition, section_anchor, $section$
+    'planRevisions', coalesce((
+      select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+        'id', revision.id, 'planId', revision.plan_id,
+        'previousRevisionId', revision.previous_revision_id, 'revisionId', revision.revision_id,
+        'proposal', revision.proposal, 'receipt', revision.receipt, 'createdAt', revision.created_at
+      ) order by revision.created_at, revision.id)
+      from public.plan_revisions as revision where revision.user_id = current_user_id
+    ), '[]'::jsonb),
+    'sessionAttempts', coalesce(($section$);
+  -- Bound this prose section before aggregation; the mature exporter checks
+  -- exact combined record/byte limits again after creating its snapshot.
+  definition := replace(definition, 'with section_counts(section_count) as (', $preflight$
+    if (select coalesce(sum(pg_catalog.octet_length(proposal::text) + pg_catalog.octet_length(receipt::text) + 600),0)
+      from public.plan_revisions where user_id = current_user_id) > 26214400 then
+      raise exception using errcode='54000', message='account_export_limit_exceeded';
+    end if;
+    with section_counts(section_count) as ($preflight$);
+  execute definition;
+end;
+$migration$;

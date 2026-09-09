@@ -88,6 +88,8 @@ export type NormalPlanDurationContext = Readonly<{
   recentOutcomes: readonly NormalDurationOutcome[];
   capacityMaximumMinutes?: NormalStudyDurationMinutes;
   learnerOverrideMinutes?: NormalStudyDurationMinutes;
+  /** Deterministic source-reading allowance for a reviewed attachment. */
+  sourceStudyBudgetMinutes?: NormalStudyDurationMinutes;
 }>;
 
 export type NormalPlanEnvelopeInput = Readonly<{
@@ -704,7 +706,10 @@ function placeSession({
       }],
     } : baseRecommendation;
     const resolvedDuration = resolveNormalStudyDurationPrecedence({
-      systemRecommendation: recommendation,
+      systemRecommendation: durationContext.sourceStudyBudgetMinutes ? {
+        ...recommendation, minutes: durationContext.sourceStudyBudgetMinutes,
+        ruleTrace: [...recommendation.ruleTrace, { ruleId: "plan_revision_source_budget_v1", result: `source_study_${durationContext.sourceStudyBudgetMinutes}_minutes`, reason: "Allow time to study the attached source before practicing this topic.", evidenceRefs: [] }],
+      } : recommendation,
       learnerOverrideMinutes: durationContext.learnerOverrideMinutes ?? null,
       hardMaximumMinutes: remaining,
     });

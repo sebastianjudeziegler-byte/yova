@@ -33,13 +33,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Prepare evidence directory
         run: mkdir -p artifacts/brief-b-baseline
-      - name: Capture corrected source-capacity fixtures against the pre-budget implementation
-        continue-on-error: true
-        run: |
-          cp src/lib/plan-revision/build-plan-revision.ts /tmp/yova-brief-b-current-builder.ts
-          trap 'cp /tmp/yova-brief-b-current-builder.ts src/lib/plan-revision/build-plan-revision.ts' EXIT
-          git show 043b86a:src/lib/plan-revision/build-plan-revision.ts > src/lib/plan-revision/build-plan-revision.ts
-          pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.test.ts -t 'budgets time to study|reports limited source' 2>&1 | tee artifacts/brief-b-baseline/source-red.txt
       - name: Capture route contract baseline
         env:
           YOVA_DB_FIXTURE_PATH: /tmp/yova-living-plan-routed.test.sql

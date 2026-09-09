@@ -52,6 +52,7 @@ export function PlanRevisionPreview(props: Props) {
   const [day, setDay] = useState("Monday");
   const [window, setWindow] = useState("18:00–19:00");
   const [minutes, setMinutes] = useState(60);
+  const [keptWindows, setKeptWindows] = useState(() => (props.plan.schedulePreferences?.availability ?? []).map((_, index) => index));
   const sequence = useRef(0);
   const started = useRef(false);
   const topics = props.plan.knowledgeMap?.topics.filter(topic => !topic.removed) ?? [];
@@ -91,11 +92,13 @@ export function PlanRevisionPreview(props: Props) {
     if (enabled) excluded.delete(index); else excluded.add(index);
     void refresh(delta, { ...controls, excludedOperationIndexes: [...excluded] });
   }
-  function editSession(sessionId: string, patch: { methodId?: CoreMethodId; scheduledFor?: string }) {
-    const previous = controls.sessionEdits.find(edit => edit.sessionId === sessionId);
+  function editSession(sessionId: string, operationIndex: number, patch: { methodId?: CoreMethodId; scheduledFor?: string; durationMinutes?: 10 | 15 | 25 | 45 | 60 }) {
+    const existing = props.plan.sessions.some(session => session.id === sessionId);
+    const matches = (edit: RevisionControls["sessionEdits"][number]) => existing ? edit.sessionId === sessionId : edit.operationIndex === operationIndex;
+    const previous = controls.sessionEdits.find(matches);
     void refresh(delta, { ...controls, sessionEdits: [
-      ...controls.sessionEdits.filter(edit => edit.sessionId !== sessionId),
-      { ...previous, sessionId, ...patch },
+      ...controls.sessionEdits.filter(edit => !matches(edit)),
+      { ...previous, ...(existing ? { sessionId } : { operationIndex }), ...patch },
     ] });
   }
   async function confirm() {
@@ -137,7 +140,7 @@ export function PlanRevisionPreview(props: Props) {
       if (!Number.isFinite(Date.parse(deadline))) { setError("Choose a deadline."); return; }
       operation = { op: newType, iso: new Date(deadline).toISOString() };
     } else {
-      operation = { op: "set_availability", availability: [...(props.plan.schedulePreferences?.availability ?? []), { day, window, minutes }] };
+      operation = { op: "set_availability", availability: [...(props.plan.schedulePreferences?.availability ?? []).filter((_, index) => keptWindows.includes(index)), { day, window, minutes }] };
     }
     setAdding(false); setSourceUrl(""); setStagedFile(null);
     void refresh({ operations: [...delta.operations, operation] });
@@ -162,15 +165,15 @@ export function PlanRevisionPreview(props: Props) {
           <div className="plan-revision-comparison"><div><strong>Before</strong><ul>{(line?.before ?? ["Current plan"]).map((text, i) => <li key={i}>{text}</li>)}</ul></div>
             <div><strong>After</strong><ul>{(included ? line?.after ?? ["Preparing…"] : ["No change"]).map((text, i) => <li key={i}>{text}</li>)}</ul></div></div>
           {line?.blockedReason && <p>{line.blockedReason}</p>}
-          {included && preview && line?.sessionIds.map(sessionId => {
+          {included && preview && line?.sessionIds.map((sessionId, sessionIndex) => {
             const session = preview.proposal.after.sessions.find(item => item.id === sessionId);
-            if (!session) return null;
+            if (!session || (operation.op === "add_topic" && sessionIndex > 0)) return null;
             const choices = props.choicesForSession(preview.proposal, sessionId);
             return <div key={sessionId} className="plan-revision-session-controls">
-              <label>Method for {session.title}<select value={session.studyRoute?.approach.primaryMethodId ?? ""} disabled={saving || pending} onChange={event => editSession(sessionId, { methodId: event.target.value as CoreMethodId })}>
+              <label>Method for {session.title}<select value={session.studyRoute?.approach.primaryMethodId ?? ""} disabled={saving || pending} onChange={event => editSession(sessionId, index, { methodId: event.target.value as CoreMethodId })}>
                 {choices.methods.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select></label>
-              <label>Time for {session.title}<select value={session.scheduledFor} disabled={saving || pending} onChange={event => editSession(sessionId, { scheduledFor: event.target.value })}>
+              <label>Time for {session.title}<select value={session.scheduledFor} disabled={saving || pending} onChange={event => editSession(sessionId, index, { scheduledFor: event.target.value })}>
                 {choices.times.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select></label>
             </div>;
@@ -197,7 +200,7 @@ export function PlanRevisionPreview(props: Props) {
       {newType === "add_topic" && <><label>Topic title<input value={newTitle} onChange={event => setNewTitle(event.target.value)} /></label><label>What should this topic cover?<textarea value={newDescription} onChange={event => setNewDescription(event.target.value)} /></label></>}
       {["add_topic", "reorder"].includes(newType) && <label>After topic<select value={afterTopic} onChange={event => setAfterTopic(event.target.value)}>{topics.map(topic => <option key={topic.id} value={topic.id}>{topic.title}</option>)}</select></label>}
       {newType === "set_deadline" && <label>Deadline<input type="datetime-local" value={deadline} onChange={event => setDeadline(event.target.value)} /></label>}
-      {newType === "set_availability" && <><label>Day<select value={day} onChange={event => setDay(event.target.value)}>{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(value => <option key={value}>{value}</option>)}</select></label><label>Time window<input value={window} onChange={event => setWindow(event.target.value)} /></label><label>Minutes<input type="number" min={10} max={180} value={minutes} onChange={event => setMinutes(Number(event.target.value))} /></label><p>This adds a window to your existing availability.</p></>}
+      {newType === "set_availability" && <><label>Day<select value={day} onChange={event => setDay(event.target.value)}>{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(value => <option key={value}>{value}</option>)}</select></label><label>Time window<input value={window} onChange={event => setWindow(event.target.value)} /></label><label>Minutes<input type="number" min={10} max={180} value={minutes} onChange={event => setMinutes(Number(event.target.value))} /></label><div>{(props.plan.schedulePreferences?.availability ?? []).map((slot, index) => <label key={index}><input type="checkbox" checked={keptWindows.includes(index)} onChange={event => setKeptWindows(previous => event.target.checked ? [...previous, index] : previous.filter(value => value !== index))} />Keep existing window: {slot.day} {slot.window}</label>)}</div><p>Keep the windows you still want, and add the time above.</p></>}
       <button type="button" className="button secondary" onClick={addChange} disabled={!newTopic || (newType === "attach_source" && !stagedFile && !sourceUrl.trim())}>{newType === "attach_source" ? "Preview source attachment" : "Preview change"}</button>
     </fieldset>}
     <footer><button type="button" className="button secondary" disabled={saving} onClick={props.onCancel}>Cancel</button>

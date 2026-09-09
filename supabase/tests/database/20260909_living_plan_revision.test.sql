@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
-select extensions.plan(13);
+select extensions.plan(20);
 
 insert into auth.users(id,email) values ('b1000000-0000-4000-8000-000000000001','living-plan-boundary@example.com');
 insert into public.learning_items(id,user_id,title,kind,topic,source_mode,study_mode)
@@ -54,5 +54,20 @@ values('b1000000-0000-4000-8000-000000000014','b1000000-0000-4000-8000-000000000
 'b1000000-0000-4000-8000-000000000001/b1000000-0000-4000-8000-000000000014/device-state.json',
 'b1000000-0000-4000-8000-000000000001/b1000000-0000-4000-8000-000000000014/yova-data.json',now()+interval '10 minutes');
 select extensions.is(jsonb_array_length(public.export_yova_account_data()->'planRevisions'),1,'the learner account export includes their saved plan revision receipt');
+select extensions.ok(not has_function_privilege('authenticated','public.adjust_learning_plan_with_routes(jsonb)','execute'),'the browser cannot bypass reviewed deltas through the retired wholesale adjustment RPC');
+select extensions.ok(not has_function_privilege('authenticated','public.attach_materials_to_plan(jsonb)','execute'),'the browser cannot bypass a topic preview through the retired material attachment RPC');
+insert into public.material_uploads(id,user_id,filename,storage_path,mime_type,byte_size,processing_status,extracted_text,expires_at)
+values ('b1000000-0000-4000-8000-000000000015','b1000000-0000-4000-8000-000000000001','Water notes.txt','b1000000-0000-4000-8000-000000000001/b1000000-0000-4000-8000-000000000015/notes.txt','text/plain',100,'ready','Water has partial charges.',now()+interval '1 hour');
+create temporary table source_payload as select payload || jsonb_build_object(
+  'operationId','b1000000-0000-4000-8000-000000000016','revisionId','b1000000-0000-4000-8000-000000000016',
+  'expectedRevisionId',p.current_revision_id,'expectedMap',p.knowledge_map,
+  'knowledgeMap',jsonb_set(p.knowledge_map,'{topics,0,attachedSources}','[{"material_id":"b1000000-0000-4000-8000-000000000015"}]'),
+  'generationRequest',jsonb_build_object('materials',jsonb_build_array(jsonb_build_object('id','b1000000-0000-4000-8000-000000000015')))
+) as payload from revision_payload cross join public.plans p where p.id='b1000000-0000-4000-8000-000000000003';
+select extensions.is(pg_temp.attempt_revision(payload),'saved','a verified source promotes atomically with the topic attachment') from source_payload;
+select extensions.is((select filename from public.materials where id='b1000000-0000-4000-8000-000000000015'),'Water notes.txt','the learner can reopen the attached source by name');
+select extensions.is((select count(*)::integer from public.material_uploads where id='b1000000-0000-4000-8000-000000000015'),0,'the attached file no longer expires as a staged upload');
+select extensions.is((select to_jsonb(s) from public.plan_sessions s where id='b1000000-0000-4000-8000-000000000005'),(select row from before_completed),'source attachment keeps completed work exact');
+select extensions.ok(not exists(select 1 from public.private_storage_cleanup_receipts where source_material_id='b1000000-0000-4000-8000-000000000015'),'promotion does not schedule deletion of the newly attached file');
 select * from extensions.finish();
 rollback;

@@ -20,11 +20,12 @@ const currentContext = z.discriminatedUnion("kind", [
 export const RevisionControlsSchema = z.object({
   excludedOperationIndexes: z.array(z.number().int().min(0).max(39)).max(40).default([]),
   sessionEdits: z.array(z.object({
-    sessionId: z.string().uuid(),
+    sessionId: z.string().uuid().optional(),
+    operationIndex: z.number().int().min(0).max(39).optional(),
     methodId: z.enum(CORE_METHOD_IDS).optional(),
     scheduledFor: z.string().datetime({ offset: true }).optional(),
     durationMinutes: z.union([z.literal(10), z.literal(15), z.literal(25), z.literal(45), z.literal(60)]).optional(),
-  }).strict()).max(28).default([]),
+  }).strict().refine(edit => (edit.sessionId !== undefined) !== (edit.operationIndex !== undefined), "Choose one existing session or new-topic line.")).max(28).default([]),
 }).strict().default({ excludedOperationIndexes: [], sessionEdits: [] });
 export const RevisionFixedEventSchema = z.object({
   id: z.string().trim().min(1).max(160),

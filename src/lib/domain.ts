@@ -117,6 +117,7 @@ export type SessionAdaptationNote = {
 };
 
 export type LearningPlanSession = {
+  revisionEditedFields?: ("title" | "objective" | "method" | "methodReason" | "scheduledFor" | "estimatedMinutes")[];
   id: string;
   sequence: number;
   title: string;

@@ -489,6 +489,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     const amountLabel = readTextProperty(row.step_data, "amountLabel")
       || `${row.estimated_minutes} min`;
     const session: LearningPlanSession = {
+      ...(readStringArrayProperty(row.step_data, "revisionEditedFields").length ? { revisionEditedFields: readStringArrayProperty(row.step_data, "revisionEditedFields").filter((field): field is NonNullable<LearningPlanSession["revisionEditedFields"]>[number] => ["title", "objective", "method", "methodReason", "scheduledFor", "estimatedMinutes"].includes(field)) } : {}),
       id: row.id,
       sequence: row.sequence,
       title: row.title,
