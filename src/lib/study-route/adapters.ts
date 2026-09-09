@@ -1,3 +1,4 @@
+import { measuredPlacementEvidence } from "@/lib/knowledge-map/topic-evidence";
 import type {
   LearningPlan,
   LearningPlanSession,
@@ -442,7 +443,7 @@ function legacyTargetStates({
     const topic = knowledgeTopics.find((candidate) => candidate.id === targetId);
     const resourceStage = resource?.routingContext?.knowledgeStage;
     if (!topic && !resourceStage) issues.add("target_stage_inferred_from_mode");
-    const initialEvidence = topic?.initialEvidence;
+    const initialEvidence = topic ? measuredPlacementEvidence(topic) : null;
     return {
       targetId,
       stage: topic

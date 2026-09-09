@@ -195,6 +195,7 @@ export const ProviderGeneratedPlanDraftSchema = GeneratedPlanDraftSchema.extend(
 });
 
 export const LearningPlanSchema = z.object({
+  revisionId: z.string().uuid().optional(),
   id: z.string().min(1),
   learningItemId: z.string().min(1),
   title: z.string().min(1),

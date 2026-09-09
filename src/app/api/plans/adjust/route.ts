@@ -23,15 +23,21 @@ import { preparePlanAdjustmentStudyRoutes } from "@/lib/study-route/plan-adjustm
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readPlanSchedulePreferences } from "@/lib/scheduling/plan-schedule-preferences";
+import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { PlanRevisionPreviewRequestSchema } from "@/lib/plan-revision/revision-schema";
+import { previewPlanRevision, PlanRevisionRequestError } from "@/lib/plan-revision/preview-service";
+import { MapDeltaError } from "@/lib/plan-revision/map-delta";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 export async function PATCH(request: Request) {
   const requestId = operationRequestId(request);
-  const supabase = await createSupabaseServerClient();
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
+  const developmentPreview = isDevelopmentPreviewRequest(request);
+  const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
+  const { data: { user }, error: userError } = supabase ? await supabase.auth.getUser() : { data: { user: null }, error: null };
+  if (!developmentPreview && (userError || !user)) {
     return NextResponse.json({ error: "Sign in before adjusting a plan." }, { status: 401 });
   }
 
@@ -41,6 +47,20 @@ export async function PATCH(request: Request) {
   } catch {
     return NextResponse.json({ error: "The plan adjustment was not valid JSON." }, { status: 400 });
   }
+
+  if (body && typeof body === "object" && "action" in body) {
+    const revision = PlanRevisionPreviewRequestSchema.safeParse(body);
+    if (!revision.success) return NextResponse.json({ error: "Review the topic changes and preview controls." }, { status: 422 });
+    try {
+      const result = await previewPlanRevision({ input: revision.data, supabase, userId: user?.id ?? null, developmentPreview, now: new Date() });
+      return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+    } catch (error) {
+      if (error instanceof MapDeltaError || error instanceof PlanRevisionRequestError) return NextResponse.json({ error: error.message }, { status: error instanceof PlanRevisionRequestError ? error.status : 422 });
+      console.error("Structured plan revision preview failed", error);
+      return NextResponse.json({ error: "YOVA could not prepare that change. Your plan has not changed." }, { status: 503 });
+    }
+  }
+  if (!supabase || !user) return NextResponse.json({ error: "Sign in before adjusting a plan." }, { status: 401 });
 
   const parsed = PlanAdjustmentRequestSchema.safeParse(body);
   if (!parsed.success) {

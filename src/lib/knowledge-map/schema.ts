@@ -114,11 +114,16 @@ const COMPLETE_SCOPE_LABEL_PATTERN = new RegExp(
   `^(?![\\s\\S]*\\b(?:${DANGLING_SCOPE_LABEL_WORDS.map(caseInsensitivePattern).join("|")})[\\s.!?,:;'\"’”)}\\]]*$)[\\s\\S]+$`,
 );
 
-export const InitialTopicEvidenceSchema = z.object({
+export const PlacementTopicEvidenceSchema = z.object({
   source: z.literal("placement_check"),
   outcome: z.enum(["demonstrated", "gap"]),
   observedAt: z.string().datetime({ offset: true }),
-}).nullable().default(null);
+});
+
+export const InitialTopicEvidenceSchema = z.union([
+  PlacementTopicEvidenceSchema,
+  z.object({ source: z.literal("learner_report"), outcome: z.literal("covered_elsewhere"), checked: z.literal(false) }).strict(),
+]).nullable().default(null);
 
 export const PlacementCheckStateSchema = z.object({
   status: z.enum(["available", "skipped", "completed"]).default("available"),
@@ -150,6 +155,12 @@ export const KnowledgeMapTopicSchema = z.object({
   prerequisiteTopicIds: z.array(z.string().uuid()).max(12).default([]),
   status: KnowledgeTopicStatusSchema.default("not_started"),
   initialEvidence: InitialTopicEvidenceSchema,
+  placementEvidence: PlacementTopicEvidenceSchema.optional(),
+  attachedSources: z.array(z.union([
+    z.object({ material_id: z.string().uuid() }).strict(),
+    z.object({ url: z.url().max(2048).refine(value => ["https:", "http:"].includes(new URL(value).protocol)) }).strict(),
+  ])).max(20).optional(),
+  removed: z.boolean().optional(),
   sourceReferences: z.array(MaterialChunkReferenceSchema).max(40).default([]),
   origin: z.enum(["material", "ai_generated"]),
   deferred: z.object({ reason: z.string().trim().min(8).max(300) }).nullable().default(null),

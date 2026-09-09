@@ -1,3 +1,4 @@
+import { measuredPlacementEvidence } from "@/lib/knowledge-map/topic-evidence";
 import type {
   GeneratedPlanDraft,
   PlanGenerationRequest,
@@ -176,7 +177,7 @@ export function inspectGeneratedPlanQuality(
     if (unaccounted.length) {
       addIssue("knowledge_map_coverage", `${unaccounted.length} knowledge-map ${unaccounted.length === 1 ? "topic is" : "topics are"} neither scheduled nor explicitly deferred.`);
     }
-    if (request.knowledgeMap.placementCheck.status === "skipped" && request.knowledgeMap.topics.some((topic) => topic.initialEvidence !== null)) {
+    if (request.knowledgeMap.placementCheck.status === "skipped" && request.knowledgeMap.topics.some((topic) => measuredPlacementEvidence(topic) !== null)) {
       addIssue("placement_contract", "A skipped placement check must not create initial topic evidence.");
     }
     const gapTopicIds = request.knowledgeMap.topics.filter((topic) => topic.initialEvidence?.outcome === "gap").map((topic) => topic.id);

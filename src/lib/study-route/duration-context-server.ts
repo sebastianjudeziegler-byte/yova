@@ -1,3 +1,4 @@
+import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import "server-only";
 import type {
   SessionCompletion,
@@ -61,6 +62,7 @@ export type AuthorizedNormalDurationContext = Readonly<{
   reason: AuthorizedNormalDurationContextReason;
   /** Schema provenance plus a bounded revision of the exact stored profile edit. */
   profileVersion: string;
+  profileSummary?: string;
   profile: AuthorizedNormalDurationProfile;
   recentOutcomes: readonly NormalDurationOutcome[];
   methodProfileVersion: string;
@@ -289,6 +291,7 @@ export async function loadAuthorizedNormalDurationContext(
       reason: "loaded",
       profileVersion,
       profile: buildAuthorizedNormalDurationProfile(answers),
+      profileSummary: buildPlanProfileSummary([...answers]),
       recentOutcomes: buildAuthorizedNormalDurationOutcomes({
         answers,
         plans: evidence.plans,
@@ -762,6 +765,7 @@ function degradedContextWithAuthorizedProfile(
     reason: "history_read_failed",
     profileVersion,
     profile: buildAuthorizedNormalDurationProfile(answers),
+      profileSummary: buildPlanProfileSummary([...answers]),
     recentOutcomes: [],
     methodProfileVersion: methodProfileVersionFromDurationVersion(profileVersion),
     methodEvidence: buildAuthorizedMethodDecisionEvidence({

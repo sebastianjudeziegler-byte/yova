@@ -149,6 +149,7 @@ export type LearningPlanSession = {
 };
 
 export type LearningPlan = {
+  revisionId?: string;
   id: string;
   learningItemId: string;
   title: string;

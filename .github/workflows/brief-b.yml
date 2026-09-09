@@ -1,4 +1,4 @@
-name: Brief B baseline evidence
+name: Brief B development evidence
 
 on:
   push:
@@ -62,6 +62,21 @@ jobs:
         id: route
         continue-on-error: true
         run: pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.test.ts src/lib/knowledge-map/topic-evidence-regressions.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-b-baseline/routes.json
+      - name: Capture typecheck
+        if: always()
+        continue-on-error: true
+        run: pnpm exec tsc --noEmit 2>&1 | tee artifacts/brief-b-baseline/typecheck.txt
+      - name: Capture lint
+        if: always()
+        continue-on-error: true
+        run: pnpm lint 2>&1 | tee artifacts/brief-b-baseline/lint.txt
+      - name: Corrected browser fixture against unchanged main
+        if: always()
+        run: |
+          cp e2e/living-plan.spec.ts "$RUNNER_TEMP/living-plan.spec.ts"
+          git fetch origin c7b3ca99964524cefc04437b7236b37fe8fe2666
+          git checkout --detach c7b3ca99964524cefc04437b7236b37fe8fe2666
+          cp "$RUNNER_TEMP/living-plan.spec.ts" e2e/living-plan.spec.ts
       - name: Capture desktop and mobile founder baseline
         id: browser
         continue-on-error: true

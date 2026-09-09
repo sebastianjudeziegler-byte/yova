@@ -44,14 +44,12 @@ async function createAndActivate(page: Page) {
     await page.getByRole("button", { name: index === answers.length - 1 ? "Build my setup" : "Continue", exact: true }).click();
   }
   await page.getByRole("button", { name: "Open YOVA" }).click();
-  await page.getByRole("button", { name: "Calendar", exact: true }).click();
-  await page.locator(".calendar-page-header").getByRole("button", { name: "Add to YOVA", exact: true }).click();
-  await page.getByRole("textbox", { name: "Describe what you want to add" }).fill("Create an AP Biology plan from scratch for my exam in three weeks: ATP and cellular energy, water polarity, hydrogen bonding, carbon and functional groups. I have no materials.");
-  await page.getByRole("button", { name: "Organize this" }).click();
-  await page.getByRole("button", { name: "Choose what YOVA should do" }).click();
-  await page.getByRole("button", { name: /Create a plan/ }).click();
-  await page.getByRole("button", { name: "25 minutes", exact: true }).click();
+  await page.getByRole("button", { name: /New plan|Build my first plan|Create another plan/ }).first().click();
+  await page.getByPlaceholder(/I have a biology test/).fill("Teach me AP Biology foundations from scratch for my exam in three weeks: ATP, water polarity, hydrogen bonding, carbon and functional groups. I can study Monday, Wednesday and Friday evenings for 60 minutes.");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue to placement check" }).click();
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
   await expect(page.getByText("Plan ready", { exact: true })).toBeVisible({ timeout: 30_000 });
