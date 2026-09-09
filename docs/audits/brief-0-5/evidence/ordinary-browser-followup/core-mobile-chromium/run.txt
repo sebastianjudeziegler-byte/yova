@@ -1,0 +1,537 @@
+[WebServer] (node:25736) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:25737) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 23 tests using 1 worker
+
+(node:25761) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [mobile-chromium] › e2e/core-learning-loop.spec.ts:695:5 › an opaque class label is stopped until the learner names the actual calculus concept (19.6s)
+  ✓   2 [mobile-chromium] › e2e/core-learning-loop.spec.ts:767:5 › a temporary AI failure loads a subject-specific startup funding lesson (11.4s)
+  ✓   3 [mobile-chromium] › e2e/core-learning-loop.spec.ts:930:5 › a fallback method workpad resumes its timer and checked targets after reload (13.8s)
+  ✓   4 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1062:5 › a 10-minute outside teaching-first session loads its built-in method lesson (11.9s)
+  ✓   5 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2188:5 › Calendar Agenda stays first and contained at a 375px viewport (5.5s)
+  ✓   6 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2289:5 › spent guided-session allowance is visible before Home or Calendar opens setup (5.3s)
+  ✘   7 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2356:5 › spent allowance still permits a saved session to continue (35.3m)
+(node:26167) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2421:5 › the product shell keeps every core destination and creation path usable (15.6m)
+(node:26192) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2470:5 › Ask YOVA turns structured explanations and math into readable interface content (13.0m)
+(node:26675) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2518:5 › the session tutor stays anchored to the exact learning activity (32.4s)
+(node:27225) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2589:5 › a planning request outage still produces a reviewable plan from YOVA's saved inputs (52.7s)
+(node:27390) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2613:5 › legacy split work reopens as an active plan with runnable ten-minute sessions (45.5s)
+(node:27505) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2734:5 › finishing a shortened guided lesson keeps every deferred target as exact next work (1.0m)
+(node:27630) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2885:5 › adjusting ordinary future work preserves the exact scheduled review contract (37.2s)
+(node:27840) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  15 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3044:5 › scheduled-review setup stays fixed and opens the exact active or Study Now goal (12.9s)
+  ✘  16 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3255:5 › a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes (20.5s)
+(node:28067) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  17 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3314:5 › map revision cannot activate a stale draft and fresh placement uses the revised map (43.4s)
+(node:28207) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  18 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3363:5 › normal-plan review changes one offered method without regenerating or rewriting other routes (35.1s)
+(node:28367) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  19 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3476:5 › session setup changes one committed method and generates from its exact successor route (45.5s)
+(node:28516) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  20 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3726:5 › a multi-session plan carries one clear source decision from Add to Learning (37.5s)
+(node:28574) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  21 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3866:5 › archived, draft, and deleted-plan projections stay out of current-work surfaces (15.7s)
+  ✘  22 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3967:5 › material setup clearly supports files, articles, and YouTube transcripts (42.4s)
+(node:28740) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  23 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3987:5 › material drop zone accepts drag gestures and explains rejected files (11.6s)
+
+
+  1) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2356:5 › spent allowance still permits a saved session to continue 
+
+    Test timeout of 30000ms exceeded.
+
+    Tearing down "context" exceeded the test timeout of 30000ms.
+
+    Error: page.reload: Test ended.
+    Call log:
+      - waiting for navigation until "load"
+        - navigated to "http://127.0.0.1:3100/?qa=preview"
+
+
+      2398 |
+      2399 |   allowanceExhausted = true;
+    > 2400 |   await page.reload();
+           |              ^
+      2401 |
+      2402 |   await expect(page.locator(".guided-session-allowance-notice.home")).toContainText(
+      2403 |     "Daily guided-session allowance used",
+        at <repo>/e2e/core-learning-loop.spec.ts:2400:14
+
+    Error: End of central directory record signature not found. Either not a zip file, or file is truncated.
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-spent-a-84cee-a-saved-session-to-continue-mobile-chromium/error-context.md
+
+  2) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2421:5 › the product shell keeps every core destination and creation path usable 
+
+    Test timeout of 30000ms exceeded while setting up "context".
+
+    Error: browser.newContext: Protocol error (Browser.setDownloadBehavior): Failed to find browser context for id 4B1118BA79DC1DECBFEB5DF0F2AEC126
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-pro-20375-on-and-creation-path-usable-mobile-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-pro-20375-on-and-creation-path-usable-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-pro-20375-on-and-creation-path-usable-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2470:5 › Ask YOVA turns structured explanations and math into readable interface content 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.tutor-rich-text strong')
+    Expected: "Core idea:"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('.tutor-rich-text strong')
+
+
+      2510 |   await page.getByRole("button", { name: "Send" }).click();
+      2511 |
+    > 2512 |   await expect(page.locator(".tutor-rich-text strong")).toHaveText("Core idea:");
+           |                                                         ^
+      2513 |   await expect(page.locator(".tutor-rich-text .katex")).toBeVisible();
+      2514 |   await expect(page.locator(".tutor-rich-text li")).toHaveCount(2);
+      2515 |   await expect(page.locator(".tutor-rich-text")).not.toContainText("**");
+        at <repo>/e2e/core-learning-loop.spec.ts:2512:57
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-Ask-YOV-9d059--readable-interface-content-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2518:5 › the session tutor stays anchored to the exact learning activity 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.session-setup-shell, .session-shell, .method-session-shell, .session-recovery-shell').or(getByRole('button', { name: /Start this session/ }))
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for locator('.session-setup-shell, .session-shell, .method-session-shell, .session-recovery-shell').or(getByRole('button', { name: /Start this session/ }))
+      - Test timeout of 30000ms exceeded.
+
+
+      4271 | async function confirmSessionSetup(page: Page) {
+      4272 |   const review = page.getByRole("button", { name: /Start this session/ });
+    > 4273 |   await expect(page.locator(".session-setup-shell, .session-shell, .method-session-shell, .session-recovery-shell").or(review)).toBeVisible({ timeout: 30_000 });
+           |                                                                                                                                 ^
+      4274 |   if (await review.isVisible()) { await review.click(); return; }
+      4275 |   if (!await page.locator(".session-setup-shell").isVisible()) return;
+      4276 |   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({
+        at confirmSessionSetup (<repo>/e2e/core-learning-loop.spec.ts:4273:129)
+        at <repo>/e2e/core-learning-loop.spec.ts:2566:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-the-ses-8a911-the-exact-learning-activity-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2589:5 › a planning request outage still produces a reviewable plan from YOVA's saved inputs 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://127.0.0.1:3100/?qa=preview", waiting until "load"
+
+
+      4111 |
+      4112 | async function createPreviewAccount(page: Page) {
+    > 4113 |   await page.goto("/?qa=preview");
+           |              ^
+      4114 |   await page.getByRole("button", { name: "Build my plan" }).click();
+      4115 |   await page.getByLabel("First name").fill("Learner");
+      4116 |   await page.getByLabel("Email address").fill("learning-loop@example.com");
+        at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)
+        at <repo>/e2e/core-learning-loop.spec.ts:2597:9
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-plann-3c2f1-an-from-YOVA-s-saved-inputs-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-plann-3c2f1-an-from-YOVA-s-saved-inputs-mobile-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-plann-3c2f1-an-from-YOVA-s-saved-inputs-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-plann-3c2f1-an-from-YOVA-s-saved-inputs-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2613:5 › legacy split work reopens as an active plan with runnable ten-minute sessions 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://127.0.0.1:3100/?qa=preview", waiting until "load"
+
+
+      4111 |
+      4112 | async function createPreviewAccount(page: Page) {
+    > 4113 |   await page.goto("/?qa=preview");
+           |              ^
+      4114 |   await page.getByRole("button", { name: "Build my plan" }).click();
+      4115 |   await page.getByLabel("First name").fill("Learner");
+      4116 |   await page.getByLabel("Email address").fill("learning-loop@example.com");
+        at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)
+        at <repo>/e2e/core-learning-loop.spec.ts:2614:9
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-legacy--8d6a4-unnable-ten-minute-sessions-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2734:5 › finishing a shortened guided lesson keeps every deferred target as exact next work 
+
+    Error: expect(locator).toBeEnabled() failed
+
+    Locator: getByRole('button', { name: 'Start session', exact: true })
+    Expected: enabled
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeEnabled" with timeout 5000ms
+      - waiting for getByRole('button', { name: 'Start session', exact: true })
+
+
+      2800 |
+      2801 |   await page.reload();
+    > 2802 |   await expect(page.getByRole("button", { name: "Start session", exact: true })).toBeEnabled();
+           |                                                                                  ^
+      2803 |   await page.getByRole("button", { name: "Learning", exact: true }).click();
+      2804 |   const planCard = page.locator(".learning-goal-card").filter({
+      2805 |     hasText: "Cellular Respiration Continuation",
+        at <repo>/e2e/core-learning-loop.spec.ts:2802:82
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-finishi-d4769-d-target-as-exact-next-work-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-finishi-d4769-d-target-as-exact-next-work-mobile-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-finishi-d4769-d-target-as-exact-next-work-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-finishi-d4769-d-target-as-exact-next-work-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [mobile-chromium] › e2e/core-learning-loop.spec.ts:2885:5 › adjusting ordinary future work preserves the exact scheduled review contract 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.reload: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for navigation until "load"
+        - navigated to "http://127.0.0.1:3100/?qa=preview"
+
+
+      2946 |   });
+      2947 |
+    > 2948 |   await page.reload();
+           |              ^
+      2949 |   await page.getByRole("button", { name: "Learning", exact: true }).click();
+      2950 |   const planCard = page.locator(".learning-goal-card").filter({ hasText: "Plate Boundary Evidence Plan" });
+      2951 |   await planCard.getByRole("button", { name: "Open goal" }).click();
+        at <repo>/e2e/core-learning-loop.spec.ts:2948:14
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-adjusti-b71d4-t-scheduled-review-contract-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [mobile-chromium] › e2e/core-learning-loop.spec.ts:3255:5 › a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: 'Here is what YOVA understood.' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('heading', { name: 'Here is what YOVA understood.' })
+
+
+      4083 |   await page.getByRole("textbox", { name: "Describe what you want to add" }).fill(description);
+      4084 |   await page.getByRole("button", { name: "Organize this" }).click();
+    > 4085 |   await expect(page.getByRole("heading", { name: "Here is what YOVA understood." })).toBeVisible();
+           |                                                                                      ^
+      4086 |   await page.getByRole("button", { name: "Choose what YOVA should do" }).click();
+      4087 |   await page.getByRole("button", { name: /Create a plan/ }).click();
+      4088 | }
+        at beginPlanFromAdd (<repo>/e2e/core-learning-loop.spec.ts:4085:86)
+        at <repo>/e2e/core-learning-loop.spec.ts:3259:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-norma-f4e8c-nd-commits-both-route-modes-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [mobile-chromium] › e2e/core-learning-loop.spec.ts:3314:5 › map revision cannot activate a stale draft and fresh placement uses the revised map 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://127.0.0.1:3100/?qa=preview", waiting until "load"
+
+
+      4111 |
+      4112 | async function createPreviewAccount(page: Page) {
+    > 4113 |   await page.goto("/?qa=preview");
+           |              ^
+      4114 |   await page.getByRole("button", { name: "Build my plan" }).click();
+      4115 |   await page.getByLabel("First name").fill("Learner");
+      4116 |   await page.getByLabel("Email address").fill("learning-loop@example.com");
+        at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)
+        at <repo>/e2e/core-learning-loop.spec.ts:3336:9
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-map-rev-8568c-cement-uses-the-revised-map-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-map-rev-8568c-cement-uses-the-revised-map-mobile-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-map-rev-8568c-cement-uses-the-revised-map-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-map-rev-8568c-cement-uses-the-revised-map-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [mobile-chromium] › e2e/core-learning-loop.spec.ts:3363:5 › normal-plan review changes one offered method without regenerating or rewriting other routes 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Skip for now' })
+
+
+      3376 |   await page.getByRole("button", { name: "45 minutes", exact: true }).click();
+      3377 |   await page.getByRole("button", { name: "Continue" }).click();
+    > 3378 |   await page.getByRole("button", { name: "Skip for now" }).click();
+           |                                                            ^
+      3379 |   await page.getByRole("button", { name: "Generate my plan" }).click();
+      3380 |   await expect(page.getByText("Plan ready")).toBeVisible({ timeout: 30_000 });
+      3381 |
+        at <repo>/e2e/core-learning-loop.spec.ts:3378:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-normal--4a398-g-or-rewriting-other-routes-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [mobile-chromium] › e2e/core-learning-loop.spec.ts:3476:5 › session setup changes one committed method and generates from its exact successor route 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://127.0.0.1:3100/?qa=preview", waiting until "load"
+
+
+      4111 |
+      4112 | async function createPreviewAccount(page: Page) {
+    > 4113 |   await page.goto("/?qa=preview");
+           |              ^
+      4114 |   await page.getByRole("button", { name: "Build my plan" }).click();
+      4115 |   await page.getByLabel("First name").fill("Learner");
+      4116 |   await page.getByLabel("Email address").fill("learning-loop@example.com");
+        at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)
+        at <repo>/e2e/core-learning-loop.spec.ts:3493:9
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-session-ed16a-m-its-exact-successor-route-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-session-ed16a-m-its-exact-successor-route-mobile-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-session-ed16a-m-its-exact-successor-route-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-session-ed16a-m-its-exact-successor-route-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [mobile-chromium] › e2e/core-learning-loop.spec.ts:3726:5 › a multi-session plan carries one clear source decision from Add to Learning 
+
+    Test timeout of 30000ms exceeded while setting up "page".
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-multi-5bbbb-cision-from-Add-to-Learning-mobile-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-multi-5bbbb-cision-from-Add-to-Learning-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-a-multi-5bbbb-cision-from-Add-to-Learning-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [mobile-chromium] › e2e/core-learning-loop.spec.ts:3967:5 › material setup clearly supports files, articles, and YouTube transcripts 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://127.0.0.1:3100/?qa=preview", waiting until "load"
+
+
+      4111 |
+      4112 | async function createPreviewAccount(page: Page) {
+    > 4113 |   await page.goto("/?qa=preview");
+           |              ^
+      4114 |   await page.getByRole("button", { name: "Build my plan" }).click();
+      4115 |   await page.getByLabel("First name").fill("Learner");
+      4116 |   await page.getByLabel("Email address").fill("learning-loop@example.com");
+        at createPreviewAccount (<repo>/e2e/core-learning-loop.spec.ts:4113:14)
+        at <repo>/e2e/core-learning-loop.spec.ts:3968:9
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-materia-be74c-les-and-YouTube-transcripts-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-materia-be74c-les-and-YouTube-transcripts-mobile-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-materia-be74c-les-and-YouTube-transcripts-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/core-mobile-chromium/artifacts/core-learning-loop-materia-be74c-les-and-YouTube-transcripts-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14 failed
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2356:5 › spent allowance still permits a saved session to continue 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2421:5 › the product shell keeps every core destination and creation path usable 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2470:5 › Ask YOVA turns structured explanations and math into readable interface content 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2518:5 › the session tutor stays anchored to the exact learning activity 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2589:5 › a planning request outage still produces a reviewable plan from YOVA's saved inputs 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2613:5 › legacy split work reopens as an active plan with runnable ten-minute sessions 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2734:5 › finishing a shortened guided lesson keeps every deferred target as exact next work 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:2885:5 › adjusting ordinary future work preserves the exact scheduled review contract 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:3255:5 › a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:3314:5 › map revision cannot activate a stale draft and fresh placement uses the revised map 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:3363:5 › normal-plan review changes one offered method without regenerating or rewriting other routes 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:3476:5 › session setup changes one committed method and generates from its exact successor route 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:3726:5 › a multi-session plan carries one clear source decision from Add to Learning 
+    [mobile-chromium] › e2e/core-learning-loop.spec.ts:3967:5 › material setup clearly supports files, articles, and YouTube transcripts 
+  9 passed (1.3h)

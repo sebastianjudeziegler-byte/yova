@@ -1,0 +1,6 @@
+Listing tests:
+  [desktop-chromium] › plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload
+  [mobile-chromium] › plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload
+Total: 2 tests in 1 file
+
+Exit code: 0

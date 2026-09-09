@@ -1,0 +1,394 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "<repo>/node_modules/@playwright/test/cli.js",
+      "test",
+      "e2e/calendar-safety.spec.ts",
+      "--config",
+      "playwright.brief05-verification.config.ts"
+    ],
+    "configFile": "<repo>/playwright.brief05-verification.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/calendar-safety/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/calendar-safety/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser-followup/calendar-safety/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": false,
+      "timeout": 120000,
+      "env": {
+        "YOVA_E2E": "1",
+        "AUTH_INVITE_ONLY": "false",
+        "AUTH_PASSWORD_ACCOUNTS": "false",
+        "AUTH_CAPTCHA_ENABLED": "false",
+        "AUTH_EMAIL_CODE_VERIFICATION": "false",
+        "SITE_URL": "http://127.0.0.1:3100",
+        "NEXT_PUBLIC_SUPABASE_URL": ""
+      },
+      "environmentEvidence": {
+        "providerConfigured": false,
+        "unrelatedEnvironmentOmitted": true
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "calendar-safety.spec.ts",
+      "file": "calendar-safety.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a failed browser save keeps the draft and retry creates one event",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3798,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:21:23.467Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7984a37241dec138fbaa-a505ea34e17590c25c4e",
+          "file": "calendar-safety.spec.ts",
+          "line": 7,
+          "column": 5
+        },
+        {
+          "title": "an adjustment is rechecked when another tab changes destination availability",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8000,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:21:27.643Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7984a37241dec138fbaa-9f194435d6dbcc3599fe",
+          "file": "calendar-safety.spec.ts",
+          "line": 27,
+          "column": 5
+        },
+        {
+          "title": "completion can be undone without closing the event details",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3141,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:21:35.652Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7984a37241dec138fbaa-062940a75362354ef3fa",
+          "file": "calendar-safety.spec.ts",
+          "line": 55,
+          "column": 5
+        },
+        {
+          "title": "visual review of Agenda, event editor and overlapping Week blocks",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3095,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:21:38.800Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7984a37241dec138fbaa-e8d530e848c4fad4f4e8",
+          "file": "calendar-safety.spec.ts",
+          "line": 65,
+          "column": 5
+        },
+        {
+          "title": "a failed browser save keeps the draft and retry creates one event",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2329,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:21:42.298Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7984a37241dec138fbaa-b7f406d43aceae4f7a9b",
+          "file": "calendar-safety.spec.ts",
+          "line": 7,
+          "column": 5
+        },
+        {
+          "title": "an adjustment is rechecked when another tab changes destination availability",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5501,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:21:44.830Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7984a37241dec138fbaa-6940cf78d533ba883da5",
+          "file": "calendar-safety.spec.ts",
+          "line": 27,
+          "column": 5
+        },
+        {
+          "title": "completion can be undone without closing the event details",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2212,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:21:50.337Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7984a37241dec138fbaa-712da39c7b81cf984f18",
+          "file": "calendar-safety.spec.ts",
+          "line": 55,
+          "column": 5
+        },
+        {
+          "title": "visual review of Agenda, event editor and overlapping Week blocks",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2922,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T10:21:52.555Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7984a37241dec138fbaa-d0ff20dd415b2605c9e4",
+          "file": "calendar-safety.spec.ts",
+          "line": 65,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-09T10:21:17.533Z",
+    "duration": 38155.987,
+    "expected": 8,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

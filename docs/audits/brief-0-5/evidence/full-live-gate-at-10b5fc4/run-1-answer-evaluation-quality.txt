@@ -1,0 +1,82 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'
+
+YOVA answer evaluation · accepts a correct biology paraphrase
+Expected · secure
+Received · secure
+Feedback · Your response establishes the required idea. oxygen is the final electron acceptor accepting electrons allows oxidative phosphorylation to continue
+Human label · The answer states oxygen's essential role and the consequence even though it does not copy the reference wording.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'catches confident biology keyword soup'
+
+YOVA answer evaluation · catches confident biology keyword soup
+Expected · needs_review
+Received · needs_review
+Feedback · The response does not establish natural selection correctly. It suggests organisms intentionally choose helpful mutations, which is not how natural selection works, and it does not explain heritable variation and differential reproduction across generations.
+Human label · The response uses relevant vocabulary but reverses causality and incorrectly describes organisms as choosing mutations.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'marks a materially incomplete causal …'
+
+YOVA answer evaluation · marks a materially incomplete causal explanation for review
+Expected · needs_review
+Received · needs_review
+Feedback · The response identifies that colonists objected to higher taxes, but it does not establish the key reason: the lack of colonial representation and the dispute over Parliament's authority to tax the colonies.
+Human label · Taxation is relevant, but the answer misses representation and the broader dispute about political authority required by the rubric.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…'
+
+YOVA answer evaluation · accepts equivalent mathematical notation
+Expected · secure
+Received · secure
+Feedback · Your response establishes the required idea. Derivative is equivalent to 3x^2 + 2 Power rule is applied to x^3
+Human label · The derivative is correct and the brief rule explanation establishes how it was obtained.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'does not reward a true statement that…'
+
+YOVA answer evaluation · does not reward a true statement that misses the mechanism
+Expected · needs_review
+Received · needs_review
+Feedback · The response gives a general idea of spreading money across more holdings, but it does not establish why that reduces portfolio-specific risk: reduced dependence on any single holding or offsetting effects from imperfectly correlated assets.
+Human label · Diversification can reduce risk, but merely saying there are more investments does not explain reduced exposure to any one asset or uncorrelated losses.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a concise programming explana…'
+
+YOVA answer evaluation · accepts a concise programming explanation
+Expected · secure
+Received · secure
+Feedback · Your response establishes the required idea. base case terminates recursion base case provides a stopping condition
+Human label · The response correctly states that the base case terminates recursive calls and prevents unbounded recursion.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'
+
+YOVA answer evaluation · admits uncertainty when the prompt lacks necessary context
+Expected · uncertain
+Received · uncertain
+Feedback · This check does not give enough context for a reliable judgment. The prompt and rubric do not include the actual observations or the specific changed condition, so the required factual basis for judging the explanation is absent.
+Human label · Neither the prompt nor the reference identifies what process changed, so several interpretations are defensible.
+
+
+ ✓ src/evals/answer-evaluation-quality.live.test.ts (8 tests) 17775ms
+     ✓ 'accepts a correct biology paraphrase'  1851ms
+     ✓ 'catches confident biology keyword soup'  3022ms
+     ✓ 'marks a materially incomplete causal …'  3687ms
+     ✓ 'accepts equivalent mathematical notat…'  1631ms
+     ✓ 'does not reward a true statement that…'  2654ms
+     ✓ 'accepts a concise programming explana…'  2373ms
+     ✓ 'admits uncertainty when the prompt la…'  2555ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  09:29:29
+   Duration  17.86s (transform 22ms, setup 0ms, import 16ms, tests 17.78s, environment 0ms)
+
+
+Exit code: 0

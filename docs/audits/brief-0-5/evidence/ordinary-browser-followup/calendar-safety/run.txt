@@ -1,0 +1,21 @@
+[WebServer] (node:23931) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:23932) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 8 tests using 1 worker
+
+(node:23951) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop-chromium] › e2e/calendar-safety.spec.ts:7:5 › a failed browser save keeps the draft and retry creates one event (3.8s)
+  ✓  2 [desktop-chromium] › e2e/calendar-safety.spec.ts:27:5 › an adjustment is rechecked when another tab changes destination availability (8.0s)
+  ✓  3 [desktop-chromium] › e2e/calendar-safety.spec.ts:55:5 › completion can be undone without closing the event details (3.1s)
+  ✓  4 [desktop-chromium] › e2e/calendar-safety.spec.ts:65:5 › visual review of Agenda, event editor and overlapping Week blocks (3.1s)
+(node:24040) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  5 [mobile-chromium] › e2e/calendar-safety.spec.ts:7:5 › a failed browser save keeps the draft and retry creates one event (2.3s)
+  ✓  6 [mobile-chromium] › e2e/calendar-safety.spec.ts:27:5 › an adjustment is rechecked when another tab changes destination availability (5.5s)
+  ✓  7 [mobile-chromium] › e2e/calendar-safety.spec.ts:55:5 › completion can be undone without closing the event details (2.2s)
+  ✓  8 [mobile-chromium] › e2e/calendar-safety.spec.ts:65:5 › visual review of Agenda, event editor and overlapping Week blocks (2.9s)
+
+  8 passed (38.2s)

@@ -1,10 +1,29 @@
 # Brief 0.5 — grader calibration and first-session validation
 
+## Handoff to GitHub Actions
+
+Local verification was stopped at the founder's request. Application source remains exactly `e978f36bd0e3684f0b3595d6c2379da3e2686d0a`; the publication commit adds audit evidence only. No further local browser or provider runs are authorized. This PR is stacked on `codex/brief-0-live-gate-triage` (PR #82), without merging either branch.
+
+- **Three-run local evidence:** all ten scoped cases passed 30/30 attempts; the nine new grader canaries passed 27/27. The main red/green comparison below retains intermittent main successes and unavailable attempts.
+- **Static gates:** 3,918 unit tests, 12 runner checks, lint, typecheck, and build passed on the tested source, then passed again after exact-lockfile dependency restoration. These are passing static runs; they are not represented as three separate final-source runs.
+- **Still required in CI:** the interrupted/mobile core coverage; the legacy Study Profile phone-width comparison on main and this branch; a complete available full live gate; and Brief A compatibility on the combined revisions.
+
+The already-finished local tail is retained, not retried: the mobile follow-up reports 9 pass / 14 fail after a long host interruption; Brief A's temporary combined deterministic delta passes and its live delta cannot resolve `api.openai.com`; the final full-live attempt reports **4 pass / 6 fail / 6 flaky / 59 unavailable**, with widespread `ENOTFOUND api.openai.com`. Raw failed wrapper rows remain visible; this transport-affected run does not establish the required full live sign-off. See [mobile report](evidence/ordinary-browser-followup/core-mobile-chromium/report.json), [Brief A manifest](evidence/brief-a-integration/manifest.json), and [full live table](evidence/full-live-gate/report.md). Brief A source restoration is recorded as true; none of its source changes are included here.
+
+### CI availability and missing coverage
+
+The existing `YOVA quality` pull-request workflow runs unit/build/ordinary desktop and mobile journeys and auth. It can verify the remaining ordinary coverage after this PR opens. Its current definition does not perform the explicit main/branch Study Profile comparison or a combined Brief A compatibility run.
+
+The `Full live gate` workflow is supplied by the still-unmerged Brief 0 branch. It is scheduled/on-demand, does not automatically run for a new PR, and was absent from `main` when checked. Activating/dispatching that workflow from the default-branch setup remains a CI prerequisite; this task does not merge it. The job requires the repository Actions secret `OPENAI_API_KEY`. The available connector does not establish whether that secret is configured, so its presence is **unverified**, not asserted missing. No local or production credential was copied into GitHub settings. The live job's artifact reports missing keys as unavailable.
+
+Brief A compatibility additionally needs a CI job that combines Brief A `340c8b6e8b663c0be8ef6fafa72c8d735e08c122` with this tested source, then runs both delta tests; the ordinary quality workflow alone cannot prove that integration while the branches remain separate. These requirements are handed off to CI, not worked around by more local runs.
+
+
 ## Root-cause record, before product changes
 
 Recorded 2026-09-09 while the checkout is detached at main `e03a082659f51172c0b06bf84daffdd5599ac773`. No product source has been changed. The requested branch `codex/brief-0-5-grader-and-validators` was created from Brief 0's `d108e890e3f64e4393f617fe821ac0eb3b7b3c8e`, whose `src/lib` is identical to this main. It inherits the full gate and corrected stale expectations; the PR will be stacked on Brief 0 while that dependency remains unmerged. No merge or production setting change is authorized here.
 
-The two areas in the brief contain one grader cause and **three validator/recovery causes**, not ten independent case-specific defects. The observations below come from fresh, serial calls using the existing local environment and provider key. Test-only pass-through instrumentation records synthetic provider inputs, parsed responses, rejected subject comparisons, and bounded recovery errors. It does not alter returned content, validation, retries, timing limits, or model configuration.
+The initial investigation identified one grader cause and **three validator/recovery causes**, rather than ten independent case-specific defects. Subsequent captured-response replay exposed a fourth independent validator heuristic, factual-year recall misclassified as arithmetic; the final count and its pre-edit discovery record appear below. The observations below come from fresh, serial calls using the existing local environment and provider key. Test-only pass-through instrumentation records synthetic provider inputs, parsed responses, rejected subject comparisons, and bounded recovery errors. It does not alter returned content, validation, retries, timing limits, or model configuration.
 
 ### G — free-form grading has no enforced decision order or consistency contract
 
@@ -34,9 +53,47 @@ Planned shared correction: communicate claim counts grouped by authoritative tar
 
 Fresh A35 run 1 generated the first, prewar-alliances teaching block and failed the global Sarajevo assertion. Fresh A36 run 1 generated two teaching blocks and failed the hard-coded three-block assertion. Before removing either, document the dated replacement contract: each streamed block teaches its assigned claims, and method-aware pacing owns teaching/check counts. Keep the full 45-minute allocation, all active/deferred coverage, required evidence, subject content, and no-later-topic checks.
 
-## Baseline and final verification
+## Baseline and completed local verification
 
-In progress. Record every attempt, including passes and provider unavailability; never manufacture three red attempts by selecting only failures. The prior Brief 0 baseline and this fresh three-run baseline are separate evidence sets. A provider timeout is neither red nor green.
+The prior Brief 0 baseline and the fresh September 9 main runs are separate evidence sets. Every attempt is retained; successful baseline attempts are not discarded to manufacture three reds. A provider timeout is neither red nor green. The final implementation is pinned at `e978f36`; its three-run sample is recorded below, followed by the full gate.
+
+### Three-run comparison for the ten scoped cases
+
+`P` = passed, `F` = assertion/semantic failure, `U` = provider unavailable. Entries preserve run order; unavailable is neither red nor green. Main is `e03a082`; final branch source is `e978f36`. The [machine-readable comparison](evidence/scoped-comparison.json) links every attempt.
+
+| Case | Brief 0 main runs | Fresh main runs | Final branch runs |
+| --- | --- | --- | --- |
+| A01 — accepts a correct biology paraphrase | F/F/F | F/P/P | P/P/P |
+| A02 — accepts a concise programming explanation | F/F/F | F/F/F | P/P/P |
+| A03 — admits uncertainty when the prompt lacks necessary context | F/F/F | F/F/F | P/P/P |
+| A15 — One product-rule skill in short sessions | F/U/F | U/F/F | P/P/P |
+| A22 — Mapped product-rule and chain-rule first lesson | F/F/F | F/F/F | P/P/P |
+| A27 — Beginner JavaScript with fading support | F/F/F | P/P/P | P/P/P |
+| A32 — Spanish conversation with supported transfer | F/F/F | F/F/F | P/P/P |
+| X06 — builds a topic-specific teaching skeleton | F/F/F | F/P/P | P/P/P |
+| A35 — delivers substantive teaching from the first generated lesson brief | F/F/F | F/F/F | P/P/P |
+| A36 — creates the production 45-minute streamed teaching session | F/F/F | F/F/F | P/P/P |
+
+All ten passed all three final runs. The historical baseline supplies the three-run red record; fresh main shows that A27 already passed 3/3, and A01/X06 passed 2/3. Those fresh successes are retained, not relabeled. A15 has one unavailable attempt in each main sample. The captured deterministic replays establish the specific broken boundaries independently of provider variability.
+
+The nine new cross-subject grader canaries also passed 27/27 attempts. Osmosis and finance comparison cases each passed 3/3 on the final branch. The [complete final sample](evidence/final-live/cases.json) contains 63/63 passing attempts with zero test-runner retries. These scoped runs do not substitute for the complete live gate.
+
+### Permanent red/green checks and negative coverage
+
+| Boundary | Red evidence | Passing verification / protection retained |
+| --- | --- | --- |
+| Grader answerability and optional details | [Four deterministic failures](evidence/grader-unit-red.txt); [live 1](evidence/grader-canary-red-1.txt), [2](evidence/grader-canary-red-2.txt), [3](evidence/grader-canary-red-3.txt) | Nine permanent live fixtures cover complete answers, underspecified answers, and missing context across biology/programming/history. Public verdict/missing/feedback fields are checked. |
+| Subject/notation and target references | [Captured main failures](evidence/validators-unit-red.txt) | Captured membrane, formula, and product/chain lessons deliver their claims and required answers. Off-topic photosynthesis, cross-target passive transport, and deferred ATP use remain rejected. |
+| Answer authority and secure feedback consistency | [Three additional red cases](evidence/additional-guards-red.txt) | [111 focused checks passed](evidence/additional-guards-green.txt) on the preceding revision. An on-topic heading cannot authorize an off-topic correct answer; secure feedback cannot independently contradict assessed required criteria. |
+| Explicit function arguments and eval contracts | [Captured trial failures](evidence/representation-red.txt) | Explicit common arguments pass; different arguments, different derivatives, extended equations, and genuinely duplicate choices fail. The captured short JavaScript answer and bounded product-rule lesson pass the rubric; empty answers/off-topic teaching still fail. |
+| Factual years and explicit recognition binding | [Old year/binding expectations fail](evidence/year-and-binding-red.txt) | [90 focused checks passed](evidence/representation-green.txt) on final `3eaa459`. Year recall passes; date calculations with missing operands and hidden prompts fail. A neighboring Sarajevo claim cannot authorize the final chronology slot. |
+| Genuine duplicate recovery claims | [Main A32 capture](evidence/main-live/run-1-session-quality-capture.jsonl) | The exact duplicate remains a negative replay. Grouped claim counts must produce distinct claims visible in teaching and evidence-map entries. |
+
+The initial `representation-red` history positive incorrectly assumed a Sarajevo answer belonged to the final chronology claim. Inspection proved that rejection correct: it is now a permanent negative. The actual armistice-year positive is a separate captured response. This correction is not reported as a validator fix or a green result for the original Sarajevo response.
+
+The permanent negative cases live in [`streamed-validator-calibration.test.ts`](../../../src/lib/openai/streamed-validator-calibration.test.ts), [`question-context.test.ts`](../../../src/lib/session-generation/question-context.test.ts), and [`brief-0-5-rubric.test.ts`](../../../src/evals/brief-0-5-rubric.test.ts). They exercise photosynthesis/off-topic answers, deferred ATP use in questions and distractors, cross-target authority, neighboring WWI claims, wrong or extended formulas, genuinely repeated claims/choices, missing calculation operands, and empty answers. Case-sensitive code choices remain distinct.
+
+Static verification at `e978f36`: [3,918 unit tests and 12 gate-runner checks pass](evidence/unit-full.txt); [lint](evidence/lint.txt), [typecheck](evidence/typecheck.txt), and [build](evidence/build.txt) pass. The [static gate manifest](evidence/static-gates.json) records commands and exit codes, including silent successful checks. No migration was changed, so migration replay is not applicable.
 
 ## Deferred cases
 
@@ -50,3 +107,89 @@ In progress. Record every attempt, including passes and provider unavailability;
 - A17: broad-calculus task-alignment intent question; explicitly outside this brief.
 
 No product-shape change, Brief B work, legacy-material repair, merge, deployment, or production configuration change is included.
+
+## Implementation and verification refinements
+
+The implementation keeps the public session/evaluation shapes and provider-call ceilings. The grader's internal assessment distinguishes context sufficiency, required criteria, and optional facts. Code derives verdict and missing ideas; secure feedback is assembled from established required criteria so a separate feedback sentence cannot contradict them. The original seven grader fixtures and nine permanent cross-subject canaries passed three runs of the first grader revision (17 tests per run including collection); final implementation runs follow below.
+
+The validators share a notation-preserving comparison helper. Mathematical prime notation is included in evidence matching; distinct operator/prime expressions stay distinct recognition choices. A formula target accepts a complete right-hand answer without requiring the question's left-hand side to be repeated, but a different or extended formula is not accepted as that target. Whole checks do not inherit short-claim length caps. Correct answers and their explanations must prove subject identity independently of headings; every prompt and distractor still passes the complete deferred-content check. Shared generated map topics lend only subtopics attributable to exactly one active/deferred label. Legacy material authority is unchanged.
+
+Compact recovery now receives one group per authoritative target with a required distinct-claim count. It does not receive duplicate copies of an otherwise identical slot. The provider schema enforces the server-known independent-check shape. The genuine duplicate-claim rejection is retained. No new provider stage was added; invalid output can now use the existing bounded recovery, with the same call ceiling.
+
+### Dated replacement for A35/A36's obsolete subchecks
+
+The method-aware teaching cycles in `b8f5e1026ff0cdbd57ff77e58f72a44d8fdf1a9c` (2026-09-01, `streamed-pacing.ts`) reserve the named method's repair/re-explanation and recognition activities. A36 therefore uses that pacing contract plus visible teaching-before-required-check assertions for every evidence-map entry, post-teaching recognition, exactly 45 allocated minutes, all three active ideas, and an empty deferred list. A fixed three-teaching-block/three-question count was not that contract; optional reflection remains allowed.
+
+A35 streams the first assigned lesson brief. Its prewar-alliance block must explain European rival blocs/tensions and locate them before World War I. The lesson need not print the literal year 1914 when it explicitly says prewar/before World War I. Sarajevo and mobilization/declarations remain asserted whenever the first brief actually assigns them. The lesson-length, alliance content, and no-UI-instruction assertions remain. The prior global Sarajevo/date checks failed on otherwise substantive first-block teaching; the full failed printouts are retained in the main and trial logs.
+
+The first three-run branch trial is retained separately in `evidence/branch-trial`: it exposed abbreviated formula rejections and over-specific replacement assertions (literal 1914; forbidding a valid trailing reflection). These are not reported as final green runs. Added deterministic guards also exposed and then corrected the heading-only subject loophole and inconsistent secure feedback. All 111 focused tests, including the old deferred-content negatives, then passed.
+
+### Local runner environment
+
+This host's pnpm 11 automatic dependency verification attempted to reinstall the already-present modules and stopped because no TTY was available. At that earlier attempt no install/purge was accepted and the lockfile/dependency versions were not changed. Gate commands use the installed pnpm's documented-in-code `pnpm_config_verify_deps_before_run=false` process override to execute the same package scripts against the same existing modules. Temporary pass-through capture code is removed from the checkout during lint/typecheck/build and is never shipped as application code. Live provider keys/models are unchanged; no environment values or credentials are committed.
+
+The second three-run trial at `6b4683c` remains in `evidence/branch-trial-2`: all grader canaries passed, but A15 rejected explicit function arguments, and A35/A36 rejected short valid chronology answers (Sarajevo; 1918). This refines V1: checks need the already-validated, target-assigned teaching claim as subject authority, not only the compact curriculum label. Claims must pass the existing target/deferred/duplicate validation before they can supply this authority. Mathematical presentation normalization must preserve argument distinctions as well as operators.
+
+That trial also exposed stale eval-only checks in A15/A27: the task-alignment text omits streamed lesson briefs, and a hard-coded 15-character typed-answer minimum rejects the valid method name `filter`. Captured-response red tests are being added before correcting the rubric; production subject specificity already reads lesson briefs, so its reported failure is being inspected separately rather than assumed to have that same cause.
+
+Closer inspection distinguished two WWI outputs in trial 2: the Sarajevo recognition answer belongs to a neighboring active claim and remains rejected (permanent negative); the `1918` answer belongs to the final armistice claim and should pass. Once subject validation admits the latter, the next shared heuristic falsely treats every numeric choice set as a calculation requiring two operands. This is a fourth distinct validator cause (V4), rather than part of the lexical matcher: numeric year recall is classified as arithmetic merely because its choices contain numbers. The correction is limited to explicit factual-year recall; missing calculation data and hidden prompts remain rejected. This additional validator location is recorded before editing it. The recovery prompt will state its server-selected recognition target explicitly, retaining the final-claim boundary.
+
+For A15's eval-only specificity failure, the broad goal names the product-rule formula while today's deterministic short window explicitly defers that formula and teaches recognition of differentiable factors. The rubric will inspect active planned targets for streamed sessions and preserve all existing teaching/evidence checks. It also recognizes the common `differentia` stem (differentiate/differentiable), includes streamed brief text, and uses the existing production schema's nonempty typed-answer contract. No product time/order/shape logic changes.
+
+
+### Final root-cause count
+
+One grader cause and **four validator/recovery causes** were found. The initial memo predicted three validator causes; V4 became reachable after V1 stopped falsely rejecting the captured `1918` answer. These are shared boundary corrections, not separate case branches or fixture-specific exceptions.
+
+| Cause | Shared correction | Cases exercised |
+| --- | --- | --- |
+| G — unordered/inconsistent grading fields | Explicit answerability and required criteria; deterministic public verdict, missing details, and secure feedback | A01, A02, A03 plus nine cross-subject canaries |
+| V1 — subject proof loses representation and assignment | Preserve formula notation; distinguish checks from short claims; scoped topic references and already-validated teaching claims | X06, A22, A15, A35, A36 |
+| V2 — deduplication erases meaningful symbols | Preserve primes/operators/accents while normalizing presentation | A15; duplicate-choice negatives |
+| V3 — recovery omits server-known grouping/shape | Grouped distinct-claim counts, fixed independent-check schema, explicit final recognition target | A27, A32; WWI recovery; genuine-duplicate and neighboring-target negatives |
+| V4 — numeric choices imply arithmetic | Distinguish explicit factual-year recall from calculations needing supplied values | Captured A35 armistice question; missing-data negatives |
+
+Eval-only corrections are separate from these product causes: the dated A35/A36 replacements, short valid typed answers, and task/scope checks against the current streamed plan slice. They do not change session shape, scheduling, plan generation, or completion behavior.
+
+The third sampling attempt at `3eaa459` exposed one further V1 representation loss in A22: a complete answer `y'=f'(x)g(x)+f(x)g'(x)` matches the product and derivative terms but loses `+` when completion evidence is tokenized. The correct product claim is consequently displaced, producing `streamed_target_missing`. The captured response is now a deterministic replay. Before editing: extend the existing notation helper to preserve arithmetic relation symbols as their verbal terms, without lowering evidence thresholds, using feedback as evidence, or broadening target authority. The full failed sample remains separate from final verification.
+
+The symbolic A22 replay also demonstrates why this must be shared: after completion reconciliation preserves `+`, the final content-specificity reader independently loses the same notation and rejects the same evidence. Both evidence readers must use the common notation terms while retaining their existing subject thresholds and negative cases. The captured failure is reproduced through the complete generator, not merely a helper assertion.
+
+The final symbolic-relation replay is red in [the old implementation run](evidence/symbolic-relation-red.txt) and green in [119 focused checks](evidence/symbolic-relation-green.txt), including completion/content-specificity negative cases. Both evidence readers preserve the same notation terms; their thresholds remain unchanged.
+
+Sampling at `1026106` exposed the other half of V2's inconsistent duplicate boundary: the normal streamed schema accepted two exactly identical `2x(x+3)+x^2` choices, while compact recovery already rejected duplicates. This is a real invalid learner choice set, not a stale expectation; it remains red. The trial was stopped after the failure was captured (`branch-trial-4` is incomplete and is not a three-run result). Before editing, the correction is to share the same distinct-choice constraint across normal streamed output, compact recovery, and the eval rubric, then exercise the existing bounded recovery on that captured invalid response. Valid differing formulas must still pass. No choice is silently deleted and session shape and provider-call ceilings are unchanged; newly rejected invalid output uses the existing recovery call.
+
+The shared-choice negative check also exposed a case-folding hazard before the next live run: `values.map(fn)` and `values.Map(fn)` are different code choices. Choice comparison must preserve case while normalizing spacing/primes; question-text repetition retains its existing case-insensitive comparison. The captured identical choices and presentation-equivalent derivative choices remain rejected. This boundary has its own failing-then-passing test and introduces no content deletion.
+
+
+[Normal duplicate-choice red](evidence/normal-duplicates-red.txt) now becomes [green with bounded recovery](evidence/normal-duplicates-green.txt). [Case-sensitive code-choice red](evidence/choice-case-red.txt) becomes [green](evidence/choice-case-green.txt); exact and presentation-equivalent duplicates remain negative cases.
+
+The standing scheduling-clock rule required setup-only changes in `e2e/add-to-yova.spec.ts` and `e2e/plan-schedule-date.spec.ts`: they now use `freezePlanClock`, and their Node-side relative dates derive from `PLAN_FIXED_NOW`. Their learner assertions remain unchanged. Existing calendar suites already freeze their clocks, and the core/live plan journeys already use the helper. The application preview-clock implementation is unchanged. Full lint passed before these import/setup changes; [their lint](evidence/browser-clock-lint.txt) and full typecheck also pass.
+
+The [first full gate at `10b5fc4`](evidence/full-live-gate-at-10b5fc4/report.md) passes nine scoped cases but still rejects A15. Its subsequent three captured attempts are retained in `a15-investigation` (fail/pass/pass). The failing target is “Why (fg)' is generally not f'g'”. Its correct typed answer explains both product-rule terms. Recognition already receives the validated teaching claim, but the independent typed-check wrapper omitted it. This is an incomplete application of V1's shared check contract, not a new subject exception. Before editing: require that argument for both check types at the type boundary, and add off-topic/deferred typed-check negatives alongside the complete captured replay.
+
+
+The typed-check correction is [red](evidence/independent-scope-red.txt) then [green](evidence/independent-scope-green.txt) through the complete captured generator path. `taughtIdea` is now required by the shared check function's TypeScript contract, so either caller omitting that validated authority is a compile error.
+
+### Additional main comparison after the first full gate
+
+The osmosis launch case and finance plan case each ran three times on actual detached main `e03a082`, with the same keys/modules. Main `src/lib` was byte-identical to that commit. Three test-only files from Brief 0 were supplied: isolated launch fixture output paths, their path helper, and the already-established no-map coverage correction in the eval rubric. Learner assertions and product code were unchanged. The branch and its audit notes were restored automatically afterward.
+
+The original osmosis launch case passed twice and failed once on main with `streamed_target_subject`; the branch's first full run failed with missing target coverage. This is a pre-existing generation/validation failure and is deferred. Finance passed 3/3 on main and 3/3 in the final branch comparison; its earlier branch trial failure remains explicitly recorded. This does not establish a reproduced main defect or a finance fix. Its plan-generation and plan-rubric code is unchanged by Brief 0.5.
+
+[All main comparison logs and captures](evidence/pass-to-fail-main/cases.json) are retained. Three supplementary same-context attempts were **not run** because the temporary harness only collected `src` tests; their “No test files found” reports are neither red nor green and make no provider-availability claim. They are not part of the 75-case gate or either three-run original-case result.
+
+
+### Browser-run interruptions and environment restoration
+
+The first ordinary-browser run is retained in [ordinary-browser](evidence/ordinary-browser/). It was interrupted twice by the local environment. The [power-log observation](evidence/ordinary-browser/power-interruption.txt) shows clamshell sleep from 10:17 BST, followed by maintenance wakes and full wake at 10:50:36. This overlaps the 17.2-minute recurring-calendar timeout and a Calendar server-startup timeout with no tests run. It does not explain the earlier cross-tab Calendar failure.
+
+Later, root dependency links disappeared while the core suite was running; a worker could no longer import `@playwright/test`, 17 following core tests did not run, and the final five suites could not start. The deleting process was not identified. These missing-module/unexecuted results are unavailable, not product reds or greens. Earlier locator/API-response timeouts remain explicit failures rather than being retroactively reclassified as provider outages.
+
+[Dependency restoration](evidence/dependency-restore.txt) reused all 524 packages from the local cache with the existing frozen lockfile (zero downloads). The unqualified `pnpm` command had resolved to the bundled fallback version 11.19.0; `corepack pnpm` resolves the repository-pinned 11.16.0. Node 24.19.0, Next 16.3.3, Playwright 1.62.1, and Vitest 4.1.10 match the earlier sample. The manifest and lockfile are unchanged. The [restoration record](evidence/dependency-restoration.json) separates this event from the earlier no-TTY auto-verification attempt; a dependency restore was explicitly performed only after the actual links disappeared. No provider key/model or production setting changed.
+
+After restoration, all 3,918 unit tests and 12 runner checks passed again, along with lint, typecheck, and build. Logs are in [static-after-restoration](evidence/static-after-restoration/). Remaining gates use the pinned package manager. Browser replays retain the original assertions and zero runner retries.
+
+The unchanged main comparison reproduced the desktop cross-tab Calendar failure and the desktop misconception-repair/evaluation timeout; the other eight comparison attempts passed. Both observations are now in BACKLOG and receive no product fix here. The [completed main/branch comparison](evidence/browser-comparison/report.md) is 8 pass / 2 fail on main and 9 pass / 1 fail on the branch. The only remaining branch failure is the identical desktop cross-tab Calendar timeout. The broader browser coverage follows below.
+
+Raw browser trace/video archives are retained locally with SHA-256 hashes in [local-trace-archive.json](evidence/ordinary-browser/local-trace-archive.json); screenshots, reports, error contexts, and logs remain in this PR. Unrelated environment fields and credential values are omitted from published browser JSON.

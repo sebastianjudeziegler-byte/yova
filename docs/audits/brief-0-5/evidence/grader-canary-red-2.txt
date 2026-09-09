@@ -1,0 +1,129 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'
+biology-paraphrase {
+  verdict: 'secure',
+  feedback: 'You correctly identified oxygen as the final electron acceptor and explained that without it electron flow backs up and ATP production stops.',
+  matchedIdeas: [
+    'oxygen is the final electron acceptor',
+    'electron flow and ATP production continue because oxygen accepts electrons'
+  ],
+  missingIdeas: [ 'oxygen helps form water' ]
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > complete: 'accepts a concise programming explana…'
+programming-concise {
+  verdict: 'secure',
+  feedback: 'You correctly explained that the base case stops the recursion. Your note about preventing endless self-calls is also accurate.',
+  matchedIdeas: [
+    'Base case provides a terminating condition',
+    'Prevents infinite recursive calls'
+  ],
+  missingIdeas: [ 'Allows earlier calls to return' ]
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'biology: missing-context-biology'
+missing-context-biology {
+  verdict: 'secure',
+  feedback: 'The response gives the key idea that a condition changed and this affected respiration. It is general rather than specific, but it matches the prompt because no exact condition was provided.',
+  matchedIdeas: [ 'A condition changed', 'That change affected respiration' ],
+  missingIdeas: [ 'Names the specific changed condition' ]
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'
+missing-context-programming {
+  verdict: 'secure',
+  feedback: 'You identified the key idea: the function’s stored state likely changed between calls, which explains the different result.',
+  matchedIdeas: [
+    'Recognizes a state change between calls',
+    'Connects the wrong second result to stored data changing'
+  ],
+  missingIdeas: []
+}
+
+stdout | src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'history: missing-context-history'
+missing-context-history {
+  verdict: 'secure',
+  feedback: 'You captured the main idea that a political change led to a policy change. The response matches the causal relationship, though it is less specific about the crisis itself.',
+  matchedIdeas: [
+    'political conditions changed',
+    'policy changed because conditions changed'
+  ],
+  missingIdeas: [
+    'explicit link to the crisis',
+    'government policy change after the crisis'
+  ]
+}
+
+ ❯ src/evals/grader-calibration.live.test.ts (9 tests | 5 failed) 11793ms
+     × complete: 'accepts a correct biology paraphrase' 1305ms
+     × complete: 'accepts a concise programming explana…' 1144ms
+     × insufficient: 'biology: missing-context-biology' 1468ms
+     × insufficient: 'programming: missing-context-programm…' 1196ms
+     × insufficient: 'history: missing-context-history' 1561ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'
+AssertionError: expected [ 'oxygen helps form water' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "oxygen helps form water",
++ ]
+
+ ❯ src/evals/grader-calibration.live.test.ts:11:33
+      9|     console.info(fixture.id, result);
+     10|     expect(result.verdict).toBe("secure");
+     11|     expect(result.missingIdeas).toEqual([]);
+       |                                 ^
+     12|     expect(result.matchedIdeas.length).toBeGreaterThan(0);
+     13|     expect(result.feedback).not.toMatch(/\bmissing\b|\bincomplete\b|\b…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > complete: 'accepts a concise programming explana…'
+AssertionError: expected [ 'Allows earlier calls to return' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Allows earlier calls to return",
++ ]
+
+ ❯ src/evals/grader-calibration.live.test.ts:11:33
+      9|     console.info(fixture.id, result);
+     10|     expect(result.verdict).toBe("secure");
+     11|     expect(result.missingIdeas).toEqual([]);
+       |                                 ^
+     12|     expect(result.matchedIdeas.length).toBeGreaterThan(0);
+     13|     expect(result.feedback).not.toMatch(/\bmissing\b|\bincomplete\b|\b…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'biology: missing-context-biology'
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'
+ FAIL  src/evals/grader-calibration.live.test.ts > live grader calibration across subjects > insufficient: 'history: missing-context-history'
+AssertionError: expected [ 'uncertain' ] to include 'secure'
+ ❯ src/evals/grader-calibration.live.test.ts:20:38
+     18|     const result = await evaluateAnswerWithOpenAI(fixture.request);
+     19|     console.info(fixture.id, result);
+     20|     expect(fixture.expectedVerdicts).toContain(result.verdict);
+       |                                      ^
+     21|     expect(result.verdict).not.toBe("secure");
+     22|   }, 90_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 4 passed (9)
+   Start at  08:31:32
+   Duration  11.89s (transform 30ms, setup 0ms, import 23ms, tests 11.79s, environment 0ms)
+

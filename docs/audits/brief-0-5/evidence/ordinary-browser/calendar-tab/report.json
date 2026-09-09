@@ -1,0 +1,816 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "<repo>/node_modules/@playwright/test/cli.js",
+      "test",
+      "e2e/calendar-tab.spec.ts",
+      "--config",
+      "playwright.brief05-verification.config.ts"
+    ],
+    "configFile": "<repo>/playwright.brief05-verification.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": false,
+      "timeout": 120000,
+      "env": {
+        "YOVA_E2E": "1",
+        "AUTH_INVITE_ONLY": "false",
+        "AUTH_PASSWORD_ACCOUNTS": "false",
+        "AUTH_CAPTCHA_ENABLED": "false",
+        "AUTH_EMAIL_CODE_VERIFICATION": "false",
+        "SITE_URL": "http://127.0.0.1:3100",
+        "NEXT_PUBLIC_SUPABASE_URL": ""
+      },
+      "environmentEvidence": {
+        "providerConfigured": false,
+        "unrelatedEnvironmentOmitted": true
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "calendar-tab.spec.ts",
+      "file": "calendar-tab.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Calendar exposes Week and Agenda surfaces with bounded keyboard navigation",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 13119,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:49:52.450Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-a979f9691c78f8d6b2d5",
+          "file": "calendar-tab.spec.ts",
+          "line": 23,
+          "column": 5
+        },
+        {
+          "title": "quick add confirms its interpretation, persists by account, and can be undone",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 17094,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:50:08.731Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-0913d3d1adf456926267",
+          "file": "calendar-tab.spec.ts",
+          "line": 69,
+          "column": 5
+        },
+        {
+          "title": "quick add clamps an overlong title before confirmation and persists without crashing",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4260,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:50:25.836Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-e484f36ba5095328309b",
+          "file": "calendar-tab.spec.ts",
+          "line": 120,
+          "column": 5
+        },
+        {
+          "title": "exiting a quick-add plan draft returns to Calendar without losing or duplicating the manual deadline",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4435,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:50:30.105Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-93df90bc75c135cc4a24",
+          "file": "calendar-tab.spec.ts",
+          "line": 141,
+          "column": 5
+        },
+        {
+          "title": "finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 34389,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/calendar-tab.spec.ts",
+                        "column": 62,
+                        "line": 179
+                      },
+                      "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Skip for now' })\u001b[22m\n\n\n  177 |   } else {\n  178 |     await page.getByRole(\"button\", { name: \"Continue to placement check\" }).click();\n> 179 |     await page.getByRole(\"button\", { name: \"Skip for now\" }).click();\n      |                                                              ^\n  180 |   }\n  181 |   await expect(page.getByRole(\"heading\", { name: \"Everything YOVA will use\" })).toBeVisible();\n  182 |   await page.getByRole(\"button\", { name: \"Generate my plan\" }).click();\n    at <repo>/e2e/calendar-tab.spec.ts:179:62"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:50:34.553Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-desktop-chromium/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-2983ad61b5858694b4a4",
+          "file": "calendar-tab.spec.ts",
+          "line": 164,
+          "column": 5
+        },
+        {
+          "title": "authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-in time adjustment stay connected",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 12901,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:51:10.537Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-64807ff8ba463b0c52fe",
+          "file": "calendar-tab.spec.ts",
+          "line": 200,
+          "column": 5
+        },
+        {
+          "title": "Calendar Start opens the exact ready session and fails closed on an ambiguous legacy plan",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 21576,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:51:25.075Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-2f24de9809e750d8dd5f",
+          "file": "calendar-tab.spec.ts",
+          "line": 250,
+          "column": 5
+        },
+        {
+          "title": "a future overloaded-day issue edits only that date's availability",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5996,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:51:46.664Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-0b1aa18f1851317e876b",
+          "file": "calendar-tab.spec.ts",
+          "line": 278,
+          "column": 5
+        },
+        {
+          "title": "learner-owned blocks resize and suggested moves become pinned only after approval",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7368,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:51:52.679Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-113549ed7196b42ace9c",
+          "file": "calendar-tab.spec.ts",
+          "line": 315,
+          "column": 5
+        },
+        {
+          "title": "Calendar exposes Week and Agenda surfaces with bounded keyboard navigation",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4814,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:52:00.590Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-98f3ae9ee48dcb81e3e2",
+          "file": "calendar-tab.spec.ts",
+          "line": 23,
+          "column": 5
+        },
+        {
+          "title": "quick add confirms its interpretation, persists by account, and can be undone",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 9786,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:52:05.911Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-2a4cf9e1cf601ded8b86",
+          "file": "calendar-tab.spec.ts",
+          "line": 69,
+          "column": 5
+        },
+        {
+          "title": "quick add clamps an overlong title before confirmation and persists without crashing",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5259,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:52:15.749Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-57d77f32f52d1043b58d",
+          "file": "calendar-tab.spec.ts",
+          "line": 120,
+          "column": 5
+        },
+        {
+          "title": "exiting a quick-add plan draft returns to Calendar without losing or duplicating the manual deadline",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6599,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:52:21.029Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-b2b1f475f299e54ae8c9",
+          "file": "calendar-tab.spec.ts",
+          "line": 141,
+          "column": 5
+        },
+        {
+          "title": "finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 11563,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('heading', { name: 'Your plan' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('heading', { name: 'Your plan' })\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('heading', { name: 'Your plan' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('heading', { name: 'Your plan' })\u001b[22m\n\n    at <repo>/e2e/calendar-tab.spec.ts:185:66",
+                    "location": {
+                      "file": "<repo>/e2e/calendar-tab.spec.ts",
+                      "column": 66,
+                      "line": 185
+                    },
+                    "snippet": "  183 |   await expect(page.getByText(\"Plan ready\")).toBeVisible();\n  184 |   await page.getByRole(\"button\", { name: \"Use this plan\" }).click();\n> 185 |   await expect(page.getByRole(\"heading\", { name: \"Your plan\" })).toBeVisible();\n      |                                                                  ^\n  186 |\n  187 |   await expect.poll(() => quickAddPlanCommitState(page)).toMatchObject({\n  188 |     planCount: 1,"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "<repo>/e2e/calendar-tab.spec.ts",
+                        "column": 66,
+                        "line": 185
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('heading', { name: 'Your plan' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('heading', { name: 'Your plan' })\u001b[22m\n\n\n  183 |   await expect(page.getByText(\"Plan ready\")).toBeVisible();\n  184 |   await page.getByRole(\"button\", { name: \"Use this plan\" }).click();\n> 185 |   await expect(page.getByRole(\"heading\", { name: \"Your plan\" })).toBeVisible();\n      |                                                                  ^\n  186 |\n  187 |   await expect.poll(() => quickAddPlanCommitState(page)).toMatchObject({\n  188 |     planCount: 1,\n    at <repo>/e2e/calendar-tab.spec.ts:185:66"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:52:27.639Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/calendar-tab/artifacts/calendar-tab-finishing-a-q-fd014-inked-authoritative-outcome-mobile-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "<repo>/e2e/calendar-tab.spec.ts",
+                    "column": 66,
+                    "line": 185
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-80de66f9d5197956b327",
+          "file": "calendar-tab.spec.ts",
+          "line": 164,
+          "column": 5
+        },
+        {
+          "title": "authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-in time adjustment stay connected",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8382,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:52:40.225Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-d55fecf3894da00a948b",
+          "file": "calendar-tab.spec.ts",
+          "line": 200,
+          "column": 5
+        },
+        {
+          "title": "Calendar Start opens the exact ready session and fails closed on an ambiguous legacy plan",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 10444,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:52:49.405Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-51dd86986f29e7c13ad4",
+          "file": "calendar-tab.spec.ts",
+          "line": 250,
+          "column": 5
+        },
+        {
+          "title": "a future overloaded-day issue edits only that date's availability",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6935,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:52:59.868Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-44923408ba53ea36c6f5",
+          "file": "calendar-tab.spec.ts",
+          "line": 278,
+          "column": 5
+        },
+        {
+          "title": "learner-owned blocks resize and suggested moves become pinned only after approval",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 10995,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:53:06.855Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5fbf912e032c803574ca-8e4d174f3a665e703035",
+          "file": "calendar-tab.spec.ts",
+          "line": 315,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-09T09:49:38.097Z",
+    "duration": 220012.785,
+    "expected": 16,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

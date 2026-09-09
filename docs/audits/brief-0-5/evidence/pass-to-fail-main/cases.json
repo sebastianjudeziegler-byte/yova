@@ -1,0 +1,50 @@
+[
+  {
+    "run": 1,
+    "file": "src/evals/launch-session-journeys.live.test.ts",
+    "test": "launch session journeys with committed recipes 'osmosis'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-launch-session-journeys.txt"
+  },
+  {
+    "run": 1,
+    "file": "src/evals/plan-quality.live.test.ts",
+    "test": "live OpenAI plan quality 'General-learning finance pathway'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-1-plan-quality.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/launch-session-journeys.live.test.ts",
+    "test": "launch session journeys with committed recipes 'osmosis'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-launch-session-journeys.txt"
+  },
+  {
+    "run": 2,
+    "file": "src/evals/plan-quality.live.test.ts",
+    "test": "live OpenAI plan quality 'General-learning finance pathway'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-2-plan-quality.txt"
+  },
+  {
+    "run": 3,
+    "file": "src/evals/launch-session-journeys.live.test.ts",
+    "test": "launch session journeys with committed recipes 'osmosis'",
+    "state": "failed",
+    "reason": "SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “What osmosis is”; “Use osmosis to predict what happens to a cell”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The claim assigned to target_2 does not preserve that target's subject terms.",
+    "log": "run-3-launch-session-journeys.txt"
+  },
+  {
+    "run": 3,
+    "file": "src/evals/plan-quality.live.test.ts",
+    "test": "live OpenAI plan quality 'General-learning finance pathway'",
+    "state": "passed",
+    "reason": null,
+    "log": "run-3-plan-quality.txt"
+  }
+]

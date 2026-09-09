@@ -1,0 +1,326 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "<repo>/node_modules/@playwright/test/cli.js",
+      "test",
+      "e2e/account-security.spec.ts",
+      "--config",
+      "playwright.brief05-verification.config.ts"
+    ],
+    "configFile": "<repo>/playwright.brief05-verification.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/account-security/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/account-security/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/account-security/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": false,
+      "timeout": 120000,
+      "env": {
+        "YOVA_E2E": "1",
+        "AUTH_INVITE_ONLY": "false",
+        "AUTH_PASSWORD_ACCOUNTS": "false",
+        "AUTH_CAPTCHA_ENABLED": "false",
+        "AUTH_EMAIL_CODE_VERIFICATION": "false",
+        "SITE_URL": "http://127.0.0.1:3100",
+        "NEXT_PUBLIC_SUPABASE_URL": ""
+      },
+      "environmentEvidence": {
+        "providerConfigured": false,
+        "unrelatedEnvironmentOmitted": true
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "account-security.spec.ts",
+      "file": "account-security.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "makes account personalization visible, editable, persistent, and mobile-safe",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6355,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:10:20.769Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7c7744344cc3e600d1bb-b0d9c5569de281e7c39a",
+          "file": "account-security.spec.ts",
+          "line": 17,
+          "column": 5
+        },
+        {
+          "title": "explains the self-service export scope and the downloaded-copy boundary",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2829,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:10:27.681Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7c7744344cc3e600d1bb-882a5762856a5c3ca55f",
+          "file": "account-security.spec.ts",
+          "line": 49,
+          "column": 5
+        },
+        {
+          "title": "clears signed-in UI after confirmed sign-out even when preview storage removal throws",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3048,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:10:30.516Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7c7744344cc3e600d1bb-8bf0d0a29d352e96b00b",
+          "file": "account-security.spec.ts",
+          "line": 59,
+          "column": 5
+        },
+        {
+          "title": "makes account personalization visible, editable, persistent, and mobile-safe",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2908,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:10:33.932Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7c7744344cc3e600d1bb-74ef13d674a46da776ff",
+          "file": "account-security.spec.ts",
+          "line": 17,
+          "column": 5
+        },
+        {
+          "title": "explains the self-service export scope and the downloaded-copy boundary",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1716,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:10:37.076Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7c7744344cc3e600d1bb-89addcad579168f3b945",
+          "file": "account-security.spec.ts",
+          "line": 49,
+          "column": 5
+        },
+        {
+          "title": "clears signed-in UI after confirmed sign-out even when preview storage removal throws",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1994,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:10:38.797Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7c7744344cc3e600d1bb-ac395f562692fbfbe9ad",
+          "file": "account-security.spec.ts",
+          "line": 59,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-09T09:10:15.025Z",
+    "duration": 25883.451999999997,
+    "expected": 6,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

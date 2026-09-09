@@ -1,0 +1,29 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'General-learning finance pathway'
+
+YOVA plan evaluation · General-learning finance pathway · 100/100
+PASS  Plan size fits the requested scope (10/10) · 5 sessions for unclassified learning plan; expected 2-8
+PASS  Sessions fit supplied availability (15/15) · Wednesday: 30/30 min; Saturday: 40/40 min; Monday: 25/25 min; Wednesday: 30/30 min; Saturday: 40/40 min
+PASS  No work is scheduled after the deadline (15/15) · No fixed deadline
+PASS  Methods fit each session's actual task (20/20) · 5 of 5 sessions pass YOVA's task-to-method router (general evaluation case)
+PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → learn → learn → study
+PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+PASS  Sessions are not repetitive (5/5) · 5 distinct objectives across 5 sessions
+PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+PASS  Uploaded sources are not used to justify invented facts (5/5) · No uploaded source
+
+ ✓ src/evals/plan-quality.live.test.ts (11 tests | 10 skipped) 22305ms
+     ✓ 'General-learning finance pathway'  22021ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 10 skipped (11)
+   Start at  10:08:17
+   Duration  22.55s (transform 308ms, setup 20ms, import 145ms, tests 22.31s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/final-verified/run-3-plan-quality.json
+
+Exit code: 0

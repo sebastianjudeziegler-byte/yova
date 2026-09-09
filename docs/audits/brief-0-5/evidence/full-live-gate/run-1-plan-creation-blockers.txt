@@ -1,0 +1,54 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/plan-creation-blockers.live.test.ts (2 tests | 2 failed) 145ms
+     × real placement questions and a map-only scope correction preserve demonstrated ATP 75ms
+     × a ten-minute triage generates a runnable lesson on its saved topic 69ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-creation-blockers.live.test.ts > live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP
+MapDiagnosticGenerationError: The placement-check request failed.
+ ❯ Module.generateMapDiagnostic src/lib/diagnostics/map-diagnostic.ts:165:11
+    163|   } catch (error) {
+    164|     if (error instanceof MapDiagnosticGenerationError) throw error;
+    165|     throw new MapDiagnosticGenerationError("The placement-check reques…
+       |           ^
+    166|   }
+    167| }
+ ❯ src/evals/plan-creation-blockers.live.test.ts:26:24
+
+Caused by: Error: Connection error.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:436:19
+ ❯ Module.generateMapDiagnostic src/lib/diagnostics/map-diagnostic.ts:92:22
+ ❯ src/evals/plan-creation-blockers.live.test.ts:26:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { status: undefined, headers: undefined, requestID: undefined, error: undefined, code: undefined, param: undefined }
+Caused by: TypeError: fetch failed
+Caused by: Error: getaddrinfo ENOTFOUND api.openai.com
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -3008, code: 'ENOTFOUND', syscall: 'getaddrinfo', hostname: 'api.openai.com' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/evals/plan-creation-blockers.live.test.ts > live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic
+SessionGenerationFailure: OpenAI could not prepare the streamed teaching structure.
+ ❯ Module.generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/plan-creation-blockers.live.test.ts:62:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  12:44:09
+   Duration  1.23s (transform 803ms, setup 0ms, import 1.02s, tests 145ms, environment 0ms)
+
+
+Exit code: 1

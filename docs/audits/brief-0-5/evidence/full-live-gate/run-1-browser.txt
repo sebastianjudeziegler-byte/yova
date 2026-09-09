@@ -1,0 +1,82 @@
+[WebServer] (node:29112) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:29115) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:29230) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [desktop-chromium] › e2e/plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (9.1s)
+(node:29277) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [mobile-chromium] › e2e/plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (2.4s)
+
+
+  1) [desktop-chromium] › e2e/plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload 
+
+    Error: ENOENT: no such file or directory, open '/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/fixtures/deadline/live-ten-minute.json'
+
+       9 | test("a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",async({page})=>{
+      10 |   test.setTimeout(180_000);
+    > 11 |   const fixture = JSON.parse(readFileSync(liveFixturePath("deadline", "live-ten-minute.json"),"utf8")) as {plan:LearningPlan;resource:SessionResource};
+         |                                          ^
+      12 |   await freezePlanClock(page, new Date(fixture.plan.createdAt));
+      13 |   const apiResults:Array<{path:string;status:number}> = [];
+      14 |   page.on("response",response=>{
+        at <repo>/e2e/plan-launch-live.spec.ts:11:42
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../../../var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mobile-chromium] › e2e/plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload 
+
+    Error: ENOENT: no such file or directory, open '/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/fixtures/deadline/live-ten-minute.json'
+
+       9 | test("a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",async({page})=>{
+      10 |   test.setTimeout(180_000);
+    > 11 |   const fixture = JSON.parse(readFileSync(liveFixturePath("deadline", "live-ten-minute.json"),"utf8")) as {plan:LearningPlan;resource:SessionResource};
+         |                                          ^
+      12 |   await freezePlanClock(page, new Date(fixture.plan.createdAt));
+      13 |   const apiResults:Array<{path:string;status:number}> = [];
+      14 |   page.on("response",response=>{
+        at <repo>/e2e/plan-launch-live.spec.ts:11:42
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../../../var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/yova-live-gate-Wx5p5s/run-1/browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [desktop-chromium] › e2e/plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload 
+    [mobile-chromium] › e2e/plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload 
+
+Exit code: 1

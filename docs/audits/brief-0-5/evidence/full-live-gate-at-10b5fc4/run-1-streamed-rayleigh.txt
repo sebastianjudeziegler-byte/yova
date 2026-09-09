@@ -1,0 +1,81 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-rayleigh.live.test.ts > live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton
+Rayleigh streamed skeleton {
+  run: 1,
+  generationStats: {
+    elapsedMs: 5787,
+    attempts: 1,
+    firstAttemptPassed: false,
+    failedValidator: 'session_practice_variation',
+    repairAttempted: true,
+    repairSucceeded: true,
+    repairReason: 'semantic_validation',
+    repairDetail: 'YOVA restored 2 evidence-derived practice-intent labels without changing question content or learning phases.',
+    inputTokens: 6681,
+    cachedInputTokens: 3840,
+    cacheWriteTokens: 0,
+    outputTokens: 1220,
+    validationIssueCode: 'session_practice_metadata',
+    strategy: 'streamed',
+    stage: 'complete'
+  },
+  coverage: {
+    focus: 'Learn and demonstrate Light scattering in the atmosphere in this session.',
+    essentialIdeas: [
+      'Sunlight entering the atmosphere is scattered by air molecules, and shorter wavelengths scatter more strongly than longer wavelengths.'
+    ],
+    completionEvidence: [ 'Demonstrate Light scattering in the atmosphere' ],
+    evidenceMap: [ [Object] ],
+    deferredContent: [ 'Why the sky looks blue during the day' ]
+  },
+  activities: [
+    {
+      type: 'instruction',
+      phase: 'model',
+      concept: null,
+      minutes: 4,
+      ideas: [Array]
+    },
+    {
+      type: 'free_response',
+      phase: 'explain',
+      concept: 'Light scattering in the atmosphere',
+      minutes: 3,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'repair',
+      concept: 'Light scattering in the atmosphere',
+      minutes: 3,
+      ideas: []
+    },
+    {
+      type: 'free_response',
+      phase: 'reexplain',
+      concept: 'Light scattering in the atmosphere',
+      minutes: 3,
+      ideas: []
+    },
+    {
+      type: 'multiple_choice',
+      phase: 'transfer',
+      concept: 'Light scattering in the atmosphere',
+      minutes: 2,
+      ideas: []
+    }
+  ]
+}
+
+ ✓ src/evals/streamed-rayleigh.live.test.ts (1 test) 6011ms
+     ✓ builds the production 15-minute two-target teaching skeleton  6011ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  09:42:17
+   Duration  6.31s (transform 281ms, setup 0ms, import 218ms, tests 6.01s, environment 0ms)
+
+
+Exit code: 0

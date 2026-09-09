@@ -1,0 +1,446 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "<repo>/node_modules/@playwright/test/cli.js",
+      "test",
+      "e2e/cloud-sync-recovery.spec.ts",
+      "--config",
+      "playwright.brief05-verification.config.ts"
+    ],
+    "configFile": "<repo>/playwright.brief05-verification.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/cloud-sync-recovery/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/cloud-sync-recovery/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "<repo>/docs/audits/brief-0-5/evidence/ordinary-browser/cloud-sync-recovery/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": false,
+      "timeout": 120000,
+      "env": {
+        "YOVA_E2E": "1",
+        "AUTH_INVITE_ONLY": "false",
+        "AUTH_PASSWORD_ACCOUNTS": "false",
+        "AUTH_CAPTCHA_ENABLED": "false",
+        "AUTH_EMAIL_CODE_VERIFICATION": "false",
+        "SITE_URL": "http://127.0.0.1:3100",
+        "NEXT_PUBLIC_SUPABASE_URL": ""
+      },
+      "environmentEvidence": {
+        "providerConfigured": false,
+        "unrelatedEnvironmentOmitted": true
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "cloud-sync-recovery.spec.ts",
+      "file": "cloud-sync-recovery.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Retry retires two permanently rejected terminal events without losing their recovery export",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                  "location": {
+                    "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:55:34.947Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                      "location": {
+                        "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-005dfe0da7f207d4a975",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 43,
+          "column": 5
+        },
+        {
+          "title": "startup retires a stale routed completion from a ready session using cloud route authority",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                  "location": {
+                    "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:55:34.949Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                      "location": {
+                        "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-67d87402f61625d2baf9",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 78,
+          "column": 5
+        },
+        {
+          "title": "cloud-only private-export metadata keeps AA text contrast",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                  "location": {
+                    "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:55:34.949Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                      "location": {
+                        "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-f2e3df8b9bee1abe950a",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 114,
+          "column": 5
+        },
+        {
+          "title": "Retry retires two permanently rejected terminal events without losing their recovery export",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                  "location": {
+                    "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:55:34.951Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                      "location": {
+                        "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-0218e8ca7d212ddab933",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 43,
+          "column": 5
+        },
+        {
+          "title": "startup retires a stale routed completion from a ready session using cloud route authority",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                  "location": {
+                    "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:55:34.951Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                      "location": {
+                        "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-c9dcb5daac30623d6b5a",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 78,
+          "column": 5
+        },
+        {
+          "title": "cloud-only private-export metadata keeps AA text contrast",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                  "location": {
+                    "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                    "line": 3,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-09T09:55:34.951Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Runs only with the isolated signed-in Supabase browser harness.",
+                      "location": {
+                        "file": "<repo>/e2e/cloud-sync-recovery.spec.ts",
+                        "line": 3,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "c197bf59570f16b4a8f4-2cb2d36ff748638722d3",
+          "file": "cloud-sync-recovery.spec.ts",
+          "line": 114,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-09T09:55:27.119Z",
+    "duration": 7886.851,
+    "expected": 0,
+    "skipped": 6,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

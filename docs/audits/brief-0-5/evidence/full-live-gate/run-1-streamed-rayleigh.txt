@@ -1,0 +1,53 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-rayleigh.live.test.ts > live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton
+Rayleigh streamed skeleton failure {
+  run: 1,
+  message: 'OpenAI could not prepare the streamed teaching structure.',
+  generationStats: {
+    elapsedMs: 45,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'session_provider_request',
+    repairAttempted: true,
+    repairSucceeded: false,
+    repairReason: 'semantic_validation',
+    repairDetail: 'The lesson-structure request failed before YOVA received a usable response (connection).',
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+    validationIssueCode: null,
+    stage: 'provider',
+    cause: 'provider_request',
+    strategy: 'streamed'
+  }
+}
+
+ ❯ src/evals/streamed-rayleigh.live.test.ts (1 test | 1 failed) 261ms
+     × builds the production 15-minute two-target teaching skeleton 260ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-rayleigh.live.test.ts > live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton
+SessionGenerationFailure: OpenAI could not prepare the streamed teaching structure.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/streamed-rayleigh.live.test.ts:106:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  12:44:15
+   Duration  589ms (transform 314ms, setup 0ms, import 257ms, tests 261ms, environment 0ms)
+
+
+Exit code: 1

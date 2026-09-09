@@ -1,0 +1,75 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+WWI streamed lesson metrics {
+  skeletonElapsedMs: 10382,
+  skeletonAttempts: 2,
+  lessonElapsedMs: 9967,
+  latencyToFirstTokenMs: 3382,
+  wordCount: 250,
+  inputTokens: 1005,
+  outputTokens: 401
+}
+
+ ❯ src/evals/streamed-world-war-one-lesson.live.test.ts (1 test | 1 failed) 20777ms
+     × delivers substantive teaching from the first generated lesson brief 20407ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+AssertionError: expected '# Rival Blocs in Europe\n\nBefore Wor…' to match /1914/
+
+- Expected:
+/1914/
+
++ Received:
+"# Rival Blocs in Europe
+
+Before World War I, Europe’s major powers were divided into two rival armed blocs. Each bloc combined alliances with military planning, so a conflict involving one power could draw in others.
+
+## The two blocs
+
+The **Triple Alliance** linked:
+
+- Germany
+- Austria-Hungary
+- Italy
+
+The opposing **Triple Entente** brought together:
+
+- France
+- Russia
+- Britain
+
+These groupings reflected existing tensions. France feared Germany, Russia competed with Austria-Hungary for influence in the Balkans, and Britain worried about Germany’s growing military and naval power. Governments increased their armed forces and planned how they would fight alongside friendly powers.
+
+This created a dangerous cycle: one bloc’s preparations were intended to increase its security, but the rival bloc saw them as a threat and prepared more intensely in response. Europe therefore became both divided and heavily armed.
+
+A useful cause map is:
+
+**rivalries and fear** $\\rightarrow$ **alliances** $\\rightarrow$ **joint military planning and armament** $\\rightarrow$ **greater risk that one crisis would spread**
+
+A common mix-up is to treat the alliances as the single cause of World War I. They did not automatically make war inevitable. Instead, they created a system through which a local confrontation could expand. Alliances were the connections in the system; tensions and military preparations made those connections dangerous.
+
+Italy also illustrates an important boundary: membership in a prewar bloc did not guarantee identical actions once war began. The blocs describe Europe’s prewar division, not a permanent promise that every member would always fight together."
+
+ ❯ src/evals/streamed-world-war-one-lesson.live.test.ts:95:28
+     93|     expect(lessonResult.wordCount).toBeLessThanOrEqual(lessonBudget.ma…
+     94|     expect(lessonMarkdown).toMatch(/alliance/i);
+     95|     expect(lessonMarkdown).toMatch(/1914/);
+       |                            ^
+     96|     // Since the method-aware cycles in b8f5e102 (Sep 1), the first
+     97|     // teaching block owns its assigned claims, not the entire session…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  08:44:03
+   Duration  21.30s (transform 477ms, setup 27ms, import 333ms, tests 20.78s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/branch-live/run-3-streamed-world-war-one-lesson.json
+
+Exit code: 1

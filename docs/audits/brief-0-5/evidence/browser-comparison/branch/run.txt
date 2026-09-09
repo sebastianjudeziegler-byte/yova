@@ -1,0 +1,76 @@
+[WebServer] (node:23472) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:23479) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 10 tests using 1 worker
+
+(node:23516) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [desktop-chromium] › e2e/calendar-journeys.spec.ts:7:5 › two simultaneous tabs preserve both new events and each tab refreshes (31.0s)
+(node:23599) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   2 [desktop-chromium] › e2e/calendar-recurring.spec.ts:156:5 › concurrent edits to a recurring series preserve the second tab's unsaved draft (7.0s)
+  ✓   3 [desktop-chromium] › e2e/calendar-tab.spec.ts:164:5 › finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome (10.0s)
+  ✓   4 [desktop-chromium] › e2e/core-learning-loop.spec.ts:220:5 › a confident misconception is repaired now without a duplicate follow-up (27.4s)
+  ✓   5 [desktop-chromium] › e2e/core-learning-loop.spec.ts:552:5 › a new topic is taught before YOVA asks for independent performance (6.2s)
+(node:23809) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   6 [mobile-chromium] › e2e/calendar-journeys.spec.ts:7:5 › two simultaneous tabs preserve both new events and each tab refreshes (6.3s)
+  ✓   7 [mobile-chromium] › e2e/calendar-recurring.spec.ts:156:5 › concurrent edits to a recurring series preserve the second tab's unsaved draft (4.2s)
+  ✓   8 [mobile-chromium] › e2e/calendar-tab.spec.ts:164:5 › finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome (2.9s)
+  ✓   9 [mobile-chromium] › e2e/core-learning-loop.spec.ts:220:5 › a confident misconception is repaired now without a duplicate follow-up (4.7s)
+  ✓  10 [mobile-chromium] › e2e/core-learning-loop.spec.ts:552:5 › a new topic is taught before YOVA asks for independent performance (3.9s)
+
+
+  1) [desktop-chromium] › e2e/calendar-journeys.spec.ts:7:5 › two simultaneous tabs preserve both new events and each tab refreshes 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByLabel('Quick add a calendar item')
+
+
+       at helpers/calendar.ts:193
+
+      191 |   await closeDetail(page);
+      192 |   const input = page.getByLabel("Quick add a calendar item");
+    > 193 |   await input.fill(phrase);
+          |               ^
+      194 |   await input.press("Enter");
+      195 |   const dialog = page.getByRole("dialog", {name:"Confirm quick add"});
+      196 |   await expect(dialog).toBeVisible();
+        at quickDraft (<repo>/e2e/helpers/calendar.ts:193:15)
+        at addManual (<repo>/e2e/helpers/calendar.ts:200:16)
+        at <repo>/e2e/calendar-journeys.spec.ts:12:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/browser-comparison/branch/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/browser-comparison/branch/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/browser-comparison/branch/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/browser-comparison/branch/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/browser-comparison/branch/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/error-context.md
+
+    attachment #6: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/browser-comparison/branch/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/browser-comparison/branch/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [desktop-chromium] › e2e/calendar-journeys.spec.ts:7:5 › two simultaneous tabs preserve both new events and each tab refreshes 
+  9 passed (1.9m)

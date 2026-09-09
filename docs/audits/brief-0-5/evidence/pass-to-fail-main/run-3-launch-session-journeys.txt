@@ -1,0 +1,58 @@
+
+ RUN  v4.1.10 <repo>
+
+stderr | src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'osmosis'
+osmosis SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “What osmosis is”; “Use osmosis to predict what happens to a cell”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The claim assigned to target_2 does not preserve that target's subject terms.
+    at generateProductionSessionWithOpenAI (<repo>/src/lib/openai/session-generation-strategy.ts:100:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at <repo>/tmp/brief-0-5/capture.ts:17:26 {
+  generationStats: {
+    elapsedMs: 22881,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'streamed_lesson_scope',
+    repairAttempted: true,
+    repairSucceeded: false,
+    repairReason: 'semantic_validation',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “What osmosis is”; “Use osmosis to predict what happens to a cell”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The claim assigned to target_2 does not preserve that target's subject terms.",
+    inputTokens: 18010,
+    cachedInputTokens: 7680,
+    cacheWriteTokens: 0,
+    outputTokens: 3159,
+    validationIssueCode: 'streamed_target_subject',
+    stage: 'validation',
+    cause: 'semantic_validation',
+    strategy: 'streamed'
+  },
+  structuralDiagnostic: undefined
+}
+
+ ❯ src/evals/launch-session-journeys.live.test.ts (3 tests | 1 failed | 2 skipped) 25621ms
+     ↓ 'calculus'
+     × 'osmosis' 25381ms
+     ↓ 'recall'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/launch-session-journeys.live.test.ts > launch session journeys with committed recipes > 'osmosis'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “What osmosis is”; “Use osmosis to predict what happens to a cell”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The claim assigned to target_2 does not preserve that target's subject terms.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ tmp/brief-0-5/capture.ts:17:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 skipped (3)
+   Start at  09:55:18
+   Duration  26.02s (transform 386ms, setup 20ms, import 290ms, tests 25.62s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/main-comparison/run-3-launch-session-journeys.json
+
+Exit code: 1

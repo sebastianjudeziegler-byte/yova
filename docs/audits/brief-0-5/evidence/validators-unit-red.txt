@@ -1,0 +1,90 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts (8 tests | 5 failed) 245ms
+     × delivers the captured membrane claims and their typed checks without lending the transport target 212ms
+     × delivers distinct product-rule formulas as choices instead of rejecting them as duplicates 7ms
+     × preserves both captured derivative claims when a symbolic answer establishes the first 8ms
+     × recognizes a formula-only authoritative target while preserving different formulas 2ms
+     × accepts a complete on-topic check without treating its four choices as one short claim 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > delivers the captured membrane claims and their typed checks without lending the transport target
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: finalize.
+ ❯ generateStreamedTeachingSkeletonWithOpenAI src/lib/openai/streamed-teaching-generator.ts:981:9
+    979|   if (fallbackFailure) throw fallbackFailure;
+    980|
+    981|   throw new SessionGenerationFailure(
+       |         ^
+    982|     `OpenAI did not return a complete streamed teaching skeleton after…
+    983|     {
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:25:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > delivers distinct product-rule formulas as choices instead of rejecting them as duplicates
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery did not match its bounded content schema (custom:recognitionCheck.choices).
+ ❯ generateStreamedTeachingSkeletonWithOpenAI src/lib/openai/streamed-teaching-generator.ts:981:9
+    979|   if (fallbackFailure) throw fallbackFailure;
+    980|
+    981|   throw new SessionGenerationFailure(
+       |         ^
+    982|     `OpenAI did not return a complete streamed teaching skeleton after…
+    983|     {
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:35:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > preserves both captured derivative claims when a symbolic answer establishes the first
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_missing:scope_input:ideas_1_assignments_1_targets_2_represented_1). Stage: finalize.
+ ❯ generateStreamedTeachingSkeletonWithOpenAI src/lib/openai/streamed-teaching-generator.ts:981:9
+    979|   if (fallbackFailure) throw fallbackFailure;
+    980|
+    981|   throw new SessionGenerationFailure(
+       |         ^
+    982|     `OpenAI did not return a complete streamed teaching skeleton after…
+    983|     {
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:45:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > recognizes a formula-only authoritative target while preserving different formulas
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:52:130
+     50|
+     51|   it("recognizes a formula-only authoritative target while preserving …
+     52|     expect(lessonIdeaSharesTargetSubject("The product rule states (fg)…
+       |                                                                                                                                  ^
+     53|     expect(lessonIdeaSharesTargetSubject("Photosynthesis converts ligh…
+     54|     expect(lessonIdeaSharesTargetSubject("The formula (fg)' = f'g' mul…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > accepts a complete on-topic check without treating its four choices as one short claim
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:59:77
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 3 passed (8)
+   Start at  08:32:21
+   Duration  568ms (transform 300ms, setup 0ms, import 252ms, tests 245ms, environment 0ms)
+

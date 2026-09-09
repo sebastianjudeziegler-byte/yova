@@ -1,0 +1,92 @@
+[WebServer] (node:11674) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:11675) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 24 tests using 1 worker
+
+(node:11689) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [desktop-chromium] › e2e/calendar-journeys.spec.ts:7:5 › two simultaneous tabs preserve both new events and each tab refreshes (31.4s)
+(node:11812) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   2 [desktop-chromium] › e2e/calendar-journeys.spec.ts:23:5 › a stale event edit cannot overwrite the other tab and the draft remains available (5.8s)
+  ✓   3 [desktop-chromium] › e2e/calendar-journeys.spec.ts:43:5 › Quick Add preserves weekdays, explicit dates and exam clocks (3.4s)
+  ✓   4 [desktop-chromium] › e2e/calendar-journeys.spec.ts:58:5 › a deadline can be saved without inventing a study block and corrected later (3.4s)
+  ✓   5 [desktop-chromium] › e2e/calendar-journeys.spec.ts:76:5 › manual events support full keyboard-editable fields and immediate undo (3.9s)
+  ✓   6 [desktop-chromium] › e2e/calendar-journeys.spec.ts:98:5 › details stay visible and focused, and Escape returns focus to the selected block (3.4s)
+  ✓   7 [desktop-chromium] › e2e/calendar-journeys.spec.ts:113:5 › overlapping commitments have distinct clickable lanes and a named conflict (3.2s)
+  ✓   8 [desktop-chromium] › e2e/calendar-journeys.spec.ts:127:5 › full-day grid includes early, late and overnight work on the correct days (3.9s)
+  ✓   9 [desktop-chromium] › e2e/calendar-journeys.spec.ts:142:5 › all deadlines can be searched, inspected and reached beyond the visible week (6.5s)
+  ✓  10 [desktop-chromium] › e2e/calendar-journeys.spec.ts:157:5 › the inline suggestion Move action opens its editor (4.3s)
+  ✓  11 [desktop-chromium] › e2e/calendar-journeys.spec.ts:172:5 › approved adjustments respect zero capacity and fixed commitments and disclose their destination (4.1s)
+  ✓  12 [desktop-chromium] › e2e/calendar-journeys.spec.ts:197:5 › manual workload is included in adjustment totals and has a useful Move action (2.9s)
+(node:12118) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  13 [mobile-chromium] › e2e/calendar-journeys.spec.ts:7:5 › two simultaneous tabs preserve both new events and each tab refreshes (4.8s)
+  ✓  14 [mobile-chromium] › e2e/calendar-journeys.spec.ts:23:5 › a stale event edit cannot overwrite the other tab and the draft remains available (4.0s)
+  ✓  15 [mobile-chromium] › e2e/calendar-journeys.spec.ts:43:5 › Quick Add preserves weekdays, explicit dates and exam clocks (2.7s)
+  ✓  16 [mobile-chromium] › e2e/calendar-journeys.spec.ts:58:5 › a deadline can be saved without inventing a study block and corrected later (4.1s)
+  ✓  17 [mobile-chromium] › e2e/calendar-journeys.spec.ts:76:5 › manual events support full keyboard-editable fields and immediate undo (3.7s)
+  ✓  18 [mobile-chromium] › e2e/calendar-journeys.spec.ts:98:5 › details stay visible and focused, and Escape returns focus to the selected block (2.3s)
+  ✓  19 [mobile-chromium] › e2e/calendar-journeys.spec.ts:113:5 › overlapping commitments have distinct clickable lanes and a named conflict (3.5s)
+  ✓  20 [mobile-chromium] › e2e/calendar-journeys.spec.ts:127:5 › full-day grid includes early, late and overnight work on the correct days (2.7s)
+  ✓  21 [mobile-chromium] › e2e/calendar-journeys.spec.ts:142:5 › all deadlines can be searched, inspected and reached beyond the visible week (3.9s)
+  ✓  22 [mobile-chromium] › e2e/calendar-journeys.spec.ts:157:5 › the inline suggestion Move action opens its editor (2.9s)
+  ✓  23 [mobile-chromium] › e2e/calendar-journeys.spec.ts:172:5 › approved adjustments respect zero capacity and fixed commitments and disclose their destination (4.8s)
+  ✓  24 [mobile-chromium] › e2e/calendar-journeys.spec.ts:197:5 › manual workload is included in adjustment totals and has a useful Move action (2.5s)
+
+
+  1) [desktop-chromium] › e2e/calendar-journeys.spec.ts:7:5 › two simultaneous tabs preserve both new events and each tab refreshes 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByLabel('Quick add a calendar item')
+
+
+       at helpers/calendar.ts:193
+
+      191 |   await closeDetail(page);
+      192 |   const input = page.getByLabel("Quick add a calendar item");
+    > 193 |   await input.fill(phrase);
+          |               ^
+      194 |   await input.press("Enter");
+      195 |   const dialog = page.getByRole("dialog", {name:"Confirm quick add"});
+      196 |   await expect(dialog).toBeVisible();
+        at quickDraft (<repo>/e2e/helpers/calendar.ts:193:15)
+        at addManual (<repo>/e2e/helpers/calendar.ts:200:16)
+        at <repo>/e2e/calendar-journeys.spec.ts:12:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-journeys/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-journeys/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-journeys/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-journeys/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser/calendar-journeys/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/error-context.md
+
+    attachment #6: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser/calendar-journeys/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser/calendar-journeys/artifacts/calendar-journeys-two-simu-78dc9-ents-and-each-tab-refreshes-desktop-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [desktop-chromium] › e2e/calendar-journeys.spec.ts:7:5 › two simultaneous tabs preserve both new events and each tab refreshes 
+  23 passed (2.1m)
+
+Exit code: 1

@@ -1,0 +1,29 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/teaching-assessment-contract.live.test.ts (1 test | 1 failed) 981391ms
+     × explains every glycolysis product before accepting a learner's paraphrase 981385ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/teaching-assessment-contract.live.test.ts > live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase
+StreamedLessonGenerationError: The lesson stream could not be completed.
+ ❯ streamGeneratedLessonWithRetry src/lib/openai/streamed-lesson-generator.ts:473:15
+    471|       if (retryError instanceof StreamedLessonGenerationError) {
+    472|         if (retryError.attemptsMade === 2) throw retryError;
+    473|         throw new StreamedLessonGenerationError(
+       |               ^
+    474|           retryError.message,
+    475|           aggregateRetryFailure(error.stats, retryError.stats),
+ ❯ src/evals/teaching-assessment-contract.live.test.ts:12:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  12:44:21
+   Duration  982.61s (transform 519ms, setup 0ms, import 802ms, tests 981.39s, environment 0ms)
+
+
+Exit code: 1

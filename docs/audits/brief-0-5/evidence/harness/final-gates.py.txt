@@ -1,0 +1,49 @@
+from pathlib import Path
+import subprocess,os,json,re
+root=Path('docs/audits/brief-0-5/evidence');results=[]
+def run(name,cmd,env=None,log=None):
+ print('START '+name,flush=True)
+ if log:
+  Path(log).parent.mkdir(parents=True,exist_ok=True)
+  with Path(log).open('w') as output:r=subprocess.run(cmd,env=env,stdout=output,stderr=subprocess.STDOUT)
+ else:r=subprocess.run(cmd,env=env)
+ results.append({'name':name,'command':cmd,'exitCode':r.returncode})
+ (root/'final-gates-process.json').write_text(json.dumps(results,indent=2)+'\n')
+ print('END '+name+' exit '+str(r.returncode),flush=True)
+ return r.returncode
+h=Path('tmp/brief-0-5');saved=Path('/private/tmp/yova-brief05-static-restoration')
+assert not saved.exists()
+h.rename(saved)
+config=Path('playwright.brief05-verification.config.ts');config.rename(saved/'temporary-browser-config.ts')
+try:
+ for name,cmd in [('unit',['corepack','pnpm','test']),('lint',['corepack','pnpm','lint']),('typecheck',['node','node_modules/typescript/bin/tsc','--noEmit']),('build',['corepack','pnpm','build'])]:
+  code=run('restored-'+name,cmd,dict(os.environ,pnpm_config_verify_deps_before_run='false'),root/'static-after-restoration'/(name+'.txt'))
+  if code:raise RuntimeError('Static gate failed after dependency restoration: '+name)
+finally:
+ (saved/'temporary-browser-config.ts').rename(config)
+ saved.rename(h)
+run('calendar-main-branch',['python3','tmp/brief-0-5/compare-calendar.py'])
+assert subprocess.check_output(['git','branch','--show-current'],text=True).strip()=='codex/brief-0-5-grader-and-validators'
+for name,files,password in [('calendar-safety',['e2e/calendar-safety.spec.ts'],'0'),('personalization',['e2e/personalization.spec.ts'],'0'),('plan-schedule-date',['e2e/plan-schedule-date.spec.ts'],'0'),('public-auth',['e2e/public-auth.spec.ts'],'0'),('study-profile-report-compatibility',['e2e/study-profile-report-compatibility.spec.ts'],'0'),('study-profile',['e2e/study-profile.spec.ts'],'0'),('auth',['e2e/public-auth.spec.ts','e2e/cloud-sync-recovery.spec.ts'],'1')]:
+ out=(root/'ordinary-browser-followup'/name).resolve();out.mkdir(parents=True,exist_ok=True)
+ env=dict(os.environ,BRIEF05_BROWSER_OUTPUT=str(out),YOVA_E2E_PASSWORD_AUTH=password)
+ run(name,['node','node_modules/@playwright/test/cli.js','test',*files,'--config','playwright.brief05-verification.config.ts'],env,out/'run.txt')
+report=json.loads((root/'ordinary-browser/core-learning-loop/report.json').read_text())
+failed={}
+def collect(suites):
+ for suite in suites:
+  for spec in suite.get('specs',[]):
+   for test in spec.get('tests',[]):
+    if test['status']!='expected':failed.setdefault(test['projectName'],set()).add(spec['title'])
+  collect(suite.get('suites',[]))
+collect(report['suites'])
+for project,titles in failed.items():
+ if project=='desktop-chromium':continue # Both desktop cases are in the main/branch comparison above.
+ out=(root/'ordinary-browser-followup'/('core-'+project)).resolve();out.mkdir(parents=True,exist_ok=True)
+ pattern='|'.join(re.escape(title) for title in sorted(titles))
+ run('core-'+project,['node','node_modules/@playwright/test/cli.js','test','e2e/core-learning-loop.spec.ts','--project',project,'--grep',pattern,'--config','playwright.brief05-verification.config.ts'],dict(os.environ,BRIEF05_BROWSER_OUTPUT=str(out),YOVA_E2E_PASSWORD_AUTH='0'),out/'run.txt')
+Path('playwright.brief05-verification.config.ts').unlink()
+run('brief-a-integration',['python3','tmp/brief-0-5/check-brief-a.py'])
+assert not subprocess.check_output(['git','diff','--name-only','HEAD','--','src'],text=True).strip()
+assert not Path('src/evals/personalization-delta.live.test.ts').exists()
+run('full-live',['corepack','pnpm','test:live','--output',str(root/'full-live-gate')],dict(os.environ,pnpm_config_verify_deps_before_run='false'))

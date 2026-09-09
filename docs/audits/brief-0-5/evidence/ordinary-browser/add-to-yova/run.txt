@@ -1,0 +1,33 @@
+[WebServer] (node:11040) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:11043) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 18 tests using 1 worker
+
+(node:11053) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop-chromium] › e2e/add-to-yova.spec.ts:18:5 › a deadline can live in Calendar, be completed, and stay out of Learning (9.0s)
+  ✓   2 [desktop-chromium] › e2e/add-to-yova.spec.ts:54:5 › an overdue standalone deadline remains reachable and actionable (3.9s)
+  ✓   3 [desktop-chromium] › e2e/add-to-yova.spec.ts:90:5 › an outside assignment routes to one outside-YOVA session (1.9s)
+  ✓   4 [desktop-chromium] › e2e/add-to-yova.spec.ts:102:5 › a multi-session assignment skips an irrelevant knowledge quiz (7.2s)
+  ✓   5 [desktop-chromium] › e2e/add-to-yova.spec.ts:138:5 › speech and presentation plans bypass placement and use artifact-aware modes (7.3s)
+  ✓   6 [desktop-chromium] › e2e/add-to-yova.spec.ts:183:5 › general learning stays deadline-free until the user chooses otherwise (2.1s)
+  ✓   7 [desktop-chromium] › e2e/add-to-yova.spec.ts:193:5 › a timed product-rule request becomes a specific one-off session (1.8s)
+  ✓   8 [desktop-chromium] › e2e/add-to-yova.spec.ts:204:5 › an unfinished one-off session stays out of ongoing Learning goals (6.1s)
+  ✓   9 [desktop-chromium] › e2e/add-to-yova.spec.ts:228:5 › one account never sees another account's deadline (5.0s)
+(node:11337) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  10 [mobile-chromium] › e2e/add-to-yova.spec.ts:18:5 › a deadline can live in Calendar, be completed, and stay out of Learning (4.1s)
+  ✓  11 [mobile-chromium] › e2e/add-to-yova.spec.ts:54:5 › an overdue standalone deadline remains reachable and actionable (3.2s)
+  ✓  12 [mobile-chromium] › e2e/add-to-yova.spec.ts:90:5 › an outside assignment routes to one outside-YOVA session (2.5s)
+  ✓  13 [mobile-chromium] › e2e/add-to-yova.spec.ts:102:5 › a multi-session assignment skips an irrelevant knowledge quiz (3.1s)
+  ✓  14 [mobile-chromium] › e2e/add-to-yova.spec.ts:138:5 › speech and presentation plans bypass placement and use artifact-aware modes (5.7s)
+  ✓  15 [mobile-chromium] › e2e/add-to-yova.spec.ts:183:5 › general learning stays deadline-free until the user chooses otherwise (2.9s)
+  ✓  16 [mobile-chromium] › e2e/add-to-yova.spec.ts:193:5 › a timed product-rule request becomes a specific one-off session (2.0s)
+  ✓  17 [mobile-chromium] › e2e/add-to-yova.spec.ts:204:5 › an unfinished one-off session stays out of ongoing Learning goals (3.3s)
+  ✓  18 [mobile-chromium] › e2e/add-to-yova.spec.ts:228:5 › one account never sees another account's deadline (4.0s)
+
+  18 passed (1.4m)
+
+Exit code: 0

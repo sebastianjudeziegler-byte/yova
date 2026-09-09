@@ -1,0 +1,27 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts (20 tests | 1 failed) 311ms
+     × grounds the typed independent comparison in the same validated claim as recognition 11ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > grounds the typed independent comparison in the same validated claim as recognition
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.
+ ❯ generateStreamedTeachingSkeletonWithOpenAI src/lib/openai/streamed-teaching-generator.ts:983:9
+    981|   if (fallbackFailure) throw fallbackFailure;
+    982|
+    983|   throw new SessionGenerationFailure(
+       |         ^
+    984|     `OpenAI did not return a complete streamed teaching skeleton after…
+    985|     {
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:64:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed (20)
+   Start at  09:50:13
+   Duration  692ms (transform 324ms, setup 0ms, import 296ms, tests 311ms, environment 0ms)
+

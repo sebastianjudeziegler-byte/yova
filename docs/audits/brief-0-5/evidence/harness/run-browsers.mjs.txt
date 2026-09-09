@@ -1,0 +1,15 @@
+import { spawn } from 'node:child_process';
+import { readdirSync, mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const root = resolve('docs/audits/brief-0-5/evidence/ordinary-browser');
+mkdirSync(root,{recursive:true});
+const files = readdirSync('e2e').filter(file=>file.endsWith('.spec.ts') && file !== 'plan-launch-live.spec.ts').sort();
+for (const file of files) {
+ const name=file.replace('.spec.ts',''), output=resolve(root,name); mkdirSync(output,{recursive:true});
+ let log=''; console.log(name);
+ const code=await new Promise(done=>{
+  const child=spawn(process.execPath,['node_modules/@playwright/test/cli.js','test',`e2e/${file}`,'--config','playwright.brief05-verification.config.ts'],{env:{...process.env,BRIEF05_BROWSER_OUTPUT:output},stdio:['ignore','pipe','pipe']});
+  child.stdout.on('data',data=>log+=data);child.stderr.on('data',data=>log+=data);child.on('close',done);
+ });
+ writeFileSync(resolve(output,'run.txt'),log+`\nExit code: ${code}\n`);console.log(`${name} exit ${code}`);
+}

@@ -1,0 +1,25 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-lesson.live.test.ts > live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief
+WWI streamed lesson metrics {
+  skeletonElapsedMs: 12866,
+  skeletonAttempts: 2,
+  lessonElapsedMs: 9358,
+  latencyToFirstTokenMs: 3617,
+  wordCount: 228,
+  inputTokens: 1007,
+  outputTokens: 467
+}
+
+ ✓ src/evals/streamed-world-war-one-lesson.live.test.ts (1 test) 22454ms
+     ✓ delivers substantive teaching from the first generated lesson brief  22246ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  08:55:06
+   Duration  22.77s (transform 293ms, setup 19ms, import 220ms, tests 22.45s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/branch-final/run-1-streamed-world-war-one-lesson.json
+
+Exit code: 0

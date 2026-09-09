@@ -1,0 +1,66 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+Exact WWI baseline generation failure {
+  message: 'OpenAI could not prepare the streamed teaching structure.',
+  generationStats: {
+    elapsedMs: 178,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'session_provider_request',
+    repairAttempted: true,
+    repairSucceeded: false,
+    repairReason: 'semantic_validation',
+    repairDetail: 'The lesson-structure request failed before YOVA received a usable response (connection).',
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+    validationIssueCode: null,
+    stage: 'provider',
+    cause: 'provider_request',
+    strategy: 'streamed'
+  }
+}
+
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts (2 tests | 2 failed) 328ms
+     × creates the production 45-minute streamed teaching session 313ms
+     × reliably creates a valid subject-specific session outline 15ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+SessionGenerationFailure: OpenAI could not prepare the streamed teaching structure.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts:22:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/evals/streamed-world-war-one-skeleton.live.test.ts > live streamed World War I session skeleton > reliably creates a valid subject-specific session outline
+SessionGenerationFailure: OpenAI could not prepare the streamed teaching structure.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts:98:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  12:44:17
+   Duration  3.24s (transform 1.23s, setup 0ms, import 1.82s, tests 328ms, environment 0ms)
+
+
+Exit code: 1

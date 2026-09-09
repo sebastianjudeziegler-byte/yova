@@ -1,0 +1,27 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts (15 tests | 1 failed) 370ms
+     × keeps the captured product relation when its answer uses plus notation instead of prose 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > keeps the captured product relation when its answer uses plus notation instead of prose
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_missing:scope_input:ideas_1_assignments_1_targets_2_represented_1). Stage: finalize.
+ ❯ generateStreamedTeachingSkeletonWithOpenAI src/lib/openai/streamed-teaching-generator.ts:983:9
+    981|   if (fallbackFailure) throw fallbackFailure;
+    982|
+    983|   throw new SessionGenerationFailure(
+       |         ^
+    984|     `OpenAI did not return a complete streamed teaching skeleton after…
+    985|     {
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:55:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed (15)
+   Start at  09:14:03
+   Duration  788ms (transform 380ms, setup 0ms, import 297ms, tests 370ms, environment 0ms)
+

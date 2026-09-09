@@ -1,0 +1,18 @@
+import { defineConfig } from '@playwright/test';
+import config from './playwright.config';
+const server = config.webServer;
+if (!server || Array.isArray(server)) throw new Error('Expected isolated local server');
+const output = process.env.BRIEF05_BROWSER_OUTPUT;
+if (!output) throw new Error('Expected temporary audit output');
+export default defineConfig({
+  ...config,
+  outputDir: `${output}/artifacts`,
+  reporter: [['list'], ['json', { outputFile: `${output}/report.json` }]],
+  retries: 0,
+  workers: 1,
+  webServer: {
+    ...server,
+    command: 'node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3100',
+    reuseExistingServer: false,
+  },
+});

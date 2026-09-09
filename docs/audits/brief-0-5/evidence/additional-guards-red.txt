@@ -1,0 +1,391 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts (9 tests | 2 failed) 254ms
+     × recognizes a formula-only authoritative target while preserving different formulas 3ms
+     × does not let an on-topic recognition heading authorize an off-topic answer and explanation 11ms
+ ❯ src/lib/openai/answer-evaluator.test.ts (8 tests | 1 failed) 45ms
+     × does not let free-form feedback call a complete answer incomplete 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/answer-evaluator.test.ts > answer evaluation calibration > does not let free-form feedback call a complete answer incomplete
+AssertionError: expected 'Your answer is missing return unwindi…' not to match /missing|unwinding|add it/i
+
+- Expected:
+/missing|unwinding|add it/i
+
++ Received:
+"Your answer is missing return unwinding, so add it next time."
+
+ ❯ src/lib/openai/answer-evaluator.test.ts:172:33
+    170|     const result = await evaluateAnswerWithOpenAI(request);
+    171|     expect(result.verdict).toBe("secure");
+    172|     expect(result.feedback).not.toMatch(/missing|unwinding|add it/i);
+       |                                 ^
+    173|     expect(result.feedback).toMatch(/base case|recursion/i);
+    174|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > recognizes a formula-only authoritative target while preserving different formulas
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:54:126
+     52|   it("recognizes a formula-only authoritative target while preserving …
+     53|     expect(lessonIdeaSharesTargetSubject("The product rule states (fg)…
+     54|     expect(lessonIdeaSharesTargetSubject("For a product fg, the deriva…
+       |                                                                                                                              ^
+     55|     expect(lessonIdeaSharesTargetSubject("f'g + fg'", "The formula (fg…
+     56|     expect(lessonIdeaSharesTargetSubject("(fg)' = f'g + fg' + h", "The…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > does not let an on-topic recognition heading authorize an off-topic answer and explanation
+AssertionError: promise resolved "{ draft: { …(6) }, model: 'test', …(6) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "deliveryInstructions": {
++     "analogyUse": "only_when_helpful",
++     "contentRequirements": {
++       "coverAllEssentialIdeas": true,
++       "includeCommonMixup": true,
++       "includeConcreteWorkedExample": false,
++       "preservePrerequisiteOrder": true,
++     },
++     "explanationDensity": "detailed",
++     "learnerContext": [
++       "You asked for the big picture first, so YOVA will establish the overall model before the details.",
++       "You report forgetting after a few days, so YOVA will schedule a delayed retrieval instead of adding more rereading now.",
++       "You asked for smaller steps when stuck, so YOVA will restore support in bounded pieces.",
++       "Use the task and current evidence as the presentation baseline. Do not infer a fixed learning style or brain type.",
++     ],
++     "pacing": {
++       "firstActionMinutes": 4,
++       "instruction": "There is not enough repeated behavior evidence to change the normal session size.",
++       "maximumActivities": 6,
++     },
++     "schemaVersion": 1,
++     "structure": "overview_first",
++     "tone": "encouraging",
++     "workedExamples": "lead_with_example",
++   },
++   "deliveryPolicy": {
++     "activityCadence": {
++       "instruction": "Change activities only when the selected teaching method and current objective call for it.",
++       "label": "Task-aligned cadence",
++       "mode": "task_aligned",
++     },
++     "attemptSafety": {
++       "instruction": "Use the attempt and feedback format best supported by the current task and selected method.",
++       "label": "Task-aligned attempts",
++       "mode": "task_aligned",
++     },
++     "evidenceStatus": "starting_hypothesis",
++     "knowledgeCheck": {
++       "instruction": "Use the knowledge check required by the selected method and current learning objective.",
++       "label": "Task-aligned knowledge check",
++       "mode": "task_aligned",
++     },
++     "learnerFacingReasons": [
++       "You asked for the big picture first, so YOVA will establish the overall model before the details.",
++       "You report forgetting after a few days, so YOVA will schedule a delayed retrieval instead of adding more rereading now.",
++       "You asked for smaller steps when stuck, so YOVA will restore support in bounded pieces.",
++     ],
++     "pacing": {
++       "firstActionMinutes": 4,
++       "maximumActivities": 6,
++       "reason": "There is not enough repeated behavior evidence to change the normal session size.",
++     },
++     "presentation": {
++       "instruction": "show the overall relationship before introducing details or terminology.",
++       "label": "Big picture first",
++       "mode": "overview_first",
++     },
++     "repair": {
++       "instruction": "After a miss, restore one intermediate step at a time before returning to independent work.",
++       "label": "Smaller steps",
++       "mode": "smaller_steps",
++     },
++     "retention": {
++       "instruction": "End with a specific return point for another unsupported retrieval after a delay.",
++       "label": "Delayed retrieval",
++       "mode": "delayed_retrieval",
++     },
++     "schemaVersion": 1,
++     "signalsUsed": [
++       "Start with the big picture before details",
++       "I understand it initially but forget it after a few days",
++       "Break a stuck point into smaller steps",
++       "Show one step at a time",
++     ],
++     "workspace": {
++       "instruction": "Keep only the current action prominent while preserving an optional path preview.",
++       "label": "One step at a time",
++       "mode": "one_step",
++     },
++   },
++   "draft": {
++     "activities": [
++       {
++         "body": "Read the explanation, then answer the next question from memory.",
++         "choices": [],
++         "concept": null,
++         "correctAnswer": null,
++         "estimatedMinutes": 6,
++         "feedback": null,
++         "label": "Learn",
++         "lessonBrief": {
++           "contentRequirements": {
++             "includeCommonMixup": true,
++             "includeConcreteExample": true,
++             "preservePrerequisiteOrder": true,
++             "teachEveryEssentialIdea": true,
++           },
++           "essentialIdeas": [
++             "Product rule differentiates a product as first times derivative of second plus second times derivative of first.",
++             "Chain rule differentiates a composite by multiplying the outer derivative by the inner derivative.",
++           ],
++           "evidenceContext": {
++             "confirmedGaps": [],
++             "priorMisconceptions": [],
++             "secureKnowledge": [],
++           },
++           "knowledgeSource": "model_knowledge",
++           "sourceChunks": [],
++           "topicIds": [
++             "8ec325f4-0000-4000-8000-000000000003",
++             "8ec325f4-0000-4000-8000-000000000004",
++           ],
++           "version": 1,
++         },
++         "methodPhase": "model",
++         "misconceptionSummary": null,
++         "practiceIntent": null,
++         "requiredForCompletion": true,
++         "teaching": null,
++         "title": "Differentiate a product",
++         "topicId": "8ec325f4-0000-4000-8000-000000000003",
++         "type": "instruction",
++       },
++       {
++         "body": "How do you differentiate the product of two functions f and g?",
++         "choices": [],
++         "concept": "Product rule differentiates a product as first times derivative of second plus second times",
++         "correctAnswer": "Differentiate fg as f g' + g f'.",
++         "estimatedMinutes": 5,
++         "feedback": "The derivative splits into two terms, one for each factor.",
++         "label": "Explain",
++         "lessonBrief": null,
++         "methodPhase": "explain",
++         "misconceptionSummary": null,
++         "practiceIntent": "develop_gap",
++         "requiredForCompletion": true,
++         "teaching": null,
++         "title": "Differentiate a product",
++         "topicId": "8ec325f4-0000-4000-8000-000000000003",
++         "type": "free_response",
++       },
++       {
++         "body": "How do you differentiate a composite function like f(g(x))?",
++         "choices": [],
++         "concept": "Chain rule differentiates a composite by multiplying the outer derivative by the inner",
++         "correctAnswer": "Differentiate the outer function at the inner function, then multiply by g'(x).",
++         "estimatedMinutes": 4,
++         "feedback": "The outer derivative is evaluated first, then multiplied by the inner derivative.",
++         "label": "Explain",
++         "lessonBrief": null,
++         "methodPhase": "explain",
++         "misconceptionSummary": null,
++         "practiceIntent": "develop_gap",
++         "requiredForCompletion": true,
++         "teaching": null,
++         "title": "Differentiate a composite",
++         "topicId": "8ec325f4-0000-4000-8000-000000000004",
++         "type": "free_response",
++       },
++       {
++         "body": "Compare the first explanation with this verified reference: Differentiate fg as f g' + g f'. Correct the exposed relationship in your own words without copying the reference.",
++         "choices": [],
++         "concept": "Product rule differentiates a product as first times derivative of second plus second times",
++         "correctAnswer": "Differentiate fg as f g' + g f'.",
++         "estimatedMinutes": 4,
++         "feedback": "The derivative splits into two terms, one for each factor.",
++         "label": "Repair",
++         "lessonBrief": null,
++         "methodPhase": "repair",
++         "misconceptionSummary": null,
++         "practiceIntent": "develop_gap",
++         "requiredForCompletion": false,
++         "teaching": null,
++         "title": "Repair the first explanation",
++         "topicId": "8ec325f4-0000-4000-8000-000000000003",
++         "type": "free_response",
++       },
++       {
++         "body": "How do you differentiate the product of two functions f and g? Explain it again after the repair without copying the model or reference answer.",
++         "choices": [],
++         "concept": "Product rule differentiates a product as first times derivative of second plus second times",
++         "correctAnswer": "Differentiate fg as f g' + g f'.",
++         "estimatedMinutes": 4,
++         "feedback": "The derivative splits into two terms, one for each factor.",
++         "label": "Explain again",
++         "lessonBrief": null,
++         "methodPhase": "reexplain",
++         "misconceptionSummary": null,
++         "practiceIntent": "develop_gap",
++         "requiredForCompletion": false,
++         "teaching": null,
++         "title": "Explain the corrected relationship again",
++         "topicId": "8ec325f4-0000-4000-8000-000000000003",
++         "type": "free_response",
++       },
++       {
++         "body": "Which derivative rule applies to f(g(x))?",
++         "choices": [
++           "Photosynthesis stores light energy in glucose inside chloroplasts.",
++           "Differentiate each factor and add the results.",
++           "Differentiate only the inner function and ignore the outer function.",
++           "Multiply the function by its derivative.",
++         ],
++         "concept": "Recognition transfer: Chain rule differentiates a composite by multiplying the outer derivative by the inner",
++         "correctAnswer": "Photosynthesis stores light energy in glucose inside chloroplasts.",
++         "estimatedMinutes": 2,
++         "feedback": "Chloroplasts absorb light and combine water with carbon dioxide to produce glucose.",
++         "label": "Recall check",
++         "lessonBrief": null,
++         "methodPhase": "transfer",
++         "misconceptionSummary": null,
++         "practiceIntent": "develop_gap",
++         "requiredForCompletion": true,
++         "teaching": null,
++         "title": "Pick the chain rule",
++         "topicId": "8ec325f4-0000-4000-8000-000000000004",
++         "type": "multiple_choice",
++       },
++       {
++         "body": "YOVA will bring today's active ideas back after a delay for a short retrieval check.",
++         "choices": [],
++         "concept": null,
++         "correctAnswer": null,
++         "estimatedMinutes": 1,
++         "feedback": null,
++         "label": "Return",
++         "lessonBrief": null,
++         "methodPhase": "schedule_return",
++         "misconceptionSummary": null,
++         "practiceIntent": null,
++         "requiredForCompletion": false,
++         "teaching": null,
++         "title": "Check today's ideas again later",
++         "topicId": null,
++         "type": "reflection",
++       },
++     ],
++     "coverage": {
++       "completionEvidence": [
++         "Explain when the product rule is required and apply it to one product",
++         "Explain how the chain rule follows a composite function and apply it once",
++       ],
++       "deferredContent": [],
++       "essentialIdeas": [
++         "Product rule differentiates a product as first times derivative of second plus second times derivative of first.",
++         "Chain rule differentiates a composite by multiplying the outer derivative by the inner derivative.",
++       ],
++       "evidenceMap": [
++         {
++           "activityConcept": "Product rule differentiates a product as first times derivative of second plus second times",
++           "essentialIdea": "Product rule differentiates a product as first times derivative of second plus second times derivative of first.",
++         },
++         {
++           "activityConcept": "Chain rule differentiates a composite by multiplying the outer derivative by the inner",
++           "essentialIdea": "Chain rule differentiates a composite by multiplying the outer derivative by the inner derivative.",
++         },
++       ],
++       "focus": "Build an accurate first mental model of the product rule and chain rule, connect each to its prerequisites, then apply them with less support.",
++     },
++     "methodBriefing": {
++       "completion": "The explanation accurately includes the central relationship and at least one supporting reason or example.",
++       "how": [
++         "Study one concise explanation or example.",
++         "Close it and explain the idea in your own words.",
++         "Name the cause, relationship, or reason behind each important step.",
++         "Compare with the source, repair the explanation, then teach it back again without copying.",
++       ],
++       "learningMode": "learn",
++       "methodId": "self_explanation",
++       "name": "Feynman Technique",
++       "personalization": [
++         "You asked for the big picture first, so YOVA will establish the overall model before the details.",
++         "You report forgetting after a few days, so YOVA will schedule a delayed retrieval instead of adding more rereading now.",
++         "You asked for smaller steps when stuck, so YOVA will restore support in bounded pieces.",
++       ],
++       "taskType": "conceptual_learning",
++       "what": "Explain an idea in plain language, compare it with an accurate source, repair the gaps, and explain it again.",
++       "why": "Connecting steps, causes, and prior knowledge can expose shallow understanding and build a more useful mental model.",
++     },
++     "rationale": "Feynman Technique provides a bounded teaching and typed-check sequence for Build an accurate first mental model of the product rule and chain rule, connect each to its prerequisites, then apply them with less support..",
++     "sourceGrounding": null,
++     "topicIds": [
++       "8ec325f4-0000-4000-8000-000000000003",
++       "8ec325f4-0000-4000-8000-000000000004",
++     ],
++   },
++   "generationStats": {
++     "attempts": 2,
++     "cacheWriteTokens": NaN,
++     "cachedInputTokens": 0,
++     "elapsedMs": 8,
++     "failedValidator": "streamed_lesson_scope",
++     "firstAttemptPassed": false,
++     "inputTokens": 200,
++     "outputTokens": 200,
++     "recoveryMode": "safe_learn",
++     "repairAttempted": true,
++     "repairDetail": "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Product rule”; “Chain rule”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_1; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.",
++     "repairReason": "semantic_validation",
++     "repairSucceeded": true,
++     "validationIssueCode": "streamed_target_missing",
++   },
++   "model": "test",
++   "responseId": "capture-1",
++   "routingContext": {
++     "knowledgeStage": "novice",
++     "taskType": "conceptual_learning",
++   },
++   "supportPlan": {
++     "concept": null,
++     "evidenceLabel": "Establishing a baseline",
++     "explanation": "YOVA does not have a comparable completed check yet, so it will teach or model the idea before requiring an independent attempt.",
++     "level": "supported_start",
++     "title": "Support fades inside this session",
++   },
+  }
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:88:121
+     86|     supply(outputs);
+     87|     const { generateStreamedTeachingSkeletonWithOpenAI } = await impor…
+     88|     await expect(generateStreamedTeachingSkeletonWithOpenAI(captures.p…
+       |                                                                                                                         ^
+     89|   });
+     90|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  3 failed | 14 passed (17)
+   Start at  08:45:14
+   Duration  770ms (transform 328ms, setup 0ms, import 318ms, tests 299ms, environment 0ms)
+

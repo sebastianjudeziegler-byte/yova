@@ -1,0 +1,48 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/plan-session-journey.live.test.ts (5 tests | 4 failed) 258ms
+     ✓ the requested journey exists 1ms
+     × 'One product-rule skill in short sessi…' 248ms
+     × 'World War I unit guide in short sessi…' 3ms
+     × 'Full beginner calculus pathway' 3ms
+     × 'History essay using outside sources' 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'World War I unit guide in short sessi…'
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'Full beginner calculus pathway'
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+OpenAIPlanGenerationError: The OpenAI request failed.
+ ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:210:11
+    208|       ? ` The first draft was rejected because: ${lastValidationIssue}`
+    209|       : "";
+    210|     throw new OpenAIPlanGenerationError(
+       |           ^
+    211|       `The OpenAI request failed.${priorIssue}`,
+    212|       "provider_error",
+ ❯ src/evals/plan-session-journey.live.test.ts:31:27
+
+Caused by: Error: Connection error.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:436:19
+ ❯ requestDraft src/lib/openai/plan-generator.ts:111:24
+ ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:143:20
+ ❯ src/evals/plan-session-journey.live.test.ts:31:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { status: undefined, headers: undefined, requestID: undefined, error: undefined, code: undefined, param: undefined }
+Caused by: TypeError: fetch failed
+Caused by: Error: getaddrinfo ENOTFOUND api.openai.com
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -3008, code: 'ENOTFOUND', syscall: 'getaddrinfo', hostname: 'api.openai.com' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 1 passed (5)
+   Start at  12:44:11
+   Duration  736ms (transform 430ms, setup 0ms, import 396ms, tests 258ms, environment 0ms)
+
+
+Exit code: 1

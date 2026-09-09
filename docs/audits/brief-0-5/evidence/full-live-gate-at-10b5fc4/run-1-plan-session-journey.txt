@@ -1,0 +1,68 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/evals/plan-session-journey.live.test.ts (5 tests | 4 failed) 144260ms
+     ✓ the requested journey exists 1ms
+     × 'One product-rule skill in short sessi…' 27177ms
+     × 'World War I unit guide in short sessi…' 35871ms
+     × 'Full beginner calculus pathway' 41189ms
+     × 'History essay using outside sources' 40020ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'One product-rule skill in short sessi…'
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'Full beginner calculus pathway'
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/plan-session-journey.live.test.ts:58:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'World War I unit guide in short sessi…'
+SessionGenerationFailure: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ src/evals/plan-session-journey.live.test.ts:58:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+OpenAIPlanGenerationError: The OpenAI request failed.
+ ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:210:11
+    208|       ? ` The first draft was rejected because: ${lastValidationIssue}`
+    209|       : "";
+    210|     throw new OpenAIPlanGenerationError(
+       |           ^
+    211|       `The OpenAI request failed.${priorIssue}`,
+    212|       "provider_error",
+ ❯ src/evals/plan-session-journey.live.test.ts:31:27
+
+Caused by: Error: Request timed out.
+ ❯ OpenAI.makeRequest node_modules/.pnpm/openai@7.3.0_zod@4.4.3/node_modules/openai/client.mjs:434:23
+ ❯ requestDraft src/lib/openai/plan-generator.ts:111:24
+ ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:143:20
+ ❯ src/evals/plan-session-journey.live.test.ts:31:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { status: undefined, headers: undefined, requestID: undefined, error: undefined, code: undefined, param: undefined }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 1 passed (5)
+   Start at  09:35:11
+   Duration  144.71s (transform 371ms, setup 0ms, import 355ms, tests 144.26s, environment 0ms)
+
+
+Exit code: 1

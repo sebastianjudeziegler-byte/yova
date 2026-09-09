@@ -1,0 +1,27 @@
+[WebServer] (node:14817) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:14818) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 10 tests using 1 worker
+
+(node:14830) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] [browser] Image with src "/_next/static/media/icon.5aaf78d5.png" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+[WebServer] Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+  ✓   1 [desktop-chromium] › e2e/canonical-study-profile.spec.ts:9:7 › YOVA canonical Study Profile › builds the canonical 11-question profile, imports it into an account, and skips duplicate onboarding (27.4s)
+  ✓   2 [desktop-chromium] › e2e/canonical-study-profile.spec.ts:91:7 › YOVA canonical Study Profile › restores only a valid saved canonical draft (21.9s)
+  ✓   3 [desktop-chromium] › e2e/canonical-study-profile.spec.ts:124:7 › YOVA canonical Study Profile › finishes safely and explains the fallback when browser storage is unavailable (4.0s)
+  ✓   4 [desktop-chromium] › e2e/canonical-study-profile.spec.ts:142:7 › YOVA canonical Study Profile › exposes semantic progress, pressed choices, and predictable keyboard focus (3.6s)
+  ✓   5 [desktop-chromium] › e2e/canonical-study-profile.spec.ts:170:7 › YOVA canonical Study Profile › keeps landing, questionnaire, and summary inside narrow mobile viewports (8.8s)
+(node:15353) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   6 [mobile-chromium] › e2e/canonical-study-profile.spec.ts:9:7 › YOVA canonical Study Profile › builds the canonical 11-question profile, imports it into an account, and skips duplicate onboarding (11.4s)
+  ✓   7 [mobile-chromium] › e2e/canonical-study-profile.spec.ts:91:7 › YOVA canonical Study Profile › restores only a valid saved canonical draft (20.3s)
+  ✓   8 [mobile-chromium] › e2e/canonical-study-profile.spec.ts:124:7 › YOVA canonical Study Profile › finishes safely and explains the fallback when browser storage is unavailable (3.9s)
+  ✓   9 [mobile-chromium] › e2e/canonical-study-profile.spec.ts:142:7 › YOVA canonical Study Profile › exposes semantic progress, pressed choices, and predictable keyboard focus (2.8s)
+  ✓  10 [mobile-chromium] › e2e/canonical-study-profile.spec.ts:170:7 › YOVA canonical Study Profile › keeps landing, questionnaire, and summary inside narrow mobile viewports (13.7s)
+
+  10 passed (2.1m)
+
+Exit code: 0

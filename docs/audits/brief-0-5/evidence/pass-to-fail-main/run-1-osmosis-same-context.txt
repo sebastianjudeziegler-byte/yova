@@ -1,0 +1,12 @@
+
+ RUN  v4.1.10 <repo>
+
+No test files found, exiting with code 1
+
+filter: tmp/brief-0-5/replay-osmosis.live.test.ts
+include: src/**/*.test.ts
+exclude:  **/node_modules/**, **/.git/**
+
+JSON report written to <repo>/tmp/brief-0-5/main-comparison/run-1-osmosis-same-context.json
+
+Exit code: 1

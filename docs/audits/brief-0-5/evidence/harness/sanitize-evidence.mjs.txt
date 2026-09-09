@@ -1,0 +1,19 @@
+import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
+process.loadEnvFile('.env.local');
+const root='docs/audits/brief-0-5/evidence';let count=0;
+for(const path of readdirSync(root,{recursive:true})){
+ if(!/\.(?:json|jsonl|txt|md)$/.test(path))continue;
+ const file=`${root}/${path}`;let text=readFileSync(file,'utf8');
+ if(path.endsWith('report.json')){
+  const report=JSON.parse(text);
+  if(report.config?.webServer?.env){
+   const original=report.config.webServer.env;
+   report.config.webServer.env=Object.fromEntries(['YOVA_E2E','AUTH_INVITE_ONLY','AUTH_PASSWORD_ACCOUNTS','AUTH_CAPTCHA_ENABLED','AUTH_EMAIL_CODE_VERIFICATION','SITE_URL','NEXT_PUBLIC_SUPABASE_URL'].map(key=>[key,original[key]]).filter(([,value])=>value!==undefined));
+   report.config.webServer.environmentEvidence={providerConfigured:Boolean(original.OPENAI_API_KEY),unrelatedEnvironmentOmitted:true};
+  }
+  text=JSON.stringify(report,null,2)+'\n';
+ }
+ for(const [key,value] of Object.entries(process.env))if(/KEY|TOKEN|SECRET|PASSWORD/i.test(key)&&value.length>=8)text=text.replaceAll(value,'[REDACTED]');
+ text=text.replaceAll(process.cwd(),'<repo>');writeFileSync(file,text);count++;
+}
+console.log(`Sanitized ${count} evidence text files.`);

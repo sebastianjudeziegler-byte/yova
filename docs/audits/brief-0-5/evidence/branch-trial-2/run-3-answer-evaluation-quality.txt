@@ -1,0 +1,43 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'
+
+YOVA answer evaluation · accepts a correct biology paraphrase
+Expected · secure
+Received · secure
+Feedback · Your response establishes the required idea. oxygen is the final electron acceptor accepting electrons allows electron flow and oxidative phosphorylation to continue
+Human label · The answer states oxygen's essential role and the consequence even though it does not copy the reference wording.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'accepts a concise programming explana…'
+
+YOVA answer evaluation · accepts a concise programming explanation
+Expected · secure
+Received · secure
+Feedback · Your response establishes the required idea. base case terminates recursive calls
+Human label · The response correctly states that the base case terminates recursive calls and prevents unbounded recursion.
+
+
+stdout | src/evals/answer-evaluation-quality.live.test.ts > live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'
+
+YOVA answer evaluation · admits uncertainty when the prompt lacks necessary context
+Expected · uncertain
+Received · uncertain
+Feedback · This check does not give enough context for a reliable judgment. The prompt and reference answer are too vague and do not include the observations or the named changed condition needed to judge the explanation reliably.
+Human label · Neither the prompt nor the reference identifies what process changed, so several interpretations are defensible.
+
+
+ ✓ src/evals/answer-evaluation-quality.live.test.ts (8 tests | 5 skipped) 5869ms
+     ✓ 'accepts a correct biology paraphrase'  1799ms
+     ✓ 'accepts a concise programming explana…'  2101ms
+     ✓ 'admits uncertainty when the prompt la…'  1565ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed | 5 skipped (8)
+   Start at  08:57:42
+   Duration  5.97s (transform 283ms, setup 20ms, import 9ms, tests 5.87s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/branch-final/run-3-answer-evaluation-quality.json
+
+Exit code: 0

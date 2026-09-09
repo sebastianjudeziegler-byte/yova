@@ -1,0 +1,86 @@
+[WebServer] (node:24871) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:24872) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 20 tests using 1 worker
+
+(node:24886) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop-chromium] › e2e/study-profile.spec.ts:8:7 › YOVA Study Profile › requires waitlist confirmation before revealing any report (20.1s)
+  ✓   2 [desktop-chromium] › e2e/study-profile.spec.ts:151:7 › YOVA Study Profile › opens a bound report only after explicit waitlist confirmation (5.5s)
+  ✓   3 [desktop-chromium] › e2e/study-profile.spec.ts:196:7 › YOVA Study Profile › keeps results locked when report creation fails (7.0s)
+[WebServer] (node:25017) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   4 [desktop-chromium] › e2e/study-profile.spec.ts:230:7 › YOVA Study Profile › uses a generic not-found screen for an unknown private token (4.4s)
+  ✓   5 [desktop-chromium] › e2e/study-profile.spec.ts:240:7 › YOVA Study Profile › requires an explicit POST to confirm a fragment-only waitlist token (2.0s)
+  ✓   6 [desktop-chromium] › e2e/study-profile.spec.ts:288:7 › YOVA Study Profile › routes public Study Profile support and privacy requests to hello@yovaapp.com (3.9s)
+  -   7 [desktop-chromium] › e2e/study-profile.spec.ts:301:7 › YOVA Study Profile › keeps every pre-report screen usable on common phone widths
+  ✓   8 [desktop-chromium] › e2e/study-profile.spec.ts:421:7 › YOVA Study Profile › keeps working when browser storage is unavailable (2.4s)
+  ✓   9 [desktop-chromium] › e2e/study-profile.spec.ts:435:7 › YOVA Study Profile › clears expired, future-dated, and timestamp-free browser drafts (6.6s)
+  ✓  10 [desktop-chromium] › e2e/study-profile.spec.ts:459:7 › YOVA Study Profile › exposes semantic 14-step progress and dynamic radio keyboard help (1.7s)
+(node:25086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  11 [mobile-chromium] › e2e/study-profile.spec.ts:8:7 › YOVA Study Profile › requires waitlist confirmation before revealing any report (12.5s)
+  ✓  12 [mobile-chromium] › e2e/study-profile.spec.ts:151:7 › YOVA Study Profile › opens a bound report only after explicit waitlist confirmation (1.8s)
+  ✓  13 [mobile-chromium] › e2e/study-profile.spec.ts:196:7 › YOVA Study Profile › keeps results locked when report creation fails (7.0s)
+[WebServer] (node:25188) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  14 [mobile-chromium] › e2e/study-profile.spec.ts:230:7 › YOVA Study Profile › uses a generic not-found screen for an unknown private token (2.5s)
+  ✓  15 [mobile-chromium] › e2e/study-profile.spec.ts:240:7 › YOVA Study Profile › requires an explicit POST to confirm a fragment-only waitlist token (2.2s)
+  ✓  16 [mobile-chromium] › e2e/study-profile.spec.ts:288:7 › YOVA Study Profile › routes public Study Profile support and privacy requests to hello@yovaapp.com (2.7s)
+  ✘  17 [mobile-chromium] › e2e/study-profile.spec.ts:301:7 › YOVA Study Profile › keeps every pre-report screen usable on common phone widths (16.3s)
+(node:25287) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  18 [mobile-chromium] › e2e/study-profile.spec.ts:421:7 › YOVA Study Profile › keeps working when browser storage is unavailable (4.8s)
+  ✓  19 [mobile-chromium] › e2e/study-profile.spec.ts:435:7 › YOVA Study Profile › clears expired, future-dated, and timestamp-free browser drafts (9.8s)
+  ✓  20 [mobile-chromium] › e2e/study-profile.spec.ts:459:7 › YOVA Study Profile › exposes semantic 14-step progress and dynamic radio keyboard help (2.3s)
+
+
+  1) [mobile-chromium] › e2e/study-profile.spec.ts:301:7 › YOVA Study Profile › keeps every pre-report screen usable on common phone widths 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: getByRole('progressbar', { name: 'Study Profile progress' })
+    Expected: "14"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 5000ms
+      - waiting for getByRole('progressbar', { name: 'Study Profile progress' })
+
+
+      534 | async function expectAssessmentStep(page: Page, step: number) {
+      535 |   const progress = page.getByRole("progressbar", { name: "Study Profile progress" });
+    > 536 |   await expect(progress).toHaveAttribute("aria-valuemax", "14");
+          |                          ^
+      537 |   await expect(progress).toHaveAttribute("aria-valuenow", String(step));
+      538 |   await expect(progress).toHaveAttribute("aria-valuetext", `Question ${step} of 14`);
+      539 | }
+        at expectAssessmentStep (<repo>/e2e/study-profile.spec.ts:536:26)
+        at expectOnlyQuestion (<repo>/e2e/study-profile.spec.ts:504:9)
+        at <repo>/e2e/study-profile.spec.ts:330:15
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts/study-profile-YOVA-Study-P-58d93-able-on-common-phone-widths-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts/study-profile-YOVA-Study-P-58d93-able-on-common-phone-widths-mobile-chromium/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts/study-profile-YOVA-Study-P-58d93-able-on-common-phone-widths-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts/study-profile-YOVA-Study-P-58d93-able-on-common-phone-widths-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace docs/audits/brief-0-5/evidence/ordinary-browser-followup/study-profile/artifacts/study-profile-YOVA-Study-P-58d93-able-on-common-phone-widths-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [mobile-chromium] › e2e/study-profile.spec.ts:301:7 › YOVA Study Profile › keeps every pre-report screen usable on common phone widths 
+  1 skipped
+  18 passed (2.1m)

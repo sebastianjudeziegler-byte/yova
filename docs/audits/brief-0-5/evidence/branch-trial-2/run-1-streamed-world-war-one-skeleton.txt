@@ -1,0 +1,55 @@
+
+ RUN  v4.1.10 <repo>
+
+stdout | src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+Exact WWI baseline generation failure {
+  message: 'OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.',
+  generationStats: {
+    elapsedMs: 10383,
+    attempts: 2,
+    firstAttemptPassed: false,
+    failedValidator: 'streamed_lesson_scope',
+    repairAttempted: true,
+    repairSucceeded: false,
+    repairReason: 'semantic_validation',
+    repairDetail: "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Prewar European alliances and tensions”; “Sequence from the Sarajevo assassination to declarations of war”; “Basic chronology from 1914 to 1918”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.",
+    inputTokens: 8346,
+    cachedInputTokens: 7424,
+    cacheWriteTokens: 0,
+    outputTokens: 2207,
+    validationIssueCode: 'streamed_target_subject',
+    stage: 'validation',
+    cause: 'semantic_validation',
+    recoveryMode: 'safe_learn',
+    strategy: 'streamed'
+  }
+}
+
+ ❯ src/evals/streamed-world-war-one-skeleton.live.test.ts (2 tests | 1 failed | 1 skipped) 10439ms
+     × creates the production 45-minute streamed teaching session 10388ms
+     ↓ reliably creates a valid subject-specific session outline
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/evals/streamed-world-war-one-skeleton.live.test.ts > live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session
+SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.
+ ❯ generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:100:13
+     98|     if (error instanceof SessionGenerationFailure) {
+     99|       const stats = error.generationStats;
+    100|       throw new SessionGenerationFailure(
+       |             ^
+    101|         error.message,
+    102|         {
+ ❯ tmp/brief-0-5/capture.ts:17:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 skipped (2)
+   Start at  08:55:29
+   Duration  10.90s (transform 283ms, setup 19ms, import 364ms, tests 10.44s, environment 0ms)
+
+JSON report written to <repo>/tmp/brief-0-5/branch-final/run-1-streamed-world-war-one-skeleton.json
+
+Exit code: 1

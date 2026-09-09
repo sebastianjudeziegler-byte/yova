@@ -1,0 +1,17 @@
+[WebServer] (node:5240) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:5241) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:5285) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop-chromium] › e2e/plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (24.9s)
+(node:5318) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [mobile-chromium] › e2e/plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (18.6s)
+
+  2 passed (55.1s)
+
+Exit code: 0

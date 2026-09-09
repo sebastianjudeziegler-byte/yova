@@ -79,3 +79,20 @@ Repro: run `YOVA_RUN_LIVE_ANSWER_EVALS=1 YOVA_ANSWER_EVAL_CASE=programming-conci
 ## Unrelated ordinary-browser infrastructure observation
 
 Repro: run all 284 ordinary desktop/mobile Playwright cases serially against one long-lived `next dev --webpack` server; the 61-minute verification run logged Next dev-server memory-threshold restarts and nine mobile timeouts/delayed UI transitions. Preserve the failed attempt and fresh-server replays in [Brief 0 evidence](brief-0/EVIDENCE.md#ordinary-regression-gates); no application code, browser assertion, timeout, or heap setting was changed, and no ordinary test was quarantined.
+
+## Brief 0.5 — additional observation outside the requested fixes
+
+- **Spanish recovery can lose the language (P2):** Repro A32 with the captured main run 1 context: the compact prompt repeats an English daily-routine objective without the goal's Spanish language, and the returned checks/references teach an English exchange. A tester can finish a session that does not practise Spanish. This predates Brief 0.5 and is separate from duplicate-claim rejection; no language-selection or product-shape change is made here. See `brief-0-5/evidence/main-live/run-1-session-quality-capture.jsonl`.
+
+
+### Intermittent osmosis launch scope rejection (P1; Brief 0.5 comparison)
+
+Repro: run the `osmosis` case in `src/evals/launch-session-journeys.live.test.ts` with `YOVA_RUN_LIVE_LAUNCH_EVALS=1` on main `e03a082`. In three fresh runs it passed twice and failed once because the generated claim assigned to target 2 did not preserve that target's subject terms. The first Brief 0.5 full gate also failed this case, with a missing active target, and its dependent lesson stream had no fixture. A real tester can hit this after choosing a 25-minute osmosis learning session and before opening the lesson. This case is outside Brief 0.5's ten-case scope; no osmosis-specific product fix or quarantine is included. Evidence: `docs/audits/brief-0-5/evidence/pass-to-fail-main/` and the first full-gate trial.
+
+
+### Ordinary-browser comparisons during Brief 0.5 (outside scope)
+
+- **Desktop cross-tab Calendar returns to Home (P2):** Run `e2e/calendar-journeys.spec.ts`'s “two simultaneous tabs preserve both new events and each tab refreshes” on desktop Chromium. The first tab returns to Home before Quick Add; the unchanged main `e03a082` comparison reproduces the same missing-input timeout as the initial branch run. This affects optional cross-tab Calendar use, not an established regression in the ten scoped live cases. No Calendar/storage fix is included. Evidence: `brief-0-5/evidence/browser-comparison/main/` and `brief-0-5/evidence/ordinary-browser/calendar-journeys/`.
+- **Local misconception-repair journey waits past its browser timeout (P2; mechanism unresolved):** Run the desktop “a confident misconception is repaired now without a duplicate follow-up” case in `e2e/core-learning-loop.spec.ts`. The initial branch run waits for repair; unchanged main later waits for the formative evaluation and exhausts the overall 30-second test timeout, while mobile passes. Traces show pending local API responses, not a returned wrong learner judgment. Production impact is not established; no timeout/assertion or unrelated repair-runtime change is included. Evidence: `brief-0-5/evidence/browser-comparison/main/` and `brief-0-5/evidence/ordinary-browser/core-learning-loop/`.
+
+- **Legacy Study Profile phone-width check (comparison pending CI):** Run the mobile “keeps every pre-report screen usable on common phone widths” case in `e2e/study-profile.spec.ts`; one local follow-up timed out waiting for the 14-question progressbar, with 18 other checks passing and one expected skip. The product/test path is unchanged; main comparison is deliberately deferred to CI at the founder's request. No profile fix or expectation change is included.

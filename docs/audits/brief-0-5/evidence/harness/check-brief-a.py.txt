@@ -1,0 +1,24 @@
+from pathlib import Path
+import subprocess,os,json,hashlib
+head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+brief_a=subprocess.check_output(['git','rev-parse','340c8b6'],text=True).strip()
+patch=subprocess.check_output(['git','diff','e03a082',brief_a,'--','src'])
+paths=subprocess.check_output(['git','diff','--name-only','e03a082',brief_a,'--','src'],text=True).splitlines()
+backup={p:Path(p).read_bytes() if Path(p).exists() else None for p in paths}
+subprocess.run(['git','apply','--check','-'],input=patch,check=True)
+out=Path('docs/audits/brief-0-5/evidence/brief-a-integration');out.mkdir(parents=True,exist_ok=True)
+results=[]
+try:
+ subprocess.run(['git','apply','-'],input=patch,check=True)
+ for name,file in [('deterministic','personalization-delta.test.ts'),('live','personalization-delta.live.test.ts')]:
+  env=dict(os.environ,YOVA_DELTA_PRINTOUT=str((out/(name+'-plans.json')).resolve()),YOVA_RUN_LIVE_PERSONALIZATION_DELTA='1')
+  cmd=['node','--env-file=.env.local','node_modules/vitest/vitest.mjs','run','src/evals/'+file,'--maxWorkers=1','--retry=0']
+  with (out/(name+'.txt')).open('w') as log:r=subprocess.run(cmd,env=env,stdout=log,stderr=subprocess.STDOUT)
+  results.append({'test':name,'exitCode':r.returncode});print(name,r.returncode,flush=True)
+finally:
+ for path,data in backup.items():
+  if data is None:Path(path).unlink(missing_ok=True)
+  else:Path(path).write_bytes(data)
+ restored=all((Path(p).read_bytes() if Path(p).exists() else None)==data for p,data in backup.items())
+ (out/'manifest.json').write_text(json.dumps({'brief05':head,'briefA':brief_a,'temporarySourcePaths':paths,'restored':restored,'results':results},indent=2)+'\n')
+ assert restored

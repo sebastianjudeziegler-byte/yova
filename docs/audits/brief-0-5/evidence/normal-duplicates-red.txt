@@ -1,0 +1,33 @@
+
+ RUN  v4.1.10 <repo>
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts (16 tests | 1 failed) 263ms
+     × rejects duplicate choices on the normal path and recovers to distinct learner choices 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/streamed-validator-calibration.test.ts > Brief 0.5 preserved subject and notation boundaries > rejects duplicate choices on the normal path and recovers to distinct learner choices
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ src/lib/openai/streamed-validator-calibration.test.ts:110:103
+    108|
+    109|   it("rejects duplicate choices on the normal path and recovers to dis…
+    110|     expect(StreamedGeneratedSessionDraftSchema.safeParse(captures.dupl…
+       |                                                                                                       ^
+    111|     supply(captures.duplicate_normal.outputs);
+    112|     const { generateStreamedTeachingSkeletonWithOpenAI } = await impor…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 15 passed (16)
+   Start at  09:22:53
+   Duration  605ms (transform 295ms, setup 0ms, import 268ms, tests 263ms, environment 0ms)
+
