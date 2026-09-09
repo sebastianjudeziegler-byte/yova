@@ -368,6 +368,7 @@ export function composeNormalPlanEnvelopes(
         now,
         searchDays,
         boundedSlots: slots,
+        revisionContext: input.revisionContext,
         cursor: withOptionalPractice.cursor,
         durationContext: selectedDurationContext,
         learningMode: nextUnscheduledTarget.firstMode,
@@ -1141,6 +1142,7 @@ function deadlineRestrictsAvailability({
   now,
   searchDays,
   boundedSlots,
+  revisionContext,
   cursor,
   durationContext,
   learningMode,
@@ -1151,6 +1153,7 @@ function deadlineRestrictsAvailability({
   now: Date;
   searchDays: number;
   boundedSlots: readonly PlanAvailabilitySlot[];
+  revisionContext?: NormalPlanRevisionContext;
   cursor: Cursor;
   durationContext: NormalPlanDurationContext;
   learningMode: SessionLearningMode;
@@ -1167,14 +1170,7 @@ function deadlineRestrictsAvailability({
     startingDifficulty,
   };
   if (placeSession({ ...placementInput, slots: boundedSlots })) return false;
-  const horizonSlots = canonicalizePlanAvailabilitySlots(
-    enumeratePlanAvailabilitySlots({
-      availability: request.availability,
-      deadline: null,
-      timeZone: request.timeZone,
-    }, now, searchDays),
-    now,
-  );
+  const horizonSlots = normalPlanAvailability({ request: { ...request, deadline: null }, now, searchDays, revisionContext });
   return placeSession({ ...placementInput, slots: horizonSlots }) !== null;
 }
 

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { makeUuid, type LearningPlan, type LearningPlanSession } from "@/lib/domain";
 import type { PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import { applyMapDelta, type MapDelta } from "@/lib/plan-revision/map-delta";
@@ -108,7 +109,8 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     const revisionContext: NormalPlanRevisionContext = { reservations: [...reservations], earliestStart: selectedTime ?? new Date(earliest).toISOString(), priorSessions };
     const chosenMethod = edit?.methodId ?? (unit!.original?.studyRoute?.agency.selectedBy === "learner" ? unit!.original.studyRoute.approach.primaryMethodId : undefined);
     const scopedMethodContext = { ...methodContext, ...(chosenMethod ? { methodChoicesBySequence: { 1: { methodId: chosenMethod, evidenceRef: `learner-choice:plan-revision:${plan.id}:${unit!.original!.id}:${chosenMethod}` } } } : {}) };
-    const selectedDuration = edit?.durationMinutes ?? (protection?.editedFields.includes("estimatedMinutes") ? unit!.original!.estimatedMinutes : undefined);
+    const requestedDuration = edit?.durationMinutes ?? (protection?.editedFields.includes("estimatedMinutes") ? unit!.original!.estimatedMinutes : undefined);
+    const selectedDuration = requestedDuration === undefined ? undefined : z.union([z.literal(10), z.literal(15), z.literal(25), z.literal(45), z.literal(60)]).parse(requestedDuration);
     try {
       const composition = composeNormalPlanEnvelopes({
         request: subRequest, now, revisionContext,
@@ -144,7 +146,7 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
   if (plan.sessions.length + addedCount > (contextKind === "draft" ? 14 : 28)) blockers.push({ topicId: "", message: "This change needs more session space. Shorten scope or finish existing work before adding it." });
   if (blockers.length === 0) {
     for (const { unit, fixed, protection } of prepared) {
-      const generated = buildNormalPlanFromFixedEnvelope({ ...fixed, fill: await fill(fixed) });
+      const generated = buildNormalPlanFromFixedEnvelope({ ...fixed, methodContext: fixed.methodContext!, fill: await fill(fixed) });
       for (const [index, session] of generated.sessions.entries()) {
         const original = unit.keepOriginalId && index === 0 ? unit.original : null;
         const id = original?.id ?? makeUuid();

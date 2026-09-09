@@ -9,7 +9,7 @@ export function learnerReportedCoverage(topic: KnowledgeMapTopic) {
 
 /** Shared by placement summaries, route evidence, and measured gap readers.
  * The report has neither an observedAt timestamp nor a scored outcome. */
-export function measuredPlacementEvidence(topic: KnowledgeMapTopic): PlacementEvidence | null {
+export function measuredPlacementEvidence(topic: Pick<KnowledgeMapTopic, "initialEvidence" | "placementEvidence">): PlacementEvidence | null {
   return topic.initialEvidence?.source === "placement_check"
     ? topic.initialEvidence
     : topic.placementEvidence ?? null;

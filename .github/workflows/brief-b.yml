@@ -8,6 +8,10 @@ concurrency:
   group: yova-brief-b-baseline
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   baseline:
     runs-on: ubuntu-latest
@@ -25,37 +29,6 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Install isolated browser
-        run: |
-          # The hosted image includes a Google Chrome apt source unrelated to
-          # Playwright's pinned Chromium download. Its inconsistent metadata
-          # must not prevent installing Ubuntu browser libraries. Temporarily
-          # isolate only that source; never bypass package integrity checks.
-          quarantine="$RUNNER_TEMP/yova-browser-apt-sources"
-          mkdir -p "$quarantine"
-          restore_sources() {
-            for source in "$quarantine"/*; do
-              if test -f "$source"; then sudo mv "$source" /etc/apt/sources.list.d/; fi
-            done
-          }
-          trap restore_sources EXIT
-          sudo python3 - "$quarantine" <<'PYTHON'
-          import re, shutil, sys
-          from pathlib import Path
-          for source in Path('/etc/apt/sources.list.d').iterdir():
-              if source.suffix not in ('.list', '.sources'):
-                  continue
-              active = '\n'.join(line for line in source.read_text().splitlines() if not line.lstrip().startswith('#'))
-              urls = re.findall(r'https?://[^\s#]+', active)
-              if not any('dl.google.com/linux/chrome-stable' in url for url in urls):
-                  continue
-              if not all(url.startswith(('https://dl.google.com/linux/chrome-stable', 'http://dl.google.com/linux/chrome-stable')) for url in urls):
-                  raise RuntimeError('The Chrome source shares a file with another repository; cannot isolate it safely.')
-              print(f'Temporarily isolating hosted-image source: {source.name}')
-              shutil.move(str(source), str(Path(sys.argv[1]) / source.name))
-          PYTHON
-          pnpm exec playwright install --with-deps chromium
-
       - name: Prepare evidence directory
         run: mkdir -p artifacts/brief-b-baseline
       - name: Capture route contract baseline
@@ -70,24 +43,11 @@ jobs:
         if: always()
         continue-on-error: true
         run: pnpm lint 2>&1 | tee artifacts/brief-b-baseline/lint.txt
-      - name: Corrected browser fixture against unchanged main
-        if: always()
-        run: |
-          cp e2e/living-plan.spec.ts "$RUNNER_TEMP/living-plan.spec.ts"
-          git fetch origin c7b3ca99964524cefc04437b7236b37fe8fe2666
-          git checkout --detach c7b3ca99964524cefc04437b7236b37fe8fe2666
-          cp "$RUNNER_TEMP/living-plan.spec.ts" e2e/living-plan.spec.ts
-      - name: Capture desktop and mobile founder baseline
-        id: browser
-        continue-on-error: true
-        run: pnpm exec playwright test e2e/living-plan.spec.ts --retries=0 --reporter=list,json
-        env:
-          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/brief-b-baseline/browsers.json
       - name: Describe the baseline accurately
         if: always()
         env:
           ROUTE_OUTCOME: ${{ steps.route.outcome }}
-          BROWSER_OUTCOME: ${{ steps.browser.outcome }}
+          BROWSER_OUTCOME: not-run-in-unit-slice
         run: |
           printf 'Pre-implementation evidence only; this is not a release gate.\n\nRoute contract: %s\n\nBrowser contract: %s\n' "$ROUTE_OUTCOME" "$BROWSER_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload baseline evidence

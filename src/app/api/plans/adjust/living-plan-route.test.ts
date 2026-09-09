@@ -32,6 +32,7 @@ vi.mock("@/lib/server/ai-usage", async importOriginal => ({
   refundAIRequestClaimBeforeProvider: vi.fn().mockResolvedValue(true),
 }));
 
+import { commitPlanStudyRoutes } from "@/lib/study-route/activation";
 import { PATCH } from "@/app/api/plans/adjust/route";
 
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -292,4 +293,134 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(mocks.fill).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
+  it("commits a reviewed draft and issues a new activation receipt without writing an active plan", async () => {
+    const { response, body } = await preview([{ op: "mark_covered", topic_id: ETC }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const applied = await PATCH(new Request("http://localhost/api/plans/adjust", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "apply", proposal: body.proposal, proposalReceipt: body.proposalReceipt }),
+    }));
+    const result = await applied.json();
+    expect(applied.status, JSON.stringify(result)).toBe(200);
+    expect(result.status).toBe("applied");
+    expect(result.plan.revisionId).toBe(body.proposal.revisionId);
+    expect(firstSession(result.plan, ETC).learningMode).toBe("study");
+    expect(result.receipt.message).toMatch(/electron transport chain.*everything else unchanged/i);
+    expect(result.draftReceipt).toBeTruthy();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects an altered preview instead of letting the browser submit a rewritten session", async () => {
+    const { response, body } = await preview([{ op: "mark_covered", topic_id: ETC }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    body.proposal.after.sessions[0].title = "Learn photosynthesis under the glycolysis ID";
+    const applied = await PATCH(new Request("http://localhost/api/plans/adjust", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "apply", proposal: body.proposal, proposalReceipt: body.proposalReceipt }),
+    }));
+    const result = await applied.json();
+    expect(applied.status).toBe(409);
+    expect(result).not.toHaveProperty("receipt");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not apply a preview after its signed authority expires", async () => {
+    const { response, body } = await preview([{ op: "mark_covered", topic_id: ETC }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    vi.setSystemTime(new Date(DELTA_NOW.getTime() + 16 * 60_000));
+    const applied = await PATCH(new Request("http://localhost/api/plans/adjust", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "apply", proposal: body.proposal, proposalReceipt: body.proposalReceipt }),
+    }));
+    const result = await applied.json();
+    expect(applied.status).toBe(409);
+    expect(result).not.toHaveProperty("receipt");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("a fixed event can exhaust capacity without moving it or another existing session", async () => {
+    const before = deterministicDeltaPlan(1);
+    const context = contextFor(before);
+    const fixedEvents = [{ id: "fixed-exam", startsAt: DELTA_NOW.toISOString(), endsAt: "2026-10-30T23:59:00.000Z" }];
+    const { response, body } = await preview([{ op: "add_topic", title: "Chemiosmosis in membranes", description: "Explain how a proton gradient powers ATP synthesis." }], { context, fixedEvents });
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.proposal.capacity.status).toBe("insufficient");
+    expect(body.proposal.canApply).toBe(false);
+    expect(body.proposal.after.sessions).toEqual(before.sessions);
+    expect(body).not.toHaveProperty("receipt");
+  });
+
+  it("reports a draft's activation capacity before requesting provider copy", async () => {
+    const additions = Array.from({ length: 14 }, (_, index) => ({
+      op: "add_topic", title: `Membrane investigation ${index + 1}`,
+      description: `Explain membrane transport in experimental setting ${index + 1}.`,
+    }));
+    const { response, body } = await preview(additions);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.proposal.canApply).toBe(false);
+    expect(body.proposal.capacity.status).toBe("insufficient");
+    expect(body.proposal.capacity.choices.map((choice: { label: string }) => choice.label)).toContain("Shorten scope");
+    expect(mocks.fill).not.toHaveBeenCalled();
+  });
+
+  async function activePreview(operations: Operation[], mutate?: (plan: LearningPlan) => void) {
+    const plan = commitPlanStudyRoutes({ ...deterministicDeltaPlan(1), status: "active" as const }, DELTA_NOW.toISOString());
+    mutate?.(plan);
+    mocks.rpc.mockImplementation(async (name: string) => name === "read_plan_revision_context" ? {
+      data: { plan, generationRequest: { ...deltaFixture(1).request, knowledgeMap: plan.knowledgeMap },
+        protections: [], sessionFingerprints: Object.fromEntries(plan.sessions.map(item => [item.id, "fingerprint-" + item.id])),
+      }, error: null,
+    } : { data: null, error: { message: "Unexpected database mutation during preview" } });
+    const response = await PATCH(new Request("http://localhost/api/plans/adjust", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "preview", context: { kind: "active", planId: plan.id, expectedRevisionId: plan.revisionId ?? plan.id }, delta: { operations } }),
+    }));
+    return { response, body: await response.json(), before: plan };
+  }
+
+  it("loads the saved plan on the server and changes only its next unstarted topic session", async () => {
+    const { response, body, before } = await activePreview([{ op: "mark_covered", topic_id: ETC }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(firstSession(body.proposal.after, ETC).learningMode).toBe("study");
+    assertUnchangedOtherSessions(before, body.proposal.after, [firstSession(before, ETC).id]);
+    expect(mocks.rpc.mock.calls.every(([name]) => name === "read_plan_revision_context")).toBe(true);
+    expect(body).not.toHaveProperty("receipt");
+  });
+
+  it("keeps unrelated completed sessions and in-progress resources byte-identical in an active preview", async () => {
+    const { response, body, before } = await activePreview([{ op: "mark_covered", topic_id: ETC }], plan => {
+      plan.sessions[0]!.status = "complete";
+      // Opaque current work must survive the revision boundary verbatim.
+      Object.assign(plan.sessions[1]!, { resource: { title: "My saved practice", learnerAnswer: "ATP transfers energy" } });
+    });
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.proposal.after.sessions[0]).toEqual(before.sessions[0]);
+    expect(body.proposal.after.sessions[1]).toEqual(before.sessions[1]);
+    expect(firstSession(body.proposal.after, ETC).learningMode).toBe("study");
+  });
+
+  it("keeps an opened topic session and changes its later unstarted practice instead", async () => {
+    const { response, body, before } = await activePreview([{ op: "mark_covered", topic_id: ETC }], plan => {
+      Object.assign(firstSession(plan, ETC), { resource: { title: "Already open", learnerAnswer: "Protons accumulate" } });
+    });
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(firstSession(body.proposal.after, ETC)).toEqual(firstSession(before, ETC));
+    const following = body.proposal.after.sessions.filter((session: LearningPlan["sessions"][number]) => session.topicIds?.includes(ETC)).at(-1);
+    expect(following.learningMode).toBe("study");
+    expect(following.amountLabel).toMatch(/hints available/);
+  });
+
+  it("rejects an obsolete saved-plan revision before offering a preview", async () => {
+    const fixture = await activePreview([{ op: "mark_covered", topic_id: ETC }]);
+    expect(fixture.response.status, JSON.stringify(fixture.body)).toBe(200);
+    mocks.fill.mockClear();
+    const response = await PATCH(new Request("http://localhost/api/plans/adjust", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "preview", context: { kind: "active", planId: fixture.before.id, expectedRevisionId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }, delta: { operations: [{ op: "mark_covered", topic_id: ETC }] } }),
+    }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).not.toHaveProperty("proposalReceipt");
+    expect(mocks.fill).not.toHaveBeenCalled();
+  });
+
 });
