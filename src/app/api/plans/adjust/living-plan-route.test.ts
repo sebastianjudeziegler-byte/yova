@@ -363,6 +363,49 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(mocks.fill).not.toHaveBeenCalled();
   });
 
+  it("Undo restores the prior draft revision, session copy and placement evidence with valid activation authority", async () => {
+    const { response, body, before } = await preview([{ op: "mark_covered", topic_id: ETC }, { op: "attach_source", topic_id: ENZYMES, url: VIDEO }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const undo = await PATCH(new Request("http://localhost/api/plans/adjust", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "undo", planId: before.id, expectedRevisionId: body.proposal.revisionId,
+        proposal: body.proposal, proposalReceipt: body.proposalReceipt }),
+    }));
+    const result = await undo.json();
+    expect(undo.status, JSON.stringify(result)).toBe(200);
+    expect(result.plan.revisionId).toBe(before.revisionId ?? before.id);
+    expect(result.plan.sessions).toEqual(before.sessions);
+    expect(result.plan.knowledgeMap).toEqual(before.knowledgeMap);
+    expect(result.receipt.message).toMatch(/restored.*everything else unchanged/i);
+    expect(result.draftReceipt).toBeTruthy();
+  });
+
+  it("Undo of an added topic restores the exact previous map and sessions", async () => {
+    const { response, body, before } = await preview([{ op: "add_topic", title: "Energy coupling", description: "Connect ATP hydrolysis to an unfavorable reaction." }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const undo = await PATCH(new Request("http://localhost/api/plans/adjust", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "undo", planId: before.id, expectedRevisionId: body.proposal.revisionId,
+        proposal: body.proposal, proposalReceipt: body.proposalReceipt }),
+    }));
+    const result = await undo.json();
+    expect(undo.status, JSON.stringify(result)).toBe(200);
+    expect(result.plan.sessions).toEqual(before.sessions);
+    expect(result.plan.knowledgeMap).toEqual(before.knowledgeMap);
+  });
+
+  it("an altered Undo cannot erase an unrelated topic or forge a saved revision", async () => {
+    const { body, before } = await preview([{ op: "mark_covered", topic_id: ETC }]);
+    body.proposal.before.knowledgeMap.topics.pop();
+    const undo = await PATCH(new Request("http://localhost/api/plans/adjust", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "undo", planId: before.id, expectedRevisionId: body.proposal.revisionId,
+        proposal: body.proposal, proposalReceipt: body.proposalReceipt }),
+    }));
+    expect(undo.status).toBe(409);
+    expect(await undo.json()).not.toHaveProperty("receipt");
+  });
+
   async function activePreview(operations: Operation[], mutate?: (plan: LearningPlan) => void) {
     const plan = commitPlanStudyRoutes({ ...deterministicDeltaPlan(1), status: "active" as const }, DELTA_NOW.toISOString());
     mutate?.(plan);
