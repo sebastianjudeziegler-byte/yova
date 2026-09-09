@@ -1,0 +1,16 @@
+Run 34384175894, job 102576170265, head 587f114a82b68593694854c5069d67d5ca1d7557.
+Observed through GitHub Actions job UI on 2026-09-09 17:41 UTC while API logs were not yet published.
+Audit/config and migration replay/database checks passed.
+Install isolated browser failed with exit 100 during pnpm exec playwright install --with-deps chromium:
+E: Failed to fetch https://dl.google.com/linux/chrome-stable/deb/dists/stable/main/binary-amd64/Packages.gz Hash Sum mismatch
+Expected SHA256 233e56de019b57db89238fa7bcc3647718dbbea3a40c2dc1c633a8c8952aa9e9
+Received SHA256 bc1428ab27c6d76ee9bb76de07f1ded0ddb4aaabd958fc72855634ef5894a4b3
+Expected/received size 1405. Last modification Wed, 09 Sep 2026 09:41:12 +0000; Release file created Wed, 09 Sep 2026 17:16:59 +0000.
+The package manager retained hash verification and stopped. No workaround disabled integrity checks.
+Unit/lint/build/core/auth steps skipped. Phone comparison ran; live gate began despite this prerequisite failure under !cancelled().
+This is unavailable CI setup, not a semantic red/green. Stop the incomplete attempt and rerun the same committed revision in GitHub Actions.
+Cancellation completed. Partial live artifact 10117190201 sha256 b885a0efb87dc0b574d99d84df28b7bc153eacaeb0bd75423643b662795c1e1c and phone artifact 10117149822 sha256 5fe669539d79a9c9d4267db3a2a451b1277528dff7374bd159e265a6892da8dd are downloaded under /tmp/yova-full587-attempt1/.
+Tested merge 679fa3a49be4c782ecc879507414defaec99f7b5.
+Phone reports 'fail' on main and branch solely because the Playwright Chromium executable is absent; both are UNAVAILABLE for this attempt.
+The interrupted full-live report counts 226 fail: 225 unfinished observations plus one actual recall phase-order failure; the 225 pending rows are unrun; this is not 226 semantic failures. Do not use that aggregate as a baseline or regression result. Preserve its raw data and separately classify actual state.
+Rerun accepted after cancellation: same run 34384175894, attempt 2, new job 102577671749. No source change. Integrity verification remains enabled.

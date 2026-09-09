@@ -85,7 +85,35 @@ jobs:
         run: pnpm exec supabase stop --no-backup
 
       - name: Install isolated browser
-        run: pnpm exec playwright install --with-deps chromium
+        run: |
+          # The hosted image includes a Google Chrome apt source unrelated to
+          # Playwright's pinned Chromium download. Its inconsistent metadata
+          # must not prevent installing Ubuntu browser libraries. Temporarily
+          # isolate only that source; never bypass package integrity checks.
+          quarantine="$RUNNER_TEMP/yova-browser-apt-sources"
+          mkdir -p "$quarantine"
+          restore_sources() {
+            for source in "$quarantine"/*; do
+              if test -f "$source"; then sudo mv "$source" /etc/apt/sources.list.d/; fi
+            done
+          }
+          trap restore_sources EXIT
+          sudo python3 - "$quarantine" <<'PYTHON'
+          import re, shutil, sys
+          from pathlib import Path
+          for source in Path('/etc/apt/sources.list.d').iterdir():
+              if source.suffix not in ('.list', '.sources'):
+                  continue
+              active = '\n'.join(line for line in source.read_text().splitlines() if not line.lstrip().startswith('#'))
+              urls = re.findall(r'https?://[^\s#]+', active)
+              if not any('dl.google.com/linux/chrome-stable' in url for url in urls):
+                  continue
+              if not all(url.startswith(('https://dl.google.com/linux/chrome-stable', 'http://dl.google.com/linux/chrome-stable')) for url in urls):
+                  raise RuntimeError('The Chrome source shares a file with another repository; cannot isolate it safely.')
+              print(f'Temporarily isolating hosted-image source: {source.name}')
+              shutil.move(str(source), str(Path(sys.argv[1]) / source.name))
+          PYTHON
+          pnpm exec playwright install --with-deps chromium
 
       - name: Run learning-engine tests
         run: pnpm test
