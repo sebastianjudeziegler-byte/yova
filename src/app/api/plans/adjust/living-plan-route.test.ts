@@ -1,0 +1,295 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { LearningPlan } from "@/lib/domain";
+import { DELTA_NOW, deltaFixture, deltaTopicId, deterministicDeltaPlan } from "@/evals/personalization-delta-fixture";
+import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
+import { buildPracticeVariationContract } from "@/lib/learning/practice-variation";
+import { diagnosticResponsesFromMap } from "@/lib/diagnostics/placement-summary";
+import { normalizePlanDraftGenerationContract } from "@/lib/plan-generation/draft-contract";
+import { composeNormalPlanEnvelopes } from "@/lib/plan-generation/normal-plan-envelopes";
+import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-plan-pipeline";
+import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
+import { issuePlanDraftReceipt } from "@/lib/server/plan-draft-receipt";
+
+vi.mock("server-only", () => ({}));
+const mocks = vi.hoisted(() => ({
+  client: vi.fn(), context: vi.fn(), fill: vi.fn(), rpc: vi.fn(), reserve: vi.fn(),
+}));
+vi.mock("@/lib/supabase/server", () => ({ createSupabaseServerClient: mocks.client }));
+vi.mock("@/lib/supabase/config", () => ({ isSupabaseConfigured: () => true }));
+vi.mock("@/lib/server/development-preview", () => ({ isDevelopmentPreviewRequest: () => false }));
+vi.mock("@/lib/study-route/duration-context-server", async importOriginal => ({
+  ...await importOriginal<object>(), loadAuthorizedNormalDurationContext: mocks.context,
+}));
+vi.mock("@/lib/openai/config", async importOriginal => ({
+  ...await importOriginal<object>(), isOpenAIPlanConfigured: () => true,
+}));
+vi.mock("@/lib/openai/normal-plan-fill-generator", async importOriginal => ({
+  ...await importOriginal<object>(), generateNormalPlanFillWithOpenAI: mocks.fill,
+}));
+vi.mock("@/lib/server/ai-usage", async importOriginal => ({
+  ...await importOriginal<object>(), reserveAIRequest: mocks.reserve,
+  settleAIRequestClaim: vi.fn().mockResolvedValue(true),
+  refundAIRequestClaimBeforeProvider: vi.fn().mockResolvedValue(true),
+}));
+
+import { PATCH } from "@/app/api/plans/adjust/route";
+
+const USER = "11111111-1111-4111-8111-111111111111";
+const ETC = deltaTopicId(4);
+const ENZYMES = deltaTopicId(1);
+const VIDEO = "https://www.youtube.com/watch?v=example-biology";
+type Operation = Record<string, unknown>;
+
+function savedProfile(profile: 1 | 2) {
+  const fixture = deltaFixture(profile);
+  mocks.context.mockResolvedValue({
+    status: "ready", reason: "loaded", ...fixture.durationContext,
+    profileSummary: fixture.request.profileSummary,
+    methodProfileVersion: fixture.methodContext.profileVersion,
+    methodEvidence: { personalization: fixture.methodContext.personalization, observedEvidence: [] },
+  });
+}
+
+function contextFor(plan = deterministicDeltaPlan(1), profile: 1 | 2 = 1) {
+  const generationRequest = { ...deltaFixture(profile).request, knowledgeMap: plan.knowledgeMap };
+  const { receipt } = issuePlanDraftReceipt({
+    parsedPlan: plan,
+    normalizedGenerationContract: normalizePlanDraftGenerationContract(generationRequest, plan),
+    authenticatedUserId: USER,
+    issuedAt: DELTA_NOW.toISOString(),
+    expiresAt: new Date(DELTA_NOW.getTime() + 3_600_000).toISOString(),
+  });
+  return { kind: "draft", plan, generationRequest, draftReceipt: receipt };
+}
+
+async function preview(operations: Operation[], options: {
+  context?: ReturnType<typeof contextFor>;
+  controls?: Record<string, unknown>;
+  fixedEvents?: Array<Record<string, unknown>>;
+} = {}) {
+  const context = options.context ?? contextFor();
+  const response = await PATCH(new Request("http://localhost/api/plans/adjust", {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "preview", context, delta: { operations }, ...options }),
+  }));
+  const body = await response.json();
+  return { response, body, before: context.plan };
+}
+
+function topic(plan: LearningPlan, id: string) {
+  return plan.knowledgeMap!.topics.find(item => item.id === id)!;
+}
+function firstSession(plan: LearningPlan, id: string) {
+  return plan.sessions.find(session => session.topicIds?.includes(id))!;
+}
+function assertUnchangedOtherSessions(before: LearningPlan, after: LearningPlan, affectedIds: string[], allowSequenceInsertion = false) {
+  for (const session of before.sessions.filter(item => !affectedIds.some(id => item.topicIds?.includes(id)))) {
+    const updated = after.sessions.find(item => item.id === session.id);
+    expect(updated).toBeDefined();
+    if (allowSequenceInsertion) {
+      // An inserted block can renumber future ordinal metadata. Every actual
+      // session field, including id/time/method/copy and route, stays exact.
+      expect({ ...updated, sequence: session.sequence }).toEqual(session);
+    } else expect(updated).toEqual(session);
+  }
+}
+
+describe("living-plan structured preview through the existing adjustment route", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(DELTA_NOW);
+    vi.stubEnv("YOVA_DRAFT_RECEIPT_SECRET", "living-plan-contract-test-secret-0123456789-abcdef");
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "100");
+    vi.clearAllMocks();
+    // Draft authority comes from the real receipt verifier. There is no active
+    // plan or fixed event in this test database unless a case supplies one.
+    const read = () => {
+      const chain = {
+        select: () => chain, eq: () => chain, in: () => chain, order: () => chain,
+        limit: () => chain, not: () => chain,
+        maybeSingle: async () => ({ data: null, error: null }),
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
+      };
+      return chain;
+    };
+    mocks.client.mockResolvedValue({ auth: { getUser: async () => ({ data: { user: { id: USER } }, error: null }) }, from: read, rpc: mocks.rpc });
+    mocks.reserve.mockResolvedValue({ allowed: true, claimId: "22222222-2222-4222-8222-222222222222", remainingToday: 9 });
+    mocks.fill.mockImplementation(async input => ({
+      fill: buildNormalPlanFallbackFill(input), model: "deterministic-provider-fixture", responseId: "fixture",
+      generationStats: { attempts: 1, elapsedMs: 0, firstAttemptPassed: true, failedValidator: null, repairAttempted: false, repairSucceeded: null, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
+    }));
+    savedProfile(1);
+  });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  it("shows Practice for learned-elsewhere ETC without claiming a demonstrated result or changing another session", async () => {
+    const { response, body, before } = await preview([{ op: "mark_covered", topic_id: ETC }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.status).toBe("preview");
+    const after = body.proposal.after as LearningPlan;
+    expect(firstSession(before, ETC).learningMode).toBe("learn");
+    expect(firstSession(after, ETC).learningMode).toBe("study");
+    expect(topic(after, ETC).initialEvidence).toEqual({ source: "learner_report", outcome: "covered_elsewhere", checked: false });
+    expect(topic(after, ETC).status).toBe("not_started");
+    expect(after.knowledgeMap!.placementCheck).toEqual(before.knowledgeMap!.placementCheck);
+    expect(diagnosticResponsesFromMap(after.knowledgeMap, [])).toEqual([]);
+    expect(firstSession(after, ETC).methodReason).toMatch(/hint|example|focus|short/i);
+    expect(body.proposal.lines.map((line: { description: string }) => line.description).join(" ")).toMatch(/electron transport chain/i);
+    expect(body).not.toHaveProperty("receipt");
+    assertUnchangedOtherSessions(before, after, [ETC]);
+    const laterPractice = before.sessions.filter(session => session.topicIds?.includes(ETC) && session.id !== firstSession(before, ETC).id);
+    for (const session of laterPractice) expect(after.sessions.find(item => item.id === session.id)).toEqual(session);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps a reported topic in Practice and uses brief targeted support after its first real miss", async () => {
+    const { response, body } = await preview([{ op: "mark_covered", topic_id: ETC }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const after = body.proposal.after as LearningPlan;
+    const reported = topic(after, ETC);
+    expect(firstSession(after, ETC).learningMode).toBe("study");
+    const beforeCheck = buildPracticeVariationContract({ topics: [reported], conceptSignals: [], scaffoldSignals: [], calibrationSignals: [], maximumChecks: 2 });
+    expect(beforeCheck.directives[0]).toMatchObject({ evidenceStatus: "unknown", requiredIntent: "baseline" });
+    const measured = buildScaffoldProgressionSignals([{
+      completedAt: DELTA_NOW.toISOString(),
+      conceptEvidence: [{ topicId: ETC, concept: reported.title, outcome: "needs_review", activityType: "free_response", methodPhase: "independent_practice" }],
+    }]);
+    const repair = buildPracticeVariationContract({ topics: [reported], conceptSignals: [], scaffoldSignals: measured, calibrationSignals: [], maximumChecks: 2 });
+    expect(repair.directives[0]).toMatchObject({ topicId: ETC, evidenceStatus: "gap", requiredIntent: "supported_recheck", openingSupport: "supported" });
+    expect(repair.directives[0]!.reason).toMatch(/brief support before checking again/i);
+    expect(repair.maximumChecks).toBe(2);
+    expect(repair.directives).toHaveLength(1);
+    expect(firstSession(after, ETC).learningMode).toBe("study");
+  });
+
+  it("attaches the chosen URL to one existing topic and reassesses only that topic's future work", async () => {
+    const { response, body, before } = await preview([{ op: "attach_source", topic_id: ENZYMES, url: VIDEO }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const after = body.proposal.after as LearningPlan;
+    expect(after.id).toBe(before.id);
+    expect(after.knowledgeMap!.topics).toHaveLength(before.knowledgeMap!.topics.length);
+    expect(topic(after, ENZYMES)).toHaveProperty("attachedSources", [{ url: VIDEO }]);
+    expect(firstSession(after, ENZYMES).estimatedMinutes).toBeGreaterThanOrEqual(firstSession(before, ENZYMES).estimatedMinutes);
+    expect(body.proposal.lines.map((line: { description: string }) => line.description).join(" ")).toMatch(/source.*enzymes|enzymes.*source/i);
+    assertUnchangedOtherSessions(before, after, [ENZYMES]);
+    for (const session of before.sessions.filter(item => item.topicIds?.includes(ENZYMES) && item.id !== firstSession(before, ENZYMES).id)) {
+      expect(after.sessions.find(item => item.id === session.id)).toEqual(session);
+    }
+  });
+
+  it("previews a new topic after the chosen topic while leaving existing work byte-identical", async () => {
+    const { response, body, before } = await preview([{ op: "add_topic", title: "Chemiosmosis in membranes", description: "Explain how a proton gradient powers ATP synthesis through ATP synthase.", after_topic_id: ETC }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const after = body.proposal.after as LearningPlan;
+    const added = after.knowledgeMap!.topics.find(item => item.title === "Chemiosmosis in membranes")!;
+    expect(added.id).toMatch(/^[a-f0-9-]{36}$/i);
+    expect(after.knowledgeMap!.topics.indexOf(added)).toBe(after.knowledgeMap!.topics.findIndex(item => item.id === ETC) + 1);
+    expect(firstSession(after, added.id).title).toMatch(/chemiosmosis/i);
+    assertUnchangedOtherSessions(before, after, [], true);
+  });
+
+  it("removes only the chosen topic's future work and retains its map history", async () => {
+    const { response, body, before } = await preview([{ op: "remove_topic", topic_id: ENZYMES }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const after = body.proposal.after as LearningPlan;
+    expect(topic(after, ENZYMES)).toMatchObject({ removed: true });
+    expect(after.sessions.filter(item => item.status !== "skipped" && item.topicIds?.includes(ENZYMES))).toHaveLength(0);
+    assertUnchangedOtherSessions(before, after, [ENZYMES]);
+  });
+
+  it("excluding a preview line leaves that topic and its sessions unchanged", async () => {
+    const { response, body, before } = await preview([
+      { op: "mark_covered", topic_id: ETC },
+      { op: "attach_source", topic_id: ENZYMES, url: VIDEO },
+    ], { controls: { excludedOperationIndexes: [1] } });
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const after = body.proposal.after as LearningPlan;
+    expect(firstSession(after, ETC).learningMode).toBe("study");
+    expect(topic(after, ENZYMES)).toEqual(topic(before, ENZYMES));
+    assertUnchangedOtherSessions(before, after, [ETC]);
+  });
+
+  it("a later deadline preserves every already-fitting session's time, method and copy", async () => {
+    const { response, body, before } = await preview([{ op: "set_deadline", iso: "2026-10-12T20:00:00.000Z" }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.proposal.after.deadline).toBe("2026-10-12T20:00:00.000Z");
+    expect(body.proposal.after.sessions).toEqual(before.sessions);
+    expect(mocks.fill).not.toHaveBeenCalled();
+  });
+
+  it("extending weekly availability leaves already-fitting sessions unchanged", async () => {
+    const { response, body, before } = await preview([{ op: "set_availability", availability: [{ day: "Every day", window: "Morning", minutes: 150 }] }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.proposal.after.sessions).toEqual(before.sessions);
+    expect(body.proposal.generationRequest.availability[0].minutes).toBe(150);
+  });
+
+  it("an impossible deadline produces capacity choices without claiming a saved update", async () => {
+    const { response, body } = await preview([{ op: "set_deadline", iso: "2026-09-07T08:02:00.000Z" }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.status).toBe("preview");
+    expect(body.proposal.capacity.status).toBe("insufficient");
+    expect(body.proposal.capacity.choices.map((choice: { label: string }) => choice.label).join(" ")).toMatch(/move a block.*shorten scope.*add time/i);
+    expect(body.proposal.canApply).toBe(false);
+    expect(body).not.toHaveProperty("receipt");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("sends only affected fixed slots to the provider", async () => {
+    const { response, body } = await preview([{ op: "mark_covered", topic_id: ETC }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(mocks.fill).toHaveBeenCalledOnce();
+    const input = mocks.fill.mock.calls[0]![0];
+    expect(input.composition.envelopes.every((item: { topicIds: string[] }) => item.topicIds.every(id => id === ETC))).toBe(true);
+    expect(input.request.profileSummary).toMatch(/example|hint/i);
+  });
+
+  it("keeps prior scored placement evidence when the learner reports learning the topic elsewhere", async () => {
+    const fixture = deltaFixture(1);
+    const request = structuredClone(fixture.request);
+    const measured = { source: "placement_check" as const, outcome: "gap" as const, observedAt: DELTA_NOW.toISOString() };
+    request.knowledgeMap!.topics.find(item => item.id === ETC)!.initialEvidence = measured;
+    request.knowledgeMap!.placementCheck = { status: "completed", completedAt: DELTA_NOW.toISOString(), demonstratedTopicIds: [], gapTopicIds: [ETC] };
+    const composition = composeNormalPlanEnvelopes({ ...fixture, request, learningIntentRecommendation: { intent: "learn", basis: "Use the scored placement gap before independent practice." } });
+    const before = buildNormalPlanFromFixedEnvelope({ ...fixture, request, composition, fill: buildNormalPlanFallbackFill({ request, composition }) });
+    const { response, body } = await preview([{ op: "mark_covered", topic_id: ETC }], { context: contextFor(before) });
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const after = body.proposal.after as LearningPlan;
+    expect(firstSession(after, ETC).learningMode).toBe("study");
+    expect(topic(after, ETC)).toHaveProperty("placementEvidence", measured);
+    expect(after.knowledgeMap!.placementCheck).toEqual(before.knowledgeMap!.placementCheck);
+    expect(diagnosticResponsesFromMap(after.knowledgeMap, [])).toEqual(diagnosticResponsesFromMap(before.knowledgeMap, []));
+    expect(topic(after, ETC).status).toBe(topic(before, ETC).status);
+  });
+
+  it("covered-topic practice visibly varies in amount and support for the two saved profiles", async () => {
+    savedProfile(1);
+    const first = await preview([{ op: "mark_covered", topic_id: ETC }], { context: contextFor(deterministicDeltaPlan(1), 1) });
+    expect(first.response.status, JSON.stringify(first.body)).toBe(200);
+    savedProfile(2);
+    const second = await preview([{ op: "mark_covered", topic_id: ETC }], { context: contextFor(deterministicDeltaPlan(2), 2) });
+    expect(second.response.status, JSON.stringify(second.body)).toBe(200);
+    const p1 = firstSession(first.body.proposal.after, ETC);
+    const p2 = firstSession(second.body.proposal.after, ETC);
+    expect([p1.learningMode, p2.learningMode]).toEqual(["study", "study"]);
+    expect(p1.amountLabel).not.toBe(p2.amountLabel);
+    expect(p1.studyRoute!.execution.activityLimit).toBeLessThan(p2.studyRoute!.execution.activityLimit);
+    expect(p1.studyRoute!.execution.initialSupport).toBe("supported_start");
+    expect(p2.studyRoute!.execution.initialSupport).toBe("independent_start");
+    expect(p1.methodReason).toMatch(/hint|example|focus|short/i);
+    expect(p2.methodReason).toMatch(/own words|explain|direct|hour|reflect/i);
+  });
+
+  it.each([
+    { op: "mark_covered", topic_id: "ffffffff-ffff-4fff-8fff-ffffffffffff" },
+    { op: "mark_covered", topic_id: ETC, initialEvidence: { source: "placement_check", outcome: "demonstrated" } },
+    { op: "mark_covered", topic_id: ETC, checked: true },
+    { op: "attach_source", topic_id: ETC, url: "javascript:alert(1)" },
+    { op: "replace_session", topic_id: ETC, title: "Learn photosynthesis" },
+  ])("rejects foreign IDs and evidence/structure injection: %j", async operation => {
+    const { response, body } = await preview([operation]);
+    expect(response.status, JSON.stringify(body)).toBe(422);
+    expect(mocks.fill).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
