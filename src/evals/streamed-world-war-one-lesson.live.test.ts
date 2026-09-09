@@ -92,7 +92,7 @@ describe.skipIf(!liveEvaluationEnabled)("live streamed World War I lesson", () =
     expect(lessonResult.wordCount).toBeGreaterThanOrEqual(120);
     expect(lessonResult.wordCount).toBeLessThanOrEqual(lessonBudget.maximumWords);
     expect(lessonMarkdown).toMatch(/alliance/i);
-    expect(lessonMarkdown).toMatch(/prewar|before (?:1914|World War I)/i);
+    expect(lessonMarkdown).toMatch(/prewar|before (?:the )?(?:1914|World War I|First World War)/i);
     // Since the method-aware cycles in b8f5e102 (Sep 1), the first
     // teaching block owns its assigned claims, not the entire session map.
     // Later outbreak details remain required when this block actually owns

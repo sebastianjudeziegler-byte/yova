@@ -117,9 +117,11 @@ jobs:
 
       - name: Run full live gate on the combined release
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        run: pnpm test:live
+        run: pnpm test:live --runs "$LIVE_GATE_RUNS"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Three serial release samples; ordinary main/PR gates retain one.
+          LIVE_GATE_RUNS: ${{ github.head_ref == 'codex/brief-0-5-grader-and-validators' && '3' || '1' }}
 
       - name: Publish full live gate evidence
         if: always()

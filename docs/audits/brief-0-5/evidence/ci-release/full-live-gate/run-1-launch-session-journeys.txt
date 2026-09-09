@@ -1,0 +1,74 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'calculus'
+[22m[39mcalculus {
+  elapsedMs: [33m13521[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'session_required_typed_recall'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m'A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.'[39m,
+  inputTokens: [33m9393[39m,
+  cachedInputTokens: [33m0[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1374[39m,
+  validationIssueCode: [1mnull[22m,
+  recoveryMode: [32m'safe_learn'[39m,
+  strategy: [32m'streamed'[39m,
+  stage: [32m'complete'[39m
+} self_explanation
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'osmosis'
+[22m[39mosmosis {
+  elapsedMs: [33m9167[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'session_content_specificity'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m'The lesson repeats the same activity instead of progressing through teaching, practice, and evidence. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.'[39m,
+  inputTokens: [33m9234[39m,
+  cachedInputTokens: [33m3840[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1761[39m,
+  validationIssueCode: [1mnull[22m,
+  recoveryMode: [32m'safe_learn'[39m,
+  strategy: [32m'streamed'[39m,
+  stage: [32m'complete'[39m
+} self_explanation
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'recall'
+[22m[39mrecall {
+  elapsedMs: [33m6930[39m,
+  attempts: [33m1[39m,
+  firstAttemptPassed: [33mtrue[39m,
+  failedValidator: [1mnull[22m,
+  repairAttempted: [33mfalse[39m,
+  repairSucceeded: [1mnull[22m,
+  repairReason: [32m'none'[39m,
+  repairDetail: [1mnull[22m,
+  inputTokens: [33m10360[39m,
+  cachedInputTokens: [33m0[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1265[39m,
+  validationIssueCode: [1mnull[22m,
+  strategy: [32m'full'[39m,
+  stage: [32m'complete'[39m
+} concept_mapping
+
+ [32m✓[39m src/evals/launch-session-journeys.live.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 41838[2mms[22m[39m
+     [33m[2m✓[22m[39m 'calculus' [33m 18438[2mms[22m[39m
+     [33m[2m✓[22m[39m 'osmosis' [33m 12807[2mms[22m[39m
+     [33m[2m✓[22m[39m 'recall' [33m 10591[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 06:04:26
+[2m   Duration [22m 42.59s[2m (transform 763ms, setup 0ms, import 637ms, tests 41.84s, environment 0ms)[22m
+
+
+Exit code: 0
