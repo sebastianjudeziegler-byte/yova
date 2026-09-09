@@ -1,0 +1,333 @@
+2026-09-09T15:19:31.2875378Z ##[group]Run git fetch origin e03a082659f51172c0b06bf84daffdd5599ac773
+2026-09-09T15:19:31.2875930Z git fetch origin e03a082659f51172c0b06bf84daffdd5599ac773
+2026-09-09T15:19:31.2876841Z git fetch origin d108e890e3f64e4393f617fe821ac0eb3b7b3c8e
+2026-09-09T15:19:31.2877360Z mkdir -p /tmp/yova-baseline-evals
+2026-09-09T15:19:31.2878100Z git show d108e890e3f64e4393f617fe821ac0eb3b7b3c8e:src/evals/plan-rubric.ts > /tmp/yova-baseline-evals/plan-rubric.ts
+2026-09-09T15:19:31.2879353Z git show d108e890e3f64e4393f617fe821ac0eb3b7b3c8e:src/evals/session-rubric.ts > /tmp/yova-baseline-evals/session-rubric.ts
+2026-09-09T15:19:31.2880366Z git archive HEAD src > /tmp/yova-branch-src.tar
+2026-09-09T15:19:31.2880932Z restore_source() { rm -rf src; tar -xf /tmp/yova-branch-src.tar; }
+2026-09-09T15:19:31.2881438Z trap restore_source EXIT
+2026-09-09T15:19:31.2881687Z rm -rf src
+2026-09-09T15:19:31.2882063Z git archive e03a082659f51172c0b06bf84daffdd5599ac773 src | tar -x
+2026-09-09T15:19:31.2882564Z git diff --exit-code e03a082659f51172c0b06bf84daffdd5599ac773 -- src/lib
+2026-09-09T15:19:31.2883003Z cp /tmp/yova-baseline-evals/*.ts src/evals/
+2026-09-09T15:19:31.2883293Z result=0
+2026-09-09T15:19:31.2883511Z for sample in 1 2 3; do
+2026-09-09T15:19:31.2884487Z   pnpm exec vitest run src/evals/plan-quality.live.test.ts -t 'Calculus problem-solving plan|World War I unit guide' --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile="test-results/release-repro/main-plans-$sample.json" || result=1
+2026-09-09T15:19:31.2886200Z   pnpm exec vitest run src/evals/session-quality.live.test.ts -t 'General-learning finance application' --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile="test-results/release-repro/main-finance-$sample.json" || result=1
+2026-09-09T15:19:31.2888062Z done
+2026-09-09T15:19:31.2888270Z exit "$result"
+2026-09-09T15:19:31.2924499Z shell: /usr/bin/bash -e {0}
+2026-09-09T15:19:31.2924920Z env:
+2026-09-09T15:19:31.2925105Z   TZ: America/Los_Angeles
+2026-09-09T15:19:31.2925329Z   DO_NOT_TRACK: 1
+2026-09-09T15:19:31.2925587Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2026-09-09T15:19:31.2927071Z   OPENAI_API_KEY: ***
+2026-09-09T15:19:31.2927310Z   YOVA_RUN_LIVE_EVALS: 1
+2026-09-09T15:19:31.2927535Z   YOVA_RUN_LIVE_SESSION_EVALS: 1
+2026-09-09T15:19:31.2927770Z ##[endgroup]
+2026-09-09T15:19:32.4310017Z From https://github.com/sebastianjudeziegler-byte/yova
+2026-09-09T15:19:32.4311204Z  * branch            e03a082659f51172c0b06bf84daffdd5599ac773 -> FETCH_HEAD
+2026-09-09T15:19:33.7817884Z From https://github.com/sebastianjudeziegler-byte/yova
+2026-09-09T15:19:33.7819220Z  * branch              d108e890e3f64e4393f617fe821ac0eb3b7b3c8e -> FETCH_HEAD
+2026-09-09T15:19:34.8043584Z 
+2026-09-09T15:19:34.8047760Z  RUN  v4.1.10 /home/runner/work/yova/yova
+2026-09-09T15:19:34.8048127Z 
+2026-09-09T15:20:17.2040368Z stdout | src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'World War I unit guide in short sessi…'
+2026-09-09T15:20:17.2041455Z 
+2026-09-09T15:20:17.2042301Z YOVA plan evaluation · World War I unit guide in short sessions · 100/100
+2026-09-09T15:20:17.2043883Z PASS  Plan size fits the requested scope (10/10) · 4 sessions for unclassified learning plan; expected 2-8
+2026-09-09T15:20:17.2046227Z PASS  Sessions fit supplied availability (15/15) · Wednesday: 15/15 min; Saturday: 15/15 min; Monday: 15/15 min; Wednesday: 15/15 min
+2026-09-09T15:20:17.2047814Z PASS  No work is scheduled after the deadline (15/15) · Deadline: 2026-09-30T23:00:00.000Z
+2026-09-09T15:20:17.2049406Z PASS  Methods fit each session's actual task (20/20) · 4 of 4 sessions pass YOVA's task-to-method router (conceptual evaluation case)
+2026-09-09T15:20:17.2051628Z PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+2026-09-09T15:20:17.2052767Z PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → learn → study
+2026-09-09T15:20:17.2053829Z PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+2026-09-09T15:20:17.2054747Z PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+2026-09-09T15:20:17.2055490Z PASS  Sessions are not repetitive (5/5) · 4 distinct objectives across 4 sessions
+2026-09-09T15:20:17.2056247Z PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+2026-09-09T15:20:17.2057991Z PASS  Uploaded sources are not used to justify invented facts (5/5) · Source-grounded rationale reviewed
+2026-09-09T15:20:17.2058759Z 
+2026-09-09T15:20:17.2071253Z  ❯ src/evals/plan-quality.live.test.ts (11 tests | 1 failed | 9 skipped) 41899ms
+2026-09-09T15:20:17.2072756Z      ↓ the requested case exists
+2026-09-09T15:20:17.2073569Z      ↓ 'Biology test with learner notes'
+2026-09-09T15:20:17.2074532Z      × 'Calculus problem-solving plan' 15853ms
+2026-09-09T15:20:17.2075112Z      ↓ 'Calculus unit with mixed placement ev…'
+2026-09-09T15:20:17.2075615Z      ↓ 'One product-rule skill in short sessi…'
+2026-09-09T15:20:17.2076603Z      ✓ 'World War I unit guide in short sessi…'  26044ms
+2026-09-09T15:20:17.2077814Z      ↓ 'Full beginner calculus pathway'
+2026-09-09T15:20:17.2078750Z      ↓ 'General-learning startup funding path…'
+2026-09-09T15:20:17.2079659Z      ↓ 'History essay using outside sources'
+2026-09-09T15:20:17.2080539Z      ↓ 'Beginner JavaScript practice'
+2026-09-09T15:20:17.2081315Z      ↓ 'General-learning finance pathway'
+2026-09-09T15:20:17.2095909Z 
+2026-09-09T15:20:17.2096852Z ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+2026-09-09T15:20:17.2097454Z 
+2026-09-09T15:20:17.2100672Z  FAIL  src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'Calculus problem-solving plan'
+2026-09-09T15:20:17.2106841Z OpenAIPlanGenerationError: The OpenAI request failed.
+2026-09-09T15:20:17.2108169Z  ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:210:11
+2026-09-09T15:20:17.2148206Z     208|       ? ` The first draft was rejected because: ${lastValidationIssue}`
+2026-09-09T15:20:17.2149889Z     209|       : "";
+2026-09-09T15:20:17.2150983Z     210|     throw new OpenAIPlanGenerationError(
+2026-09-09T15:20:17.2151867Z        |           ^
+2026-09-09T15:20:17.2153011Z     211|       `The OpenAI request failed.${priorIssue}`,
+2026-09-09T15:20:17.2154125Z     212|       "provider_error",
+2026-09-09T15:20:17.2155235Z  ❯ src/evals/plan-quality.live.test.ts:19:23
+2026-09-09T15:20:17.2155730Z 
+2026-09-09T15:20:17.2157230Z Caused by: PlanScheduleCapacityError: The selected study windows do not have enough room for this plan before the deadline.
+2026-09-09T15:20:17.2158259Z  ❯ src/lib/plan-generation/schedule-plan.ts:58:22
+2026-09-09T15:20:17.2162519Z  ❯ alignGeneratedPlanToAvailability src/lib/plan-generation/schedule-plan.ts:49:35
+2026-09-09T15:20:17.2164775Z  ❯ generatePlanWithOpenAI src/lib/openai/plan-generator.ts:171:32
+2026-09-09T15:20:17.2166512Z  ❯ src/evals/plan-quality.live.test.ts:19:23
+2026-09-09T15:20:17.2167195Z 
+2026-09-09T15:20:17.2167919Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+2026-09-09T15:20:17.2168312Z 
+2026-09-09T15:20:17.2168496Z 
+2026-09-09T15:20:17.2172955Z  Test Files  1 failed (1)
+2026-09-09T15:20:17.2174690Z       Tests  1 failed | 1 passed | 9 skipped (11)
+2026-09-09T15:20:17.2175967Z    Start at  08:19:34
+2026-09-09T15:20:17.2177613Z    Duration  42.38s (transform 268ms, setup 0ms, import 358ms, tests 41.90s, environment 0ms)
+2026-09-09T15:20:17.2178646Z 
+2026-09-09T15:20:17.2308378Z JSON report written to /home/runner/work/yova/yova/test-results/release-repro/main-plans-1.json
+2026-09-09T15:20:18.0203466Z 
+2026-09-09T15:20:18.0207539Z  RUN  v4.1.10 /home/runner/work/yova/yova
+2026-09-09T15:20:18.0208070Z 
+2026-09-09T15:20:33.8101574Z stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'General-learning finance application'
+2026-09-09T15:20:33.8103086Z 
+2026-09-09T15:20:33.8103683Z YOVA session evaluation · General-learning finance application · 100/100
+2026-09-09T15:20:33.8104556Z Generation · gpt-5.4-mini-2026-03-17 · 14.7s · 2 attempts · 3,840 cached input tokens
+2026-09-09T15:20:33.8106927Z Repair trigger · The skeleton could not be finalized because its knowledge-check structure was incomplete (multiple choice: 1, typed response: 3). [
+2026-09-09T15:20:33.8108277Z   {
+2026-09-09T15:20:33.8108533Z     "origin": "array",
+2026-09-09T15:20:33.8108801Z     "code": "too_small",
+2026-09-09T15:20:33.8109065Z     "minimum": 3,
+2026-09-09T15:20:33.8109306Z     "inclusive": true,
+2026-09-09T15:20:33.8109561Z     "path": [
+2026-09-09T15:20:33.8109788Z       "activities"
+2026-09-09T15:20:33.8110059Z     ],
+2026-09-09T15:20:33.8110543Z     "message": "Too small: expected array to have >=3 items"
+2026-09-09T15:20:33.8111853Z   }
+2026-09-09T15:20:33.8113494Z ] The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.
+2026-09-09T15:20:33.8115555Z instruction      none · Borrowing cost factors
+2026-09-09T15:20:33.8117612Z free_response    Interest and credit utilization shape borrowing costs and loan approval decisions. · Borrowing cost factors
+2026-09-09T15:20:33.8120195Z free_response    Interest and credit utilization shape borrowing choices when comparing available credit options. · Choosing between credit options
+2026-09-09T15:20:33.8122657Z free_response    Interest and credit utilization shape borrowing costs and loan approval decisions. · Repair the first explanation
+2026-09-09T15:20:33.8125103Z free_response    Interest and credit utilization shape borrowing costs and loan approval decisions. · Explain the corrected relationship again
+2026-09-09T15:20:33.8128253Z multiple_choice  Recognition transfer: Interest and credit utilization shape borrowing choices when comparing available credit options. · Credit decision factor
+2026-09-09T15:20:33.8128950Z 
+2026-09-09T15:20:33.8129665Z PASS  Activity count fits the session (10/10) · 6 focused activities; production time budget passed for 30 minutes
+2026-09-09T15:20:33.8130771Z PASS  Session requires active learner effort (15/15) · 5 retrieval or knowledge-check activities
+2026-09-09T15:20:33.8132616Z PASS  Questions include usable answers and feedback (15/15) · 5 question activities inspected
+2026-09-09T15:20:33.8134253Z PASS  Activities fit the learning task (15/15) · 5 of 6 activities align with general
+2026-09-09T15:20:33.8153615Z PASS  Session moves from support into practice (10/10) · Checked teaching and question order
+2026-09-09T15:20:33.8155100Z PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+2026-09-09T15:20:33.8156873Z PASS  Known review concepts are addressed (10/10) · No prior review signal
+2026-09-09T15:20:33.8158318Z PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+2026-09-09T15:20:33.8159909Z PASS  Method briefing explains what, why, how, and done (0/0) · self_explanation for conceptual_learning
+2026-09-09T15:20:33.8161725Z PASS  Activities actually execute the named learning method (0/0) · Required self_explanation phases appear in order
+2026-09-09T15:20:33.8163532Z PASS  The session starts with the method's correct first action (0/0) · self_explanation starts with model
+2026-09-09T15:20:33.8165272Z PASS  Required content fits the stated time window (0/0) · 20 required and 30 total minutes inside a 30-minute window
+2026-09-09T15:20:33.8167271Z PASS  Every target idea has required learning evidence (0/0) · 2 essential ideas mapped to 3 required checks
+2026-09-09T15:20:33.8169001Z PASS  Every question includes the context needed to answer (0/0) · 5 self-contained questions inspected
+2026-09-09T15:20:33.8170804Z PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+2026-09-09T15:20:33.8172600Z PASS  Learning sessions teach before they test (0/0) · 1 modeled or streamed teaching activities inspected
+2026-09-09T15:20:33.8174516Z PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 1 learner-facing adjustment explanations inspected
+2026-09-09T15:20:33.8176535Z PASS  The session explains why it is structured this way (5/5) · 188 rationale characters
+2026-09-09T15:20:33.8178071Z PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+2026-09-09T15:20:33.8178785Z 
+2026-09-09T15:20:33.8179916Z  ✓ src/evals/session-quality.live.test.ts (20 tests | 19 skipped) 15384ms
+2026-09-09T15:20:33.8181894Z      ✓ 'General-learning finance application'  15382ms
+2026-09-09T15:20:33.8182559Z 
+2026-09-09T15:20:33.8183142Z  Test Files  1 passed (1)
+2026-09-09T15:20:33.8184660Z       Tests  1 passed | 19 skipped (20)
+2026-09-09T15:20:33.8185564Z    Start at  08:20:18
+2026-09-09T15:20:33.8187033Z    Duration  15.77s (transform 610ms, setup 0ms, import 260ms, tests 15.38s, environment 0ms)
+2026-09-09T15:20:33.8187746Z 
+2026-09-09T15:20:33.8188760Z JSON report written to /home/runner/work/yova/yova/test-results/release-repro/main-finance-1.json
+2026-09-09T15:20:34.6159923Z 
+2026-09-09T15:20:34.6188081Z  RUN  v4.1.10 /home/runner/work/yova/yova
+2026-09-09T15:20:34.6188749Z 
+2026-09-09T15:21:26.4556136Z stdout | src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'Calculus problem-solving plan'
+2026-09-09T15:21:26.4557132Z 
+2026-09-09T15:21:26.4557671Z YOVA plan evaluation · Calculus problem-solving plan · 100/100
+2026-09-09T15:21:26.4558591Z PASS  Plan size fits the requested scope (10/10) · 3 sessions for unclassified learning plan; expected 2-8
+2026-09-09T15:21:26.4559711Z PASS  Sessions fit supplied availability (15/15) · Wednesday: 25/30 min; Saturday: 30/40 min; Monday: 25/25 min
+2026-09-09T15:21:26.4560705Z PASS  No work is scheduled after the deadline (15/15) · Deadline: 2026-09-16T23:00:00.000Z
+2026-09-09T15:21:26.4561992Z PASS  Methods fit each session's actual task (20/20) · 3 of 3 sessions pass YOVA's task-to-method router (problem solving evaluation case)
+2026-09-09T15:21:26.4563966Z PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+2026-09-09T15:21:26.4565208Z PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → study
+2026-09-09T15:21:26.4567009Z PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+2026-09-09T15:21:26.4568602Z PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+2026-09-09T15:21:26.4569935Z PASS  Sessions are not repetitive (5/5) · 3 distinct objectives across 3 sessions
+2026-09-09T15:21:26.4570950Z PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+2026-09-09T15:21:26.4571702Z PASS  Uploaded sources are not used to justify invented facts (5/5) · No uploaded source
+2026-09-09T15:21:26.4572050Z 
+2026-09-09T15:21:46.5599948Z stdout | src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'World War I unit guide in short sessi…'
+2026-09-09T15:21:46.5601301Z 
+2026-09-09T15:21:46.5601896Z YOVA plan evaluation · World War I unit guide in short sessions · 100/100
+2026-09-09T15:21:46.5603006Z PASS  Plan size fits the requested scope (10/10) · 4 sessions for unclassified learning plan; expected 2-8
+2026-09-09T15:21:46.5604462Z PASS  Sessions fit supplied availability (15/15) · Wednesday: 15/15 min; Saturday: 15/15 min; Monday: 15/15 min; Wednesday: 15/15 min
+2026-09-09T15:21:46.5605962Z PASS  No work is scheduled after the deadline (15/15) · Deadline: 2026-09-30T23:00:00.000Z
+2026-09-09T15:21:46.5607613Z PASS  Methods fit each session's actual task (20/20) · 4 of 4 sessions pass YOVA's task-to-method router (conceptual evaluation case)
+2026-09-09T15:21:46.5609557Z PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+2026-09-09T15:21:46.5611028Z PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → study → study
+2026-09-09T15:21:46.5612235Z PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+2026-09-09T15:21:46.5613271Z PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+2026-09-09T15:21:46.5614136Z PASS  Sessions are not repetitive (5/5) · 4 distinct objectives across 4 sessions
+2026-09-09T15:21:46.5615806Z PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+2026-09-09T15:21:46.5617239Z PASS  Uploaded sources are not used to justify invented facts (5/5) · Source-grounded rationale reviewed
+2026-09-09T15:21:46.5617803Z 
+2026-09-09T15:21:46.5628135Z  ✓ src/evals/plan-quality.live.test.ts (11 tests | 9 skipped) 71445ms
+2026-09-09T15:21:46.5629587Z      ✓ 'Calculus problem-solving plan'  51339ms
+2026-09-09T15:21:46.5630279Z      ✓ 'World War I unit guide in short sessi…'  20104ms
+2026-09-09T15:21:46.5652191Z 
+2026-09-09T15:21:46.5656186Z  Test Files  1 passed (1)
+2026-09-09T15:21:46.5657506Z       Tests  2 passed | 9 skipped (11)
+2026-09-09T15:21:46.5658036Z    Start at  08:20:34
+2026-09-09T15:21:46.5659798Z    Duration  71.93s (transform 268ms, setup 0ms, import 356ms, tests 71.45s, environment 0ms)
+2026-09-09T15:21:46.5661243Z 
+2026-09-09T15:21:46.5679191Z JSON report written to /home/runner/work/yova/yova/test-results/release-repro/main-plans-2.json
+2026-09-09T15:21:47.3531395Z 
+2026-09-09T15:21:47.3535488Z  RUN  v4.1.10 /home/runner/work/yova/yova
+2026-09-09T15:21:47.3535969Z 
+2026-09-09T15:22:01.4762194Z stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'General-learning finance application'
+2026-09-09T15:22:01.4763485Z 
+2026-09-09T15:22:01.4764426Z YOVA session evaluation · General-learning finance application · 100/100
+2026-09-09T15:22:01.4765772Z Generation · gpt-5.4-mini-2026-03-17 · 13.0s · 2 attempts · 6,400 cached input tokens
+2026-09-09T15:22:01.4770568Z Repair trigger · A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.
+2026-09-09T15:22:01.4773499Z instruction      none · Borrowing cost factors
+2026-09-09T15:22:01.4774790Z free_response    Interest increases borrowing cost, and high credit utilization can weaken borrowing decisions. · Borrowing cost factors
+2026-09-09T15:22:01.4775945Z free_response    When borrowing, compare interest cost with current credit utilization before choosing the loan · Choosing a loan option
+2026-09-09T15:22:01.4777412Z free_response    Interest increases borrowing cost, and high credit utilization can weaken borrowing decisions. · Repair the first explanation
+2026-09-09T15:22:01.4778647Z free_response    Interest increases borrowing cost, and high credit utilization can weaken borrowing decisions. · Explain the corrected relationship again
+2026-09-09T15:22:01.4779976Z multiple_choice  Recognition transfer: When borrowing, compare interest cost with current credit utilization before choosing the loan · Credit decision factor
+2026-09-09T15:22:01.4781055Z 
+2026-09-09T15:22:01.4781874Z PASS  Activity count fits the session (10/10) · 6 focused activities; production time budget passed for 30 minutes
+2026-09-09T15:22:01.4782735Z PASS  Session requires active learner effort (15/15) · 5 retrieval or knowledge-check activities
+2026-09-09T15:22:01.4783507Z PASS  Questions include usable answers and feedback (15/15) · 5 question activities inspected
+2026-09-09T15:22:01.4784219Z PASS  Activities fit the learning task (15/15) · 5 of 6 activities align with general
+2026-09-09T15:22:01.4785290Z PASS  Session moves from support into practice (10/10) · Checked teaching and question order
+2026-09-09T15:22:01.4786682Z PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+2026-09-09T15:22:01.4787341Z PASS  Known review concepts are addressed (10/10) · No prior review signal
+2026-09-09T15:22:01.4788233Z PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+2026-09-09T15:22:01.4788997Z PASS  Method briefing explains what, why, how, and done (0/0) · self_explanation for conceptual_learning
+2026-09-09T15:22:01.4789889Z PASS  Activities actually execute the named learning method (0/0) · Required self_explanation phases appear in order
+2026-09-09T15:22:01.4790770Z PASS  The session starts with the method's correct first action (0/0) · self_explanation starts with model
+2026-09-09T15:22:01.4791657Z PASS  Required content fits the stated time window (0/0) · 20 required and 30 total minutes inside a 30-minute window
+2026-09-09T15:22:01.4792554Z PASS  Every target idea has required learning evidence (0/0) · 2 essential ideas mapped to 3 required checks
+2026-09-09T15:22:01.4793872Z PASS  Every question includes the context needed to answer (0/0) · 5 self-contained questions inspected
+2026-09-09T15:22:01.4795092Z PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+2026-09-09T15:22:01.4796537Z PASS  Learning sessions teach before they test (0/0) · 1 modeled or streamed teaching activities inspected
+2026-09-09T15:22:01.4798127Z PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 1 learner-facing adjustment explanations inspected
+2026-09-09T15:22:01.4799032Z PASS  The session explains why it is structured this way (5/5) · 188 rationale characters
+2026-09-09T15:22:01.4800195Z PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+2026-09-09T15:22:01.4800578Z 
+2026-09-09T15:22:01.4801198Z  ✓ src/evals/session-quality.live.test.ts (20 tests | 19 skipped) 13715ms
+2026-09-09T15:22:01.4802200Z      ✓ 'General-learning finance application'  13713ms
+2026-09-09T15:22:01.4808043Z 
+2026-09-09T15:22:01.4812020Z  Test Files  1 passed (1)
+2026-09-09T15:22:01.4813301Z       Tests  1 passed | 19 skipped (20)
+2026-09-09T15:22:01.4814065Z    Start at  08:21:47
+2026-09-09T15:22:01.4815543Z    Duration  14.10s (transform 610ms, setup 0ms, import 261ms, tests 13.72s, environment 0ms)
+2026-09-09T15:22:01.4817745Z 
+2026-09-09T15:22:01.4831562Z JSON report written to /home/runner/work/yova/yova/test-results/release-repro/main-finance-2.json
+2026-09-09T15:22:02.2981217Z 
+2026-09-09T15:22:02.2984790Z  RUN  v4.1.10 /home/runner/work/yova/yova
+2026-09-09T15:22:02.2985530Z 
+2026-09-09T15:22:22.2004983Z stdout | src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'Calculus problem-solving plan'
+2026-09-09T15:22:22.2006170Z 
+2026-09-09T15:22:22.2007397Z YOVA plan evaluation · Calculus problem-solving plan · 100/100
+2026-09-09T15:22:22.2008549Z PASS  Plan size fits the requested scope (10/10) · 3 sessions for unclassified learning plan; expected 2-8
+2026-09-09T15:22:22.2009669Z PASS  Sessions fit supplied availability (15/15) · Wednesday: 25/30 min; Saturday: 30/40 min; Monday: 25/25 min
+2026-09-09T15:22:22.2010784Z PASS  No work is scheduled after the deadline (15/15) · Deadline: 2026-09-16T23:00:00.000Z
+2026-09-09T15:22:22.2012210Z PASS  Methods fit each session's actual task (20/20) · 3 of 3 sessions pass YOVA's task-to-method router (problem solving evaluation case)
+2026-09-09T15:22:22.2013289Z PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+2026-09-09T15:22:22.2014276Z PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → study
+2026-09-09T15:22:22.2015252Z PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+2026-09-09T15:22:22.2016978Z PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+2026-09-09T15:22:22.2017682Z PASS  Sessions are not repetitive (5/5) · 3 distinct objectives across 3 sessions
+2026-09-09T15:22:22.2018380Z PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+2026-09-09T15:22:22.2019105Z PASS  Uploaded sources are not used to justify invented facts (5/5) · No uploaded source
+2026-09-09T15:22:22.2019443Z 
+2026-09-09T15:22:41.8001357Z stdout | src/evals/plan-quality.live.test.ts > live OpenAI plan quality > 'World War I unit guide in short sessi…'
+2026-09-09T15:22:41.8002831Z 
+2026-09-09T15:22:41.8003897Z YOVA plan evaluation · World War I unit guide in short sessions · 100/100
+2026-09-09T15:22:41.8005621Z PASS  Plan size fits the requested scope (10/10) · 4 sessions for unclassified learning plan; expected 2-8
+2026-09-09T15:22:41.8008022Z PASS  Sessions fit supplied availability (15/15) · Wednesday: 15/15 min; Saturday: 15/15 min; Monday: 15/15 min; Wednesday: 15/15 min
+2026-09-09T15:22:41.8009794Z PASS  No work is scheduled after the deadline (15/15) · Deadline: 2026-09-30T23:00:00.000Z
+2026-09-09T15:22:41.8011523Z PASS  Methods fit each session's actual task (20/20) · 4 of 4 sessions pass YOVA's task-to-method router (conceptual evaluation case)
+2026-09-09T15:22:41.8013622Z PASS  Plan progresses toward retrieval or application (15/15) · Early foundation signal: yes; later application/review signal: yes
+2026-09-09T15:22:41.8015404Z PASS  Plan separates teaching from practice (0/0) · Requested learn; session sequence: learn → learn → study → study
+2026-09-09T15:22:41.8017595Z PASS  Every mapped topic is scheduled or explicitly deferred (0/0) · No topic map supplied; mapped coverage is not applicable
+2026-09-09T15:22:41.8019734Z PASS  Every method has a meaningful reason (10/10) · Method reasons are visible to the learner
+2026-09-09T15:22:41.8020547Z PASS  Sessions are not repetitive (5/5) · 4 distinct objectives across 4 sessions
+2026-09-09T15:22:41.8021285Z PASS  No fixed brain or learning-style claims (5/5) · Checked all learner-facing plan text
+2026-09-09T15:22:41.8022119Z PASS  Uploaded sources are not used to justify invented facts (5/5) · Source-grounded rationale reviewed
+2026-09-09T15:22:41.8022506Z 
+2026-09-09T15:22:41.8034461Z  ✓ src/evals/plan-quality.live.test.ts (11 tests | 9 skipped) 39003ms
+2026-09-09T15:22:41.8036026Z      ✓ 'Calculus problem-solving plan'  19401ms
+2026-09-09T15:22:41.8046219Z      ✓ 'World War I unit guide in short sessi…'  19599ms
+2026-09-09T15:22:41.8058113Z 
+2026-09-09T15:22:41.8062505Z  Test Files  1 passed (1)
+2026-09-09T15:22:41.8063975Z       Tests  2 passed | 9 skipped (11)
+2026-09-09T15:22:41.8065115Z    Start at  08:22:02
+2026-09-09T15:22:41.8066661Z    Duration  39.49s (transform 265ms, setup 0ms, import 353ms, tests 39.00s, environment 0ms)
+2026-09-09T15:22:41.8067663Z 
+2026-09-09T15:22:41.8083705Z JSON report written to /home/runner/work/yova/yova/test-results/release-repro/main-plans-3.json
+2026-09-09T15:22:42.5910468Z 
+2026-09-09T15:22:42.5913977Z  RUN  v4.1.10 /home/runner/work/yova/yova
+2026-09-09T15:22:42.5914667Z 
+2026-09-09T15:22:57.3021832Z stdout | src/evals/session-quality.live.test.ts > live OpenAI session quality > 'General-learning finance application'
+2026-09-09T15:22:57.3023168Z 
+2026-09-09T15:22:57.3024072Z YOVA session evaluation · General-learning finance application · 100/100
+2026-09-09T15:22:57.3025467Z Generation · gpt-5.4-mini-2026-03-17 · 13.6s · 2 attempts · 6,400 cached input tokens
+2026-09-09T15:22:57.3027754Z Repair trigger · The skeleton could not be finalized because its knowledge-check structure was incomplete (multiple choice: 1, typed response: 3). [
+2026-09-09T15:22:57.3029474Z   {
+2026-09-09T15:22:57.3029828Z     "origin": "array",
+2026-09-09T15:22:57.3030239Z     "code": "too_small",
+2026-09-09T15:22:57.3030658Z     "minimum": 3,
+2026-09-09T15:22:57.3031036Z     "inclusive": true,
+2026-09-09T15:22:57.3031437Z     "path": [
+2026-09-09T15:22:57.3031804Z       "activities"
+2026-09-09T15:22:57.3032161Z     ],
+2026-09-09T15:22:57.3032690Z     "message": "Too small: expected array to have >=3 items"
+2026-09-09T15:22:57.3033234Z   }
+2026-09-09T15:22:57.3034625Z ] The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.
+2026-09-09T15:22:57.3035550Z instruction      none · Borrowing cost factors
+2026-09-09T15:22:57.3036770Z free_response    Credit interest increases borrowing cost, and high credit utilization can hurt borrowing terms. · Borrowing cost factors
+2026-09-09T15:22:57.3038314Z free_response    Credit interest and utilization together help determine whether borrowing is affordable and · Choosing a loan offer
+2026-09-09T15:22:57.3040085Z free_response    Credit interest increases borrowing cost, and high credit utilization can hurt borrowing terms. · Repair the first explanation
+2026-09-09T15:22:57.3041560Z free_response    Credit interest increases borrowing cost, and high credit utilization can hurt borrowing terms. · Explain the corrected relationship again
+2026-09-09T15:22:57.3042868Z multiple_choice  Recognition transfer: Credit interest and utilization together help determine whether borrowing is affordable and · Credit and interest review
+2026-09-09T15:22:57.3043454Z 
+2026-09-09T15:22:57.3044285Z PASS  Activity count fits the session (10/10) · 6 focused activities; production time budget passed for 30 minutes
+2026-09-09T15:22:57.3045847Z PASS  Session requires active learner effort (15/15) · 5 retrieval or knowledge-check activities
+2026-09-09T15:22:57.3046908Z PASS  Questions include usable answers and feedback (15/15) · 5 question activities inspected
+2026-09-09T15:22:57.3047645Z PASS  Activities fit the learning task (15/15) · 5 of 6 activities align with general
+2026-09-09T15:22:57.3048374Z PASS  Session moves from support into practice (10/10) · Checked teaching and question order
+2026-09-09T15:22:57.3049073Z PASS  Learner materials remain the factual anchor (10/10) · No uploaded source
+2026-09-09T15:22:57.3049722Z PASS  Known review concepts are addressed (10/10) · No prior review signal
+2026-09-09T15:22:57.3050369Z PASS  Outside-app work receives concrete directions (5/5) · Inside-YOVA session
+2026-09-09T15:22:57.3051132Z PASS  Method briefing explains what, why, how, and done (0/0) · self_explanation for conceptual_learning
+2026-09-09T15:22:57.3052042Z PASS  Activities actually execute the named learning method (0/0) · Required self_explanation phases appear in order
+2026-09-09T15:22:57.3053417Z PASS  The session starts with the method's correct first action (0/0) · self_explanation starts with model
+2026-09-09T15:22:57.3054578Z PASS  Required content fits the stated time window (0/0) · 20 required and 30 total minutes inside a 30-minute window
+2026-09-09T15:22:57.3055895Z PASS  Every target idea has required learning evidence (0/0) · 2 essential ideas mapped to 3 required checks
+2026-09-09T15:22:57.3057665Z PASS  Every question includes the context needed to answer (0/0) · 5 self-contained questions inspected
+2026-09-09T15:22:57.3058619Z PASS  The lesson names and teaches the actual subject content (0/0) · Topic language and teaching coverage inspected
+2026-09-09T15:22:57.3059580Z PASS  Learning sessions teach before they test (0/0) · 1 modeled or streamed teaching activities inspected
+2026-09-09T15:22:57.3060777Z PASS  The learner can see a concrete evidence-linked delivery adjustment (0/0) · 1 learner-facing adjustment explanations inspected
+2026-09-09T15:22:57.3061646Z PASS  The session explains why it is structured this way (5/5) · 188 rationale characters
+2026-09-09T15:22:57.3062807Z PASS  No fixed brain, diagnosis, or learning-style claim (5/5) · Checked learner-facing session text
+2026-09-09T15:22:57.3063228Z 
+2026-09-09T15:22:57.3063836Z  ✓ src/evals/session-quality.live.test.ts (20 tests | 19 skipped) 14308ms
+2026-09-09T15:22:57.3065106Z      ✓ 'General-learning finance application'  14306ms
+2026-09-09T15:22:57.3069297Z 
+2026-09-09T15:22:57.3073267Z  Test Files  1 passed (1)
+2026-09-09T15:22:57.3074448Z       Tests  1 passed | 19 skipped (20)
+2026-09-09T15:22:57.3074983Z    Start at  08:22:42
+2026-09-09T15:22:57.3076866Z    Duration  14.69s (transform 615ms, setup 0ms, import 262ms, tests 14.31s, environment 0ms)
+2026-09-09T15:22:57.3078974Z 
+2026-09-09T15:22:57.3092908Z JSON report written to /home/runner/work/yova/yova/test-results/release-repro/main-finance-3.json
+2026-09-09T15:22:57.4202618Z ##[error]Process completed with exit code 1.
+2026-09-09T15:22:57.4272318Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
