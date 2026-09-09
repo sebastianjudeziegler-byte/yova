@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSessionEvaluationCases } from "@/evals/session-cases";
 import { evaluateSessionDraft } from "@/evals/session-rubric";
+import { buildSessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
 import {
   GeneratedSessionDraftSchema,
   StreamedGeneratedSessionDraftSchema,
@@ -127,6 +128,33 @@ const strongSession = GeneratedSessionDraftSchema.parse({
 });
 
 describe("session quality rubric", () => {
+  it("accepts policy-backed overview and one-step copy while rejecting an unsupported learner claim", () => {
+    // Production decision explanations since bf02043 (2026-08-14).
+    const reasons = [
+      "Show the overall relationship before the details.",
+      "Keep the current action prominent and make the full path optional.",
+    ];
+    const policy = {
+      ...buildSessionDeliveryPolicy({
+        learnerProfile: biologyCase.context.learnerProfile,
+        recentResults: biologyCase.context.recentResults,
+        recentInterruptions: biologyCase.context.recentInterruptions,
+        learningMode: biologyCase.context.session.learningMode,
+        estimatedMinutes: biologyCase.context.session.estimatedMinutes,
+      }),
+      learnerFacingReasons: reasons,
+    };
+    const draft = { ...strongSession, methodBriefing: { ...strongSession.methodBriefing, personalization: reasons } };
+    expect(draft.methodBriefing.personalization).toEqual(reasons);
+    const evaluateCopy = (value: typeof draft) => evaluateSessionDraft(
+      value, biologyCase.context, biologyCase.taskFamily, biologyCase.expectedSourceTerms, policy,
+    ).checks.find((check) => check.id === "visible_personalization");
+    expect(evaluateCopy(draft)?.passed).toBe(true);
+    const unsupported = { ...draft, methodBriefing: { ...draft.methodBriefing, personalization: ["You are a visual learner, so this session uses colorful diagrams."] } };
+    expect(evaluateCopy(unsupported)).toMatchObject({ passed: false });
+    expect(evaluateCopy(unsupported)?.detail).toContain("not traceable to the learner signals");
+  });
+
   it("accepts a fifteen-minute model, explanation, repair, re-explanation and recognition sequence", () => {
     const draft = GeneratedSessionDraftSchema.parse({
       ...strongSession,

@@ -134,8 +134,9 @@ export function evaluateSessionDraft(
     ));
   const noOverclaim = !/learns? best|learning style|brain type|visual learner|auditory learner|kinesthetic learner|because (you have|of your) adhd|diagnos(?:is|ed|e)\b/i.test(combined);
   const visiblePersonalization = draft.methodBriefing.personalization.length >= 1
-    && draft.methodBriefing.personalization.every((reason) => reason.trim().length >= 20)
-    && draft.methodBriefing.personalization.every((reason) => /you|your|session|support|example|step|practice|review|question|check|retrieval|scheduled return|attempt|miss|misconception|model|result|performance|pacing/i.test(reason));
+    // Policy-backed decision copy need not contain a fixed vocabulary. The
+    // provenance validator below still rejects unsupported learner claims.
+    && draft.methodBriefing.personalization.every((reason) => reason.trim().length >= 20);
   const routing = buildLearningScienceRoutingBrief({
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: context.session.learningMode,

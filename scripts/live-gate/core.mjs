@@ -41,7 +41,7 @@ export function publicError(error, depth = 0) {
   }
   for (const name of ["actual", "expected"]) {
     if (error[name] !== undefined) {
-      try { result[name] = JSON.stringify(error[name]).slice(0, 12000); }
+      try { result[name] = (typeof error[name] === "string" ? error[name] : JSON.stringify(error[name])).slice(0, 12000); }
       catch { result[name] = "[unserializable assertion value]"; }
     }
   }

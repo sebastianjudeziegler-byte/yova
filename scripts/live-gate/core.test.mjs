@@ -97,3 +97,15 @@ test("published errors retain provider classification without credentials, heade
   assert.deepEqual(error, { name: "Error", message: "bad request", providerError: { category: "timeout" } });
   assert.equal(redact("api-secret-value and token-secret-value", { OPENAI_API_KEY: "api-secret-value", GITHUB_TOKEN: "token-secret-value" }), "[REDACTED] and [REDACTED]");
 });
+
+test("Vitest's already-serialized batch errors retain provider-unavailable accounting", async () => {
+  const { publicError, buildReport } = await import("./core.mjs");
+  const error = publicError({
+    message: "Expected no failed inner attempts",
+    actual: JSON.stringify([{ run: 1, error: "APIConnectionTimeoutError: Request timed out." }]),
+    expected: "[]",
+  });
+  const report = buildReport([{ ...example, errors: [error] }], {}, {});
+  assert.deepEqual(report.counts, { pass: 0, fail: 0, flaky: 0, unavailable: 1 });
+  assert.equal(report.exitCode, 0);
+});

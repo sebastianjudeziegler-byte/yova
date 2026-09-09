@@ -411,12 +411,12 @@
       "evidence": "Passed 1/3 complete main runs; 2 semantic failure(s), 0 unavailable attempt(s)."
     },
     "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP": {
-      "classification": "STALE",
+      "classification": "REAL",
       "passRate": "0/3",
       "semanticFailures": 3,
       "unavailable": 0,
       "auditId": "A05",
-      "evidence": "The test assumes every demonstrated topic gets a session; d7d772b (Aug 27) explicitly allows capacity deferral while retaining its evidence."
+      "evidence": "The baseline expectation was stale, but branch verification exposed an independent diagnostic-generator failure before that assertion; conservatively REAL after correction."
     },
     "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Biology test with learner notes'": {
       "classification": "STALE",
@@ -491,12 +491,12 @@
       "evidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20)."
     },
     "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'One product-rule skill in short sessi\u2026'": {
-      "classification": "STALE",
+      "classification": "REAL",
       "passRate": "0/3",
       "semanticFailures": 2,
       "unavailable": 1,
       "auditId": "A15",
-      "evidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20)."
+      "evidence": "The baseline no-map coverage assertion was stale, but both the complete branch run and a focused follow-up failed session recovery independently; conservatively REAL after correction."
     },
     "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'World War I unit guide in short sessi\u2026'": {
       "classification": "REAL",
@@ -507,12 +507,12 @@
       "evidence": "A learner-facing failure or unresolved product-intent question remains."
     },
     "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'Full beginner calculus pathway'": {
-      "classification": "STALE",
+      "classification": "REAL",
       "passRate": "0/3",
       "semanticFailures": 3,
       "unavailable": 0,
       "auditId": "A17",
-      "evidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20)."
+      "evidence": "After correcting no-map coverage and policy-copy vocabulary, a focused run still failed task alignment. Deciding whether foundational Learn content must satisfy the plan-wide problem-solving keyword test requires product intent, so REAL; the assertion remains unchanged."
     },
     "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'History essay using outside sources'": {
       "classification": "STALE",
@@ -520,7 +520,7 @@
       "semanticFailures": 3,
       "unavailable": 0,
       "auditId": "A18",
-      "evidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20)."
+      "evidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20). Correcting that first assertion also exposed a stale vocabulary filter rejecting policy-backed overview/one-step copy present since bf02043 (Aug 14)."
     },
     "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Biology teaching from learner notes'": {
       "classification": "REAL",
