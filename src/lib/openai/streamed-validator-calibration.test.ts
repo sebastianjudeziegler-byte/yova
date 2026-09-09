@@ -47,9 +47,10 @@ describe("Brief 0.5 preserved subject and notation boundaries", () => {
     const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
     const result = await generateStreamedTeachingSkeletonWithOpenAI(captures.formula.context as SessionGenerationContext);
     const recognition = result.draft.activities.find(activity => activity.type === "multiple_choice");
-    expect(recognition?.choices).toEqual(["(fg)' = f'g + fg'", "(fg)' = f'g'", "(fg)' = f + g", "(fg)' = fg"]);
+    expect(recognition?.choices).toEqual(["(fg)' = f'g + fg'", "(fg)' = f'g' + f'g", "(fg)' = fg'", "(fg)' = f'g - fg'"]);
     expect(recognition?.correctAnswer).toBe("(fg)' = f'g + fg'");
-    expect(result.draft.coverage.essentialIdeas.join(" ")).toMatch(/product rule/i);
+    expect(result.draft.coverage.essentialIdeas).toContain("(fg)' = f'g + fg'");
+    expect(parse).toHaveBeenCalledTimes(1);
   });
 
   it("preserves both captured derivative claims when a symbolic answer establishes the first", async () => {
@@ -160,6 +161,8 @@ describe("Brief 0.5 preserved subject and notation boundaries", () => {
     const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
     for (const duplicate of ["(fg)' = f'g + fg'", "(fg)′=f′g+fg′"]) {
       const outputs = structuredClone(captures.formula.outputs);
+      const normal = outputs[0] as typeof outputs[0] & { activities: { type: string; choices: string[] }[] };
+      normal.activities.find(activity => activity.type === "multiple_choice")!.choices[1] = duplicate;
       const recovery = outputs[1] as typeof captures.formula.outputs[1] & { recognitionCheck: { choices: string[] } };
       recovery.recognitionCheck.choices[1] = duplicate;
       supply(outputs);

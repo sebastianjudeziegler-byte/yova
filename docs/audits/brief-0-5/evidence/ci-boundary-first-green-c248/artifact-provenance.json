@@ -1,0 +1,9 @@
+{
+  "run": 34382811713,
+  "job": 102571578446,
+  "head": "c2484b6255e25fbee07bf11e0e05980eb88d9b95",
+  "artifact": 10116541296,
+  "sha256": "b7dd1f563045e312ef0ed372257d1d303b7afe750bea2fc60d12920fe9d07e0b",
+  "grader": "12 passed",
+  "validators": "90 passed, 2 stale recovery-only expectations failed; live step skipped"
+}
