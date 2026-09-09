@@ -129,6 +129,9 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
         blockers.push({ topicId: topic.id, message: `${topic.title} does not fit before the deadline with your other plans and events.` });
         break;
       }
+      if (sourceBudget && composition.envelopes[0]!.timing.activeMinutes < sourceBudget) capacity = {
+        status: "reduced", explanation: `Only ${composition.envelopes[0]!.timing.activeMinutes} minutes fit here for studying this source and practicing. Move a block, shorten the source section or add time for the full ${sourceBudget}-minute budget.`, choices: capacityChoices,
+      };
       if (composition.capacityRecovery) capacity = { status: "reduced", explanation: composition.capacityRecovery.explanation, choices: capacityChoices };
       const fixed = { request: subRequest, composition, now, methodContext: scopedMethodContext, revisionContext };
       prepared.push({ unit: unit!, fixed, protection });

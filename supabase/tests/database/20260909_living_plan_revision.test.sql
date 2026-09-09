@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
-select extensions.plan(11);
+select extensions.plan(13);
 
 insert into auth.users(id,email) values ('b1000000-0000-4000-8000-000000000001','living-plan-boundary@example.com');
 insert into public.learning_items(id,user_id,title,kind,topic,source_mode,study_mode)
@@ -44,5 +44,9 @@ select extensions.is((select knowledge_map->'placementCheck' from public.plans w
 insert into public.plans(id,user_id,learning_item_id,rationale,knowledge_map,generation_inputs)
 values ('b1000000-0000-4000-8000-000000000009','b1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000002','Keep the accepted draft revision.', '{}', '{"planRevisionId":"b1000000-0000-4000-8000-000000000010"}');
 select extensions.is((select to_jsonb(p)->>'current_revision_id' from public.plans p where id='b1000000-0000-4000-8000-000000000009'),'b1000000-0000-4000-8000-000000000010','activation retains the accepted draft revision for the next preview');
+insert into public.plan_sessions(id,user_id,plan_id,sequence,title,objective,method,method_rationale,estimated_minutes,status,step_data)
+values ('b1000000-0000-4000-8000-000000000012','b1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000003',2,'Undone added session','Removed by Undo','Feynman Technique','This row retains route history.',25,'skipped','{"revisionRetired":true}');
+select extensions.ok(not exists(select 1 from jsonb_array_elements(public.read_plan_revision_context('b1000000-0000-4000-8000-000000000003')->'plan'->'sessions') s where s->>'id'='b1000000-0000-4000-8000-000000000012'),'a session removed by Undo does not reappear in the learner plan after reload');
+select extensions.is(jsonb_array_length(public.export_yova_account_data()->'planRevisions'),1,'the learner account export includes their saved plan revision receipt');
 select * from extensions.finish();
 rollback;

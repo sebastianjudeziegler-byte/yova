@@ -20,7 +20,7 @@ describe.skipIf(!process.env.YOVA_DB_FIXTURE_PATH)("actual routed persistence fi
     const patches = sessionRevisionPatches(before, after);
     expect(patches).toHaveLength(1);
     expect(patches[0]!.after!.learningMode).toBe("study");
-    const sql = readFileSync("supabase/tests/fixtures/living-plan-routed.sql", "utf8");
+    const sql = readFileSync("supabase/tests/fixtures/living-plan-routed.sql.template", "utf8");
     const data = JSON.stringify({ before, after, proposal, request: fixture.request, changedId: patches[0]!.id }).replaceAll("'", "''");
     writeFileSync(process.env.YOVA_DB_FIXTURE_PATH!, sql.replace("'__FIXTURE__'::jsonb", `'${data}'::jsonb`));
   });

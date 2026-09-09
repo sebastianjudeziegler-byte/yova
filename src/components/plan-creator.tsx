@@ -575,7 +575,7 @@ export function PlanCreator({
     if (draftBusy || !generatedPlan) return;
     setRevisionReviewPending(true);
     setActivationError(null);
-    setDraftRevision({ key: makeId(), type, topicId,
+    setDraftRevision({ key: makeId("revision"), type, topicId,
       delta: { operations: type === "mark_covered" && topicId ? [{ op: "mark_covered", topic_id: topicId }] : [] } });
   };
   const reviseGeneratedPlan = (target: "goal" | "source" | "schedule" | "diagnostic") => {
@@ -888,7 +888,7 @@ export function PlanCreator({
             plan={generatedPlan.plan} initialDelta={draftRevision.delta} initialType={draftRevision.type} initialTopicId={draftRevision.topicId}
             draft={{ generationRequest: mappedGeneratedFrom, draftReceipt: generatedPlan.generation.draftReceipt ?? null }}
             client={{ developmentPreview: browserPreviewMode, accountId: revisionAccountId, plans: activePlans, profileSummary,
-              previewCanonicalProfile, onSaved: () => {}, onOpenCalendar: () => {} }}
+              previewCanonicalProfile: previewCanonicalProfile ?? undefined, onSaved: () => {}, onOpenCalendar: () => {} }}
             onDraftSaved={(plan, request, receipt) => {
               setGeneratedPlan(PlanGenerationResponseSchema.parse({ ...generatedPlan, plan, generation: { ...generatedPlan.generation, draftReceipt: receipt } }));
               setGeneratedFrom(request);

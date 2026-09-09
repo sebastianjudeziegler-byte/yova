@@ -424,11 +424,23 @@ describe("living-plan structured preview through the existing adjustment route",
   });
 
   it("budgets time to study a newly attached source before practice and says so in the preview", async () => {
-    const { response, body, before } = await preview([{ op: "attach_source", topic_id: ETC, url: VIDEO }]);
+    const plan = deterministicDeltaPlan(1);
+    // Allow an expanded block without asking to move any neighboring session.
+    plan.sessions.forEach((session, index) => { session.scheduledFor = new Date(Date.UTC(2026, 8, 8 + index, 9)).toISOString(); });
+    const { response, body, before } = await preview([{ op: "attach_source", topic_id: ETC, url: VIDEO }], { context: contextFor(plan) });
     expect(response.status, JSON.stringify(body)).toBe(200);
     expect(firstSession(body.proposal.after, ETC).estimatedMinutes).toBeGreaterThan(firstSession(before, ETC).estimatedMinutes);
     expect(body.proposal.lines[0].after.join(" ")).toMatch(/study (?:this |the )?source.*practice/i);
     expect(body.proposal.lines[0].after.join(" ")).toContain(VIDEO);
+  });
+
+  it("reports limited source study time instead of silently consuming a neighboring block", async () => {
+    const { response, body, before } = await preview([{ op: "attach_source", topic_id: ETC, url: VIDEO }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.proposal.capacity.status).toBe("reduced");
+    expect(body.proposal.capacity.explanation).toMatch(/source.*time|time.*source/i);
+    expect(body.proposal.capacity.choices.map((choice: { label: string }) => choice.label)).toEqual(["Move a block", "Shorten scope", "Add time"]);
+    assertUnchangedOtherSessions(before, body.proposal.after, [ETC]);
   });
 
   async function activePreview(operations: Operation[], mutate?: (plan: LearningPlan) => void) {

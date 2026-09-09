@@ -4,7 +4,6 @@ import { coreRecallKnowledgeForLesson, includeCoreRecallKnowledge } from "@/lib/
 import { SavedLessonReview, type SavedLessonReviewIdentity } from "@/components/saved-lesson-review";
 
 import { generatedSessionDefersAllStoredPlanTargets } from "@/lib/session-generation/deferred-cache-contract";
-import { fetchClientJson } from "@/lib/http/client-json";
 import { topicDisplayLabel } from "@/lib/learning/topic-display-label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -93,7 +92,6 @@ import {
   type ConfidenceEvidence,
   type ConfidenceLevel,
   type DeadlineMilestone,
-  type LearningMaterial,
   type LearningPlan,
   type LearningPlanSession,
   type PreviewAccount,
