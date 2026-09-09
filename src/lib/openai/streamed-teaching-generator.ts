@@ -1500,6 +1500,7 @@ function buildCompactStreamedRecoveryDraft({
       validateCompactIndependentCheck({
         check: item.check,
         slot,
+        taughtIdea: item.essentialIdea,
         currentSessionScope: currentScope,
       });
     }
@@ -1557,6 +1558,7 @@ function buildCompactStreamedRecoveryDraft({
     validateCompactIndependentCheck({
       check: singleWorkedExample,
       slot: slots[0]!,
+      taughtIdea: items[0]!.essentialIdea,
       currentSessionScope: currentScope,
     });
     activities.push({
@@ -1685,16 +1687,17 @@ function buildCompactStreamedRecoveryDraft({
 }
 
 function validateCompactIndependentCheck({
-  check, slot, currentSessionScope,
+  check, slot, taughtIdea, currentSessionScope,
 }: {
   check: z.infer<typeof CompactStreamedRecoveryCheckSchema>;
   slot: CompactRecoverySlot;
+  taughtIdea: string;
   currentSessionScope: StreamedCurrentSessionScope;
 }) {
   validateCompactCheckScope({
     learnerSurface: [check.title, check.prompt, check.referenceAnswer, check.feedback].join(" "),
     answerSurface: [check.referenceAnswer, check.feedback].join(" "),
-    slot, currentSessionScope, label: "independent application",
+    slot, taughtIdea, currentSessionScope, label: "independent application",
   });
 }
 
@@ -1721,7 +1724,7 @@ function validateCompactCheckScope({
   slot: CompactRecoverySlot;
   currentSessionScope: StreamedCurrentSessionScope;
   label: "independent application" | "recognition check";
-  taughtIdea?: string;
+  taughtIdea: string;
 }) {
   if (!slot.target) return;
   const references = [slot.target, slot.topicDescription, ...slot.topicSubtopics].filter(Boolean);
@@ -1739,7 +1742,7 @@ function validateCompactCheckScope({
   }
   // A familiar heading cannot authorize an unrelated answer. Subject proof
   // comes from the answer and explanation, without short-claim length caps.
-  const answerReferences = [...references, ...(taughtIdea ? [taughtIdea] : [])];
+  const answerReferences = [...references, taughtIdea];
   if (!answerReferences.some(reference => lessonIdeaSharesTargetSubject(answerSurface, reference, "check"))) {
     throw new CurrentSessionScopeError(
       `${currentSessionScopeForRepair(currentSessionScope)} The ${label} does not preserve its active target's subject terms.`,

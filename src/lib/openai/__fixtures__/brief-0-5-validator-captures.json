@@ -2182,5 +2182,234 @@
         }
       }
     ]
+  },
+  "independent_formula": {
+    "context": {
+      "sessionArchitectureVersion": "streamed_teaching_v1",
+      "learningGoal": {
+        "title": "Use the Product Rule Independently",
+        "topic": "Differentiating products of functions",
+        "kind": "skill",
+        "deadline": null,
+        "sourceMode": "yova_generated",
+        "studyMode": "inside_yova",
+        "learningIntent": "learn"
+      },
+      "planRationale": "This is a focused conceptual and problem-solving plan. It begins with one complete example and step-by-step guidance because the product rule is new, then shifts to retrieval, application, and an independent check. Each session fits a 15-minute window and keeps one main action prominent. The supplied knowledge map contains no topic entries, so topicIds remain empty while the stated skill defines the temporary scope.",
+      "knowledgeTopics": [
+        {
+          "id": "bf8b81e3-e5b7-4831-8459-723a99aae949",
+          "title": "Understand the Product Rule",
+          "description": "Build the product rule from a worked example and distinguish it from multiplying separate derivatives.",
+          "subtopics": [
+            "The formula (fg)' = f'g + fg'",
+            "Why (fg)' is generally not f'g'"
+          ],
+          "prerequisiteTopicIds": [],
+          "status": "not_started",
+          "initialEvidence": null,
+          "sourceReferences": [],
+          "origin": "ai_generated",
+          "deferred": null,
+          "curriculumReference": null
+        }
+      ],
+      "journey": {
+        "currentSequence": 1,
+        "totalSessions": 4,
+        "previousSessions": [],
+        "nextSessions": [
+          {
+            "sequence": 2,
+            "title": "Apply the Rule With Guidance",
+            "objective": "Use the product rule on one polynomial product while keeping each substitution step visible.",
+            "contentTargets": [
+              "Identifying f, g, f', and g'",
+              "Substituting into and simplifying the product-rule formula"
+            ]
+          },
+          {
+            "sequence": 3,
+            "title": "Retrieve and Apply Independently",
+            "objective": "Recall the rule without a model and apply it to a similar product.",
+            "contentTargets": [
+              "Product-rule retrieval",
+              "Independent setup and calculation"
+            ]
+          },
+          {
+            "sequence": 4,
+            "title": "Choose and Use the Rule",
+            "objective": "Recognize when the product rule is needed and demonstrate independent use on a fresh problem.",
+            "contentTargets": [
+              "Recognizing product-rule problems",
+              "Accurate independent differentiation"
+            ]
+          }
+        ]
+      },
+      "session": {
+        "title": "Understand the Product Rule",
+        "objective": "Build the product rule from a worked example and distinguish it from multiplying separate derivatives.",
+        "method": "Feynman Technique",
+        "methodReason": "Connecting steps, causes, and prior knowledge can expose shallow understanding and build a more useful mental model. YOVA selected it because this session is conceptual learning work.",
+        "estimatedMinutes": 15,
+        "learningMode": "learn",
+        "topicIds": [
+          "bf8b81e3-e5b7-4831-8459-723a99aae949"
+        ],
+        "contentTargets": [
+          "The formula (fg)' = f'g + fg'",
+          "Why (fg)' is generally not f'g'"
+        ],
+        "completionEvidence": [
+          "Explain the role of each term in the product rule",
+          "Compare the product rule with the incorrect shortcut f'g'"
+        ],
+        "reviewConcept": null,
+        "reviewType": null
+      },
+      "learnerProfile": {
+        "commonBlocker": null,
+        "guidancePreference": null,
+        "explanationPreference": "A concrete example first",
+        "focusFrequency": null,
+        "startingPattern": null,
+        "primaryImprovementGoal": null,
+        "functionalSupportNeed": null,
+        "processingPreference": "The big picture before the details",
+        "memoryChallenge": null,
+        "supportPreference": null,
+        "workspacePreference": "Show one step at a time",
+        "freeformContext": "The learner wants one complete example before trying a similar problem, prefers one visible step at a time, and often studies in 15-minute windows.",
+        "observationCorrection": null
+      },
+      "recentResults": [],
+      "recentInterruptions": [],
+      "conceptSignals": [],
+      "scaffoldSignals": [],
+      "topicCalibrationSignals": [],
+      "personalization": {
+        "decisions": [
+          {
+            "id": "decision:method_delivery:presentation:overview_first",
+            "artifact": "method_delivery",
+            "setting": "presentation",
+            "value": "overview_first",
+            "title": "Big picture first",
+            "explanation": "Show the overall relationship before the details.",
+            "signalIds": [
+              "signal:processing_entry"
+            ],
+            "evidenceLabel": "You told YOVA",
+            "methodCandidates": [],
+            "experimental": false
+          },
+          {
+            "id": "decision:workspace:layout:one_step",
+            "artifact": "workspace",
+            "setting": "layout",
+            "value": "one_step",
+            "title": "One step at a time",
+            "explanation": "Keep the current action prominent and make the full path optional.",
+            "signalIds": [
+              "signal:workspace_preference"
+            ],
+            "evidenceLabel": "You told YOVA",
+            "methodCandidates": [],
+            "experimental": false
+          }
+        ],
+        "canonicalProfile": {
+          "schemaVersion": "canonical_learner_profile_v1",
+          "questionnaireVersion": "canonical_profile_questionnaire_v1",
+          "signals": [
+            {
+              "signalId": "unfamiliar_entry",
+              "value": "big_picture",
+              "source": "legacy_deep_profile",
+              "sourceQuestionId": "deep_profile:q1",
+              "provenance": "compatible_migration"
+            },
+            {
+              "signalId": "workspace_structure",
+              "value": "one_step",
+              "source": "legacy_deep_profile",
+              "sourceQuestionId": "deep_profile:q4",
+              "provenance": "compatible_migration"
+            }
+          ]
+        },
+        "methodTie": {
+          "state": {
+            "controls": {
+              "experiments": false
+            },
+            "activeExperiment": null,
+            "experimentHistory": []
+          },
+          "signals": [
+            {
+              "id": "signal:processing_entry",
+              "key": "processing_entry",
+              "title": "How teaching begins",
+              "code": "big_picture",
+              "evidenceLabel": "You told YOVA",
+              "paused": false
+            },
+            {
+              "id": "signal:workspace_preference",
+              "key": "workspace_preference",
+              "title": "Preferred session view",
+              "code": "one_step",
+              "evidenceLabel": "You told YOVA",
+              "paused": false
+            }
+          ]
+        }
+      },
+      "materials": []
+    },
+    "outputs": [
+      {},
+      {
+        "items": [
+          {
+            "essentialIdea": "The product rule gives (fg)' = f'g + fg' for differentiable f and g.",
+            "concept": "product rule",
+            "check": {
+              "title": "Differentiate a product",
+              "prompt": "What is the derivative of a product fg when f and g are differentiable?",
+              "referenceAnswer": "(fg)' = f'g + fg'. It adds the derivative of each factor times the other factor.",
+              "feedback": "The derivative splits into two terms, not one product of derivatives."
+            },
+            "independentCheck": null
+          },
+          {
+            "essentialIdea": "The derivative of fg is generally not f'g' because the product rule adds two terms.",
+            "concept": "product rule failure",
+            "check": {
+              "title": "Why not just multiply derivatives",
+              "prompt": "Why is (fg)' generally not equal to f'g'?",
+              "referenceAnswer": "Because differentiating a product uses (fg)' = f'g + fg', which includes two contributions. Multiplying derivatives misses the original functions.",
+              "feedback": "The derivative of a product is a sum of two terms, not a product of derivatives."
+            },
+            "independentCheck": null
+          }
+        ],
+        "recognitionCheck": {
+          "title": "Product rule contrast",
+          "prompt": "Which formula correctly gives the derivative of a product fg?",
+          "choices": [
+            "(fg)' = f'g + fg'",
+            "(fg)' = f'g'",
+            "(fg)' = f + g",
+            "(fg)' = f'g + f'g'"
+          ],
+          "correctAnswer": "(fg)' = f'g + fg'",
+          "feedback": "The product rule adds the two cross terms from differentiating each factor."
+        }
+      }
+    ]
   }
 }

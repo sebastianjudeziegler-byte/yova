@@ -58,6 +58,30 @@ describe("Brief 0.5 preserved subject and notation boundaries", () => {
     expect(result.draft.activities.filter(activity => activity.type === "free_response").map(activity => activity.correctAnswer).join(" ")).toContain("f'(x)g(x)+f(x)g'(x)");
   });
 
+  it("grounds the typed independent comparison in the same validated claim as recognition", async () => {
+    supply(captures.independent_formula.outputs);
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(captures.independent_formula.context as SessionGenerationContext);
+    const check = result.draft.activities.find(activity => activity.methodPhase === "independent_practice")!;
+    expect(check.body).toContain("generally not");
+    expect(check.correctAnswer).toContain("(fg)' = f'g + fg'");
+  });
+
+  it.each(["off-topic", "deferred"])("still rejects %s substance in the typed independent check", async kind => {
+    const context = structuredClone(captures.independent_formula.context) as SessionGenerationContext;
+    const recovery = structuredClone(captures.independent_formula.outputs[1]) as typeof captures.independent_formula.outputs[1] & { items: { check: { prompt: string; referenceAnswer: string; feedback: string } }[] };
+    if (kind === "off-topic") {
+      recovery.items[1]!.check.referenceAnswer = "Photosynthesis converts light energy into chemical energy inside chloroplasts.";
+      recovery.items[1]!.check.feedback = "Chloroplasts absorb sunlight and use it to build glucose from carbon dioxide and water.";
+    } else {
+      context.session.deferredContentTargets = ["What net ATP from glycolysis is used for"];
+      recovery.items[1]!.check.prompt = "Explain why net ATP from glycolysis is used for muscle contraction and active transport.";
+    }
+    supply([{}, recovery]);
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("./streamed-teaching-generator");
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(context)).rejects.toThrow(kind === "off-topic" ? /streamed_target_subject/ : /streamed_deferred_content/);
+  });
+
   it("recognizes a formula-only authoritative target while preserving different formulas", () => {
     expect(lessonIdeaSharesTargetSubject("The product rule states (fg)' equals f'g plus fg'.", "The formula (fg)' = f'g + fg'")).toBe(true);
     expect(lessonIdeaSharesTargetSubject("For a product fg, the derivative is f'g + fg'.", "The formula (fg)' = f'g + fg'")).toBe(true);
