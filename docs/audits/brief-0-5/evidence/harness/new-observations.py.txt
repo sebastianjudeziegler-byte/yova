@@ -1,0 +1,28 @@
+import json, os, subprocess, sys
+from pathlib import Path
+
+label = sys.argv[1]
+out = Path('test-results/release-observations')
+out.mkdir(parents=True, exist_ok=True)
+cases = [
+    ('A15', 'src/evals/plan-session-journey.live.test.ts', {'YOVA_RUN_LIVE_JOURNEY_EVALS': '1', 'YOVA_JOURNEY_EVAL_CASE': 'product_rule_narrow_15'}),
+    ('A27', 'src/evals/session-quality.live.test.ts', {'YOVA_RUN_LIVE_SESSION_EVALS': '1', 'YOVA_SESSION_EVAL_CASE': 'javascript_scaffold_fading'}),
+    ('misconception', 'src/evals/answer-evaluation-quality.live.test.ts', {'YOVA_RUN_LIVE_ANSWER_EVALS': '1', 'YOVA_ANSWER_EVAL_CASE': 'biology-misconception'}),
+    ('recall', 'src/evals/launch-session-journeys.live.test.ts', {'YOVA_RUN_LIVE_LAUNCH_EVALS': '1', 'YOVA_LAUNCH_CASE': 'recall'}),
+    ('A09', 'src/evals/plan-quality.live.test.ts', {'YOVA_RUN_LIVE_EVALS': '1', 'YOVA_EVAL_CASE': 'world_war_one_guide_15'}),
+]
+results = []
+for sample in (1, 2, 3):
+    for case, file, env in cases:
+        stem = f'{label}-{case}-{sample}'
+        print(f'{label} sample {sample}/3: {case}', flush=True)
+        with (out / f'{stem}.txt').open('w') as log:
+            result = subprocess.run([
+                'pnpm', 'exec', 'vitest', 'run', file, '--config', 'tmp/release-capture.config.mts',
+                '--maxWorkers=1', '--retry=0', '--reporter=default', '--reporter=json',
+                f'--outputFile={out}/{stem}.json',
+            ], env={**os.environ, **env, 'BRIEF05_CAPTURE': str(out/f'{stem}.jsonl'), 'YOVA_LIVE_FIXTURE_ROOT': str(out/f'{stem}-fixtures')}, stdout=log, stderr=subprocess.STDOUT)
+        results.append({'source': label, 'case': case, 'run': sample, 'exitCode': result.returncode, 'result': f'{stem}.json', 'capture': f'{stem}.jsonl', 'log': f'{stem}.txt'})
+        (out / f'{label}-runs.json').write_text(json.dumps(results, indent=2)+'\n')
+# A diagnostic failure is reported, never converted to a passing product gate.
+sys.exit(1 if any(row['exitCode'] for row in results) else 0)

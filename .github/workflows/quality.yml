@@ -1,4 +1,4 @@
-name: YOVA quality
+name: YOVA quality — focused release diagnosis
 
 on:
   pull_request:
@@ -9,141 +9,71 @@ concurrency:
   group: yova-quality-${{ github.ref }}
   cancel-in-progress: true
 
+# Temporary capture only. Restore the complete quality workflow before merge.
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 40
     env:
-      # Date-oriented learner flows are defined in YOVA's launch timezone.
-      # GitHub runners default to UTC, which made otherwise-correct deadline
-      # tests fail only in CI.
       TZ: America/Los_Angeles
       DO_NOT_TRACK: "1"
-
     steps:
-      - name: Check out YOVA
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 11.16.0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Audit production dependencies
-        run: pnpm audit --prod --audit-level high
-
-      - name: Validate production configuration rules
-        run: pnpm readiness:configuration
-        # These are deliberately non-secret fixtures. This executes the same
-        # configuration-shape contract without copying live Vercel credentials
-        # into GitHub. It is explicitly not release approval: the production
-        # build and smoke gates verify the real database capability contract.
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://ci-readiness.supabase.co
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_readiness_only
-          SUPABASE_SECRET_KEY: sb_secret_ci_readiness_only
-          OPENAI_API_KEY: sk-ci-readiness-only-not-a-real-key
-          CRON_SECRET: ci-readiness-only-cron-secret-000000000000
-          YOVA_DRAFT_RECEIPT_SECRET: ci-readiness-only-draft-receipt-secret-000000
-          SITE_URL: https://www.yovaapp.com
-          RESEND_API_KEY: re_ci_readiness_only_not_a_real_key
-          STUDY_PROFILE_FROM_EMAIL: YOVA <reports@yovaapp.com>
-          YOVA_PERSONALIZATION_ROLLOUT_PERCENT: "0"
-          AUTH_PASSWORD_ACCOUNTS: "true"
-          AUTH_INVITE_ONLY: "false"
-          AUTH_CAPTCHA_ENABLED: "true"
-          NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
-          AUTH_EMAIL_CODE_VERIFICATION: "true"
-          NEXT_PUBLIC_OPENAI_API_KEY: ""
-          NEXT_PUBLIC_SUPABASE_SECRET_KEY: ""
-          NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: ""
-
-      - name: Initialize isolated database configuration
-        run: pnpm exec supabase init
-
-      - name: Replay every database migration
-        run: pnpm exec supabase db start
-
-      - name: Lint the migrated database
-        run: pnpm exec supabase db lint --local --level warning --fail-on error
-
-      - name: Test migrated database boundaries
-        run: pnpm exec supabase test db --local
-
-      - name: Stop isolated database
-        if: always()
-        continue-on-error: true
-        run: pnpm exec supabase stop --no-backup
-
-      - name: Install isolated browser
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Run learning-engine tests
-        run: pnpm test
-
-      - name: Check code quality
-        run: pnpm lint
-
-      - name: Build production app
-        run: pnpm build
-
-      - name: Run core learner journey
-        run: pnpm test:e2e
-
-      - name: Run public authentication journey
-        run: pnpm test:e2e:auth
-
-      - name: Compare the Study Profile phone-width case on main and release
+      - name: Prepare pass-through capture
+        run: |
+          mkdir -p tmp/brief-0-5 test-results/release-observations
+          cp docs/audits/brief-0-5/evidence/harness/ci-capture.ts.txt tmp/brief-0-5/capture.ts
+          cp docs/audits/brief-0-5/evidence/harness/vitest.config.mts.txt tmp/release-capture.config.mts
+          cp docs/audits/brief-0-5/evidence/harness/new-observations.py.txt tmp/new-observations.py
+          cp -a src/lib /tmp/yova-release-lib
+          cp src/evals/session-rubric.ts /tmp/yova-release-session-rubric.ts
+          cp src/evals/plan-rubric.ts /tmp/yova-release-plan-rubric.ts
+      - name: Establish mixed-criterion grader red with uncertainty negatives
+        run: |
+          result=0
+          pnpm exec vitest run src/lib/openai/answer-evaluator.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=test-results/release-observations/grader-red.json || result=$?
+          test "$result" -eq 1
+          node -e 'const r=require("./test-results/release-observations/grader-red.json"); if(r.numFailedTests !== 3 || r.numPassedTests < 5) process.exit(1)'
+      - name: Capture the five observations on unchanged main
         if: ${{ !cancelled() }}
-        run: node scripts/compare-study-profile-ci.mjs
-
-      - name: Upload Study Profile comparison
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: study-profile-phone-comparison-${{ github.run_id }}
-          path: test-results/study-profile-comparison
-          if-no-files-found: ignore
-          retention-days: 30
-
-      - name: Run full live gate on the combined release
-        if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        run: pnpm test:live --runs "$LIVE_GATE_RUNS"
+        continue-on-error: true
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # Three serial release samples; ordinary main/PR gates retain one.
-          LIVE_GATE_RUNS: ${{ github.head_ref == 'codex/brief-0-5-grader-and-validators' && '3' || '1' }}
-
-      - name: Publish full live gate evidence
-        if: always()
         run: |
-          if test -f test-results/live-gate/report.md; then
-            cat test-results/live-gate/report.md >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Upload full live gate evidence
+          git fetch origin e03a082659f51172c0b06bf84daffdd5599ac773 d108e890e3f64e4393f617fe821ac0eb3b7b3c8e
+          mkdir -p /tmp/yova-main-source
+          git archive e03a082659f51172c0b06bf84daffdd5599ac773 src/lib | tar -x -C /tmp/yova-main-source
+          rm -rf src/lib
+          cp -a /tmp/yova-main-source/src/lib src/lib
+          git show d108e890e3f64e4393f617fe821ac0eb3b7b3c8e:src/evals/session-rubric.ts > src/evals/session-rubric.ts
+          git show d108e890e3f64e4393f617fe821ac0eb3b7b3c8e:src/evals/plan-rubric.ts > src/evals/plan-rubric.ts
+          git diff --exit-code e03a082659f51172c0b06bf84daffdd5599ac773 -- src/lib
+          python3 tmp/new-observations.py main
+      - name: Restore release and capture the same five observations
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          rm -rf src/lib
+          cp -a /tmp/yova-release-lib src/lib
+          cp /tmp/yova-release-session-rubric.ts src/evals/session-rubric.ts
+          cp /tmp/yova-release-plan-rubric.ts src/evals/plan-rubric.ts
+          git diff --exit-code HEAD -- src/lib src/evals/session-rubric.ts src/evals/plan-rubric.ts
+          python3 tmp/new-observations.py release
+      - name: Upload capture and comparison evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: full-live-gate-${{ github.run_id }}
-          path: test-results/live-gate
-          if-no-files-found: ignore
+          name: release-observations-${{ github.run_id }}
+          path: test-results/release-observations
           retention-days: 30
-
-      - name: Upload browser evidence on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: yova-browser-test-evidence
-          path: test-results
-          if-no-files-found: ignore
-          retention-days: 7

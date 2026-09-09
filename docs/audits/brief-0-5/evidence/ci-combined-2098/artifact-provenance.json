@@ -1,0 +1,18 @@
+{
+  "workflowRun": 34370432851,
+  "job": 102529961599,
+  "head": "2098e66d57cd21b37113d329a603bfacc2ae8cf1",
+  "testedMerge": "a013b63229834d0b8e579e995040ff4613154521",
+  "base": "e03a082659f51172c0b06bf84daffdd5599ac773",
+  "phoneArtifact": {
+    "id": 10113182693,
+    "name": "study-profile-phone-comparison-34370432851",
+    "sha256": "aa7e01fcfed61fb525729b69a85fd695841bab417cc4eac8c16c4ec57b46d6f5"
+  },
+  "liveArtifact": {
+    "id": 10115545927,
+    "name": "full-live-gate-34370432851",
+    "sha256": "3b517fb85fd17d11d38f3e080ac61cf58427d9a646e636a22a068866aecd1ba5"
+  },
+  "result": "Held: A15 and A27 pass 2/3; new canary observations require comparison. No merge or deploy."
+}

@@ -1,0 +1,9 @@
+
+Running 2 tests using 1 worker
+
+  ✓  1 [desktop-chromium] › e2e/plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (34.4s)
+  ✓  2 [mobile-chromium] › e2e/plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (26.4s)
+
+  2 passed (1.2m)
+
+Exit code: 0

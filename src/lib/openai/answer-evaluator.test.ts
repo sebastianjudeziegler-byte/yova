@@ -143,6 +143,46 @@ describe("answer evaluation calibration", () => {
     expect(result.feedback).not.toMatch(/answer establishes/i);
   });
 
+  it.each([
+    { subject: "biology", answer: "Organisms choose the mutations they need to survive.", wrong: "Mutations are not intentionally chosen by organisms.", unclear: "Connect heritable variation to differential reproduction.", status: "incorrect" },
+    { subject: "programming", answer: "A base case makes a recursive function call itself again.", wrong: "A base case terminates recursive calls.", unclear: "Explain how the final result returns to the caller.", status: "incorrect" },
+    { subject: "history", answer: "The colonists disliked paying taxes.", wrong: "Explain the objection to taxation without representation.", unclear: "Connect the objection to the dispute about political authority.", status: "missing" },
+  ])("shows the known required correction in $subject even when another criterion is unclear", async fixture => {
+    mocks.parse.mockResolvedValue(completed({
+      verdict: "needs_review", feedback: "The response needs the identified required correction before this check is complete.",
+      matchedIdeas: [], missingIdeas: [fixture.wrong],
+      ...{ assessment: { contextSufficient: true, contextReason: "The question and reference provide the required context.", criteria: [
+        { idea: fixture.wrong, required: true, status: fixture.status },
+        { idea: fixture.unclear, required: true, status: "unclear" },
+      ] } },
+    }));
+    const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/answer-evaluator");
+    const result = await evaluateAnswerWithOpenAI({ ...request, learnerAnswer: fixture.answer, activity: {
+      title: `Explain this ${fixture.subject} relationship`, prompt: `Explain the relationship: ${fixture.wrong}`,
+      concept: fixture.subject, referenceAnswer: `${fixture.wrong} ${fixture.unclear}`, rubric: `Both requirements matter: ${fixture.wrong} ${fixture.unclear}`,
+    } });
+    expect(result.verdict).toBe("needs_review");
+    expect(result.missingIdeas).toEqual([fixture.wrong]);
+    expect(result.feedback).not.toMatch(/cannot reliably confirm|does not give enough context/i);
+    expect(result.matchedIdeas).toEqual([]);
+  });
+
+  it("keeps missing prompt context uncertain even if an assessment also lists an incorrect criterion", async () => {
+    mocks.parse.mockResolvedValue(completed({
+      verdict: "needs_review", feedback: "The response needs a different explanation of the result.", matchedIdeas: [], missingIdeas: ["Identify the changed condition."],
+      ...{ assessment: { contextSufficient: false, contextReason: "The actual observations and changed condition are absent.", criteria: [
+        { idea: "Identify the changed condition.", required: true, status: "incorrect" },
+        { idea: "Explain the result.", required: true, status: "unclear" },
+      ] } },
+    }));
+    const { evaluateAnswerWithOpenAI } = await import("@/lib/openai/answer-evaluator");
+    const result = await evaluateAnswerWithOpenAI(request);
+    expect(result.verdict).toBe("uncertain");
+    expect(result.feedback).toMatch(/observations.*absent/i);
+    expect(result.matchedIdeas).toEqual([]);
+    expect(result.missingIdeas).toEqual([]);
+  });
+
   it("returns no missing details for a complete answer when only optional reference facts are absent", async () => {
     mocks.parse.mockResolvedValue(completed({
       verdict: "secure", feedback: "Your answer is correct but is missing return unwinding.",

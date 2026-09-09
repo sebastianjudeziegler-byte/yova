@@ -1,0 +1,758 @@
+{
+  "apiResults": [
+    {
+      "path": "/api/sessions/allowance",
+      "status": 503
+    },
+    {
+      "path": "/api/sessions/allowance",
+      "status": 503
+    },
+    {
+      "path": "/api/sessions/lesson",
+      "status": 200
+    },
+    {
+      "path": "/api/sessions/evaluate",
+      "status": 200
+    },
+    {
+      "path": "/api/sessions/evaluate",
+      "status": 200
+    },
+    {
+      "path": "/api/sessions/evaluate",
+      "status": 200
+    },
+    {
+      "path": "/api/sessions/allowance",
+      "status": 503
+    },
+    {
+      "path": "/api/sessions/allowance",
+      "status": 503
+    }
+  ],
+  "saved": {
+    "plan": {
+      "id": "ad54ef59-9b0e-44d7-bd44-68d202014b5f",
+      "learningItemId": "b0de85fa-5fd2-4ba6-8e35-a79d89b0f5e1",
+      "title": "Teach Me Cellular Respiration From Scratch for My Test, Including ATP…",
+      "topic": "ATP and energy transfer",
+      "kind": "test",
+      "deadline": "2026-09-08T23:00:00.000Z",
+      "status": "completed",
+      "sourceMode": "yova_generated",
+      "studyMode": "inside_yova",
+      "learningIntent": "learn",
+      "creationIntent": "plan",
+      "schedulePreferences": {
+        "timeZone": "UTC",
+        "availability": [
+          {
+            "day": "Monday",
+            "window": "Evening",
+            "minutes": 45
+          },
+          {
+            "day": "Wednesday",
+            "window": "Evening",
+            "minutes": 45
+          },
+          {
+            "day": "Friday",
+            "window": "Evening",
+            "minutes": 45
+          }
+        ]
+      },
+      "sessionArchitectureVersion": "streamed_teaching_v1",
+      "rationale": "Your deadline leaves time for one focused first step. Learn and check this priority now; the remaining topics and later practice are saved for after the deadline.",
+      "createdAt": "2026-09-07T19:35:00.000Z",
+      "knowledgeMap": {
+        "version": 1,
+        "scopeJudgment": {
+          "band": "unit_or_exam",
+          "label": "Cellular respiration test",
+          "minimumSessions": 12,
+          "recommendedSessions": 12,
+          "maximumSessions": 12,
+          "minimumTeachingSessions": 6,
+          "explanation": "Learn the six stages and ideas, then check each independently."
+        },
+        "topics": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "title": "ATP and energy transfer",
+            "description": "Explain ATP and energy transfer and how it contributes to cellular respiration.",
+            "subtopics": [],
+            "prerequisiteTopicIds": [],
+            "status": "not_started",
+            "initialEvidence": null,
+            "sourceReferences": [],
+            "origin": "ai_generated",
+            "deferred": null
+          },
+          {
+            "id": "90000000-0000-4000-8000-000000000002",
+            "title": "Glycolysis",
+            "description": "Explain Glycolysis and how it contributes to cellular respiration.",
+            "subtopics": [],
+            "prerequisiteTopicIds": [],
+            "status": "not_started",
+            "initialEvidence": null,
+            "sourceReferences": [],
+            "origin": "ai_generated",
+            "deferred": {
+              "reason": "The learner's remaining availability before the deadline cannot hold another coherent normal session."
+            }
+          },
+          {
+            "id": "90000000-0000-4000-8000-000000000003",
+            "title": "Link reaction",
+            "description": "Explain Link reaction and how it contributes to cellular respiration.",
+            "subtopics": [],
+            "prerequisiteTopicIds": [],
+            "status": "not_started",
+            "initialEvidence": null,
+            "sourceReferences": [],
+            "origin": "ai_generated",
+            "deferred": {
+              "reason": "The learner's remaining availability before the deadline cannot hold another coherent normal session."
+            }
+          },
+          {
+            "id": "90000000-0000-4000-8000-000000000004",
+            "title": "Krebs cycle",
+            "description": "Explain Krebs cycle and how it contributes to cellular respiration.",
+            "subtopics": [],
+            "prerequisiteTopicIds": [],
+            "status": "not_started",
+            "initialEvidence": null,
+            "sourceReferences": [],
+            "origin": "ai_generated",
+            "deferred": {
+              "reason": "The learner's remaining availability before the deadline cannot hold another coherent normal session."
+            }
+          },
+          {
+            "id": "90000000-0000-4000-8000-000000000005",
+            "title": "Electron transport chain",
+            "description": "Explain Electron transport chain and how it contributes to cellular respiration.",
+            "subtopics": [],
+            "prerequisiteTopicIds": [],
+            "status": "not_started",
+            "initialEvidence": null,
+            "sourceReferences": [],
+            "origin": "ai_generated",
+            "deferred": {
+              "reason": "The learner's remaining availability before the deadline cannot hold another coherent normal session."
+            }
+          },
+          {
+            "id": "90000000-0000-4000-8000-000000000006",
+            "title": "Chemiosmosis",
+            "description": "Explain Chemiosmosis and how it contributes to cellular respiration.",
+            "subtopics": [],
+            "prerequisiteTopicIds": [],
+            "status": "not_started",
+            "initialEvidence": null,
+            "sourceReferences": [],
+            "origin": "ai_generated",
+            "deferred": {
+              "reason": "The learner's remaining availability before the deadline cannot hold another coherent normal session."
+            }
+          }
+        ],
+        "placementCheck": {
+          "status": "skipped",
+          "completedAt": null,
+          "demonstratedTopicIds": [],
+          "gapTopicIds": []
+        }
+      },
+      "materials": [],
+      "sessions": [
+        {
+          "id": "5f0e079b-0362-4687-93cd-c25ef1b9c8c0",
+          "sequence": 1,
+          "title": "Build ATP and energy transfer",
+          "objective": "Explain ATP and energy transfer after working through a concrete example.",
+          "method": "Feynman Technique",
+          "methodReason": "You asked for an example first; Feynman Technique lets you explain the connections for ATP and energy transfer to build understanding in session 1.",
+          "scheduledFor": "2026-09-07T19:35:00.000Z",
+          "estimatedMinutes": 10,
+          "amountLabel": "1 topic + 1 practice check + about 10 min",
+          "learningMode": "learn",
+          "topicIds": [
+            "90000000-0000-4000-8000-000000000001"
+          ],
+          "contentTargets": [
+            "ATP and energy transfer"
+          ],
+          "completionEvidence": [
+            "Explain ATP and energy transfer in your own words with your notes closed"
+          ],
+          "status": "complete",
+          "resource": {
+            "schemaVersion": 17,
+            "routeRevisionId": "3990ea41-8a28-59ad-8ba9-3ab8df0e1ac4",
+            "topicIds": [
+              "90000000-0000-4000-8000-000000000001"
+            ],
+            "rationale": "Feynman Technique provides a bounded teaching and typed-check sequence for Explain ATP and energy transfer after working through a concrete example..",
+            "coverage": {
+              "focus": "Explain ATP and energy transfer after working through a concrete example.",
+              "essentialIdeas": [
+                "ATP transfers energy by losing its terminal phosphate group."
+              ],
+              "completionEvidence": [
+                "Explain ATP and energy transfer in your own words with your notes closed"
+              ],
+              "evidenceMap": [
+                {
+                  "essentialIdea": "ATP transfers energy by losing its terminal phosphate group.",
+                  "activityConcept": "ATP transfers energy by losing its terminal phosphate group."
+                }
+              ],
+              "deferredContent": []
+            },
+            "methodBriefing": {
+              "learningMode": "learn",
+              "taskType": "conceptual_learning",
+              "methodId": "self_explanation",
+              "name": "Feynman Technique",
+              "what": "Explain an idea in plain language, compare it with an accurate source, repair the gaps, and explain it again.",
+              "why": "Connecting steps, causes, and prior knowledge can expose shallow understanding and build a more useful mental model.",
+              "how": [
+                "Study one concise explanation or example.",
+                "Close it and explain the idea in your own words.",
+                "Name the cause, relationship, or reason behind each important step.",
+                "Compare with the source, repair the explanation, then teach it back again without copying."
+              ],
+              "completion": "The explanation accurately includes the central relationship and at least one supporting reason or example.",
+              "personalization": [
+                "YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."
+              ]
+            },
+            "routingContext": {
+              "taskType": "conceptual_learning",
+              "knowledgeStage": "novice"
+            },
+            "deliveryPolicy": {
+              "schemaVersion": 1,
+              "evidenceStatus": "baseline",
+              "presentation": {
+                "mode": "task_aligned",
+                "label": "Task-led presentation",
+                "instruction": "present the content in the sequence best supported by the current task."
+              },
+              "repair": {
+                "mode": "task_aligned",
+                "label": "Evidence-led repair",
+                "instruction": "Choose the smallest repair that addresses the demonstrated gap without lowering the target."
+              },
+              "retention": {
+                "mode": "task_aligned",
+                "label": "Task-led evidence",
+                "instruction": "Use the memory or application check that best matches the current task."
+              },
+              "workspace": {
+                "mode": "task_aligned",
+                "label": "Focused workspace",
+                "instruction": "Show one obvious current action with the session path available nearby."
+              },
+              "pacing": {
+                "firstActionMinutes": 4,
+                "maximumActivities": 5,
+                "reason": "There is not enough repeated behavior evidence to change the normal session size."
+              },
+              "activityCadence": {
+                "mode": "task_aligned",
+                "label": "Task-aligned cadence",
+                "instruction": "Change activities only when the selected teaching method and current objective call for it."
+              },
+              "attemptSafety": {
+                "mode": "task_aligned",
+                "label": "Task-aligned attempts",
+                "instruction": "Use the attempt and feedback format best supported by the current task and selected method."
+              },
+              "knowledgeCheck": {
+                "mode": "task_aligned",
+                "label": "Task-aligned knowledge check",
+                "instruction": "Use the knowledge check required by the selected method and current learning objective."
+              },
+              "learnerFacingReasons": [
+                "YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."
+              ],
+              "signalsUsed": []
+            },
+            "deliveryInstructions": {
+              "schemaVersion": 1,
+              "explanationDensity": "balanced",
+              "tone": "encouraging",
+              "analogyUse": "only_when_helpful",
+              "workedExamples": "lead_with_example",
+              "structure": "task_aligned",
+              "pacing": {
+                "firstActionMinutes": 4,
+                "maximumActivities": 5,
+                "instruction": "There is not enough repeated behavior evidence to change the normal session size."
+              },
+              "learnerContext": [
+                "YOVA is using the current task and session objective as the starting point until your completed work provides more evidence.",
+                "Use the task and current evidence as the presentation baseline. Do not infer a fixed learning style or brain type."
+              ],
+              "contentRequirements": {
+                "coverAllEssentialIdeas": true,
+                "includeConcreteWorkedExample": false,
+                "includeCommonMixup": true,
+                "preservePrerequisiteOrder": true
+              }
+            },
+            "supportPlan": {
+              "level": "supported_start",
+              "title": "Support fades inside this session",
+              "explanation": "YOVA does not have a comparable completed check yet, so it will teach or model the idea before requiring an independent attempt.",
+              "evidenceLabel": "Establishing a baseline",
+              "concept": null
+            },
+            "cacheContext": {
+              "effectiveMinutes": 10,
+              "adjustmentFingerprint": "5f3bfc36a26b7edca65234cce632aec0003e12b583705e3584be7a14074bfa15",
+              "scopeFingerprint": "sc1:033f563f69e789d3",
+              "routeRevisionId": "3990ea41-8a28-59ad-8ba9-3ab8df0e1ac4"
+            },
+            "activities": [
+              {
+                "topicId": "90000000-0000-4000-8000-000000000001",
+                "methodPhase": "model",
+                "estimatedMinutes": 3,
+                "requiredForCompletion": true,
+                "type": "instruction",
+                "concept": null,
+                "label": "Learn",
+                "title": "Your lesson model",
+                "body": "Read the explanation, then answer the next question from memory.",
+                "teaching": null,
+                "lessonBrief": {
+                  "version": 1,
+                  "topicIds": [
+                    "90000000-0000-4000-8000-000000000001"
+                  ],
+                  "essentialIdeas": [
+                    "ATP transfers energy by losing its terminal phosphate group."
+                  ],
+                  "sourceChunks": [],
+                  "knowledgeSource": "model_knowledge",
+                  "evidenceContext": {
+                    "confirmedGaps": [],
+                    "secureKnowledge": [],
+                    "priorMisconceptions": []
+                  },
+                  "contentRequirements": {
+                    "teachEveryEssentialIdea": true,
+                    "includeConcreteExample": true,
+                    "includeCommonMixup": true,
+                    "preservePrerequisiteOrder": true
+                  }
+                },
+                "choices": [],
+                "correctAnswer": null,
+                "feedback": null,
+                "practiceIntent": null,
+                "misconceptionSummary": null,
+                "methodRuntime": null
+              },
+              {
+                "topicId": "90000000-0000-4000-8000-000000000001",
+                "methodPhase": "explain",
+                "estimatedMinutes": 2,
+                "requiredForCompletion": true,
+                "type": "free_response",
+                "concept": "ATP transfers energy by losing its terminal phosphate group.",
+                "label": "Explain",
+                "title": "ATP phosphate release",
+                "body": "How does ATP release usable energy in cells?",
+                "teaching": null,
+                "lessonBrief": null,
+                "choices": [],
+                "correctAnswer": "ATP releases usable energy when its terminal phosphate bond is broken and the phosphate group is removed.",
+                "feedback": "Energy is transferred by ATP hydrolysis, not by ATP staying intact.",
+                "practiceIntent": "baseline",
+                "misconceptionSummary": null,
+                "methodRuntime": null
+              },
+              {
+                "topicId": "90000000-0000-4000-8000-000000000001",
+                "methodPhase": "repair",
+                "estimatedMinutes": 2,
+                "requiredForCompletion": false,
+                "type": "free_response",
+                "concept": "ATP transfers energy by losing its terminal phosphate group.",
+                "label": "Repair",
+                "title": "Repair the first explanation",
+                "body": "Compare the first explanation with this verified reference: ATP releases usable energy when its terminal phosphate bond is broken and the phosphate group is removed. Correct the exposed relationship in your own words without copying the reference.",
+                "teaching": null,
+                "lessonBrief": null,
+                "choices": [],
+                "correctAnswer": "ATP releases usable energy when its terminal phosphate bond is broken and the phosphate group is removed.",
+                "feedback": "Energy is transferred by ATP hydrolysis, not by ATP staying intact.",
+                "practiceIntent": "baseline",
+                "misconceptionSummary": null,
+                "methodRuntime": null
+              },
+              {
+                "topicId": "90000000-0000-4000-8000-000000000001",
+                "methodPhase": "reexplain",
+                "estimatedMinutes": 2,
+                "requiredForCompletion": false,
+                "type": "free_response",
+                "concept": "ATP transfers energy by losing its terminal phosphate group.",
+                "label": "Explain again",
+                "title": "Explain the corrected relationship again",
+                "body": "How does ATP release usable energy in cells? Explain it again after the repair without copying the model or reference answer.",
+                "teaching": null,
+                "lessonBrief": null,
+                "choices": [],
+                "correctAnswer": "ATP releases usable energy when its terminal phosphate bond is broken and the phosphate group is removed.",
+                "feedback": "Energy is transferred by ATP hydrolysis, not by ATP staying intact.",
+                "practiceIntent": "baseline",
+                "misconceptionSummary": null,
+                "methodRuntime": null
+              },
+              {
+                "topicId": "90000000-0000-4000-8000-000000000001",
+                "methodPhase": "transfer",
+                "estimatedMinutes": 1,
+                "requiredForCompletion": true,
+                "type": "multiple_choice",
+                "concept": "Recognition transfer: ATP transfers energy by losing its terminal phosphate group.",
+                "label": "Recall check",
+                "title": "ATP energy transfer",
+                "body": "Which statement best describes ATP and energy transfer?",
+                "teaching": null,
+                "lessonBrief": null,
+                "choices": [
+                  "ATP stores and transfers energy by losing a phosphate group",
+                  "ATP stores energy only in its sugar base",
+                  "ATP transfers energy by gaining a phosphate group from water",
+                  "ATP cannot contribute to cellular respiration"
+                ],
+                "correctAnswer": "ATP stores and transfers energy by losing a phosphate group",
+                "feedback": "ATP's energy is transferred during phosphate removal, not phosphate gain.",
+                "practiceIntent": "baseline",
+                "misconceptionSummary": null,
+                "methodRuntime": null
+              }
+            ],
+            "generatedAt": "2026-09-09T16:07:41.757Z",
+            "origin": "generated"
+          },
+          "studyRoute": {
+            "identity": {
+              "routeLineageId": "02b36758-7e25-5034-88f9-fbd987a3f2b5",
+              "routeRevisionId": "3990ea41-8a28-59ad-8ba9-3ab8df0e1ac4",
+              "revisionNumber": 1,
+              "schemaVersion": 1,
+              "lifecycleStatus": "committed",
+              "planId": "ad54ef59-9b0e-44d7-bd44-68d202014b5f",
+              "sessionId": "5f0e079b-0362-4687-93cd-c25ef1b9c8c0",
+              "createdAt": "2026-09-07T19:35:00.000Z",
+              "committedAt": "2026-09-07T19:35:00.000Z"
+            },
+            "target": {
+              "taskFamily": "conceptual_learning",
+              "desiredOutcome": "Explain ATP and energy transfer after working through a concrete example.",
+              "targetStates": [
+                {
+                  "targetId": "90000000-0000-4000-8000-000000000001",
+                  "stage": "novice",
+                  "uncertainty": "high",
+                  "evidenceRefs": []
+                }
+              ],
+              "sourceRequirements": {
+                "sourceType": "yova_generated",
+                "requiredSourceIds": [],
+                "groundingRequired": false,
+                "instructions": []
+              }
+            },
+            "approach": {
+              "mode": "learn",
+              "executionEnvironment": "inside_yova",
+              "primaryMethodId": "self_explanation",
+              "visibleMethodName": "Feynman Technique",
+              "confidenceLevel": "unknown"
+            },
+            "timing": {
+              "activeMinutes": 10,
+              "elapsedMinutes": 10,
+              "durationSource": "router_default",
+              "hardMaximumMinutes": 10
+            },
+            "execution": {
+              "orderedPhases": [
+                {
+                  "phaseId": "method-1-model",
+                  "methodPhase": "model",
+                  "activeMinutes": 3,
+                  "targetIds": [
+                    "90000000-0000-4000-8000-000000000001"
+                  ]
+                },
+                {
+                  "phaseId": "method-2-explain",
+                  "methodPhase": "explain",
+                  "activeMinutes": 3,
+                  "targetIds": [
+                    "90000000-0000-4000-8000-000000000001"
+                  ]
+                },
+                {
+                  "phaseId": "method-3-repair",
+                  "methodPhase": "repair",
+                  "activeMinutes": 2,
+                  "targetIds": [
+                    "90000000-0000-4000-8000-000000000001"
+                  ]
+                },
+                {
+                  "phaseId": "method-4-reexplain",
+                  "methodPhase": "reexplain",
+                  "activeMinutes": 2,
+                  "targetIds": [
+                    "90000000-0000-4000-8000-000000000001"
+                  ]
+                }
+              ],
+              "difficultyTier": "unknown",
+              "initialSupport": "supported_start",
+              "activityLimit": 4,
+              "completionEvidence": [
+                {
+                  "evidenceId": "legacy-evidence-1",
+                  "targetIds": [
+                    "90000000-0000-4000-8000-000000000001"
+                  ],
+                  "kind": "explanation",
+                  "description": "Explain ATP and energy transfer in your own words with your notes closed",
+                  "requiresIndependentAttempt": true
+                }
+              ],
+              "deferredTargets": []
+            },
+            "agency": {
+              "controlMode": "yova_decides",
+              "selectedBy": "yova",
+              "alternatives": [
+                {
+                  "alternativeId": "method-alternative:concept_mapping",
+                  "mode": "learn",
+                  "executionEnvironment": "inside_yova",
+                  "primaryMethodId": "concept_mapping",
+                  "visibleMethodName": "Concept Mapping",
+                  "activeMinutes": 10,
+                  "tradeoff": "Concept Mapping also fits this conceptual learning Learn session. Retrieve the important concepts, state labeled relationships between them, verify those links, and repair the map."
+                },
+                {
+                  "alternativeId": "method-alternative:pretesting",
+                  "mode": "learn",
+                  "executionEnvironment": "inside_yova",
+                  "primaryMethodId": "pretesting",
+                  "visibleMethodName": "Pretesting",
+                  "activeMinutes": 10,
+                  "tradeoff": "Pretesting also fits this conceptual learning Learn session. Make a brief prediction or attempt before instruction, then learn from the gap and answer a changed follow-up."
+                }
+              ]
+            },
+            "explanation": {
+              "shortReason": "You asked for an example first; Feynman Technique lets you explain the connections for ATP and energy transfer to build understanding in session 1.",
+              "taskRequirements": [
+                "Feynman Technique is eligible for this conceptual learning Learn route at the novice stage.",
+                "Explain ATP and energy transfer after working through a concrete example.",
+                "Explain ATP and energy transfer in your own words with your notes closed"
+              ],
+              "learnerDeclarations": [],
+              "observations": [],
+              "uncertainties": [
+                "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
+                "This starting point uses the available topic information; it has not been confirmed by an attempt in this session.",
+                "No authorized canonical control-mode answer is available, so YOVA uses its conservative agency default without treating it as a learner preference."
+              ]
+            },
+            "provenance": {
+              "routerVersion": "study_route_method_plan_integration_v1+method_decision_evidence_adapter_v2+method_evidence_v1+method_compare_v1+method_runtime_capability_v1+method_presentation_v2+study_route_agency_mode_controller_v1+personalization_rollout_v1+task_mastery_v1",
+              "profileVersion": "audit_duration_v1+audit_method_v1",
+              "evidenceRefs": [
+                "profile:focus-duration"
+              ],
+              "ruleTrace": [
+                {
+                  "ruleId": "study_route.legacy_plan_adapter",
+                  "result": "canonicalized_planned_promise",
+                  "reason": "Preserved the legacy plan-session promise without inventing historical agency or confidence.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "normal_plan_envelope_composer_v1",
+                  "result": "partial:initial_coverage:normal-plan-envelope-001",
+                  "reason": "The deterministic normal-plan composer fixed this session's sequence, targets, mode, schedule, and duration before learner-facing copy was generated.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "initial_plan_mode_routing_v1",
+                  "result": "learn:instruction_required",
+                  "reason": "Every active target requires instruction because 1 unobserved target follows the explicit Learn starting recommendation (The learner is starting from scratch.). No provider mode label entered this decision.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "duration.recommendation.sustainable_baseline",
+                  "result": "baseline_60_minutes",
+                  "reason": "The learner's authorized sustainable-duration answer sets a 60-minute starting recommendation.",
+                  "evidenceRefs": [
+                    "profile:focus-duration"
+                  ]
+                },
+                {
+                  "ruleId": "duration.recommendation.deadline_capacity",
+                  "result": "shortened_to_10_minutes",
+                  "reason": "The time before your deadline cannot hold the longer sessions, so this plan uses 10-minute sessions with fewer targets at a time. Your usual focus preference stays unchanged.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "duration.availability_cap",
+                  "result": "recommended_duration_fits",
+                  "reason": "The selected 10-minute session fits within the learner's 10-minute maximum.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "initial_plan_method_routing_v1",
+                  "result": "conceptual_learning:normal_plan_envelope",
+                  "reason": "Task family was preserved from the deterministic normal-plan envelope. Provider plan, session, evidence, and method prose were excluded from the decision.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "personalization_rollout_v1",
+                  "result": "task_mastery_v1",
+                  "reason": "The server-owned staged rollout selected the version for new route issuance; it did not alternate methods or create method evidence.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "study_route.router_history_compaction_v1",
+                  "result": "prior_router_chain_compacted",
+                  "reason": "The bounded routerVersion keeps the complete current method and rollout policy set. The exact ordered predecessor router components remain in this trace for audit and rollback.",
+                  "evidenceRefs": [
+                    "router-component:legacy_adapter_v1",
+                    "router-component:normal_plan_envelope_route_integration_v1",
+                    "router-component:normal_plan_envelope_composer_v1",
+                    "router-component:normal_duration_recommender_v1"
+                  ]
+                },
+                {
+                  "ruleId": "method_decision_evidence_adapter_v2",
+                  "result": "authorized_context_applied",
+                  "reason": "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "method_evidence_v1",
+                  "result": "thresholded_outcome_evidence",
+                  "reason": "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "method_compare_v1",
+                  "result": "comparison_context_required",
+                  "reason": "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "method_eligibility_v3",
+                  "result": "self_explanation,concept_mapping,pretesting,read_recall_review",
+                  "reason": "Task, knowledge stage, and Learn mode limited selection to Feynman Technique, Concept Mapping, Pretesting, SQ3R.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "canonical_method_selection_v1",
+                  "result": "task_baseline:self_explanation",
+                  "reason": "Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "method_runtime_capability_v1",
+                  "result": "streamed:validated_phase_contract:recovery_candidate",
+                  "reason": "YOVA can deliver this route through streamed generation and the generic activity renderer under the method's validated phase contract. A bounded model recovery is possible only when its additional source, target, pacing, and evidence checks also pass.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "method_presentation_v2",
+                  "result": "recognizable_method_names",
+                  "reason": "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
+                  "evidenceRefs": []
+                },
+                {
+                  "ruleId": "study_route_agency_mode_controller_v1",
+                  "result": "yova_decides:missing_profile_default:alternatives:concept_mapping,pretesting",
+                  "reason": "No authorized canonical control-mode answer is available, so YOVA uses its conservative agency default without treating it as a learner preference. The shared agency controller kept at most two eligible, deliverable alternatives.",
+                  "evidenceRefs": []
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "completion": {
+      "id": "6581b129-3602-47cf-97ad-ae6303cfaeca",
+      "planId": "ad54ef59-9b0e-44d7-bd44-68d202014b5f",
+      "planSessionId": "5f0e079b-0362-4687-93cd-c25ef1b9c8c0",
+      "routeRevisionId": "3990ea41-8a28-59ad-8ba9-3ab8df0e1ac4",
+      "startedAt": "2026-09-07T19:34:59.000Z",
+      "completedAt": "2026-09-07T19:35:00.000Z",
+      "plannedMinutes": 10,
+      "actualMinutes": 1,
+      "correctAnswers": 4,
+      "totalAnswers": 4,
+      "feedback": null,
+      "observedGap": "No major gap detected in the required check",
+      "completionMode": "guided",
+      "conceptEvidence": [
+        {
+          "topicId": "90000000-0000-4000-8000-000000000001",
+          "concept": "ATP transfers energy by losing its terminal phosphate group.",
+          "outcome": "secure",
+          "activityType": "free_response",
+          "methodPhase": "explain",
+          "routeRevisionId": "3990ea41-8a28-59ad-8ba9-3ab8df0e1ac4"
+        },
+        {
+          "topicId": "90000000-0000-4000-8000-000000000001",
+          "concept": "ATP transfers energy by losing its terminal phosphate group.",
+          "outcome": "secure",
+          "activityType": "free_response",
+          "methodPhase": "repair",
+          "routeRevisionId": "3990ea41-8a28-59ad-8ba9-3ab8df0e1ac4"
+        },
+        {
+          "topicId": "90000000-0000-4000-8000-000000000001",
+          "concept": "ATP transfers energy by losing its terminal phosphate group.",
+          "outcome": "secure",
+          "activityType": "free_response",
+          "methodPhase": "reexplain",
+          "routeRevisionId": "3990ea41-8a28-59ad-8ba9-3ab8df0e1ac4"
+        },
+        {
+          "topicId": "90000000-0000-4000-8000-000000000001",
+          "concept": "Recognition transfer: ATP transfers energy by losing its terminal phosphate group.",
+          "outcome": "secure",
+          "activityType": "multiple_choice",
+          "methodPhase": "transfer",
+          "routeRevisionId": "3990ea41-8a28-59ad-8ba9-3ab8df0e1ac4"
+        }
+      ],
+      "confidenceEvidence": []
+    }
+  }
+}
