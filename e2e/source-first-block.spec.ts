@@ -40,9 +40,10 @@ function preparedPlan() {
 }
 
 async function openNext(page: Page) {
+  await expect(page.getByRole("region", { name: "Recommended learning plan" })).toBeVisible();
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   const goal = page.getByRole("button", { name: "Open goal", exact: true }).first();
-  if (await goal.isVisible()) await goal.click();
+  await goal.click();
   await page.getByRole("button", { name: /Start next session|Continue session/, exact: true }).first().click();
   const early = page.getByRole("button", { name: "Start now, keep dates" });
   if (await early.isVisible()) await early.click();
