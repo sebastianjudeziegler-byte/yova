@@ -1,6 +1,6 @@
 # Required pipeline boundary decision
 
-Status: awaiting approval. No product code has changed.
+Status: narrowly approved by the founder on September 10, 2026. Source binding may become topic-scoped within the existing pipeline only. Add a permanent non-inheritance test; retain Brief B's byte-identical protection for every unrelated session; record reproduction on main. No other pipeline changes are authorized; stop and ask if the correction grows.
 
 ## Observed failure
 
@@ -11,6 +11,8 @@ The permanent regression in `src/evals/brief-c-source-boundary.test.ts` creates 
 The failed session is titled **Build Enzymes and activation energy**. The returned reason is **This material-grounded StudyRoute has no selected source section for its active targets.** The HTTP entry point appends a rebuild instruction and refuses to open the session. The sourced ATP session opens its exact PDF section; missing or substituted PDF sources remain rejected.
 
 The five recorded validator suites pass **101/101**, including their Brief 0.5 negatives. Raw per-test results and source SHA are retained in [evidence/initial-source-boundary](evidence/initial-source-boundary/). This is a deterministic pre-implementation failure, not a provider flake or a new Brief C regression.
+
+Classification: **pre-existing Brief B seam on main `8032361`**, corrected within Brief C because it blocks C's required mixed-source default path. The test-only commit runs unchanged main product code, as confirmed by the recorded changed-file inventory; this is not inferred from an unrelated legacy-material canary.
 
 ## Cause
 

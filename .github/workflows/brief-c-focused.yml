@@ -34,7 +34,7 @@ jobs:
           mkdir -p artifacts/brief-c
           git rev-parse HEAD > artifacts/brief-c/source-sha.txt
       - name: Mixed-source learner entry regression
-        run: pnpm exec vitest run src/evals/brief-c-source-boundary.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/source-boundary.json
+        run: pnpm exec vitest run src/evals/brief-c-source-boundary.test.ts src/lib/plan-revision src/lib/study-route/source-contract.test.ts src/lib/study-route/normal-plan-envelope-integration.test.ts src/lib/plan-generation/normal-plan-pipeline.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/source-boundary.json
       - name: Preserve Brief 0.5 negative protections
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/lib/openai/streamed-validator-calibration.test.ts src/lib/session-generation/question-context.test.ts src/evals/brief-0-5-rubric.test.ts src/lib/session-generation/completion-contract.test.ts src/lib/session-generation/lesson-brief.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/negative-protections.json
