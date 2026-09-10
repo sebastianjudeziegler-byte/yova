@@ -1,0 +1,1 @@
+CI https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34484587702, f3dadc4. Saved resource view green; new rubric compares property order rather than values (38 pass / 1 fail). Live 4 pass / 1 fail: broad MCQ still falsely accepted. No green semantic-quality claim.

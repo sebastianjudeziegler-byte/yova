@@ -3,7 +3,7 @@ name: YOVA quality
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, codex/brief-c-source-first-practice]
 
 concurrency:
   group: yova-quality-${{ github.ref }}
@@ -11,6 +11,7 @@ concurrency:
 
 jobs:
   verify:
+    if: ${{ github.event_name != 'push' || github.ref_name != 'codex/brief-c-source-first-practice' || contains(github.event.head_commit.message, '[brief-c-full]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
@@ -23,6 +24,8 @@ jobs:
     steps:
       - name: Check out YOVA
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -75,6 +78,11 @@ jobs:
 
       - name: Lint the migrated database
         run: pnpm exec supabase db lint --local --level warning --fail-on error
+
+      - name: Generate routed Brief B and C database fixtures
+        run: |
+          YOVA_DB_FIXTURE_PATH=supabase/tests/database/20260910_living_plan_generated.test.sql pnpm exec vitest run src/lib/plan-revision/database-contract.fixture.test.ts
+          YOVA_BLOCK_DB_FIXTURE_PATH=supabase/tests/database/20260910_work_block_generated.test.sql pnpm exec vitest run src/evals/brief-c-block-database.fixture.test.ts
 
       - name: Test migrated database boundaries
         run: pnpm exec supabase test db --local
@@ -139,7 +147,7 @@ jobs:
 
       - name: Run core learner journey
         if: ${{ !cancelled() }}
-        continue-on-error: ${{ github.head_ref == 'codex/brief-b-living-plan' }}
+        continue-on-error: ${{ github.head_ref == 'codex/brief-b-living-plan' || (github.head_ref || github.ref_name) == 'codex/brief-c-source-first-practice' }}
         run: pnpm test:e2e --reporter=list,json
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/browser.json
@@ -163,6 +171,8 @@ jobs:
       - name: Compare the Study Profile phone-width case on main and release
         if: ${{ !cancelled() }}
         run: node scripts/compare-study-profile-ci.mjs
+        env:
+          YOVA_PROFILE_BASELINE: ${{ (github.head_ref || github.ref_name) == 'codex/brief-c-source-first-practice' && '80323614fec32563a340528fb558a84657a00773' || 'c7b3ca99964524cefc04437b7236b37fe8fe2666' }}
 
       - name: Upload Study Profile comparison
         if: always()
@@ -175,7 +185,7 @@ jobs:
 
       - name: Run full live gate on the combined release
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        continue-on-error: ${{ github.head_ref == 'codex/brief-b-living-plan' }}
+        continue-on-error: ${{ github.head_ref == 'codex/brief-b-living-plan' || (github.head_ref || github.ref_name) == 'codex/brief-c-source-first-practice' }}
         run: |
           if test "$LIVE_GATE_RUNS" = 3; then
             mkdir -p tmp/brief-0-5 test-results/live-gate
@@ -197,11 +207,13 @@ jobs:
           # Three serial release samples; ordinary main/PR gates retain one.
           LIVE_GATE_RUNS: ${{ github.head_ref == 'codex/brief-0-5-grader-and-validators' && '3' || '1' }}
 
-      - name: Gate Brief B on regressions versus retained main
-        if: ${{ !cancelled() && github.head_ref == 'codex/brief-b-living-plan' }}
+      - name: Gate the brief on regressions versus retained main
+        if: ${{ !cancelled() && (github.head_ref == 'codex/brief-b-living-plan' || (github.head_ref || github.ref_name) == 'codex/brief-c-source-first-practice') }}
         run: |
           node scripts/compare-release-ci.mjs
           cat artifacts/quality/regression-comparison.md >> "$GITHUB_STEP_SUMMARY"
+        env:
+          YOVA_RELEASE_BRIEF: ${{ (github.head_ref || github.ref_name) == 'codex/brief-c-source-first-practice' && 'C' || 'B' }}
 
       - name: Publish full live gate evidence
         if: always()

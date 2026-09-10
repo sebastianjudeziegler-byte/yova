@@ -1,7 +1,8 @@
 import { writeFileSync, appendFileSync } from "node:fs";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { generationContext } from "./brief-c-generation-fixture";
 import { generateWorkBlock } from "@/lib/session-blocks/generate";
+import { getOpenAIClient } from "@/lib/openai/client";
 import { createBlockProvider } from "@/lib/session-blocks/provider";
 import { advanceBlockProgress, initialBlockProgress } from "@/lib/session-blocks/progress";
 import { WorkBlockSchema } from "@/lib/session-blocks/schema";
@@ -26,6 +27,20 @@ const subjects = [
 ] as const;
 
 describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared practice quality", () => {
+  beforeAll(() => {
+    if (!process.env.YOVA_BLOCK_CAPTURE) return;
+    const responses = getOpenAIClient().responses;
+    const original = responses.parse.bind(responses);
+    vi.spyOn(responses, "parse").mockImplementation((...args) => {
+      const response = original(...args);
+      void response.then(result => {
+        if (args[0].text?.format?.name === "yova_block_semantic_review") appendFileSync(process.env.YOVA_BLOCK_CAPTURE!, JSON.stringify({ stage: "independent-choice-judgments", output: result.output_parsed }) + "\n");
+      }, () => undefined);
+      return response;
+    });
+  });
+  afterAll(() => vi.restoreAllMocks());
+
   it.each(subjects)("delivers source-supported $label as $kind", async subject => {
     const context = generationContext(1);
     const topic = context.knowledgeTopics[0]!;

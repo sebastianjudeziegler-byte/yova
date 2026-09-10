@@ -21,7 +21,7 @@ export function evaluateWorkBlockDraft(draft: GeneratedSessionDraft, context: Se
       && block.activities.reduce((sum, activity) => sum + activity.estimatedMinutes, 0) === context.session.estimatedMinutes,
     "No model-selected topic, timing or work-mode change.");
     add("block_source", "Practice uses only its assigned usable sections", Boolean(expected && JSON.stringify(block.sources) === JSON.stringify(expected.sources)), "Compare exact topic-scoped source identities and content; no title keyword requirement.");
-    add("block_support", "Job and profile are visible in delivered practice", Boolean(expected && JSON.stringify(block.personalization) === JSON.stringify(expected.personalization)
+    add("block_support", "Job and profile are visible in delivered practice", Boolean(expected && Object.entries(expected.personalization).every(([key, value]) => Reflect.get(block.personalization, key) === value)
       && block.questions.length === expected.slots.length && block.questions.every((question, index) => {
         const slot = expected!.slots[index]!;
         return question.id === slot.id && question.topicId === slot.topicId && question.format === slot.format

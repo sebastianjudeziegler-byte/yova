@@ -1,19 +1,23 @@
-// Brief B closeout: compare the one full run with retained exact-main evidence.
+// Brief closeout: compare the one full run with retained exact-main evidence.
 import { readFileSync, writeFileSync } from "node:fs";
 import { canonicalBrowserCaseName, compareLiveReports } from "./live-gate/regression.mjs";
 import { normalizeBrowserReport } from "./live-gate/core.mjs";
 if (!process.env.GITHUB_ACTIONS) throw new Error("Release comparison runs only in GitHub Actions.");
 const read = path => JSON.parse(readFileSync(path, "utf8"));
-const baseline = "docs/audits/brief-b/evidence";
-const main = read(`${baseline}/main-live/report.json`);
-if (main.commit !== "c7b3ca99964524cefc04437b7236b37fe8fe2666") throw new Error("Unexpected main baseline revision.");
+const brief = process.env.YOVA_RELEASE_BRIEF ?? "B";
+if (!["B", "C"].includes(brief)) throw new Error("Unknown brief comparison.");
+const baseline = brief === "C" ? "docs/audits/brief-c/evidence/main-baseline" : "docs/audits/brief-b/evidence";
+const main = read(brief === "C" ? `${baseline}/live-report.json` : `${baseline}/main-live/report.json`);
+if (main.commit !== (brief === "C" ? "80323614fec32563a340528fb558a84657a00773" : "c7b3ca99964524cefc04437b7236b37fe8fe2666")) throw new Error("Unexpected main baseline revision.");
 const after = read("test-results/live-gate/report.json");
 const policy = read("scripts/live-gate/policy.json");
 const live = compareLiveReports(main, after, {
-  scoped: after.rows.filter(row => row.id.includes("History essay using outside sources") && row.file.includes("plan-session-journey") || row.file.includes("personalization-delta")).map(row => row.id),
+  scoped: after.rows.filter(row => row.id.includes("History essay using outside sources") && row.file.includes("plan-session-journey") || row.file.includes("personalization-delta") || (brief === "C" && (row.file.includes("brief-c") || row.id.includes("calculus_broad_pathway")))).map(row => row.id),
   quarantined: Object.entries(policy.cases).filter(([, value]) => value.classification === "FLAKY").map(([id]) => id),
 });
-const mainBrowser = read(`${baseline}/main-browser-baseline.json`);
+const mainBrowser = brief === "C"
+  ? { rows: normalizeBrowserReport(read(`${baseline}/browser.json`), process.cwd()).cases.filter(row => row.state === "passed") }
+  : read(`${baseline}/main-browser-baseline.json`);
 const raw = read("artifacts/quality/browser.json");
 const normalized = normalizeBrowserReport(raw, process.cwd());
 const key = row => `${row.file.replace(/^e2e\//, "")}::${row.project}::${canonicalBrowserCaseName(row.name.replaceAll(" › ", " > "))}`;
@@ -29,7 +33,7 @@ const observed = normalized.cases.flatMap((row, index) => (runs[index]?.length ?
   ...row, id: key(row), state: result.status === "passed" ? "passed" : result.status === "skipped" ? "skipped" : result.status === "pending" ? "pending" : "failed",
   status: result.status === "passed" ? "pass" : "fail",
 }))).filter(row => row.state !== "skipped");
-const scopedBrowser = normalized.cases.filter(row => row.file.includes("living-plan") || /visibly shortened inside recipe|10-minute outside teaching-first session|overdue outside teaching-first session|overdue arbitrary inside session|scheduled-review setup stays fixed|shorter sessions preserve weekly availability/.test(row.name)).map(key);
+const scopedBrowser = normalized.cases.filter(row => row.file.includes("living-plan") || (brief === "C" && row.file.includes("source-first-block")) || /visibly shortened inside recipe|10-minute outside teaching-first session|overdue outside teaching-first session|overdue arbitrary inside session|scheduled-review setup stays fixed|shorter sessions preserve weekly availability/.test(row.name)).map(key);
 const browserFlakes = normalized.cases.filter((_row, index) => runs[index].some(result => result.status === "passed") && runs[index].some(result => ["failed", "timedOut"].includes(result.status))).map(key);
 const browser = compareLiveReports({ rows: mainBrowser.rows.map(row => ({ ...row, id: key(row), state: "passed" })) }, { rows: observed }, {
   scoped: scopedBrowser,
