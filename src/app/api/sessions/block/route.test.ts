@@ -39,13 +39,24 @@ describe("server-owned block attempts", () => {
   it("resumes a server-prepared development preview without requiring a cloud account", async () => {
     vi.stubEnv("NODE_ENV", "development");
     mocks.user.mockResolvedValue({ data: { user: null }, error: null });
-    const blockStore = await import("@/lib/session-blocks/store");
-    const prepare = Reflect.get(blockStore, "saveDevelopmentBlock") as undefined | ((ids: typeof binding, resource: typeof stored.resource, keys: typeof stored.answerKeys) => void);
-    prepare?.(binding, stored.resource, stored.answerKeys);
+    const { saveDevelopmentBlock } = await import("@/lib/session-blocks/store");
+    saveDevelopmentBlock(binding, stored.resource, stored.answerKeys);
     const response = await POST(new Request("http://localhost/api/sessions/block", { method: "POST", headers: { "Content-Type": "application/json", "X-Yova-Development-Preview": "guided-session" }, body: JSON.stringify({ ...binding, action: "state" }) }));
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.progress.attempts).toEqual([]); expect(body.solutions).toEqual({});
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    const previewPost = (action: Record<string, unknown>) => POST(new Request("http://localhost/api/sessions/block", { method: "POST", headers: { "Content-Type": "application/json", "X-Yova-Development-Preview": "guided-session" }, body: JSON.stringify({ ...binding, ...action }) }));
+    await previewPost({ action: "answer", questionId: "atp-products", answer: "ADP and inorganic phosphate" });
+    const resumed = await (await previewPost({ action: "state" })).json();
+    expect(resumed.progress.attempts).toHaveLength(1);
+    expect(resumed.progress.attempts[0].outcome).toBe("secure");
+    expect(resumed.solutions["atp-coupling"]).toBeUndefined();
+    expect((await previewPost({ action: "state", blockId: crypto.randomUUID() })).status).toBe(409);
+    expect((await previewPost({ action: "answer", questionId: "atp-coupling", answer: "Energy", outcome: "secure" })).status).toBe(422);
+    vi.stubEnv("NODE_ENV", "production");
+    expect((await previewPost({ action: "state" })).status).toBe(401);
+    expect(() => saveDevelopmentBlock(binding, stored.resource, stored.answerKeys)).toThrow(/unavailable/);
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 

@@ -1,3 +1,4 @@
+import { saveDevelopmentBlock } from "@/lib/session-blocks/store";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { initialBlockProgress } from "@/lib/session-blocks/progress";
 import { NextResponse } from "next/server";
@@ -1411,6 +1412,9 @@ async function generateBrowserPreviewSession(
         }),
       }),
     );
+    if (session.schemaVersion === 19) saveDevelopmentBlock({
+      planId: input.planId, planSessionId: input.planSessionId, routeRevisionId: input.routeRevisionId, blockId: session.block.id,
+    }, session, "blockAnswerKeys" in generated ? generated.blockAnswerKeys : []);
     logSuccessfulGeneration(requestId, generated.model, generated.generationStats, "browser");
 
     return NextResponse.json(SessionGenerationResponseSchema.parse({

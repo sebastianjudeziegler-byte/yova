@@ -21,6 +21,8 @@ jobs:
       DO_NOT_TRACK: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 11.16.0
@@ -56,6 +58,22 @@ jobs:
       - name: Preserve Brief 0.5 negative protections
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/lib/openai/streamed-validator-calibration.test.ts src/lib/session-generation/question-context.test.ts src/evals/brief-0-5-rubric.test.ts src/lib/session-generation/completion-contract.test.ts src/lib/session-generation/lesson-brief.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/negative-protections.json
+      - name: Compare the existing Brief B database fixture on merged main
+        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-main]') }}
+        run: |
+          baseline="$RUNNER_TEMP/brief-c-main-baseline"
+          mkdir -p "$baseline"
+          git archive 80323614fec32563a340528fb558a84657a00773 | tar -x -C "$baseline"
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$baseline/node_modules"
+          cd "$baseline"
+          YOVA_DB_FIXTURE_PATH="$RUNNER_TEMP/main-living-plan.sql" pnpm exec vitest run src/lib/plan-revision/database-contract.fixture.test.ts --reporter=default --reporter=json --outputFile="$GITHUB_WORKSPACE/artifacts/brief-c/main-b-database-fixture.json"
+      - name: Live prepared-practice canaries
+        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-live]') }}
+        run: pnpm exec vitest run src/evals/brief-c-practice.live.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=artifacts/brief-c/block-live.json
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_RUN_LIVE_BLOCKS: "1"
+          YOVA_BLOCK_PRINTOUT: ${{ github.workspace }}/artifacts/brief-c/profile-blocks.json
       - name: Replay database migrations and check block authority
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-db]') }}
         run: |
@@ -63,9 +81,11 @@ jobs:
           pnpm exec supabase init
           pnpm exec supabase db start
           YOVA_BLOCK_DB_FIXTURE_PATH=supabase/tests/database/20260910_work_block_generated.test.sql pnpm exec vitest run src/evals/brief-c-block-database.fixture.test.ts
-          YOVA_DB_FIXTURE_PATH=supabase/tests/database/20260910_living_plan_generated.test.sql pnpm exec vitest run src/lib/plan-revision/database-contract.fixture.test.ts
+          fixture_status=0
+          YOVA_DB_FIXTURE_PATH=supabase/tests/database/20260910_living_plan_generated.test.sql pnpm exec vitest run src/lib/plan-revision/database-contract.fixture.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/b-database-fixture.json || fixture_status=$?
           pnpm exec supabase db lint --local --level warning --fail-on error
           pnpm exec supabase test db --local | tee artifacts/brief-c/block-database.txt
+          exit "$fixture_status"
       - name: Stop isolated database
         if: ${{ always() && contains(github.event.head_commit.message, '[brief-c-db]') }}
         run: pnpm exec supabase stop --no-backup

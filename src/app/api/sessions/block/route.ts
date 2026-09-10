@@ -1,10 +1,11 @@
+import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { evaluateAnswerWithOpenAI } from "@/lib/openai/answer-evaluator";
 import { reserveAIRequest, settleAIRequestClaim, consumeAIRequestClaimAfterProviderFailure } from "@/lib/server/ai-usage";
 import { checkAnswerEvaluationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { BlockActionSchema, advanceBlockProgress, type BlockAttempt } from "@/lib/session-blocks/progress";
-import { BlockBindingSchema, readStoredBlock, saveStoredBlockProgress, publicBlockProgress } from "@/lib/session-blocks/store";
+import { BlockBindingSchema, readStoredBlock, saveStoredBlockProgress, publicBlockProgress, readDevelopmentBlock, saveDevelopmentBlockProgress } from "@/lib/session-blocks/store";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -19,12 +20,14 @@ export async function POST(request: Request) {
   void _plan; void _session; void _route; void _block;
   const action = BlockActionSchema.safeParse(actionFields);
   if (!action.success) return NextResponse.json({ error: "Send only your action or answer; YOVA checks the saved question." }, { status: 422 });
-  const supabase = await createSupabaseServerClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return NextResponse.json({ error: "Sign in to resume your practice." }, { status: 401 });
+  const preview = isDevelopmentPreviewRequest(request);
+  const supabase = preview ? null : await createSupabaseServerClient();
+  const auth = supabase ? await supabase.auth.getUser() : { data: { user: { id: "development-preview" } }, error: null };
+  const user = auth.data.user;
+  if (auth.error || !user) return NextResponse.json({ error: "Sign in to resume your practice." }, { status: 401 });
   let claimId: string | null = null;
   try {
-    const stored = await readStoredBlock(user.id, binding.data);
+    const stored = preview ? readDevelopmentBlock(binding.data) : await readStoredBlock(user.id, binding.data);
     let checked: BlockAttempt | undefined;
     const block = stored.resource.block;
     const requestedQuestionId = action.data.action === "answer" ? action.data.questionId : null;
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
       } else {
         const limit = checkAnswerEvaluationRateLimit(`${user.id}:${requestRateLimitKey(request)}`);
         if (!limit.allowed) return NextResponse.json({ error: "Wait a moment before checking again. Your practice is saved." }, { status: 429 });
-        const reservation = await reserveAIRequest(supabase, "answer_evaluation", requestId, crypto.randomUUID());
+        const reservation = supabase ? await reserveAIRequest(supabase, "answer_evaluation", requestId, crypto.randomUUID()) : { allowed: true, claimId: null };
         if (!reservation.allowed) return NextResponse.json({ error: "Answer checking is unavailable right now. Your practice is saved; you can reveal this answer and continue without recording evidence." }, { status: 429 });
         claimId = reservation.claimId;
         const evaluation = await evaluateAnswerWithOpenAI({ ...binding.data, learnerAnswer: answer, activity: {
@@ -49,15 +52,19 @@ export async function POST(request: Request) {
           concept: question.prompt, referenceAnswer: key.answer,
           rubric: `Required ideas: ${key.requiredIdeas.join("; ")}. Accept accurate paraphrases. ${key.explanation}`,
         } });
-        await settleAIRequestClaim(supabase, claimId); claimId = null;
+        if (supabase && claimId) await settleAIRequestClaim(supabase, claimId);
+        claimId = null;
         checked = { questionId, outcome: evaluation.verdict, feedback: evaluation.feedback, assisted: false };
       }
     }
     const progress = advanceBlockProgress(block, stored.progress, action.data, checked);
-    if (JSON.stringify(progress) !== JSON.stringify(stored.progress)) await saveStoredBlockProgress(user.id, binding.data, stored, progress);
+    if (JSON.stringify(progress) !== JSON.stringify(stored.progress)) {
+      if (preview) saveDevelopmentBlockProgress(binding.data, stored, progress);
+      else await saveStoredBlockProgress(user.id, binding.data, stored, progress);
+    }
     return NextResponse.json(publicBlockProgress(stored, progress, binding.data));
   } catch (error) {
-    if (claimId) { try { await consumeAIRequestClaimAfterProviderFailure(supabase, claimId); } catch { /* Existing ledger recovery retains the claim. */ } }
+    if (claimId && supabase) { try { await consumeAIRequestClaimAfterProviderFailure(supabase, claimId); } catch { /* Existing ledger recovery retains the claim. */ } }
     const detail = error instanceof Error ? error.message : "This action could not be saved.";
     return NextResponse.json({ error: `${detail} Your previous practice progress is saved.` }, { status: 409 });
   }
