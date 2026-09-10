@@ -1,0 +1,148 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/outside-teaching-reliability.live.test.ts[2m > [22m[2mlive outside-YOVA teaching reliability[2m > [22m[2mbuilds an arbitrary three-target teaching-first session repeatedly
+[22m[39mOutside teaching generation {
+  run: [33m1[39m,
+  generationStats: {
+    elapsedMs: [33m8330[39m,
+    attempts: [33m1[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'session_practice_variation'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mtrue[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m'YOVA restored the evidence-derived practice-intent metadata without changing the question, answer, phase, support, or misconception content, then reran the complete validator.'[39m,
+    inputTokens: [33m11980[39m,
+    cachedInputTokens: [33m0[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m1464[39m,
+    validationIssueCode: [32m'session_practice_metadata'[39m,
+    strategy: [32m'full'[39m,
+    stage: [32m'complete'[39m
+  }
+}
+
+[90mstdout[2m | src/evals/outside-teaching-reliability.live.test.ts[2m > [22m[2mlive outside-YOVA teaching reliability[2m > [22m[2mbuilds an arbitrary three-target teaching-first session repeatedly
+[22m[39mOutside teaching failure {
+  run: [33m2[39m,
+  message: [32m'OpenAI did not return a complete, safe guided session after the bounded repair attempts. The required knowledge check mapped to “Supply curve versus quantity supplied” does not visibly assess that essential idea.'[39m,
+  generationStats: {
+    elapsedMs: [33m23936[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'session_completion_contract'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mfalse[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m'The question "Delayed return" is not visibly connected to its named concept or session objective. Follow-up repair failure: The required knowledge check mapped to “Supply curve versus quantity supplied” does not visibly assess that essential idea.'[39m,
+    inputTokens: [33m24045[39m,
+    cachedInputTokens: [33m18432[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m3230[39m,
+    validationIssueCode: [1mnull[22m,
+    stage: [32m'validation'[39m,
+    cause: [32m'semantic_validation'[39m,
+    strategy: [32m'full'[39m
+  }
+}
+
+[90mstdout[2m | src/evals/outside-teaching-reliability.live.test.ts[2m > [22m[2mlive outside-YOVA teaching reliability[2m > [22m[2mbuilds an arbitrary three-target teaching-first session repeatedly
+[22m[39mOutside teaching failure {
+  run: [33m3[39m,
+  message: [32m'OpenAI did not return a complete, safe guided session after the bounded repair attempts. The session produced a error_repair runtime, but self_explanation does not use a method runtime.'[39m,
+  generationStats: {
+    elapsedMs: [33m15902[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'session_method_runtime'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mfalse[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m'Supply curve versus quantity supplied is a required practice target but has no topic-linked knowledge check. Follow-up repair failure: The session produced a error_repair runtime, but self_explanation does not use a method runtime.'[39m,
+    inputTokens: [33m24045[39m,
+    cachedInputTokens: [33m18432[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m3071[39m,
+    validationIssueCode: [1mnull[22m,
+    stage: [32m'validation'[39m,
+    cause: [32m'semantic_validation'[39m,
+    strategy: [32m'full'[39m
+  }
+}
+
+ [31m❯[39m src/evals/outside-teaching-reliability.live.test.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 48852[2mms[22m[39m
+[31m     [31m×[31m builds an arbitrary three-target teaching-first session repeatedly[39m[33m 48851[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/outside-teaching-reliability.live.test.ts[2m > [22mlive outside-YOVA teaching reliability[2m > [22mbuilds an arbitrary three-target teaching-first session repeatedly
+[31m[1mAssertionError[22m: expected [ { run: 2, …(1) }, { run: 3, …(1) } ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   {[39m
+[31m+     "generationStats": {[39m
+[31m+       "attempts": 2,[39m
+[31m+       "cacheWriteTokens": 0,[39m
+[31m+       "cachedInputTokens": 18432,[39m
+[31m+       "cause": "semantic_validation",[39m
+[31m+       "elapsedMs": 23936,[39m
+[31m+       "failedValidator": "session_completion_contract",[39m
+[31m+       "firstAttemptPassed": false,[39m
+[31m+       "inputTokens": 24045,[39m
+[31m+       "outputTokens": 3230,[39m
+[31m+       "repairAttempted": true,[39m
+[31m+       "repairDetail": "The question \"Delayed return\" is not visibly connected to its named concept or session objective. Follow-up repair failure: The required knowledge check mapped to “Supply curve versus quantity supplied” does not visibly assess that essential idea.",[39m
+[31m+       "repairReason": "semantic_validation",[39m
+[31m+       "repairSucceeded": false,[39m
+[31m+       "stage": "validation",[39m
+[31m+       "strategy": "full",[39m
+[31m+       "validationIssueCode": null,[39m
+[31m+     },[39m
+[31m+     "run": 2,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "generationStats": {[39m
+[31m+       "attempts": 2,[39m
+[31m+       "cacheWriteTokens": 0,[39m
+[31m+       "cachedInputTokens": 18432,[39m
+[31m+       "cause": "semantic_validation",[39m
+[31m+       "elapsedMs": 15902,[39m
+[31m+       "failedValidator": "session_method_runtime",[39m
+[31m+       "firstAttemptPassed": false,[39m
+[31m+       "inputTokens": 24045,[39m
+[31m+       "outputTokens": 3071,[39m
+[31m+       "repairAttempted": true,[39m
+[31m+       "repairDetail": "Supply curve versus quantity supplied is a required practice target but has no topic-linked knowledge check. Follow-up repair failure: The session produced a error_repair runtime, but self_explanation does not use a method runtime.",[39m
+[31m+       "repairReason": "semantic_validation",[39m
+[31m+       "repairSucceeded": false,[39m
+[31m+       "stage": "validation",[39m
+[31m+       "strategy": "full",[39m
+[31m+       "validationIssueCode": null,[39m
+[31m+     },[39m
+[31m+     "run": 3,[39m
+[31m+   },[39m
+[31m+ ][39m
+
+[36m [2m❯[22m src/evals/outside-teaching-reliability.live.test.ts:[2m121:22[22m[39m
+    [90m119|[39m     }
+    [90m120|[39m
+    [90m121|[39m     [34mexpect[39m(failures)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m   |[39m                      [31m^[39m
+    [90m122|[39m   }[33m,[39m [34m240_000[39m)[33m;[39m
+    [90m123|[39m })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m   Start at [22m 12:33:21
+[2m   Duration [22m 48.98s[2m (transform 444ms, setup 0ms, import 24ms, tests 48.85s, environment 0ms)[22m
+
+
+Exit code: 1

@@ -108,3 +108,56 @@ Compatibility: **6 pass / 10 fail** across both viewports. Photosynthesis guard,
 [Run 34410246478](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34410246478), [artifact 10127265286](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34410246478/artifacts/10127265286): **4,020 unit pass, 86 opt-in skipped; lint and typecheck pass; 24/24 revision database assertions, 11/11 actual routed persistence assertions, 213/213 full database assertions; database lint has no errors; 10/10 Brief B desktop/mobile cases pass.** All four preceding unit reds and the activation-protection red move to green. The isolated old-source reload test fails on 58ba8f5 then passes on branch; the old migration fails the source-readback and activation checks, then the corrected migration passes every assertion. File membership is restored by Undo and stays restored after reload; the learner's private uploaded asset is retained.
 
 Compatibility is 12 pass / 4 fail. The two remaining Study Now cases on both viewports are a concrete integration regression: development preview posts an empty `generationRequest.availability` for older goals without a schedule-preferences object, so the strict request schema returns 422 before the delta. The trace contains the existing 15-minute block. The compatibility correction derives the prior availability from that saved block; it does not relax the schema, invent learning evidence, change runtime, or introduce another composer. The two browser fixtures now explicitly freeze to the shared scheduling instant. Their final result belongs to the single full closeout gate.
+
+## Exact-main comparison baseline
+
+The complete post-merge [main run 34392578535](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34392578535) tested **c7b3ca99964524cefc04437b7236b37fe8fe2666** with the same lockfile and GitHub provider secret before this branch. It passed 3,982 unit tests plus the runner checks, lint/build, migration/database, 265 ordinary desktop/mobile journeys and 15 auth journeys; both phone-width comparison samples passed. This is an actual run on the base SHA, not the earlier release evidence roll-up.
+
+The exact-main live run is retained in [evidence/main-live/report.json](evidence/main-live/report.json) and [its table](evidence/main-live/report.md): **48 pass / 6 fail / 18 flaky / 4 unavailable**. Raw failed executions inside quarantine remain visible. Five failures are the deferred legacy-material cases; the sixth is the legacy calculus plan's capacity failure, wrapped as a provider-request error; its nested cause is `PlanScheduleCapacityError`, so it remains a failure rather than unavailable. The branch closeout is compared against these rows by exact file/test identity, with previous quarantines retained. No full main run was repeated for this comparison.
+
+## Closeout boundary
+
+The single complete Brief B gate is [run 34411504270](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34411504270), source `f7fcfb84ceffcd5548f016d4b2c582f46b698184`. It runs unit/runner checks, lint, TypeScript, build, full desktop/mobile browser and authentication journeys, phone-width comparison, and the full discovered live suite. The development capture workflow has been removed; the ordinary quality workflow preserves the founder video/screens before later browser runs replace their output. All verification remains in GitHub Actions.
+
+Deliberately excluded: natural-language delta parsing (Brief D), new source-study session shapes (Brief C), session runtime or validator redesign, syllabus work, and fixes for the pre-existing live/Calendar/legacy-material backlog. The API records attachments and budgets source time; it does not claim to implement Brief C's source lesson. Method-choice, existing scheduling and runtime lifecycle/evidence authorities remain as documented exceptions. No production settings, personalization rollout, merge, or deployment are part of this closeout.
+
+## Single full-gate result and release blockers
+
+[Full run 34411504270](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34411504270) completed on `f7fcfb8`. **Release is blocked.** This PR is opened as a draft for review, not as a claim that the no-regression gate passed. No second full run, additional product fix, merge, or deployment was performed.
+
+| Gate | Result |
+| --- | --- |
+| Unit | 4,019 passed; 87 intentional live/fixture skips; runner accounting checks passed |
+| Lint / TypeScript / production build | Passed |
+| Migration replay / database / database lint | Passed (213 assertions) |
+| Full ordinary desktop/mobile | 263 passed / 12 failed / 19 skipped; no flaky retries passed |
+| Founder AP Bio and other Brief B browser cases | **10/10 passed**, including both founder viewports |
+| Authentication | 15 passed |
+| Study Profile phone comparison | Main and branch both passed |
+| Full live, raw | 50 pass / 8 fail / 17 flaky / 2 unavailable |
+| Same live observations after the two documented quarantine additions | 50 pass / 6 fail / 19 flaky / 2 unavailable; **no rerun and no failed execution converted to a pass** |
+
+Both Brief A's live personalization delta and Brief B's live `mark_covered` amount/support delta passed. The provider-generated [initial P1/P2 plans](evidence/branch-live/profile-plans.json) and [revised Practice P1/P2 plans](evidence/branch-live/profile-plans.json.covered.json) are retained. The ordinary founder create→activate→session→complete flow passed. Both live browser executions also passed, while retaining their existing FLAKY policy labels; those executions are not a stabilization claim. Byte-identical unrelated-session comparisons passed in the route suite, actual database patch and founder journey. [Compact unit results](evidence/quality/unit-results.json), [all browser results/retries](evidence/quality/browser-results.json), [authentication results](evidence/quality/auth-results.json), and [raw live table](evidence/branch-live/report.md) preserve the individual outcomes.
+
+The founder screenshots are retained under [desktop](evidence/founder/desktop/) and [mobile](evidence/founder/mobile/). The [complete CI artifact 10129261449](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34411504270/artifacts/10129261449) holds their videos under `artifacts/quality/core-browser/living-plan-founder-*`, plus browser failure traces. The [live artifact 10129253945](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34411504270/artifacts/10129253945) contains P1/P2 plan printouts and all live logs.
+
+### Regression-only decision
+
+[Main-vs-branch table](evidence/COMPARISON.md) includes every live case that failed or was unavailable in either complete sample. **A18 — `live plan-to-session journeys > 'History essay using outside sources'` is PASS on exact main and FAIL on this branch.** Its nested cause is `PlanScheduleCapacityError`, not a proven provider outage. The same error family appears in main's calculus case, but that is not proof that this history case was failing on main. It remains a release blocker; it is not silently quarantined or declared fixed.
+
+Osmosis and A05 match the founder's explicitly deferred intermittent failures. Their earlier main/corrected-test captures and this repeat are linked in BACKLOG.md; both now execute under FLAKY quarantine in the existing runner. Five deferred legacy-material failures remain visible and unmodified. Unavailable observations are the missing dependent osmosis lesson fixture and the diagnostic provider connection failure; neither is red or green.
+
+The twelve ordinary browser failures are six cases × desktop/mobile. They passed on exact main and remain failed checks here; no corrected-run claim is made:
+
+| Case (both viewports) | Main | Branch | Capture / finding |
+| --- | --- | --- | --- |
+| Visibly shortened inside recipe | Pass | Fail on all 3 attempts | Calendar revision saves 10 minutes; test stops at the existing early-start dialog because its UTC window is interpreted in the plan timezone. Runtime assertions were not reached. |
+| 10-minute outside teaching-first lesson | Pass | Fail on all 3 attempts | Same early-start dialog/setup mismatch; runtime assertions not reached. |
+| Overdue outside session split | Pass | Fail on all 3 attempts | Old test expects immediate split receipt; new shared editor awaits review/confirmation. Final split/runtime behavior remains unverified. |
+| Overdue arbitrary inside session split | Pass | Fail on all 3 attempts | Same immediate-split expectation; preview migration remains unresolved. |
+| Scheduled-review setup / Study Now goal | Pass | Fail on all 3 attempts | Old `Add source materials` control and old adjustment heading were replaced by the Brief B editor. |
+| Shorter sessions preserve weekly availability | Pass | Fail on all 3 attempts | Old `Future session window` / wholesale rebuild controls were replaced by the Brief B editor. |
+
+[Failure page captures](evidence/quality/browser-captures/) distinguish setup/obsolete expectations from confirmed learner defects. These are **not** twelve proven product defects, and they are not counted as green. The source correction scope and single-full-run closeout limit are respected: this PR exposes the remaining regression checks for review instead of starting another round of product/validator work.
+
+The final evidence/quarantine commit changes no product source after tested `f7fcfb8`. CI is intentionally not rerun for that closeout commit, preserving the requested single-full-run limit.

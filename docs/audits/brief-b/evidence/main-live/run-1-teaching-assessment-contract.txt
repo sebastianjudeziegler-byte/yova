@@ -1,0 +1,52 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+ [31m❯[39m src/evals/teaching-assessment-contract.live.test.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 5476[2mms[22m[39m
+[31m     [31m×[31m explains every glycolysis product before accepting a learner's paraphrase[39m[33m 5475[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/teaching-assessment-contract.live.test.ts[2m > [22mlive teaching and assessment alignment[2m > [22mexplains every glycolysis product before accepting a learner's paraphrase
+[31m[1mAssertionError[22m: expected '# Glycolysis: From Glucose to Pyruvat…' to match /electron|carrier|reducing/i[39m
+
+[32m- Expected:[39m
+/electron|carrier|reducing/i
+
+[31m+ Received:[39m
+"# Glycolysis: From Glucose to Pyruvate
+
+Glycolysis begins with **one glucose molecule** and splits its six-carbon structure into **two pyruvate molecules**. Each pyruvate contains three carbons, so the carbon atoms are divided evenly:
+
+$$1\\text{ glucose} \\rightarrow 2\\text{ pyruvate}$$
+
+As this breakdown occurs, some of glucose’s stored chemical energy is captured in two useful forms:
+
+- **2 NADH**, which are energy-carrying molecules
+- A **net gain of 2 ATP**, which cells can use directly for energy
+
+The complete yield per glucose is therefore:
+
+$$1\\text{ glucose} \\rightarrow 2\\text{ pyruvate} + 2\\text{ NADH} + \\text{net }2\\text{ ATP}$$
+
+A common mix-up is to treat “net 2 ATP” as the total amount of ATP produced. Glycolysis produces more ATP during its reactions, but it also uses ATP earlier in the process. After subtracting the ATP used from the ATP produced, the cell has gained **2 ATP overall**.
+
+Keep the quantities linked to a single starting glucose: **two pyruvate, two NADH, and net two ATP**."
+
+[36m [2m❯[22m src/evals/teaching-assessment-contract.live.test.ts:[2m27:28[22m[39m
+    [90m 25|[39m     // Check the generated explanation itself, before the deterministi…
+    [90m 26|[39m     [34mexpect[39m(result[33m.[39mcontent)[33m.[39m[34mtoMatch[39m([36m/NADH/i[39m)[33m;[39m
+    [90m 27|[39m     [34mexpect[39m(result[33m.[39mcontent)[33m.[39m[34mtoMatch[39m([36m/electron|carrier|reducing/i[39m)[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m 28|[39m     const content = includeCoreRecallKnowledge(result.content, [refere…
+    [90m 29|[39m     expect(content.trim().split(/\s+/).length).toBeLessThanOrEqual(les…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m   Start at [22m 12:47:16
+[2m   Duration [22m 5.97s[2m (transform 274ms, setup 0ms, import 389ms, tests 5.48s, environment 0ms)[22m
+
+
+Exit code: 1

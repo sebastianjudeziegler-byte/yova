@@ -1,0 +1,409 @@
+{
+  "numTotalTests": 4106,
+  "numPassedTests": 4019,
+  "numFailedTests": 0,
+  "numPendingTests": 87,
+  "numTotalTestSuites": 1039,
+  "numPassedTestSuites": 1039,
+  "numFailedTestSuites": 0,
+  "success": true,
+  "suites": [
+    {
+      "name": "src/evals/personalization-delta.live.test.ts",
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "Brief A real-provider personalization delta writes two distinct learner plans inside fixed slots using the real provider",
+          "status": "skipped",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief B real-provider covered-topic delta personalizes the amount and support of revised practice without a model-written session",
+          "status": "skipped",
+          "failureMessages": []
+        }
+      ]
+    },
+    {
+      "name": "src/evals/personalization-delta.test.ts",
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "Brief A permanent personalization delta gives contrasting saved profiles at least three visible differences with unique reasons",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta includes profile and starting context plus the fixed method in the copy prompt",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta preserves provider objectives and profile-referencing reasons inside unchanged session slots",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta prioritizes a named ETC difficulty after prerequisites, budgets more time and explains it without recording evidence",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta keeps fallback titles on whole words even for long topic names",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta routes Memorise biology vocabulary for my quiz by task rather than generic conceptual learning",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta routes Read the chapter and answer the quiz by task rather than generic conceptual learning",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta routes Solve quadratic equations by task rather than generic conceptual learning",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta routes Write an essay about respiration by task rather than generic conceptual learning",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta uses the saved unfamiliar_entry signal to choose a visible method",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta uses the saved first_repair signal to choose a visible method",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta uses the saved focus_pacing signal to choose a visible method",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta uses the saved successful_approach signal to choose a visible method",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta classifies a British-English memorisation goal",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta does not let profile prose choose a method or record a placement result",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta does not prioritize a negated difficulty or a topic absent from the map",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta rejects method substitutions in provider explanations while keeping a runnable plan",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta keeps a long provider rationale within its slot when adding the starting difficulty",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief A permanent personalization delta never turns profile context into a learning-style claim in method reasons",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "Brief B permanent covered-topic personalization delta keeps both saved profiles in Practice with visibly different activity amount and support",
+          "status": "passed",
+          "failureMessages": []
+        }
+      ]
+    },
+    {
+      "name": "src/lib/knowledge-map/topic-evidence-regressions.test.ts",
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "learned-elsewhere declarations are not scored placement does not show an incorrect placement result for an unchecked learner report",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "learned-elsewhere declarations are not scored placement starts the reported topic in Practice while retaining the previous measured gap",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "learned-elsewhere declarations are not scored placement requires server receipt authority for retained placement instead of accepting a forged hidden gap",
+          "status": "passed",
+          "failureMessages": []
+        }
+      ]
+    },
+    {
+      "name": "src/lib/plan-revision/active-revision.test.ts",
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "active revision guards at the save boundary keeps a opened session unchanged when it changed after preview",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "active revision guards at the save boundary keeps a edited session unchanged when it changed after preview",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "active revision guards at the save boundary keeps later unrelated completion and measured map evidence when saving the reviewed topic",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "active revision guards at the save boundary acknowledges an already saved Undo after a lost response without overwriting newer work",
+          "status": "passed",
+          "failureMessages": []
+        }
+      ]
+    },
+    {
+      "name": "src/lib/plan-revision/database-contract.fixture.test.ts",
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "actual routed persistence fixture for the isolated Actions database emits the reviewed fixed-slot plan, not a hand-written substitute route",
+          "status": "skipped",
+          "failureMessages": []
+        }
+      ]
+    },
+    {
+      "name": "src/lib/plan-revision/revision-integrity.test.ts",
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "reviewed edits remain protected across later topic revisions keeps explicit learner copy in the session and its canonical displayed route",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "reviewed edits remain protected across later topic revisions excluding a line also excludes its method/time controls",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "reviewed edits remain protected across later topic revisions an explicitly selected time can move a pin out of a removed availability window",
+          "status": "passed",
+          "failureMessages": []
+        }
+      ]
+    },
+    {
+      "name": "src/app/api/plans/adjust/living-plan-route.test.ts",
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "living-plan structured preview through the existing adjustment route shows Practice for learned-elsewhere ETC without claiming a demonstrated result or changing another session",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route keeps a reported topic in Practice and uses brief targeted support after its first real miss",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route attaches the chosen URL to one existing topic and reassesses only that topic's future work",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route previews a new topic after the chosen topic while leaving existing work byte-identical",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route removes only the chosen topic's future work and retains its map history",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route excluding a preview line leaves that topic and its sessions unchanged",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route a later deadline preserves every already-fitting session's time, method and copy",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route extending weekly availability leaves already-fitting sessions unchanged",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route an impossible deadline produces capacity choices without claiming a saved update",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route sends only affected fixed slots to the provider",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route keeps prior scored placement evidence when the learner reports learning the topic elsewhere",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route covered-topic practice visibly varies in amount and support for the two saved profiles",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route rejects foreign IDs and evidence/structure injection: {\"op\":\"mark_covered\",\"topic_id\":\"ffffffff-ffff-4fff-8fff-ffffffffffff\"}",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route rejects foreign IDs and evidence/structure injection: {\"op\":\"mark_covered\",\"topic_id\":\"a0000000-0000-4000-8000-000000000005\",\"initialEvidence\":{\"source\":\"placement_check\",\"outcome\":\"demonstrated\"}}",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route rejects foreign IDs and evidence/structure injection: {\"op\":\"mark_covered\",\"topic_id\":\"a0000000-0000-4000-8000-000000000005\",\"checked\":true}",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route rejects foreign IDs and evidence/structure injection: {\"op\":\"attach_source\",\"topic_id\":\"a0000000-0000-4000-8000-000000000005\",\"url\":\"javascript:alert(1)\"}",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route rejects foreign IDs and evidence/structure injection: {\"op\":\"replace_session\",\"topic_id\":\"a0000000-0000-4000-8000-000000000005\",\"title\":\"Learn photosynthesis\"}",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route commits a reviewed draft and issues a new activation receipt without writing an active plan",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route rejects an altered preview instead of letting the browser submit a rewritten session",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route does not apply a preview after its signed authority expires",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route a fixed event can exhaust capacity without moving it or another existing session",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route reports a draft's activation capacity before requesting provider copy",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route Undo restores the prior draft revision, session copy and placement evidence with valid activation authority",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route Undo of an added topic restores the exact previous map and sessions",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route an altered Undo cannot erase an unrelated topic or forge a saved revision",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route rejects a file reference that is not owned, ready and available before requesting provider copy",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route requires a structured reviewed delta instead of executing the retired adjustment payload",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route attaches an owner-ready file without duplicating topics and Undo restores the previous source list",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route budgets time to study a newly attached source before practice and says so in the preview",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route reports limited source study time instead of silently consuming a neighboring block",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route excluding one line excludes its controls even when another line changes the same topic",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route reviews a chosen calendar duration even when the availability windows stay the same",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route lets the learner edit the first new topic block before it has a persisted session ID",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route loads the saved plan on the server and changes only its next unstarted topic session",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route lets an existing Study Now goal review its calendar through the same fixed-map pipeline",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route keeps unrelated completed sessions and in-progress resources byte-identical in an active preview",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route keeps an opened topic session and changes its later unstarted practice instead",
+          "status": "passed",
+          "failureMessages": []
+        },
+        {
+          "title": "living-plan structured preview through the existing adjustment route rejects an obsolete saved-plan revision before offering a preview",
+          "status": "passed",
+          "failureMessages": []
+        }
+      ]
+    }
+  ]
+}

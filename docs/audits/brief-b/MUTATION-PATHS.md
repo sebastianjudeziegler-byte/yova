@@ -10,6 +10,7 @@ This inventory separates plan revision from the runtime/lifecycle writes that Br
 | Confirm / Undo on a draft | Same signed builder/projection; fresh bounded activation receipt | Changes the draft only; no active session row is written |
 | Initial activation | `/api/plans/activate` → permit-protected `save_generated_plan_with_routes` | Creates the plan and initial committed routes; preserves reviewed draft revision |
 | Explicit per-session method choice | `/api/plans/method-choice` (draft), `/api/sessions/method-choice` (active) | Existing guarded learner choice retained as explicitly required by the brief |
+| Study Now initial setup | `/api/plans/generate` one-off branch → deterministic `generatePreviewPlan` / duration and method reconciliation | Existing single-session runtime setup exception; it cannot revise an existing plan. A subsequent map/calendar revision uses the shared revision pipeline |
 | Session generation | `/api/sessions/generate` → generated-resource cache authority | Runtime resource caching, unchanged |
 | Checkpoint, interruption, completion and scheduled review | `save_active_session_checkpoint_with_route`, `delete_active_session_checkpoint`, `record_session_interruption_with_route`, `complete_plan_session_with_route`, `activate_concept_review_with_route` | Runtime/lifecycle and measured evidence, unchanged |
 | Calendar positioning / start-now | `/api/sessions/schedule` → `reschedule_plan_sessions` / compatibility wrapper | Existing scalar scheduling authority; Calendar UI outside Brief B |

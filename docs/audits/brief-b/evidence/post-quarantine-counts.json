@@ -1,0 +1,20 @@
+{
+  "sourceRun": 34411504270,
+  "rawCounts": {
+    "pass": 50,
+    "fail": 8,
+    "flaky": 17,
+    "unavailable": 2
+  },
+  "afterPolicyOnly": {
+    "pass": 50,
+    "fail": 6,
+    "flaky": 19,
+    "unavailable": 2
+  },
+  "testsRerun": false,
+  "newQuarantines": [
+    "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'osmosis'",
+    "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP"
+  ]
+}

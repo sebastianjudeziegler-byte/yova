@@ -1,0 +1,98 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstderr[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'calculus'
+[22m[39mcalculus SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.
+    at generateProductionSessionWithOpenAI [90m(/home/runner/work/yova/yova/[39msrc/lib/openai/session-generation-strategy.ts:100:13[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90m/home/runner/work/yova/yova/[39msrc/evals/launch-session-journeys.live.test.ts:42:22
+    at [90mfile:///home/runner/work/yova/yova/[39mnode_modules/[4m.pnpm[24m/@vitest+runner@4.1.10/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:20 {
+  generationStats: {
+    elapsedMs: [33m7677[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'streamed_lesson_scope'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mfalse[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m'A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.'[39m,
+    inputTokens: [33m9054[39m,
+    cachedInputTokens: [33m3840[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m1169[39m,
+    validationIssueCode: [32m'streamed_target_subject'[39m,
+    stage: [32m'validation'[39m,
+    cause: [32m'semantic_validation'[39m,
+    recoveryMode: [32m'safe_learn'[39m,
+    strategy: [32m'streamed'[39m
+  },
+  structuralDiagnostic: [90mundefined[39m
+}
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'osmosis'
+[22m[39mosmosis {
+  elapsedMs: [33m9946[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'streamed_lesson_scope'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane and concentration difference”; “Osmosis across a membrane”. Later targets that must remain exact entries in deferredContent: “Simple cell example and self-check”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_2; every active target must have a taught, checked claim. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+  inputTokens: [33m9935[39m,
+  cachedInputTokens: [33m3840[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1960[39m,
+  validationIssueCode: [32m'streamed_target_missing'[39m,
+  recoveryMode: [32m'safe_learn'[39m,
+  strategy: [32m'streamed'[39m,
+  stage: [32m'complete'[39m
+} self_explanation
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'recall'
+[22m[39mrecall {
+  elapsedMs: [33m6769[39m,
+  attempts: [33m1[39m,
+  firstAttemptPassed: [33mtrue[39m,
+  failedValidator: [1mnull[22m,
+  repairAttempted: [33mfalse[39m,
+  repairSucceeded: [1mnull[22m,
+  repairReason: [32m'none'[39m,
+  repairDetail: [1mnull[22m,
+  inputTokens: [33m9959[39m,
+  cachedInputTokens: [33m0[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1328[39m,
+  validationIssueCode: [1mnull[22m,
+  strategy: [32m'full'[39m,
+  stage: [32m'complete'[39m
+} concept_mapping
+
+ [31m❯[39m src/evals/launch-session-journeys.live.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 34402[2mms[22m[39m
+[31m     [31m×[31m 'calculus'[39m[33m 11472[2mms[22m[39m
+     [33m[2m✓[22m[39m 'osmosis' [33m 13341[2mms[22m[39m
+     [33m[2m✓[22m[39m 'recall' [33m 9587[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/launch-session-journeys.live.test.ts[2m > [22mlaunch session journeys with committed recipes[2m > [22m'calculus'
+[31m[1mSessionGenerationFailure[22m: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The compact teaching recovery could not be finalized inside the authoritative session scope (streamed_target_subject:other). Stage: draft.[39m
+[36m [2m❯[22m generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:[2m100:13[22m[39m
+    [90m 98|[39m     [35mif[39m (error [35minstanceof[39m [33mSessionGenerationFailure[39m) {
+    [90m 99|[39m       [35mconst[39m stats [33m=[39m error[33m.[39mgenerationStats[33m;[39m
+    [90m100|[39m       [35mthrow[39m [35mnew[39m [33mSessionGenerationFailure[39m(
+    [90m   |[39m             [31m^[39m
+    [90m101|[39m         error[33m.[39mmessage[33m,[39m
+    [90m102|[39m         {
+[90m [2m❯[22m src/evals/launch-session-journeys.live.test.ts:[2m42:22[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 12:31:32
+[2m   Duration [22m 35.02s[2m (transform 605ms, setup 0ms, import 514ms, tests 34.40s, environment 0ms)[22m
+
+
+Exit code: 1
