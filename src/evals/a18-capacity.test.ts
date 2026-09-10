@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { evaluatePlanDraft } from "./plan-rubric";
 import { buildPlanEvaluationCases } from "./plan-cases";
 import { generateFixedPlanForJourney, historyEssayJourneyRequest } from "./fixed-plan-journey";
 import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
@@ -26,11 +27,19 @@ describe("A18 permanent capacity replay", () => {
     vi.useFakeTimers(); vi.setSystemTime(now);
     const request = historyEssayJourneyRequest(buildPlanEvaluationCases(now).find(item => item.id === "history_writing_outside")!.request);
     const generated = await generateFixedPlanForJourney(request, now);
-    expect(generated.plan.sessions).toHaveLength(6);
-    expect(generated.plan.sessions.every(session => session.estimatedMinutes === 10)).toBe(true);
+    expect(generated.plan.sessions).toHaveLength(4);
+    expect(generated.plan.sessions.some(session => session.estimatedMinutes < 25)).toBe(true);
+    expect(new Set(generated.plan.sessions.flatMap(session => session.topicIds))).toEqual(new Set(request.knowledgeMap!.topics.map(topic => topic.id)));
     expect(generated.plan.sessions[0]!.learningMode).toBe("learn");
     expect(generated.plan.sessions.some(session => session.learningMode === "study")).toBe(true);
     expect(generated.plan.rationale).toMatch(/short|10.minute/i);
     expect(generated.plan.sessions.every(session => Date.parse(session.scheduledFor) < Date.parse(request.deadline!))).toBe(true);
+    expect(evaluatePlanDraft(generated.draft, request, "writing", generated.composition).requiredFailures).toEqual([]);
+    const droppedTopic = structuredClone(generated.draft);
+    for (const session of droppedTopic.sessions) session.topicIds = session.topicIds.filter(id => id !== request.knowledgeMap!.topics[0]!.id);
+    expect(evaluatePlanDraft(droppedTopic, request, "writing", generated.composition).requiredFailures).toContain("Every mapped topic is scheduled or explicitly deferred");
+    const late = structuredClone(generated.draft);
+    late.sessions[0]!.scheduledFor = new Date(Date.parse(request.deadline!) + 86400000).toISOString();
+    expect(evaluatePlanDraft(late, request, "writing", generated.composition).requiredFailures).toContain("No work is scheduled after the deadline");
   });
 });

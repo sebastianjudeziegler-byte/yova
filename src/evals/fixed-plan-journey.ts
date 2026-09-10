@@ -32,5 +32,5 @@ export async function generateFixedPlanForJourney(request: PlanGenerationRequest
   const generated = await generateNormalPlanFillWithOpenAI(fixed);
   const plan = buildNormalPlanFromFixedEnvelope({ ...fixed, fill: generated.fill });
   const draft = GeneratedPlanDraftSchema.parse({ ...plan, deferredTopics: composition.deferrals.map(item => ({ topicId: item.topicId, reason: item.reason })) });
-  return { ...generated, draft, plan };
+  return { ...generated, draft, plan, composition };
 }

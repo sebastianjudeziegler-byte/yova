@@ -1,3 +1,4 @@
+import type { NormalPlanEnvelopeComposition } from "@/lib/plan-generation/normal-plan-envelopes";
 import type { GeneratedPlanDraft, PlanGenerationRequest } from "@/lib/plan-generation/schema";
 import type { PlanTaskFamily } from "@/evals/plan-cases";
 import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
@@ -31,6 +32,7 @@ export function evaluatePlanDraft(
   draft: GeneratedPlanDraft,
   request: PlanGenerationRequest,
   taskFamily: PlanTaskFamily,
+  composition?: NormalPlanEnvelopeComposition,
 ): PlanQualityResult {
   const combined = [
     draft.title,
@@ -60,7 +62,10 @@ export function evaluatePlanDraft(
     : draft.sessions[0]?.learningMode === "study";
   const scope = inferPlanScopeContract(request);
   const contentBudget = buildPlanContentBudget(request, scope);
-  const expectedMinimumSessions = request.intent === "study_now"
+  // Only the trusted production composer can establish deadline recovery.
+  // Legacy provider output has no such authority. Keep all coverage, timing,
+  // progression and method checks even when the Sept 7 ladder reduces count.
+  const expectedMinimumSessions = composition?.capacityRecovery ? composition.envelopes.length : request.intent === "study_now"
     ? 1
     : Math.max(scope.minimumSessions, contentBudget.minimumSessions);
   const expectedMaximumSessions = request.intent === "study_now" ? 1 : scope.maximumSessions;

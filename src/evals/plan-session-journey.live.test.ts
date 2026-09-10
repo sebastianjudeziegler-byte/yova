@@ -37,6 +37,7 @@ describe.skipIf(!liveEvaluationEnabled)("live plan-to-session journeys", () => {
       generatedPlan.draft,
       request,
       evaluationCase.taskFamily,
+      "composition" in generatedPlan ? generatedPlan.composition : undefined,
     );
     const plan = "plan" in generatedPlan ? generatedPlan.plan : materializePlanDraft(generatedPlan.draft, request);
     const firstSession = plan.sessions[0];
