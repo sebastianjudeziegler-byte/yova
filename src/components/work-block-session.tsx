@@ -129,7 +129,13 @@ export function WorkBlockSession({ block, planId, planSessionId, routeRevisionId
           <div className={styles.tools}>{!attempt && <button disabled={busy} onClick={() => void act({ action: "reveal", questionId: question.id })}>Reveal answer</button>}<button disabled={busy || saved?.progress.reportedQuestionIds.includes(question.id)} onClick={() => void act({ action: "report", questionId: question.id })}>Report bad question</button></div>
         </>}
         <div className={styles.tools}><button disabled={helpPending} onClick={() => void ask("explain_differently")}>Explain this</button><button disabled={helpPending} onClick={() => void ask("show_example")}>Show me an example</button>{attempt?.outcome === "needs_review" && <button disabled={helpPending} onClick={() => void ask("repair_gap")}>Why was I wrong?</button>}</div>
-        {helpPending && <p role="status">Opening targeted help…</p>}{help && <aside className={styles.example}><h3>Ask YOVA</h3><p>{help}</p><button onClick={() => setHelp(null)}>Continue</button></aside>}
+        {helpPending && <p role="status">Opening targeted help…</p>}{help && <aside className={styles.example}><h3>Ask YOVA</h3><p>{help}</p>
+          {question && !attempt && <p>You can continue without answering; this item will stay unverified.</p>}
+          <button disabled={busy} onClick={() => {
+            if (question && !attempt) void act({ action: "continue_after_help", questionId: question.id }, true);
+            else if (question) continueWork();
+            else setHelp(null);
+          }}>Continue</button></aside>}
       </section>}
       {!activity && saved && <p>You finished the steps. Finish the block to see what the practice check showed.</p>}
       {block.learningMode === "study" && block.sources.length > 0 && <details><summary>Use the source for a gap</summary>{block.sources.map(item => <article key={item.id}><h3>{item.title} · {item.section}</h3><p className={styles.source}>{item.text}</p>{item.url && <a href={item.url} target="_blank" rel="noreferrer">Open source section</a>}</article>)}</details>}

@@ -7,6 +7,8 @@ import { buildNormalPlanFromFixedEnvelope } from "../src/lib/plan-generation/nor
 import { commitPlanStudyRoutes } from "../src/lib/study-route/activation";
 import { resolvePersonalizationRollout } from "../src/lib/study-route/personalization-rollout";
 import { sessionCacheContractKey, sessionCacheScopeFingerprint } from "../src/lib/session-generation/cache-contract";
+import { BlockProgressSchema, blockReceipt } from "../src/lib/session-blocks/progress";
+import { WorkBlockSchema } from "../src/lib/session-blocks/schema";
 import type { LearningPlan, YovaPreviewSnapshot } from "../src/lib/domain";
 
 const NOW = new Date("2026-09-10T10:00:00.000Z");
@@ -116,7 +118,8 @@ test(finalBlock ? "finishing the final source-first block persists completion an
     if (body.action === "answer" && !progress.attempts.some(item => item.questionId === body.questionId)) progress.attempts.push({ questionId: body.questionId, outcome: "secure", assisted: progress.helpRequestedQuestionIds.includes(body.questionId), feedback: "You connected the correct ATP products with favorable energy transfer." });
     if (body.action === "complete") {
       expect(progress.sourceCompletedIds).toHaveLength(1); expect(progress.attempts).toHaveLength(2);
-      progress.complete = true; progress.receipt = "You demonstrated ATP products in your short check; the answer after requesting help remains unverified, and enzyme catalysis comes next.";
+      progress.complete = true;
+      progress.receipt = blockReceipt(WorkBlockSchema.parse({ ...blockFixture().block, id: body.blockId }), BlockProgressSchema.parse(progress));
     }
     await route.fulfill({ json: { progress, ...(progress.complete ? { summary: { correctAnswers: 1, totalAnswers: 1, conceptEvidence: [], observedGap: "No checked gap." } } : {}) } });
   });
@@ -161,6 +164,7 @@ test(finalBlock ? "finishing the final source-first block persists completion an
   if (finalBlock) {
     await block.getByRole("button", { name: "Show me an example", exact: true }).click();
     await expect(block).toContainText("You may continue when ready.");
+    await expect(block).toContainText("this item will stay unverified");
     await block.getByRole("button", { name: "Continue", exact: true }).click();
     await expect(block.getByRole("button", { name: "Check answer", exact: true })).toHaveCount(0);
     await expect(block.getByRole("button", { name: "Finish block" })).toBeEnabled();
@@ -171,7 +175,10 @@ test(finalBlock ? "finishing the final source-first block persists completion an
     await block.getByRole("button", { name: "Continue", exact: true }).click();
   }
   await block.getByRole("button", { name: "Finish block" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "You demonstrated ATP" })).toBeVisible();
+  const receipt = page.getByRole("status").filter({ hasText: "You finished the reading" });
+  await expect(receipt).toBeVisible();
+  await expect(receipt).toContainText("demonstrated 1 of 2 ideas in your short check");
+  await expect(receipt).toContainText("1 answer remains unverified");
   await page.screenshot({ path: testInfo.outputPath("03-receipt.png"), fullPage: true });
   await page.getByRole("button", { name: "Finish and continue", exact: true }).click();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans[0] as LearningPlan);

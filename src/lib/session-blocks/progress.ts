@@ -25,6 +25,7 @@ export const BlockActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("answer"), questionId: id, answer: z.string().trim().min(1).max(3_000) }).strict(),
   z.object({ action: z.literal("hint"), questionId: id }).strict(),
   z.object({ action: z.literal("help_requested"), questionId: id }).strict(),
+  z.object({ action: z.literal("continue_after_help"), questionId: id }).strict(),
   z.object({ action: z.literal("reveal"), questionId: id }).strict(),
   z.object({ action: z.literal("report"), questionId: id }).strict(),
   z.object({ action: z.literal("complete") }).strict(),
@@ -49,7 +50,12 @@ export function blockReceipt(block: WorkBlock, progress: BlockProgress) {
   const change = gaps ? `${gaps} ${gaps === 1 ? "idea still needs" : "ideas still need"} work` : unscored ? `${unscored} ${unscored === 1 ? "answer remains" : "answers remain"} unverified` : "the checked ideas are recorded";
   const next = gaps || unscored ? "use a targeted example or the source section next" : "continue to your next planned block";
   const profile = block.personalization.shortFocus ? "in your short check" : block.personalization.reflective ? "by explaining in your own words" : block.personalization.examplesFirst ? "after starting with an example" : "in this practice check";
-  return `${result} ${profile}; ${change}, and ${next}.`;
+  const completedSources = block.sources.filter(source => progress.sourceCompletedIds.includes(source.id));
+  const sourceLabel = completedSources.every(source => source.kind === "watch_source_section")
+    ? completedSources.length === 1 ? "video" : "video sections"
+    : completedSources.every(source => source.kind === "read_source_section") ? "reading" : "assigned source sections";
+  const opening = completedSources.length ? `You finished the ${sourceLabel}; ${result.charAt(0).toLowerCase()}${result.slice(1)}` : result;
+  return `${opening} ${profile}; ${change}, and ${next}.`;
 }
 /** Used only on the server with the stored, checked ledger. Never accepts a
  * request's outcome, topic binding, key or concept. Source ticks are absent. */
@@ -91,6 +97,10 @@ export function advanceBlockProgress(block: WorkBlock, stored: BlockProgress, ac
       progress.hintCounts[question.id] = Math.min(question.hints.length, (progress.hintCounts[question.id] ?? 0) + 1);
     } else if (action.action === "help_requested" && !alreadyChecked) {
       progress.helpRequestedQuestionIds = [...new Set([...progress.helpRequestedQuestionIds, question.id])];
+    } else if (action.action === "continue_after_help" && !alreadyChecked) {
+      if (!progress.helpRequestedQuestionIds.includes(question.id)) throw new Error("Request help before continuing after it.");
+      progress.attempts.push({ questionId: question.id, outcome: "unscored", assisted: true,
+        feedback: "You continued after help; this is not independent evidence." });
     } else if (action.action === "reveal" || action.action === "report") {
       const list = action.action === "reveal" ? "revealedQuestionIds" : "reportedQuestionIds";
       progress[list] = [...new Set([...progress[list], question.id])];

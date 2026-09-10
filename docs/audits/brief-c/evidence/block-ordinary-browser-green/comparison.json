@@ -1,0 +1,44 @@
+{
+  "main": "80323614fec32563a340528fb558a84657a00773",
+  "branch": "3dd5bc92abc7c2d155e181208f9f2c8411a9a61b",
+  "mainStats": {
+    "startTime": "2026-09-10T11:42:06.000Z",
+    "duration": 1649704.424,
+    "expected": 275,
+    "skipped": 19,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "branchStats": {
+    "startTime": "2026-09-10T14:12:45.027Z",
+    "duration": 1798602.313,
+    "expected": 279,
+    "skipped": 19,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "nonpassing": [],
+  "missingPassingMainCases": [],
+  "newCases": [
+    [
+      "source-first-block.spec.ts",
+      "desktop-chromium",
+      "founder source-first block preserves practice on leave/resume and requires the check before completion"
+    ],
+    [
+      "source-first-block.spec.ts",
+      "desktop-chromium",
+      "finishing the final source-first block persists completion and exits without entering the legacy player"
+    ],
+    [
+      "source-first-block.spec.ts",
+      "mobile-chromium",
+      "founder source-first block preserves practice on leave/resume and requires the check before completion"
+    ],
+    [
+      "source-first-block.spec.ts",
+      "mobile-chromium",
+      "finishing the final source-first block persists completion and exits without entering the legacy player"
+    ]
+  ]
+}

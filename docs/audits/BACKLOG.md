@@ -208,4 +208,4 @@ The full comparison initially treated one already-documented browser rename as t
 
 ### Brief C baseline observations — 2026-09-10
 
-- **STALE Brief B database fixture:** on merged main `8032361`, run the routed fixture generator with `YOVA_DB_FIXTURE_PATH` set: it expects one ETC patch but the existing twelve-session fixture revises both future ETC sessions. Reproduced in Actions 34480019287. Test-only correction expects both same-topic patches and keeps every other database row byte-identical; no B product fix claimed. Green evidence remains in Brief C's evidence log when available.
+- **STALE Brief B database fixture:** on merged main `8032361`, run the routed fixture generator with `YOVA_DB_FIXTURE_PATH` set: it expects one ETC patch but the existing twelve-session fixture revises both future ETC sessions. Reproduced in Actions 34480019287. Test-only correction expects both same-topic patches and keeps every other database row byte-identical; no B product fix claimed. Green: Actions 34482914657 passes the corrected routed fixture and all 244 database assertions; raw evidence is retained in Brief C's EVIDENCE.md.

@@ -68,7 +68,7 @@ describe("Brief C checked block progress", () => {
     const block = fixture(); const question = block.questions[0]!;
     const action = BlockActionSchema.parse({ action: "continue_after_help", questionId: question.id });
     const initial = initialBlockProgress(block.id);
-    expect(() => advanceBlockProgress(block, initial, action)).toThrow(/request help/);
+    expect(() => advanceBlockProgress(block, initial, action)).toThrow(/request help/i);
     let progress = advanceBlockProgress(block, initial, { action: "help_requested", questionId: question.id });
     progress = advanceBlockProgress(block, progress, action);
     expect(progress.attempts[0]).toMatchObject({ questionId: question.id, outcome: "unscored", assisted: true });
@@ -109,6 +109,19 @@ describe("Brief C checked block progress", () => {
     expect(progress.receipt).toMatch(/short check/);
     expect(progress.receipt).toMatch(/targeted example or the source section next/);
     expect(checkedBlockEvidence(block, progress, BLOCK_ROUTE_ID).map(item => item.outcome)).toEqual(["needs_review", "needs_review"]);
+  });
+  it("practice-only receipts do not claim the optional source was finished", () => {
+    const block = fixture();
+    block.learningMode = "study";
+    block.activities = block.activities.filter(activity => activity.questionIds.length > 0);
+    let progress = initialBlockProgress(block.id);
+    for (const question of block.questions) progress = advanceBlockProgress(block, progress, { action: "answer", questionId: question.id, answer: "A complete answer." }, {
+      questionId: question.id, outcome: "secure", assisted: false, feedback: "The answer identifies the supported ATP products.",
+    });
+    progress = advanceBlockProgress(block, progress, { action: "complete" });
+    expect(progress.sourceCompletedIds).toEqual([]);
+    expect(progress.receipt).not.toContain("You finished the");
+    expect(progress.receipt).toContain("demonstrated 2");
   });
   it("rejects client outcomes, foreign sources, foreign questions and an unscored answer claim", () => {
     const block = fixture(); const progress = initialBlockProgress(block.id);

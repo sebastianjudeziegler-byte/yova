@@ -1,0 +1,1 @@
+CI https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34486923694, source 3dd5bc92abc7c2d155e181208f9f2c8411a9a61b. Ordinary desktop/mobile browser, build, lint/typecheck, 101 validator negatives and focused units passed. Provider steps were deliberately not executed. Compare case identities/outcomes with retained main 8032361; see comparison.json.
