@@ -28,19 +28,7 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p artifacts/blockers
-          pnpm exec vitest run src/lib/plan-revision/revision-shortening.test.ts --reporter=default --reporter=json --outputFile=artifacts/blockers/shortening-red.json
-      - name: Confirm A18 on exact main and unchanged branch serially
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          YOVA_RUN_LIVE_JOURNEY_EVALS: "1"
-          YOVA_JOURNEY_EVAL_CASE: history_writing_outside
-        run: |
-          release=$(git rev-parse HEAD)
-          for label in main branch; do
-            if test "$label" = main; then git checkout --detach c7b3ca99964524cefc04437b7236b37fe8fe2666; else git checkout --detach "$release"; fi
-            pnpm exec vitest run src/evals/plan-session-journey.live.test.ts --reporter=default --reporter=json --outputFile="artifacts/blockers/a18-$label.json" > "artifacts/blockers/a18-$label.log" 2>&1 || true
-            cat "artifacts/blockers/a18-$label.log"
-          done
+          pnpm exec vitest run src/lib/plan-revision/revision-shortening.test.ts src/lib/plan-generation/revision-clock-windows.test.ts --reporter=default --reporter=json --outputFile=artifacts/blockers/shortening-red.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
