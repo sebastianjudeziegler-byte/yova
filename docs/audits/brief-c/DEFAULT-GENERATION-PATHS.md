@@ -18,7 +18,7 @@ There is one policy for newly prepared work: `planBlockContents` assigns an `ai_
 ## Runtime writes and evidence
 
 - `save_session_work_block_v1`: server-only preparation; immutable reviewed block and answer key, exact session/route ownership, existing cache guard retained.
-- `save_session_work_block_progress_v1`: server-only compare-and-save progress; state/resume do not regenerate or re-review. Source ticks are progress only. Raw answers are checked against the saved private key; client verdicts and evidence are rejected.
+- `save_session_work_block_progress_v1`: server-only compare-and-save progress; state/resume do not regenerate or re-review. Source ticks and explicit continuation after requested help are progress only; continued items remain assisted/unscored and create no learning evidence. Raw answers are checked against the saved private key; client verdicts and evidence are rejected.
 - Existing `complete_plan_session_with_route`: for V19, requires the completed private ledger and replaces request scores/evidence with the server summary. Source completion alone cannot complete a block. Existing legacy completion remains.
 - Existing session checkpoint/progress writer: protects in-progress work, stores actual block step counts; it is not scoring authority.
 
