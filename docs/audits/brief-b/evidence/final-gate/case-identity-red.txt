@@ -1,0 +1,37 @@
+✖ the documented draft-placement rename retains its comparison identity without hiding other missing cases (1.664319ms)
+✔ the release gate reports an unchanged main defect without blocking (0.477215ms)
+✔ a new pass-to-fail regression blocks even when other failures are pre-existing (0.154462ms)
+✔ a scoped fix with a lower pass rate blocks; an improvement does not (1.006618ms)
+✔ provider unavailability is neither a pass nor a semantic regression (0.213747ms)
+✔ an established quarantine cannot conceal a scoped regression or an omitted case (0.193411ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 57.085608
+
+✖ failing tests:
+
+test at scripts/live-gate/regression.test.mjs:5:1
+✖ the documented draft-placement rename retains its comparison identity without hiding other missing cases (1.664319ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'map revision cannot activate a stale draft and fresh placement uses the revised map'
+  - 'map revision cannot activate a stale draft and reviewed starting level preserves placement'
+  
+      at TestContext.<anonymous> (file:///home/runner/work/yova/yova/scripts/live-gate/regression.test.mjs:8:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1397:25)
+      at Test.start (node:internal/test_runner/test:1257:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'map revision cannot activate a stale draft and fresh placement uses the revised map',
+    expected: 'map revision cannot activate a stale draft and reviewed starting level preserves placement',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

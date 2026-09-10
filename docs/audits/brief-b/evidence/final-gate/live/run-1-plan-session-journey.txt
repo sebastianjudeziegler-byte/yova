@@ -1,0 +1,81 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'One product-rule skill in short sessi…'
+[22m[39m
+YOVA connected journey · One product-rule skill in short sessions
+Plan · 4 sessions · 100/100 · 11.8s
+First session · learn · Feynman Technique · 15 min
+Lesson · 5 activities · 100/100 · 11.3s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'Full beginner calculus pathway'
+[22m[39m
+YOVA connected journey · Full beginner calculus pathway
+Plan · 4 sessions · 100/100 · 18.3s
+First session · learn · Worked Examples · 25 min
+Lesson · 5 activities · 85/100 · 12.4s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'History essay using outside sources'
+[22m[39m
+YOVA connected journey · History essay using outside sources
+Plan · 4 sessions · 100/100 · 6.3s
+First session · learn · Outline from Memory · 25 min
+Lesson · 4 activities · 100/100 · 10.0s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+ [31m❯[39m src/evals/plan-session-journey.live.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 106277[2mms[22m[39m
+     [32m✓[39m the requested journey exists[32m 2[2mms[22m[39m
+     [33m[2m✓[22m[39m 'One product-rule skill in short sessi…' [33m 23583[2mms[22m[39m
+[31m     [31m×[31m 'World War I unit guide in short sessi…'[39m[33m 35526[2mms[22m[39m
+[31m     [31m×[31m 'Full beginner calculus pathway'[39m[33m 30701[2mms[22m[39m
+     [33m[2m✓[22m[39m 'History essay using outside sources' [33m 16463[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/plan-session-journey.live.test.ts[2m > [22mlive plan-to-session journeys[2m > [22m'World War I unit guide in short sessi…'
+[31m[1mSessionGenerationFailure[22m: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.[39m
+[36m [2m❯[22m generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:[2m100:13[22m[39m
+    [90m 98|[39m     [35mif[39m (error [35minstanceof[39m [33mSessionGenerationFailure[39m) {
+    [90m 99|[39m       [35mconst[39m stats [33m=[39m error[33m.[39mgenerationStats[33m;[39m
+    [90m100|[39m       [35mthrow[39m [35mnew[39m [33mSessionGenerationFailure[39m(
+    [90m   |[39m             [31m^[39m
+    [90m101|[39m         error[33m.[39mmessage[33m,[39m
+    [90m102|[39m         {
+[90m [2m❯[22m src/evals/plan-session-journey.live.test.ts:[2m62:30[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/evals/plan-session-journey.live.test.ts[2m > [22mlive plan-to-session journeys[2m > [22m'Full beginner calculus pathway'
+[31m[1mAssertionError[22m: expected [ 'Activities fit the learning task' ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   "Activities fit the learning task",[39m
+[31m+ ][39m
+
+[36m [2m❯[22m src/evals/plan-session-journey.live.test.ts:[2m79:44[22m[39m
+    [90m 77|[39m     [34mexpect[39m(planResult[33m.[39mrequiredFailures)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m 78|[39m     [34mexpect[39m(planResult[33m.[39mscore)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m80[39m)[33m;[39m
+    [90m 79|[39m     [34mexpect[39m(sessionResult[33m.[39mrequiredFailures)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m   |[39m                                            [31m^[39m
+    [90m 80|[39m     [34mexpect[39m(sessionResult[33m.[39mscore)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m80[39m)[33m;[39m
+    [90m 81|[39m     expect(generatedSession.draft.methodBriefing.learningMode).toBe(fi…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m3 passed[39m[22m[90m (5)[39m
+[2m   Start at [22m 03:33:21
+[2m   Duration [22m 107.38s[2m (transform 896ms, setup 0ms, import 962ms, tests 106.28s, environment 0ms)[22m
+
+
+Exit code: 1

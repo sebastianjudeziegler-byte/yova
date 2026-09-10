@@ -1,0 +1,31 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstderr[2m | src/lib/diagnostics/map-diagnostic.live.test.ts[2m > [22m[2mlive map diagnostic generation[2m > [22m[2mgenerates from a material map and reports latency
+[22m[39mDIAGNOSTIC_LIVE_ERROR [90mundefined[39m
+
+[90mstdout[2m | src/lib/diagnostics/map-diagnostic.live.test.ts[2m > [22m[2mlive map diagnostic generation[2m > [22m[2mgenerates from a ai_generated map and reports latency
+[22m[39mDIAGNOSTIC_TELEMETRY origin=ai_generated elapsedMs=15070 inputTokens=1570 outputTokens=1380 questions=8
+
+ [31m❯[39m src/lib/diagnostics/map-diagnostic.live.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 34675[2mms[22m[39m
+[31m     [31m×[31m generates from a material map and reports latency[39m[33m 19602[2mms[22m[39m
+     [33m[2m✓[22m[39m generates from a ai_generated map and reports latency [33m 15071[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/lib/diagnostics/map-diagnostic.live.test.ts[2m > [22mlive map diagnostic generation[2m > [22mgenerates from a material map and reports latency
+[31m[1mMapDiagnosticGenerationError[22m: At least one placement question has an ambiguous or unsupported answer. Skip this optional check or try again.[39m
+[36m [2m❯[22m generateMapDiagnostic src/lib/diagnostics/map-diagnostic.ts:[2m139:17[22m[39m
+
+[90m [2m❯[22m src/lib/diagnostics/map-diagnostic.live.test.ts:[2m44:20[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 03:41:49
+[2m   Duration [22m 34.92s[2m (transform 169ms, setup 0ms, import 114ms, tests 34.68s, environment 0ms)[22m
+
+
+Exit code: 1

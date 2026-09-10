@@ -1,0 +1,112 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstderr[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'osmosis'
+[22m[39mosmosis SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “What osmosis is”; “How concentration difference drives osmosis”; “Simple cell example of osmosis”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_3; every active target must have a taught, checked claim.
+    at generateProductionSessionWithOpenAI [90m(/home/runner/work/yova/yova/[39msrc/lib/openai/session-generation-strategy.ts:100:13[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90m/home/runner/work/yova/yova/[39msrc/evals/launch-session-journeys.live.test.ts:42:22
+    at [90mfile:///home/runner/work/yova/yova/[39mnode_modules/[4m.pnpm[24m/@vitest+runner@4.1.10/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:20 {
+  generationStats: {
+    elapsedMs: [33m22843[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'streamed_lesson_scope'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mfalse[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “What osmosis is”; “How concentration difference drives osmosis”; “Simple cell example of osmosis”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_3; every active target must have a taught, checked claim."[39m,
+    inputTokens: [33m18808[39m,
+    cachedInputTokens: [33m3840[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m3334[39m,
+    validationIssueCode: [32m'streamed_target_missing'[39m,
+    stage: [32m'validation'[39m,
+    cause: [32m'semantic_validation'[39m,
+    strategy: [32m'streamed'[39m
+  },
+  structuralDiagnostic: [90mundefined[39m
+}
+
+[90mstderr[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'recall'
+[22m[39mrecall SessionGenerationFailure: OpenAI did not return a complete, safe guided session after the bounded repair attempts. concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.
+    at generateProductionSessionWithOpenAI [90m(/home/runner/work/yova/yova/[39msrc/lib/openai/session-generation-strategy.ts:100:13[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90m/home/runner/work/yova/yova/[39msrc/evals/launch-session-journeys.live.test.ts:42:22
+    at [90mfile:///home/runner/work/yova/yova/[39mnode_modules/[4m.pnpm[24m/@vitest+runner@4.1.10/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:20 {
+  generationStats: {
+    elapsedMs: [33m20248[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'session_method_fidelity'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mfalse[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m'The required knowledge check mapped to “Glycolysis occurs in the cytoplasm, also called the cytosol in many classes.” does not visibly assess that essential idea. Follow-up repair failure: concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.'[39m,
+    inputTokens: [33m20722[39m,
+    cachedInputTokens: [33m5888[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m2654[39m,
+    validationIssueCode: [1mnull[22m,
+    stage: [32m'validation'[39m,
+    cause: [32m'semantic_validation'[39m,
+    strategy: [32m'full'[39m
+  },
+  structuralDiagnostic: [90mundefined[39m
+}
+
+ [31m❯[39m src/evals/launch-session-journeys.live.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[33m 58773[2mms[22m[39m
+[31m     [31m×[31m 'calculus'[39m[33m 6025[2mms[22m[39m
+[31m     [31m×[31m 'osmosis'[39m[33m 26822[2mms[22m[39m
+[31m     [31m×[31m 'recall'[39m[33m 25925[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/launch-session-journeys.live.test.ts[2m > [22mlaunch session journeys with committed recipes[2m > [22m'calculus'
+[31m[1mKnowledgeMapGenerationError[22m: YOVA could not build the knowledge map.[39m
+[36m [2m❯[22m requestKnowledgeMapOutput src/lib/knowledge-map/generate-plan-map.ts:[2m207:11[22m[39m
+    [90m205|[39m         [33m?[39m [32m"knowledge_map_structure"[39m
+    [90m206|[39m         [33m:[39m [32m"knowledge_map_provider_request"[39m[33m;[39m
+    [90m207|[39m     [35mthrow[39m [35mnew[39m [33mKnowledgeMapGenerationError[39m(
+    [90m   |[39m           [31m^[39m
+    [90m208|[39m       failureValidator[33m,[39m
+    [90m209|[39m       [34mmetrics[39m()[33m,[39m
+[90m [2m❯[22m generatePlanKnowledgeMap src/lib/knowledge-map/generate-plan-map.ts:[2m259:23[22m[39m
+[90m [2m❯[22m src/evals/launch-session-journeys.live.test.ts:[2m30:29[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/evals/launch-session-journeys.live.test.ts[2m > [22mlaunch session journeys with committed recipes[2m > [22m'osmosis'
+[31m[1mSessionGenerationFailure[22m: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “What osmosis is”; “How concentration difference drives osmosis”; “Simple cell example of osmosis”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_3; every active target must have a taught, checked claim.[39m
+[36m [2m❯[22m generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:[2m100:13[22m[39m
+    [90m 98|[39m     [35mif[39m (error [35minstanceof[39m [33mSessionGenerationFailure[39m) {
+    [90m 99|[39m       [35mconst[39m stats [33m=[39m error[33m.[39mgenerationStats[33m;[39m
+    [90m100|[39m       [35mthrow[39m [35mnew[39m [33mSessionGenerationFailure[39m(
+    [90m   |[39m             [31m^[39m
+    [90m101|[39m         error[33m.[39mmessage[33m,[39m
+    [90m102|[39m         {
+[90m [2m❯[22m src/evals/launch-session-journeys.live.test.ts:[2m42:22[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/evals/launch-session-journeys.live.test.ts[2m > [22mlaunch session journeys with committed recipes[2m > [22m'recall'
+[31m[1mSessionGenerationFailure[22m: OpenAI did not return a complete, safe guided session after the bounded repair attempts. concept_mapping does not follow its required phase order: retrieve → connect → evidence_match → repair.[39m
+[36m [2m❯[22m generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:[2m100:13[22m[39m
+    [90m 98|[39m     [35mif[39m (error [35minstanceof[39m [33mSessionGenerationFailure[39m) {
+    [90m 99|[39m       [35mconst[39m stats [33m=[39m error[33m.[39mgenerationStats[33m;[39m
+    [90m100|[39m       [35mthrow[39m [35mnew[39m [33mSessionGenerationFailure[39m(
+    [90m   |[39m             [31m^[39m
+    [90m101|[39m         error[33m.[39mmessage[33m,[39m
+    [90m102|[39m         {
+[90m [2m❯[22m src/evals/launch-session-journeys.live.test.ts:[2m42:22[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[90m (3)[39m
+[2m   Start at [22m 03:25:58
+[2m   Duration [22m 59.63s[2m (transform 828ms, setup 0ms, import 721ms, tests 58.77s, environment 0ms)[22m
+
+
+Exit code: 1

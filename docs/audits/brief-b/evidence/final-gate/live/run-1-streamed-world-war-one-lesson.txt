@@ -1,0 +1,24 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/streamed-world-war-one-lesson.live.test.ts[2m > [22m[2mlive streamed World War I lesson[2m > [22m[2mdelivers substantive teaching from the first generated lesson brief
+[22m[39mWWI streamed lesson metrics {
+  skeletonElapsedMs: [33m13802[39m,
+  skeletonAttempts: [33m2[39m,
+  lessonElapsedMs: [33m10443[39m,
+  latencyToFirstTokenMs: [33m3121[39m,
+  wordCount: [33m254[39m,
+  inputTokens: [33m1010[39m,
+  outputTokens: [33m477[39m
+}
+
+ [32m✓[39m src/evals/streamed-world-war-one-lesson.live.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 24675[2mms[22m[39m
+     [33m[2m✓[22m[39m delivers substantive teaching from the first generated lesson brief [33m 24672[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m   Start at [22m 03:40:24
+[2m   Duration [22m 25.36s[2m (transform 697ms, setup 0ms, import 549ms, tests 24.67s, environment 0ms)[22m
+
+
+Exit code: 0

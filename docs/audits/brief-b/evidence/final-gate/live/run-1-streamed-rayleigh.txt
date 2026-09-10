@@ -1,0 +1,81 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/streamed-rayleigh.live.test.ts[2m > [22m[2mlive streamed Rayleigh-scattering session[2m > [22m[2mbuilds the production 15-minute two-target teaching skeleton
+[22m[39mRayleigh streamed skeleton {
+  run: [33m1[39m,
+  generationStats: {
+    elapsedMs: [33m12660[39m,
+    attempts: [33m1[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'session_practice_variation'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mtrue[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m'YOVA restored 3 evidence-derived practice-intent labels without changing question content or learning phases.'[39m,
+    inputTokens: [33m6681[39m,
+    cachedInputTokens: [33m3840[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m1226[39m,
+    validationIssueCode: [32m'session_practice_metadata'[39m,
+    strategy: [32m'streamed'[39m,
+    stage: [32m'complete'[39m
+  },
+  coverage: {
+    focus: [32m'Learn and demonstrate Light scattering in the atmosphere in this session.'[39m,
+    essentialIdeas: [
+      [32m'Air molecules scatter shorter-wavelength sunlight more strongly than longer-wavelength sunlight.'[39m
+    ],
+    completionEvidence: [ [32m'Demonstrate Light scattering in the atmosphere'[39m ],
+    evidenceMap: [ [36m[Object][39m ],
+    deferredContent: [ [32m'Why the sky looks blue during the day'[39m ]
+  },
+  activities: [
+    {
+      type: [32m'instruction'[39m,
+      phase: [32m'model'[39m,
+      concept: [1mnull[22m,
+      minutes: [33m4[39m,
+      ideas: [36m[Array][39m
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'explain'[39m,
+      concept: [32m'Light scattering in the atmosphere'[39m,
+      minutes: [33m3[39m,
+      ideas: []
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'repair'[39m,
+      concept: [32m'Light scattering in the atmosphere'[39m,
+      minutes: [33m3[39m,
+      ideas: []
+    },
+    {
+      type: [32m'free_response'[39m,
+      phase: [32m'reexplain'[39m,
+      concept: [32m'Light scattering in the atmosphere'[39m,
+      minutes: [33m3[39m,
+      ideas: []
+    },
+    {
+      type: [32m'multiple_choice'[39m,
+      phase: [32m'transfer'[39m,
+      concept: [32m'Light scattering in the atmosphere'[39m,
+      minutes: [33m2[39m,
+      ideas: []
+    }
+  ]
+}
+
+ [32m✓[39m src/evals/streamed-rayleigh.live.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 13083[2mms[22m[39m
+     [33m[2m✓[22m[39m builds the production 15-minute two-target teaching skeleton [33m 13081[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m   Start at [22m 03:40:10
+[2m   Duration [22m 13.73s[2m (transform 586ms, setup 0ms, import 509ms, tests 13.08s, environment 0ms)[22m
+
+
+Exit code: 0

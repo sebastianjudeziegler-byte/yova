@@ -2,13 +2,33 @@
 
 Base: merged main `c7b3ca99964524cefc04437b7236b37fe8fe2666`. Branch: `codex/brief-b-living-plan`.
 
+## Final release decision — no regressions versus main
+
+**The requested regression gate is satisfied.** [Full gate 34462641441](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34462641441) ran once. Its only comparison error was the documented test rename described below; [CI replay 34467866950](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34467866950) re-read those exact artifacts with the corrected identity mapping and reports **zero regressions**. No product, browser-test or live-test source changed after full-run head `9641a0b`; the replay runs no browser suite or provider calls. [Complete main/branch table](evidence/final-gate/regression-comparison.md), [machine-readable observations](evidence/final-gate/regression-comparison.json).
+
+| Gate | Final evidence |
+| --- | --- |
+| Unit / runner / lint / TypeScript / build | 4,024 unit passes; runner, lint, TypeScript and build pass |
+| Migration replay / database boundaries | All migrations replay; database lint passes; 213 assertions pass |
+| Full desktop + mobile browser suite | 275 pass, 19 intentional skips; no failures or flakes |
+| Authentication / phone comparison | 15 auth passes; exact-main phone PASS and branch phone PASS |
+| Six scoped browser blockers | Originally red on branch; now 3/3 on each viewport, plus pass in the full run |
+| A18 | Nested capacity replay red → green; live branch 3/3 plus full-run PASS; exact-main PASS |
+| Founder AP Bio scenario | Desktop and mobile PASS; [current captures](evidence/final-gate/founder/) and [videos in full browser artifact](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34462641441/artifacts/10148143833) |
+| Unchanged sessions / profile delta | Byte-identical complete-session comparison passes; Brief A live delta and Brief B P1/P2 covered-practice amount/support delta both pass; [plan printouts](evidence/final-gate/live/profile-plans.json), [covered-practice printouts](evidence/final-gate/live/profile-plans.json.covered.json) |
+| Full live gate | **50 pass / 5 fail / 20 flaky / 2 unavailable**. Both live browser journeys actually pass and retain their existing flaky classifications. No live regression versus main |
+
+The five failing legacy-material cases **A19, A24, A30, A31, A33** also fail on main and remain backlogged. Existing flaky quarantines remain; no new quarantine or product repair was needed after the full run. The two unavailable stream cases lack their prerequisite generated fixtures and are neither red nor green. [Raw live report/captures](evidence/final-gate/live/report.md). [Write-path inventory](MUTATION-PATHS.md) still shows one normal-plan composition/revision pipeline with method-choice, scheduling and runtime/lifecycle exceptions.
+
+Deliberately not done: another full gate, local verification, validator changes, deferred legacy-material fixes, merge, deployment, production settings, or Brief C. The final evidence/temporary-workflow cleanup commit skips CI to preserve the single-full-run instruction; the ordinary quality gate remains enabled for subsequent changes.
+
 ## Reopened draft blockers — focused verification complete
 
 [Actions 34461722816](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34461722816), tested product/test source `c3e4a61`: **4,024 unit PASS, lint PASS, TypeScript PASS; all six scoped browser cases PASS 3/3 on desktop and 3/3 on mobile (36/36, no retries, no flakes)**. [Per-execution JSON](evidence/blockers/three-run-browser-results.json). The old release-rule wrapper is red and the permanent regression-only gate tests are 5/5 green; both transcripts are in [blocker evidence](evidence/blockers/).
 
 A18's permanent nested-capacity replay is red on the old eval adapter and green through fixed-slot creation. [Three real-provider branch passes and exact-main pass](evidence/blockers/a18-three-live-and-main-green.txt) confirm plan/lesson scores of 100/100. This is a correction to the eval's obsolete plan-generation path; no production validator was changed.
 
-The six-row classification and root-cause chronology appear below. The single final full CI run follows this focused verification; until its comparison completes, PR #85 remains a draft. The temporary focused workflow is removed so this closeout push starts only the full PR quality workflow.
+The six-row classification and root-cause chronology appear below. The temporary focused workflow was removed before starting the single full PR quality workflow. Its final result is recorded above.
 
 ### Final full run: recorded outcomes and comparison correction
 
