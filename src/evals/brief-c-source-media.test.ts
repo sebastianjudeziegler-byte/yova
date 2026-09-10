@@ -3,9 +3,38 @@ import { buildTopicMaterialExcerpts } from "@/lib/materials/context";
 import { planBlockContents } from "@/lib/session-blocks/plan";
 import { blockFixture, BLOCK_TOPIC_ID } from "./brief-c-block-fixture";
 import type { SessionGenerationContext } from "@/lib/openai/session-generator";
+import { generationContext } from "./brief-c-generation-fixture";
 vi.mock("server-only", () => ({}));
 
 describe("Brief C already-usable source delivery", () => {
+  it("opens an explicitly attached ready file without inventing a map reference or borrowing a neighboring file", () => {
+    const context = generationContext(1);
+    const original = context.materials[0]!;
+    context.knowledgeTopics[0]!.sourceReferences = [];
+    const input = {
+      chunkRows: [
+        { id: "foreign-chunk", material_id: "foreign-file", chunk_index: 0, location_label: "Unrelated section", section_role: "content_source" as const, chunk_text: "An unrelated photosynthesis source must not enter ATP practice." },
+        { id: original.chunkId!, material_id: original.materialId!, chunk_index: 0, location_label: "ATP section", section_role: "content_source" as const, chunk_text: original.text },
+      ], materialNames: new Map([[original.materialId!, original.name]]), orderedChunkIds: [],
+      attachedMaterialIds: [original.materialId!],
+    };
+    context.materials = buildTopicMaterialExcerpts(input);
+    const plan = planBlockContents(context);
+    expect(plan.sources.map(source => source.materialId)).toEqual([original.materialId]);
+    expect(plan.sources[0]!.text).toBe(original.text);
+    expect(plan.sources[0]!.section).toBe("ATP section");
+    expect(plan.explanationTopicIds).toEqual([]);
+    expect(context.knowledgeTopics[0]!.sourceReferences).toEqual([]);
+  });
+
+  it("does not silently omit a second attached source or substitute another section for an exact map reference", () => {
+    const context = generationContext(1);
+    context.knowledgeTopics[0]!.attachedSources!.push({ material_id: "c0000000-0000-4000-8000-000000000009" });
+    expect(() => planBlockContents(context)).toThrow(/source section is not ready/);
+    const mapped = generationContext(1);
+    mapped.knowledgeTopics[0]!.sourceReferences.push({ ...mapped.knowledgeTopics[0]!.sourceReferences[0]!, chunkId: "c0000000-0000-4000-8000-000000000008" });
+    expect(() => planBlockContents(mapped)).toThrow(/source section is not ready/);
+  });
   it("opens the assigned usable YouTube transcript as a watch section before practice", () => {
     const fixture = blockFixture(); const source = fixture.block.sources[0]!;
     const chunkId = "c0000000-0000-4000-8000-000000000005";
