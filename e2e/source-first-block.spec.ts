@@ -32,7 +32,8 @@ function preparedPlan() {
       placementCheck: { status: "skipped", completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] },
     },
   });
-  const composition = composeNormalPlanEnvelopes({ request, now: NOW, learningIntentRecommendation: { intent: "learn", basis: "Teach each unlearned topic before checking it." } });
+  const durationContext = { profileVersion: "brief_c_browser_duration", profile: { sustainableMinutes: null, startingFrictionRisk: null, fatigueRisk: null, preferredWindow: null, evidenceRefs: { sustainableMinutes: [], startingFrictionRisk: [], fatigueRisk: [], preferredWindow: [] } }, recentOutcomes: [] };
+  const composition = composeNormalPlanEnvelopes({ request, now: NOW, durationContext, learningIntentRecommendation: { intent: "learn", basis: "Teach each unlearned topic before checking it." } });
   const methodContext = { profileVersion: "brief_c_browser_profile", personalization: { decisions: [], methodTie: { state: { controls: { experiments: false }, activeExperiment: null, experimentHistory: [] }, signals: [] } }, observedEvidence: [], rolloutDecision: resolvePersonalizationRollout({ rolloutPercent: 0, subjectKey: "brief-c-browser" }) };
   const input = { request, composition, now: NOW, methodContext };
   return { ...commitPlanStudyRoutes(buildNormalPlanFromFixedEnvelope({ ...input, fill: buildNormalPlanFallbackFill(input) }), NOW.toISOString()), status: "active" as const };
@@ -60,7 +61,7 @@ test("founder source-first block preserves practice on leave/resume and requires
   const snapshot: YovaPreviewSnapshot = { version: 1, account: { id: "c0000000-0000-4000-8000-000000000099", email: "block@example.com", displayName: "Learner", createdAt: NOW.toISOString(), identityMode: "preview" }, signedIn: true, onboardingAnswers: [], onboardingCompleted: true, alphaEntered: true, plans: [plan], sessionCompletions: [], sessionInterruptions: [], updatedAt: NOW.toISOString() };
   await page.addInitScript(value => { if (!localStorage.getItem("yova.preview.v1")) localStorage.setItem("yova.preview.v1", JSON.stringify(value)); }, snapshot);
   let prepared = 0;
-  const newProgress = (blockId: string) => ({ blockId, sourceCompletedIds: [] as string[], attempts: [] as Array<{ questionId: string; outcome: string; feedback: string }>, revealedQuestionIds: [] as string[], reportedQuestionIds: [] as string[], hintCounts: {} as Record<string, number>, complete: false, receipt: null as string | null });
+  const newProgress = (blockId: string) => ({ blockId, sourceCompletedIds: [] as string[], attempts: [] as Array<{ questionId: string; outcome: string; feedback: string; assisted: boolean }>, revealedQuestionIds: [] as string[], reportedQuestionIds: [] as string[], hintCounts: {} as Record<string, number>, complete: false, receipt: null as string | null });
   const states = new Map<string, ReturnType<typeof newProgress>>();
   await page.route("**/api/sessions/generate", async route => {
     prepared += 1;
@@ -102,12 +103,12 @@ test("founder source-first block preserves practice on leave/resume and requires
     const progress = states.get(body.blockId) ?? newProgress(body.blockId);
     states.set(body.blockId, progress);
     if (body.action === "source_complete" && !progress.sourceCompletedIds.includes(body.sourceId)) progress.sourceCompletedIds.push(body.sourceId);
-    if (body.action === "answer" && !progress.attempts.some(item => item.questionId === body.questionId)) progress.attempts.push({ questionId: body.questionId, outcome: "secure", feedback: "You connected the correct ATP products with favorable energy transfer." });
+    if (body.action === "answer" && !progress.attempts.some(item => item.questionId === body.questionId)) progress.attempts.push({ questionId: body.questionId, outcome: "secure", assisted: false, feedback: "You connected the correct ATP products with favorable energy transfer." });
     if (body.action === "complete") {
       expect(progress.sourceCompletedIds).toHaveLength(1); expect(progress.attempts).toHaveLength(2);
       progress.complete = true; progress.receipt = "You demonstrated ATP products and energy transfer in your short check; those two ideas are recorded, and enzyme catalysis comes next.";
     }
-    await route.fulfill({ json: { progress } });
+    await route.fulfill({ json: { progress, ...(progress.complete ? { summary: { correctAnswers: 2, totalAnswers: 2, conceptEvidence: [], observedGap: "No checked gap." } } : {}) } });
   });
   await page.route("**/api/tutor", route => route.fulfill({ status: 503, json: { error: "Help is temporarily unavailable. Your practice is saved." } }));
   await page.goto("/?qa=preview");

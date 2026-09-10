@@ -63,3 +63,7 @@ Known pre-existing failures/flakes remain outside this brief: deferred legacy-ma
 ## Default generation path inventory
 
 See [DEFAULT-GENERATION-PATHS.md](DEFAULT-GENERATION-PATHS.md). Its current entries describe the starting source, not the promised final state. At closeout, identify every remaining default AI lesson-generation call and prove that each is reachable only for unlearned work without a source. Optional targeted help remains separate from default lesson generation.
+
+### Browser fixture preparation
+
+Run [34476757620](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34476757620), `3bbde23`, failed both browser projects before opening YOVA because the new test omitted the composer's required duration context. Typecheck identified the same fixture error. This is **not a product red**. Corrected the fixture and reran it against the same pre-UI product source before committing the block runtime. All existing focused unit/protection checks passed in that run.
