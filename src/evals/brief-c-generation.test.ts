@@ -61,6 +61,16 @@ describe("Brief C production block defaults", () => {
     expect(block?.questions).not.toHaveLength(0);
   });
 
+  it("evaluates the new source-first practice contract without requiring obsolete lesson phases or wording", async () => {
+    const context = generationContext(1);
+    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
+    const { evaluateSessionDraft } = await import("./session-rubric");
+    const result = await generateProductionSessionWithOpenAI(context, { blockProvider: provider() });
+    const evaluation = evaluateSessionDraft(result.draft, context, "conceptual", ["ATP"], result.deliveryPolicy);
+    expect(evaluation.requiredFailures).toEqual([]);
+    expect(evaluation.score).toBeGreaterThanOrEqual(80);
+  });
+
   it("opens covered work as practice and keeps the source optional", async () => {
     const { block } = await generate(1, "study");
     expect(block?.activities[0]?.kind).toBe("quiz");
