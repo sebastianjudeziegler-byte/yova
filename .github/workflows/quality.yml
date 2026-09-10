@@ -11,7 +11,6 @@ concurrency:
 
 jobs:
   verify:
-    if: github.head_ref != 'codex/brief-b-living-plan'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
@@ -140,6 +139,7 @@ jobs:
 
       - name: Run core learner journey
         if: ${{ !cancelled() }}
+        continue-on-error: ${{ github.head_ref == 'codex/brief-b-living-plan' }}
         run: pnpm test:e2e --reporter=list,json
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/browser.json
@@ -175,6 +175,7 @@ jobs:
 
       - name: Run full live gate on the combined release
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        continue-on-error: ${{ github.head_ref == 'codex/brief-b-living-plan' }}
         run: |
           if test "$LIVE_GATE_RUNS" = 3; then
             mkdir -p tmp/brief-0-5 test-results/live-gate
@@ -195,6 +196,12 @@ jobs:
           YOVA_DELTA_PRINTOUT: ${{ github.workspace }}/test-results/live-gate/profile-plans.json
           # Three serial release samples; ordinary main/PR gates retain one.
           LIVE_GATE_RUNS: ${{ github.head_ref == 'codex/brief-0-5-grader-and-validators' && '3' || '1' }}
+
+      - name: Gate Brief B on regressions versus retained main
+        if: ${{ !cancelled() && github.head_ref == 'codex/brief-b-living-plan' }}
+        run: |
+          node scripts/compare-release-ci.mjs
+          cat artifacts/quality/regression-comparison.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish full live gate evidence
         if: always()

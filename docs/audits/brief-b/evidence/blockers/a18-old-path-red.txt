@@ -1,0 +1,31 @@
+2026-09-10T09:17:46.3418998Z ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+2026-09-10T09:17:46.3449561Z  FAIL  src/evals/a18-capacity.test.ts > A18 permanent capacity replay > degrades before provider fill and retains a runnable history plan in the saved windows
+2026-09-10T09:17:46.3478758Z OpenAIPlanGenerationError: The OpenAI request failed.
+2026-09-10T09:17:46.3491478Z  Test Files  2 failed (2)
+2026-09-10T09:17:46.3526141Z       Tests  3 failed (3)
+2026-09-10T09:17:46.3526963Z     210|     throw new OpenAIPlanGenerationError(
+2026-09-10T09:17:46.3533429Z Caused by: PlanScheduleCapacityError: The selected study windows do not have enough room for this plan before the deadline.
+2026-09-10T09:17:46.3546251Z  FAIL  src/lib/plan-revision/revision-shortening.test.ts > reviewed shorter sessions retain the accepted work > keeps every remaining part and leaves unrelated sessions byte-identical
+2026-09-10T09:17:46.3548215Z AssertionError: expected [ { …(16) } ] to have a length of 2 but got 1
+2026-09-10T09:17:46.3565617Z  FAIL  src/lib/plan-revision/revision-shortening.test.ts > reviewed shorter sessions retain the accepted work > shows capacity choices instead of saving only the first part when the rest cannot fit
+2026-09-10T09:17:46.3567405Z AssertionError: expected true to be false // Object.is equality
+2026-09-10T09:18:40.3530732Z ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+2026-09-10T09:18:40.3533798Z  FAIL  src/evals/a18-capacity.test.ts > A18 permanent capacity replay > degrades before provider fill and retains a runnable history plan in the saved windows
+2026-09-10T09:18:40.3537680Z AssertionError: expected [ { …(15) }, { …(15) }, …(2) ] to have a length of 6 but got 4
+2026-09-10T09:18:40.3581240Z  Test Files  1 failed | 453 passed | 21 skipped (475)
+2026-09-10T09:18:40.3598595Z       Tests  1 failed | 4023 passed | 87 skipped (4111)
+2026-09-10T09:18:59.2321366Z ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+2026-09-10T09:18:59.2322295Z  FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+2026-09-10T09:18:59.2323043Z AssertionError: expected [ Array(1) ] to deeply equal []
+2026-09-10T09:18:59.2329459Z  Test Files  1 failed (1)
+2026-09-10T09:18:59.2329959Z       Tests  1 failed | 1 passed (2)
+2026-09-10T09:19:16.0442364Z ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+2026-09-10T09:19:16.0443126Z  FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+2026-09-10T09:19:16.0443853Z AssertionError: expected [ Array(1) ] to deeply equal []
+2026-09-10T09:19:16.0451077Z  Test Files  1 failed (1)
+2026-09-10T09:19:16.0451585Z       Tests  1 failed | 1 passed (2)
+2026-09-10T09:19:32.8092189Z ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+2026-09-10T09:19:32.8093412Z  FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+2026-09-10T09:19:32.8094564Z AssertionError: expected [ Array(1) ] to deeply equal []
+2026-09-10T09:19:32.8104129Z  Test Files  1 failed (1)
+2026-09-10T09:19:32.8105223Z       Tests  1 failed | 1 passed (2)

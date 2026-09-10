@@ -1,0 +1,482 @@
+{
+  "run": 34461722816,
+  "commit": "c3e4a61cd97287b863e5096bf3d1bf5b002a2885",
+  "stats": {
+    "startTime": "2026-09-10T09:41:08.924Z",
+    "duration": 319304.988,
+    "expected": 36,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "rows": [
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a visibly shortened inside recipe keeps its method in the fallback workpad",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a 10-minute outside teaching-first session loads its built-in method lesson",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue outside teaching-first session splits into runnable 10-minute parts",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a visibly shortened inside recipe keeps its method in the fallback workpad",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a 10-minute outside teaching-first session loads its built-in method lesson",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue outside teaching-first session splits into runnable 10-minute parts",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a visibly shortened inside recipe keeps its method in the fallback workpad",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a 10-minute outside teaching-first session loads its built-in method lesson",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue outside teaching-first session splits into runnable 10-minute parts",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a visibly shortened inside recipe keeps its method in the fallback workpad",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a 10-minute outside teaching-first session loads its built-in method lesson",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue outside teaching-first session splits into runnable 10-minute parts",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a visibly shortened inside recipe keeps its method in the fallback workpad",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a 10-minute outside teaching-first session loads its built-in method lesson",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue outside teaching-first session splits into runnable 10-minute parts",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a visibly shortened inside recipe keeps its method in the fallback workpad",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a 10-minute outside teaching-first session loads its built-in method lesson",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue outside teaching-first session splits into runnable 10-minute parts",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "shorter sessions preserve weekly availability and explain insufficient time",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "shorter sessions preserve weekly availability and explain insufficient time",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "shorter sessions preserve weekly availability and explain insufficient time",
+      "project": "desktop-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "shorter sessions preserve weekly availability and explain insufficient time",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "shorter sessions preserve weekly availability and explain insufficient time",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "shorter sessions preserve weekly availability and explain insufficient time",
+      "project": "mobile-chromium",
+      "repeatEachIndex": null,
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    }
+  ]
+}

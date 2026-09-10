@@ -6,6 +6,7 @@ This inventory separates plan revision from the runtime/lifecycle writes that Br
 | --- | --- | --- |
 | Initial normal-plan creation | `/api/plans/generate` → the same composer, fixed fill and materializer | Initial whole-map composition; unchanged creation authority |
 | Active plan Adjust, learned-elsewhere, source attachment; draft content/schedule/starting-level controls; legacy Calendar/tutor adjustment entry points | `/api/plans/adjust`: strict MapDelta → `buildPlanRevision` → `composeNormalPlanEnvelopes` → fixed-slot Brief A fill → materialize affected future sessions | Single revision builder; the provider cannot select structure or submit sessions |
+| Calendar's explicit Split action | Same signed preview/apply transport and revision builder; the explicit click accepts the bounded duration change | Keeps all parts, receipt and guarded Undo; insufficient capacity opens the shared choices |
 | Confirm / Undo on an active plan | `persistAcceptedPlanRevision` → service-only `apply_plan_revision` | One atomic revision writer, owner/revision/map/preimage checks, durable receipt; Undo applies an inverse patch |
 | Confirm / Undo on a draft | Same signed builder/projection; fresh bounded activation receipt | Changes the draft only; no active session row is written |
 | Initial activation | `/api/plans/activate` → permit-protected `save_generated_plan_with_routes` | Creates the plan and initial committed routes; preserves reviewed draft revision |
