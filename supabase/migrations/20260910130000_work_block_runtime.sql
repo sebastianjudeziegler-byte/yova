@@ -110,8 +110,8 @@ begin
     or (existing #>> '{progress,complete}'='true' and requested_progress is distinct from existing->'progress') then
     raise exception using errcode='22023',message='work_block_progress_invalid';
   end if;
-  if not (requested_progress->'attempts' @> existing #> '{progress,attempts}')
-    or not (requested_progress->'sourceCompletedIds' @> existing #> '{progress,sourceCompletedIds}') then
+  if not (requested_progress->'attempts' @> (existing #> '{progress,attempts}'))
+    or not (requested_progress->'sourceCompletedIds' @> (existing #> '{progress,sourceCompletedIds}')) then
     raise exception using errcode='40001',message='work_block_progress_cannot_erase_work';
   end if;
   if requested_progress->>'complete'='true' then

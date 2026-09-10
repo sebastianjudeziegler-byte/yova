@@ -41,6 +41,7 @@ function preparedPlan() {
 
 async function openNext(page: Page) {
   await expect(page.getByRole("region", { name: "Recommended learning plan" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Recommended learning plan" }).getByRole("button").first()).toBeEnabled();
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   const goal = page.getByRole("button", { name: "Open goal", exact: true }).first();
   await goal.click();

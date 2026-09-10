@@ -1,0 +1,47 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions, pg_catalog;
+select extensions.plan(14);
+create temporary table fixture(data jsonb);
+insert into fixture values('__FIXTURE__'::jsonb);
+select set_config('request.jwt.claim.sub','c2000000-0000-4000-8000-000000000001',true);
+insert into auth.users(id,email) values('c2000000-0000-4000-8000-000000000001','block-real-routes@example.com');
+insert into public.learning_items(id,user_id,title,kind,topic,source_mode,study_mode,deadline)
+select (data#>>'{plan,learningItemId}')::uuid,'c2000000-0000-4000-8000-000000000001',data#>>'{plan,title}',data#>>'{plan,kind}',data#>>'{plan,topic}',data#>>'{plan,sourceMode}',data#>>'{plan,studyMode}',(data#>>'{plan,deadline}')::timestamptz from fixture;
+insert into public.plans(id,user_id,learning_item_id,status,rationale,knowledge_map,generation_inputs)
+select (data#>>'{plan,id}')::uuid,'c2000000-0000-4000-8000-000000000001',(data#>>'{plan,learningItemId}')::uuid,'active',data#>>'{plan,rationale}',data#>'{plan,knowledgeMap}','{}'::jsonb from fixture;
+insert into public.plan_sessions(id,user_id,plan_id,sequence,title,objective,method,method_rationale,scheduled_for,estimated_minutes,status,step_data)
+select (s->>'id')::uuid,'c2000000-0000-4000-8000-000000000001',(data#>>'{plan,id}')::uuid,(s->>'sequence')::smallint,s->>'title',s->>'objective',s->>'method',s->>'methodReason',(s->>'scheduledFor')::timestamptz,(s->>'estimatedMinutes')::smallint,s->>'status',s-array['id','sequence','title','objective','method','methodReason','scheduledFor','estimatedMinutes','status','studyRoute']
+from fixture cross join lateral jsonb_array_elements(data#>'{plan,sessions}') s;
+do $$ declare r jsonb; begin for r in select s->'studyRoute' from fixture cross join lateral jsonb_array_elements(data#>'{plan,sessions}') s loop perform public.commit_study_route_revision(r); end loop; end $$;
+create temporary table cache_payload as select jsonb_build_object('planSessionId',s.id,'expectedRouteRevisionId',s.committed_route_revision_id,
+ 'generatedSession',data->'resource','expectedKnowledgeMap',p.knowledge_map,'expectedSourceMode',i.source_mode,
+ 'expectedPlanUpdatedAt',p.updated_at,'expectedSessionUpdatedAt',s.updated_at,'expectedLearningItemUpdatedAt',i.updated_at) payload
+from fixture join public.plan_sessions s on s.id=(data#>>'{session,id}')::uuid join public.plans p on p.id=s.plan_id join public.learning_items i on i.id=p.learning_item_id;
+-- Use the same service-only entry points as the authenticated server route.
+select set_config('request.jwt.claim.role','service_role',true);
+select extensions.lives_ok(format('select public.save_session_work_block_v1(%L::uuid,%L::jsonb,%L::jsonb,%L::jsonb)',
+ 'c2000000-0000-4000-8000-000000000001',payload::text,(data->'keys')::text,(data->'initial')::text), 'server preparation saves exact source-first content and private keys atomically') from fixture,cache_payload;
+select extensions.is((select step_data->'generatedSession' from public.plan_sessions,fixture where id=(data#>>'{session,id}')::uuid),(select data->'resource' from fixture),'reopening reads byte-identical reviewed content');
+select extensions.is((select count(*) from private.session_work_blocks where user_id='c2000000-0000-4000-8000-000000000001'),1::bigint,'one block has one review and answer set');
+select extensions.lives_ok(format('select public.save_session_work_block_v1(%L::uuid,%L::jsonb,%L::jsonb,%L::jsonb)',
+ 'c2000000-0000-4000-8000-000000000001',payload::text,(data->'keys')::text,(data->'initial')::text), 'an identical lost-response retry retains the prepared block') from fixture,cache_payload;
+select extensions.ok(not has_function_privilege('authenticated','public.save_session_work_block_v1(uuid,jsonb,jsonb,jsonb)','execute') and not has_function_privilege('authenticated','public.read_session_work_block_v1(uuid,uuid,uuid,uuid,uuid)','execute'),'a browser cannot mint content or read private answers');
+select extensions.ok(not has_function_privilege('authenticated','public.save_session_work_block_progress_v1(uuid,uuid,uuid,uuid,uuid,integer,jsonb,jsonb)','execute'),'a browser cannot assert checked scores');
+select extensions.ok(not has_table_privilege('authenticated','private.session_work_blocks','select,insert,update,delete'),'private keys and checked ledger have no browser table access');
+create function pg_temp.save_progress(version integer, progress jsonb, summary jsonb) returns integer language sql as $$
+ select public.save_session_work_block_progress_v1('c2000000-0000-4000-8000-000000000001', (data#>>'{plan,id}')::uuid, (data#>>'{session,id}')::uuid,(data#>>'{resource,routeRevisionId}')::uuid,(data#>>'{resource,block,id}')::uuid,version,progress,summary) from fixture
+$$;
+select extensions.throws_ok(format('select pg_temp.save_progress(0,%L::jsonb,%L::jsonb)',jsonb_set(data->'initial','{complete}','true')::text,(data->'summary')::text),'42501','checked_block_completion_required','an unattempted block cannot be marked complete even by the score writer') from fixture;
+select extensions.is(pg_temp.save_progress(0,data->'sourceDone',null),1,'source completion saves progress alone') from fixture;
+select extensions.is((select completion_summary from private.session_work_blocks where user_id='c2000000-0000-4000-8000-000000000001'),null::jsonb,'source completion stores no evidence summary');
+select extensions.throws_ok(format('select pg_temp.save_progress(0,%L::jsonb,%L::jsonb)',(data->'completed')::text,(data->'summary')::text),'40001','work_block_progress_changed','a stale tab cannot overwrite current practice') from fixture;
+select extensions.is(pg_temp.save_progress(1,data->'completed',data->'summary'),2,'the checked set can finish without a repeat loop') from fixture;
+select set_config('request.jwt.claim.role','authenticated',true);
+select public.complete_plan_session_with_route(jsonb_build_object('attemptId','c2000000-0000-4000-8000-000000000009','planId',data#>>'{plan,id}','planSessionId',data#>>'{session,id}',
+ 'routeRevisionId',data#>>'{resource,routeRevisionId}','completionVariant','guided','startedAt',now()-interval '20 minutes','completedAt',now(),'actualMinutes',20,'plannedMinutes',(data#>>'{session,estimatedMinutes}')::integer,
+ 'correctAnswers',99,'totalAnswers',99,'conceptEvidence',jsonb_build_array(jsonb_build_object('concept','FORGED','outcome','secure')),'confidenceEvidence','[]'::jsonb)) from fixture;
+select extensions.is((select correct_answers from public.session_attempts where id='c2000000-0000-4000-8000-000000000009'),2,'the saved completion ignores client scores and uses checked answers');
+select extensions.is((select result_data->'conceptEvidence' from public.session_attempts where id='c2000000-0000-4000-8000-000000000009'),(select data#>'{summary,conceptEvidence}' from fixture),'only server-bound topic evidence reaches the gap record');
+select * from extensions.finish();
+rollback;
