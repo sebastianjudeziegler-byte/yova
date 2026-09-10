@@ -1,6 +1,6 @@
 // Brief B closeout: compare the one full run with retained exact-main evidence.
 import { readFileSync, writeFileSync } from "node:fs";
-import { compareLiveReports } from "./live-gate/regression.mjs";
+import { canonicalBrowserCaseName, compareLiveReports } from "./live-gate/regression.mjs";
 import { normalizeBrowserReport } from "./live-gate/core.mjs";
 if (!process.env.GITHUB_ACTIONS) throw new Error("Release comparison runs only in GitHub Actions.");
 const read = path => JSON.parse(readFileSync(path, "utf8"));
@@ -16,7 +16,7 @@ const live = compareLiveReports(main, after, {
 const mainBrowser = read(`${baseline}/main-browser-baseline.json`);
 const raw = read("artifacts/quality/browser.json");
 const normalized = normalizeBrowserReport(raw, process.cwd());
-const key = row => `${row.file.replace(/^e2e\//, "")}::${row.project}::${row.name.replaceAll(" › ", " > ")}`;
+const key = row => `${row.file.replace(/^e2e\//, "")}::${row.project}::${canonicalBrowserCaseName(row.name.replaceAll(" › ", " > "))}`;
 const runs = [];
 function flatten(suites) {
   for (const suite of suites ?? []) {

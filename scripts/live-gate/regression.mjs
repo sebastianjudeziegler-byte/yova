@@ -1,6 +1,13 @@
-/** Compare recorded observations; never relabel a failure as a passing run. */
-export function canonicalBrowserCaseName(name) { return name; }
+// Brief B replaced repeated placement with the specified evidence-preserving
+// preview. The same stale-activation test was renamed (EVIDENCE.md); no general
+// fuzzy matching is allowed because that could conceal an omitted case.
+export function canonicalBrowserCaseName(name) {
+  return name === "map revision cannot activate a stale draft and fresh placement uses the revised map"
+    ? "map revision cannot activate a stale draft and reviewed starting level preserves placement"
+    : name;
+}
 
+/** Compare recorded observations; never relabel a failure as a passing run. */
 export function compareLiveReports(before, after, { scoped = [], quarantined = [] } = {}) {
   const group = report => {
     const groups = new Map();

@@ -10,6 +10,12 @@ A18's permanent nested-capacity replay is red on the old eval adapter and green 
 
 The six-row classification and root-cause chronology appear below. The single final full CI run follows this focused verification; until its comparison completes, PR #85 remains a draft. The temporary focused workflow is removed so this closeout push starts only the full PR quality workflow.
 
+### Final full run: recorded outcomes and comparison correction
+
+[Full run 34462641441](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34462641441) tested PR head `9641a0b` as merge revision `347f53947d56d61fba76202748c1be58cf649e41` against unchanged main c7b3ca9. **4,024 unit PASS; lint, TypeScript, build, migration replay and database boundaries PASS; 275 ordinary browsers PASS / 19 intentional skips / zero failures or flakes; 15 authentication browsers PASS.** The phone-width comparison is main PASS / branch PASS. Founder AP Bio, A18, both Brief A/B profile deltas and both live browser journeys pass. Raw live baseline: **50 pass / 5 fail / 20 flaky / 2 unavailable**; the five failures also fail on main, and the live comparison finds zero regressions.
+
+The full job's final comparison step is red only because it treats the documented stale-test rename as two missing browser cases: “map revision cannot activate a stale draft and fresh placement uses the revised map” became “…and reviewed starting level preserves placement.” Both current executions passed. The main test asserted a repeated placement request after regeneration; Brief B explicitly replaces regeneration/repeated placement with the shared preview and preserved placement evidence. The migrated test still holds a revision request, prohibits stale activation/other edits, checks the reviewed map's unchanged placement record, and confirms no extra diagnostic request. This migration was documented earlier in this file. The comparator now registers this one exact rename; unmatched missing cases still block. Its permanent identity test is red on `1de2407` before the mapping and green after. A short CI job replays **the same completed full-run artifacts**, without another browser suite, live gate or provider call.
+
 ## Review map
 
 | Brief B requirement | Failing-before capture | Passing-after capture / permanent assertion |

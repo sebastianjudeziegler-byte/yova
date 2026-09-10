@@ -1,0 +1,57 @@
+name: Brief B recorded gate comparison
+on:
+  push:
+    branches: [codex/brief-b-living-plan]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Replay case-identity red and green
+        run: |
+          mkdir -p artifacts/quality
+          cp scripts/live-gate/regression.mjs "$RUNNER_TEMP/regression-green.mjs"
+          git show 1de2407:scripts/live-gate/regression.mjs > scripts/live-gate/regression.mjs
+          set +e
+          node --test scripts/live-gate/regression.test.mjs > artifacts/quality/case-identity-red.txt 2>&1
+          result=$?
+          set -e
+          cp "$RUNNER_TEMP/regression-green.mjs" scripts/live-gate/regression.mjs
+          test "$result" -ne 0
+          node --test --test-concurrency=1 scripts/live-gate/*.test.mjs | tee artifacts/quality/case-identity-green.txt
+      - name: Read the completed browser artifact (no tests rerun)
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 34462641441
+          name: yova-quality-evidence-34462641441
+          path: ${{ runner.temp }}/brief-b-recorded
+      - name: Read the completed live artifact (no provider calls)
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 34462641441
+          name: full-live-gate-34462641441
+          path: test-results/live-gate
+      - name: Compare the same full-gate observations with main
+        run: |
+          cp "$RUNNER_TEMP/brief-b-recorded/artifacts/quality/browser.json" artifacts/quality/browser.json
+          node scripts/compare-release-ci.mjs
+          cat artifacts/quality/regression-comparison.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: brief-b-recorded-comparison-${{ github.run_id }}
+          path: |
+            artifacts/quality/regression-comparison.*
+            artifacts/quality/case-identity-*.txt
+          retention-days: 30
