@@ -1212,7 +1212,7 @@ test("an overdue arbitrary inside session splits and loads a route-faithful 10-m
 
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
-    "Review eigenvalues and eigenvectors for practice",
+    "Review DNA and RNA for practice",
   );
   await page.getByRole("button", { name: "15 minutes", exact: true }).click();
   await page.getByRole("button", { name: "I understand the basics but need practice" }).click();
@@ -1230,21 +1230,26 @@ test("an overdue arbitrary inside session splits and loads a route-faithful 10-m
     const stored = window.localStorage.getItem("yova.preview.v1");
     if (!stored) throw new Error("Expected the inside-YOVA Study Now plan in the preview snapshot.");
     const snapshot = JSON.parse(stored) as {
-      plans?: Array<{ sessions?: Array<{
-        scheduledFor?: string;
-        status?: string;
-        contentTargets?: string[];
-        completionEvidence?: string[];
-      }> }>;
+      plans?: LearningPlan[];
       updatedAt?: string;
     };
-    const ready = snapshot.plans?.at(-1)?.sessions?.find((session) => session.status === "ready");
+    const plan = snapshot.plans?.at(-1);
+    const ready = plan?.sessions.find((session) => session.status === "ready");
     if (!ready) throw new Error("Expected a ready inside-YOVA session to make overdue.");
     ready.scheduledFor = new Date(Date.now() - 6 * 60 * 60 * 1_000).toISOString();
     // Acronym-only targets have no tokens in the curated-template heuristic.
     // The generic fallback must use its exact saved-target contract instead.
     ready.contentTargets = ["DNA and RNA"];
     ready.completionEvidence = ["Explain the saved relationship in your own words"];
+    // Revision owns content through the accepted map. Keep this acronym-only
+    // fixture coherent instead of attaching biology copy to eigenvalue IDs.
+    const topics = plan?.knowledgeMap?.topics.filter(topic => ready.topicIds?.includes(topic.id));
+    if (!topics?.length) throw new Error("Expected the accepted topic for the saved target.");
+    for (const topic of topics) {
+      topic.title = "DNA and RNA";
+      topic.description = "Compare DNA and RNA and explain their relationship.";
+      topic.subtopics = [];
+    }
     snapshot.updatedAt = new Date().toISOString();
     window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
   });
@@ -1282,7 +1287,7 @@ test("an overdue arbitrary inside session splits and loads a route-faithful 10-m
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   await page.getByRole("button", { name: /^Recent \d+$/ }).click();
   const unfinishedStudyNowPlan = page.locator(".learning-goal-card").filter({
-    hasText: /eigenvalues and eigenvectors/i,
+    hasText: /DNA and RNA/i,
   });
   await expect(unfinishedStudyNowPlan).toContainText("NEXT SESSION");
   await expect(unfinishedStudyNowPlan.getByRole("button", { name: "Start next", exact: true })).toBeVisible();
