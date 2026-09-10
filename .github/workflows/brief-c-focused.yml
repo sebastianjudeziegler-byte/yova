@@ -47,6 +47,9 @@ jobs:
       - name: Lint
         if: ${{ !cancelled() }}
         run: pnpm lint
+      - name: Block generation defaults
+        if: ${{ !cancelled() }}
+        run: pnpm exec vitest run src/evals/brief-c-generation.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/block-generation.json
       - name: Preserve Brief 0.5 negative protections
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/lib/openai/streamed-validator-calibration.test.ts src/lib/session-generation/question-context.test.ts src/evals/brief-0-5-rubric.test.ts src/lib/session-generation/completion-contract.test.ts src/lib/session-generation/lesson-brief.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/negative-protections.json
