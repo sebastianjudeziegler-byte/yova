@@ -5512,7 +5512,7 @@ function PlanAdaptations({ plan }: { plan: LearningPlan }) {
   return <section className="section-block plan-adaptations"><div className="section-title"><div><h3>How YOVA adapted this plan</h3><p>Only changes supported by a completed session appear here.</p></div><span>{adaptedSessions.length} evidence-based {adaptedSessions.length === 1 ? "change" : "changes"}</span></div><div className="adaptation-list">{adaptedSessions.map((session) => <article key={session.id}><span><Sparkles size={16} /></span><div><strong>{session.title}</strong><p>{session.adaptationNote?.explanation}</p><small>Adjusted {formatCompletionDate(session.adaptationNote?.adaptedAt ?? session.scheduledFor)}</small></div></article>)}</div></section>;
 }
 
-function PlanResources({ plan }: { plan: LearningPlan }) {
+export function PlanResources({ plan }: { plan: LearningPlan }) {
   const available = plan.sessions.filter((session) => session.resource && session.resource.activities.some((activity) => activity.type !== "reflection"));
 
   if (!available.length) {
