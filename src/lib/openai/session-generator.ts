@@ -242,7 +242,7 @@ export type OpenAISessionResult = {
   generationStats: SessionGenerationStats;
 };
 
-export const SESSION_GENERATION_STRATEGIES = ["full", "reliable", "streamed"] as const;
+export const SESSION_GENERATION_STRATEGIES = ["full", "reliable", "streamed", "block"] as const;
 export type SessionGenerationStrategy = typeof SESSION_GENERATION_STRATEGIES[number];
 
 export const SESSION_GENERATION_STAGES = [
@@ -342,6 +342,8 @@ export type SessionGenerationRuntime = {
   deadlineAt?: number;
   settlementReserveMs?: number;
   signal?: AbortSignal;
+  /** Server-side dependency injection for focused generation tests only. */
+  blockProvider?: import("@/lib/session-blocks/provider-contract").BlockProvider;
 };
 
 const preparedSessionGenerationContexts = new WeakSet<SessionGenerationContext>();

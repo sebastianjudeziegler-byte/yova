@@ -58,7 +58,7 @@ export const SESSION_VALIDATION_ISSUE_CODES = [
 
 export type SessionValidationIssueCode = typeof SESSION_VALIDATION_ISSUE_CODES[number];
 
-export const SESSION_GENERATION_STRATEGIES = ["full", "reliable", "streamed"] as const;
+export const SESSION_GENERATION_STRATEGIES = ["full", "reliable", "streamed", "block"] as const;
 export const SESSION_GENERATION_STAGES = [
   "preflight",
   "provider",

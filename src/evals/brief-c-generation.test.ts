@@ -8,7 +8,10 @@ const oldLesson = vi.hoisted(() => vi.fn(async () => ({
   draft: { topicIds: [], rationale: "AI lesson first", activities: [{ type: "instruction", title: "AI lesson first" }] },
   model: "fixture-only", responseId: "legacy", generationStats: { attempts: 1, elapsedMs: 1 },
 })));
-vi.mock("@/lib/openai/streamed-teaching-generator", () => ({ generateStreamedTeachingSkeletonWithOpenAI: oldLesson }));
+vi.mock("@/lib/openai/streamed-teaching-generator", async importOriginal => ({
+  ...await importOriginal<typeof import("@/lib/openai/streamed-teaching-generator")>(),
+  generateStreamedTeachingSkeletonWithOpenAI: oldLesson,
+}));
 vi.mock("@/lib/openai/reliable-session-generator", () => ({ canGenerateReliableSession: () => true, generateReliableSessionWithOpenAI: oldLesson }));
 
 export function generationContext(profile: 1 | 2, mode: "learn" | "study" = "learn", sourced = true): SessionGenerationContext {
@@ -35,7 +38,7 @@ function provider() {
       explanations: input.explanationTopicIds.map(topicId => ({ topicId, text: blockFixture().block.sources[0]!.text })),
       questions: input.slots.map((slot, index) => ({
         id: slot.id, topicId: slot.topicId,
-        prompt: ["Which products form when ATP reacts with water?", "Why can ATP hydrolysis support energy-requiring work?", "What inputs are needed to regenerate ATP?"][index % 3],
+        prompt: ["Which products form when ATP reacts with water?", "Why can ATP hydrolysis support energy-requiring work?", "What inputs are needed to regenerate ATP?"][index % 3]!,
         choices: slot.format === "multiple_choice" ? ["ADP and inorganic phosphate", "ADP and glucose", "AMP and oxygen"] : [],
         answer: index === 0 ? "ADP and inorganic phosphate" : index === 1 ? "The favorable reaction supplies free energy to the coupled process." : "ADP, phosphate and energy from other reactions.",
         requiredIdeas: [index === 0 ? "ADP and inorganic phosphate" : index === 1 ? "Favorable free-energy transfer drives the coupled process" : "ADP, phosphate and energy"],
@@ -45,7 +48,7 @@ function provider() {
         workedSolution: [],
       })),
     })),
-    review: vi.fn(async () => ({ verdict: "pass", reason: "Every check is supported by the assigned section and has a defensible answer." })),
+    review: vi.fn(async (): Promise<{ verdict: "pass" | "fail"; reason: string }> => ({ verdict: "pass", reason: "Every check is supported by the assigned section and has a defensible answer." })),
   };
 }
 

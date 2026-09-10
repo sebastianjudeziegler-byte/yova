@@ -20,6 +20,7 @@ import {
 import { generateStreamedTeachingSkeletonWithOpenAI } from "@/lib/openai/streamed-teaching-generator";
 import { sessionArchitectureForGeneration, usesStreamedTeaching } from "@/lib/session-generation/architecture";
 import { supportsStreamedTeachingRouteMethod } from "@/lib/session-generation/method-runtime-capability";
+import { generateProductionWorkBlock } from "@/lib/session-blocks/production-result";
 
 /**
  * Keeps production and live quality evaluations on the same generation path.
@@ -35,6 +36,10 @@ export function sessionGenerationStrategy(context: SessionGenerationContext) {
 function sessionGenerationStrategyForPreparedContext(
   scopedContext: SessionGenerationContext,
 ) {
+  // Historical direct-evaluation fixtures can carry raw, unbound excerpts.
+  // The authenticated runtime supplies owned chunk IDs; its new resources
+  // always use the work-block contract. Keep legacy fixture handling isolated.
+  if (!scopedContext.materials.some(material => !material.materialId || !material.chunkId)) return "block" as const;
   const runtimeArchitecture = sessionArchitectureForGeneration({
     storedVersion: scopedContext.sessionArchitectureVersion,
     learningMode: scopedContext.session.learningMode,
@@ -77,7 +82,9 @@ export async function generateProductionSessionWithOpenAI(
   markSessionGenerationContextPrepared(generationContext);
   const strategy = sessionGenerationStrategyForPreparedContext(generationContext);
   try {
-    const generated = await (strategy === "streamed"
+    const generated = await (strategy === "block"
+      ? generateProductionWorkBlock(generationContext, runtime)
+      : strategy === "streamed"
       ? generateStreamedTeachingSkeletonWithOpenAI(generationContext, runtime)
       : strategy === "reliable"
         ? generateReliableSessionWithOpenAI(generationContext, runtime)

@@ -2486,7 +2486,7 @@ function lessonIdeaContainsDeferredExclusiveTerms({
  * themselves; those single-token checks caused the production dead ends this
  * path exists to eliminate.
  */
-function lessonIdeaContainsDeferredRelationAnchor({
+export function lessonIdeaContainsDeferredRelationAnchor({
   idea,
   assignedTarget,
   deferredTargets,
