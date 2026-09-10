@@ -22,6 +22,7 @@ const post = (action: Record<string, unknown>) => POST(new Request("https://yova
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
   stored = { ...stored, progress: initialBlockProgress(resource.block.id), progressVersion: 0 };
   mocks.user.mockResolvedValue({ data: { user: { id: "c0000000-0000-4000-8000-000000000099" } }, error: null });
   mocks.rpc.mockImplementation(async (name, args) => {
@@ -35,6 +36,19 @@ beforeEach(() => {
 });
 
 describe("server-owned block attempts", () => {
+  it("resumes a server-prepared development preview without requiring a cloud account", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    mocks.user.mockResolvedValue({ data: { user: null }, error: null });
+    const blockStore = await import("@/lib/session-blocks/store");
+    const prepare = Reflect.get(blockStore, "saveDevelopmentBlock") as undefined | ((ids: typeof binding, resource: typeof stored.resource, keys: typeof stored.answerKeys) => void);
+    prepare?.(binding, stored.resource, stored.answerKeys);
+    const response = await POST(new Request("http://localhost/api/sessions/block", { method: "POST", headers: { "Content-Type": "application/json", "X-Yova-Development-Preview": "guided-session" }, body: JSON.stringify({ ...binding, action: "state" }) }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.progress.attempts).toEqual([]); expect(body.solutions).toEqual({});
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("a source tick saves progress without recording a score or completion", async () => {
     const response = await post({ action: "source_complete", sourceId: "lecture-page-1" });
     expect(response.status).toBe(200);

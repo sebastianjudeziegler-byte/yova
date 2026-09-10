@@ -344,7 +344,7 @@ export async function POST(request: Request) {
         .maybeSingle(),
       supabase
         .from("materials")
-        .select("id,filename")
+        .select("id,filename,metadata")
         .eq("learning_item_id", plan.learning_item_id)
         .eq("user_id", user.id)
         .eq("processing_status", "ready")
@@ -443,6 +443,7 @@ export async function POST(request: Request) {
     const materialExcerpts = buildTopicMaterialExcerpts({
       chunkRows: (chunkResult.data ?? []) as TopicMaterialChunkRow[],
       materialNames: new Map((materialRows ?? []).map((material) => [material.id, material.filename])),
+      materialMetadata: new Map((materialRows ?? []).map((material) => [material.id, material.metadata])),
       orderedChunkIds,
     }).filter((excerpt) => excerpt.text.trim().length >= 12);
     if (orderedChunkIds.length > 0 && materialExcerpts.length !== orderedChunkIds.length) {

@@ -1,4 +1,5 @@
 import "server-only";
+import { ExternalMaterialSourceSchema } from "./external-source-schema";
 
 export type MaterialExcerpt = {
   materialId?: string;
@@ -9,6 +10,7 @@ export type MaterialExcerpt = {
   truncated: boolean;
   locationLabel?: string;
   role?: "content_source" | "scope_outline";
+  source?: { kind: "article" | "youtube"; title: string; url: string };
 };
 
 export type TopicMaterialChunkRow = {
@@ -24,15 +26,20 @@ export function buildTopicMaterialExcerpts({
   chunkRows,
   materialNames,
   orderedChunkIds,
+  materialMetadata,
 }: {
   chunkRows: TopicMaterialChunkRow[];
   materialNames: Map<string, string>;
   orderedChunkIds: string[];
+  materialMetadata?: Map<string, unknown>;
 }): MaterialExcerpt[] {
   const byId = new Map(chunkRows.map((chunk) => [chunk.id, chunk]));
   return orderedChunkIds.flatMap((chunkId) => {
     const chunk = byId.get(chunkId);
     if (!chunk?.chunk_text.trim()) return [];
+    const metadata = materialMetadata?.get(chunk.material_id);
+    const fields = metadata && typeof metadata === "object" ? metadata as Record<string, unknown> : {};
+    const source = ExternalMaterialSourceSchema.safeParse({ kind: fields.sourceKind, title: fields.sourceTitle, url: fields.sourceUrl });
     return [{
       materialId: chunk.material_id,
       chunkId: chunk.id,
@@ -42,6 +49,7 @@ export function buildTopicMaterialExcerpts({
       truncated: false,
       locationLabel: chunk.location_label,
       role: chunk.section_role,
+      ...(source.success && /^https?:\/\//i.test(source.data.url) ? { source: source.data } : {}),
     } satisfies MaterialExcerpt];
   });
 }

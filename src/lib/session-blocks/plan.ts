@@ -43,7 +43,7 @@ export function planBlockContents(context: SessionGenerationContext): BlockConte
     }
     return excerpts.map(material => BlockSourceSchema.parse({
       id: `${topic.id}:${material.chunkId}`, topicId: topic.id, materialId: material.materialId,
-      url: null, kind: "read_source_section", title: material.name,
+      url: material.source?.url ?? null, kind: material.source?.kind === "youtube" ? "watch_source_section" : "read_source_section", title: material.source?.title ?? material.name,
       section: material.locationLabel ?? "Assigned section", text: material.text,
     }));
   });
