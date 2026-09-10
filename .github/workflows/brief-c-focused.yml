@@ -49,6 +49,9 @@ jobs:
       - name: Typecheck
         if: ${{ !cancelled() }}
         run: pnpm exec tsc --noEmit
+      - name: Production build
+        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-build]') }}
+        run: pnpm build
       - name: Block cache delivery
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/evals/brief-c-block-cache.test.ts src/lib/session-generation/resource.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/block-cache.json

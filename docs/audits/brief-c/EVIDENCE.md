@@ -1,6 +1,6 @@
 # Brief C — evidence
 
-Status: narrowly approved source-binding correction passes three CI runs. Brief C block-runtime implementation and its remaining gates are in progress.
+Status: topic-scoped source binding passes three CI samples, database boundaries pass 244 assertions, and the founder delivery journey passes desktop/mobile. Final-session completion and whole-block review corrections are under CI verification. Provider checks are paused for the requested CI-key replacement; the full closeout gate and PR are not yet complete.
 
 - Branch: `codex/brief-c-source-first-practice`.
 - Starting source: `971e258c539046276e8d165fdaa4651639831044`, Brief B's current head.
@@ -13,7 +13,7 @@ Status: narrowly approved source-binding correction passes three CI runs. Brief 
 
 Initial CI: [34472411719](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34472411719), tested commit `c3422c4` on base `8032361`. Mixed-source entry **one red / two green controls**; five validator suites **101/101 green**. Only tests, workflow and documentation differ from main product code. [Raw evidence](evidence/initial-source-boundary/) and [root cause / proposed pipeline correction](SOURCE-BINDING-DECISION.md). The unsourced Enzymes session cannot open because the pipeline commits the other topic's PDF requirement onto it. No correction or green claim yet.
 
-Every behavior row below needs an observed failing assertion before implementation and a passing assertion afterward. These are planned checks, not results.
+The summary below distinguishes recorded red/green evidence from outstanding provider and full-gate work. Detailed source revisions and raw artifacts follow.
 
 ### Pre-existing Brief B source-binding seam
 
@@ -41,16 +41,16 @@ Provider integration follows the existing configured session model and the offic
 
 | Behavior | Learner-visible assertion and protected boundary | Red | Green |
 | --- | --- | --- | --- |
-| Block shape | Objective, source, instructions, activities, stopping point, and duration are visible. | Pending | Pending |
-| Source-first | A usable attached section opens before practice; no-source learn opens with AI explanation; covered/evidenced work opens with practice and optional help/source. | Pending | Pending |
-| Help and continuation | Help stays in place; a failed request preserves progress; after an explanation the learner can continue without a forced retry. | Pending | Pending |
-| Practice quality | Cards, MCQ/short-answer quizzes, and worked problems are section-supported, answerable, unambiguous, and give useful feedback. Negative cases retain off-topic/deferred-topic/duplicate protection under the approved contract. | Pending | Pending |
-| Stable set | Leave/resume, reveal, and report-bad-question retain the saved set and progress. Another resource or route cannot inherit that progress. | Pending | Pending |
-| Profile delta | Same lecture PDF/topic: differ on at least three of first practice kind, example presence, hint availability, and set size; receipts also differ and reference the profile. Record side-by-side P1/P2 printouts. | Pending | Pending |
-| Completion and evidence | Source completion alone cannot finish a block or create topic evidence. Only checked practice produces evidence; forged client outcomes and stale/wrong-resource receipts are rejected. | Pending | Pending |
-| Receipt | The completed block states what was demonstrated, what changed, and what comes next, referencing profile or actual result. | Pending | Pending |
-| A17 | First block meets the founder-approved broad-calculus behavior. | Pending | Pending |
-| Founder journey | Frozen clock, sourced PDF topic plus unsourced topic; source-first versus AI explanation; leave/resume mid-quiz; practice required; receipt. Desktop and mobile screenshots/video. | Pending | Pending |
+| Block shape | Objective, source, instructions, activities, stopping point, and duration are visible. | Cache/UI absent: `ab93975`, `3bbde23` | Cache `1c8bb9e`; desktop/mobile `c345646` |
+| Source-first | A usable attached section opens before practice; no-source learn opens with AI explanation; covered/evidenced work opens with practice and optional help/source. | Production returns legacy lesson: `33fab1c` | Production `8b98efb`; founder `c345646` |
+| Help and continuation | Help stays in place; a failed request preserves progress; after an explanation the learner can continue without a forced retry. | Missing help authority: `22ad8dd`; initial UI `3bbde23` | Unit/API and failed-help resume `c345646` |
+| Practice quality | Cards, MCQ/short-answer quizzes, and worked problems are section-supported, answerable, unambiguous, and give useful feedback. Negative cases retain off-topic/deferred-topic/duplicate protection under the approved contract. | Fixed slots `f804079`; ambiguity/duplicates `3961c5d`–`0120c8f` | Subject canaries pass; whole-set semantic correction awaiting live verification |
+| Stable set | Leave/resume, reveal, and report-bad-question retain the saved set and progress. Another resource or route cannot inherit that progress. | Cache `ab93975`; preview state `7ff78fd` | Unit/API, browser resume and DB `c345646` |
+| Profile delta | Same lecture PDF/topic: differ on at least three of first practice kind, example presence, hint availability, and set size; receipts also differ and reference the profile. Record side-by-side P1/P2 printouts. | No block delta `33fab1c`; cache `ab93975` | Deterministic `8b98efb`; real PDF `3961c5d` and `c345646`; [printouts](PROFILE-BLOCKS.md) |
+| Completion and evidence | Source completion alone cannot finish a block or create topic evidence. Only checked practice produces evidence; forged client outcomes and stale/wrong-resource receipts are rejected. | Client-minted completion `1141eae`; assisted/report evidence `22ad8dd` | 244 DB assertions + API/unit `c345646`; final-session UI correction pending |
+| Receipt | The completed block states what was demonstrated, what changed, and what comes next, referencing profile or actual result. | Initial block cache/UI `ab93975`, `3bbde23` | Profile/result receipts, deterministic/runtime + founder `c345646` |
+| A17 | First block meets the founder-approved broad-calculus behavior. | New block contract absent in `33fab1c`; valid first-block false rejection `2237384` | Permanent bounded-topic canary passes `0120c8f`; new reviewer samples pending |
+| Founder journey | Frozen clock, sourced PDF topic plus unsourced topic; source-first versus AI explanation; leave/resume mid-quiz; practice required; receipt. Desktop and mobile screenshots/video. | No block view `3bbde23`; no saved explanation stream `3893998` | Desktop 1/1, mobile 1/1, zero retries `c345646`; separate final-plan completion RED `2237384` |
 
 The closeout gate runs in GitHub Actions: unit, lint, typecheck, build, migration replay/database tests if changed, desktop/mobile browser journeys, Brief A/B compatibility, no-source streamed/graded/completed flow, and live canaries. Compare failed cases with main at recorded source revisions. A pass-to-fail or lower scoped pass rate blocks; intermittent non-regressions are quarantined with captures and backlogged; provider/environment unavailability is neither red nor green. Do not count Brief B's prior results as Brief C verification.
 
