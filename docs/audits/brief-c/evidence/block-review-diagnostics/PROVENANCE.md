@@ -1,0 +1,1 @@
+CI https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34485124305, 0120c8f. Rubric/resource focused 39 pass; live 5 pass / 1 fail: duplicate candidate accepted. Typecheck failed on the diagnostic hook accessing format.name without narrowing; test-only typing corrected.

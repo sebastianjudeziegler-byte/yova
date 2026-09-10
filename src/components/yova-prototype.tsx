@@ -4554,10 +4554,14 @@ export function YovaPrototype({
     onExit={interruptActiveSession}
   />;
   if (stage === "session") {
-    const blockSession = activePlan?.sessions.find(session => session.id === generatedPlanSessionId);
+    // Completing the final session removes its plan from activePlans before
+    // the finish promise returns. Keep the immutable block selected by its
+    // session ID during that transition, rather than entering the legacy UI.
+    const blockPlan = plans.find(plan => plan.sessions.some(session => session.id === generatedPlanSessionId));
+    const blockSession = blockPlan?.sessions.find(session => session.id === generatedPlanSessionId);
     const block = blockSession?.resource?.block;
-    if (activePlan && blockSession && block && blockSession.resource?.routeRevisionId) return <WorkBlockSession
-      key={block.id} block={block} planId={activePlan.id} planSessionId={blockSession.id}
+    if (blockPlan && blockSession && block && blockSession.resource?.routeRevisionId) return <WorkBlockSession
+      key={block.id} block={block} planId={blockPlan.id} planSessionId={blockSession.id}
       routeRevisionId={blockSession.resource.routeRevisionId} onExit={interruptActiveSession} onProgress={setBlockRuntimeProgress}
       onFinish={async summary => {
         if (!await completeActiveSession(summary.correctAnswers, summary.totalAnswers, null, capturedSessionMinutes, false, summary)) return false;

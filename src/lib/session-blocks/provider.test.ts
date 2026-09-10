@@ -4,7 +4,7 @@ import { generateWorkBlock } from "./generate";
 const parse = vi.hoisted(() => vi.fn());
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/openai/client", () => ({ getOpenAIClient: () => ({ responses: { parse } }) }));
-vi.mock("@/lib/openai/config", () => ({ getOpenAISessionConfig: () => ({ model: "unit-fixture" }) }));
+vi.mock("@/lib/openai/config", () => ({ getOpenAISessionConfig: () => ({ model: "unit-fixture" }), getOpenAILessonConfig: () => ({ model: "unit-review" }) }));
 
 describe("provider fills code-owned block slots", () => {
   it("rejects an apparently passing review when independent choice checking finds two defensible answers", async () => {
@@ -39,6 +39,8 @@ describe("provider fills code-owned block slots", () => {
     expect(generated.block.questions[0]?.workedExample).toContain("regeneration");
     expect(generated.block.questions.every(question => question.hints.length > 0)).toBe(true);
     expect(parse).toHaveBeenCalledTimes(2);
+    expect(parse.mock.calls[0]![0].model).toBe("unit-fixture");
+    expect(parse.mock.calls[1]![0].model).toBe("unit-review");
     expect(parse.mock.calls.every(call => call[1].maxRetries === 0)).toBe(true);
     const schema = parse.mock.calls[0]![0].text.format.schema;
     expect(Object.keys(schema.properties.questions.properties)).toEqual(["practice-1", "practice-2"]);

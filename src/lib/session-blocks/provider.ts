@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { getOpenAIClient } from "@/lib/openai/client";
-import { getOpenAISessionConfig } from "@/lib/openai/config";
+import { getOpenAILessonConfig, getOpenAISessionConfig } from "@/lib/openai/config";
 import { BlockFillSchema, BlockReviewSchema, type BlockProvider, type BlockFill } from "./provider-contract";
 
 const FILL_INSTRUCTIONS = `Prepare content inside the supplied fixed work block. You cannot change any plan, map, topic assignment, method, mode, slot count or timing.
@@ -61,6 +61,11 @@ export function createBlockProvider(): BlockProvider {
       });
     },
     async review(input, options) {
+      // Whole-block correctness review uses the existing lesson model. The
+      // faster content-fill model repeatedly accepted ambiguous/duplicate work
+      // and rejected valid no-source practice in the retained live captures.
+      const reviewConfig = getOpenAILessonConfig();
+      if (!reviewConfig) throw new Error("Practice review is not connected to its provider.");
       const multipleChoice = input.block.questions.filter(question => question.format === "multiple_choice");
       const choiceShapes = Object.fromEntries(multipleChoice.map(question => [question.id,
         z.object(Object.fromEntries(question.choices.map((_choice, index) => [String(index), z.object({
@@ -81,7 +86,7 @@ export function createBlockProvider(): BlockProvider {
           .map(key => ({ questionId: key.questionId, explanation: key.explanation, workedSolution: key.workedSolution })),
       };
       const response = await client.responses.parse({
-        model: config.model, store: false, max_output_tokens: 2_000,
+        model: reviewConfig.model, store: false, max_output_tokens: 2_000,
         input: [{ role: "system", content: REVIEW_INSTRUCTIONS + "\nFirst solve independentQuestions exactly as written. For EVERY displayed choice, explain whether it satisfies the literal question using its source/explanation, then set satisfiesQuestion. Do not repair the stem, add a restriction, or infer a more convenient meaning from the objective, hints, feedback or intended lesson. A broad question can have several valid answers; a best-looking choice does not invalidate another defensible answer. Only after these judgments, review the whole block including hints, examples, feedback and other answer keys. MCQ keys and any earlier review verdict are withheld. Code requires exactly one defensible choice matching the saved key." }, { role: "user", content: JSON.stringify(reviewInput) }],
         text: { format: zodTextFormat(responseSchema, "yova_block_semantic_review"), verbosity: "low" },
       }, { signal: options.signal, timeout: options.timeoutMs, maxRetries: 0 });

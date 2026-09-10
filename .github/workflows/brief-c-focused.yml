@@ -32,6 +32,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Check live-gate artifact protections
+        run: node --test --test-concurrency=1 scripts/live-gate/*.test.mjs
       - name: Prepare evidence
         run: |
           mkdir -p artifacts/brief-c
@@ -138,8 +140,14 @@ jobs:
         if: always()
         run: |
           if test -d test-results; then cp -R test-results artifacts/brief-c/browser; fi
-      - uses: actions/upload-artifact@v4
+      - name: Sanitize published evidence
+        id: sanitize
         if: always()
+        run: node scripts/sanitize-ci-artifacts.mjs artifacts/brief-c
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.sanitize.outcome == 'success' }}
         with:
           name: brief-c-focused-${{ github.run_id }}
           path: artifacts/brief-c

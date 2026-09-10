@@ -380,6 +380,36 @@
       "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: missing-context-history'",
       "file": "src/evals/grader-calibration.live.test.ts",
       "name": "live grader calibration across subjects > insufficient: 'history: missing-context-history'"
+    },
+    {
+      "id": "src/evals/brief-c-practice.live.test.ts::Brief C prepared practice quality > delivers source-supported 'biology terminology' as 'flashcards'",
+      "file": "src/evals/brief-c-practice.live.test.ts",
+      "name": "Brief C prepared practice quality > delivers source-supported 'biology terminology' as 'flashcards'"
+    },
+    {
+      "id": "src/evals/brief-c-practice.live.test.ts::Brief C prepared practice quality > delivers source-supported 'programming calculation' as 'problems'",
+      "file": "src/evals/brief-c-practice.live.test.ts",
+      "name": "Brief C prepared practice quality > delivers source-supported 'programming calculation' as 'problems'"
+    },
+    {
+      "id": "src/evals/brief-c-practice.live.test.ts::Brief C prepared practice quality > delivers source-supported 'history argument' as 'quiz'",
+      "file": "src/evals/brief-c-practice.live.test.ts",
+      "name": "Brief C prepared practice quality > delivers source-supported 'history argument' as 'quiz'"
+    },
+    {
+      "id": "src/evals/brief-c-practice.live.test.ts::Brief C prepared practice quality > A17 starts broad calculus with the assigned prerequisite-ready function block",
+      "file": "src/evals/brief-c-practice.live.test.ts",
+      "name": "Brief C prepared practice quality > A17 starts broad calculus with the assigned prerequisite-ready function block"
+    },
+    {
+      "id": "src/evals/brief-c-practice.live.test.ts::Brief C prepared practice quality > delivers three practice differences for the same PDF and profile-referencing receipts",
+      "file": "src/evals/brief-c-practice.live.test.ts",
+      "name": "Brief C prepared practice quality > delivers three practice differences for the same PDF and profile-referencing receipts"
+    },
+    {
+      "id": "src/evals/brief-c-practice.live.test.ts::Brief C prepared practice quality > rejects semantically ambiguous, unsupported, and duplicate quiz items without retrying",
+      "file": "src/evals/brief-c-practice.live.test.ts",
+      "name": "Brief C prepared practice quality > rejects semantically ambiguous, unsupported, and duplicate quiz items without retrying"
     }
   ],
   "cases": {

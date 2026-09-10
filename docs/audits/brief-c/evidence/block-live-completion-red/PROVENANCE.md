@@ -1,0 +1,3 @@
+CI https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34484792321, 2237384. Live source/lesson stream producer 3 pass, consumer 2 pass. Actual block launch reaches its receipt on desktop/mobile but final-session completion enters empty legacy renderer before leaving (ready persists on reload), both RED. Provider 4 pass / 2 fail (A17 and duplicate negative).
+
+The original Actions artifact 10155373247 was deleted: Playwright included the provider key in its config. This retained browser report has the entire config removed; outcomes and screenshots are unchanged. GitHub push protection rejected the unsanitized commit before publishing.

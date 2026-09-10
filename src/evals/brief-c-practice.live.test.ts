@@ -34,7 +34,7 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared prac
     vi.spyOn(responses, "parse").mockImplementation((...args) => {
       const response = original(...args);
       void response.then(result => {
-        if (args[0].text?.format?.name === "yova_block_semantic_review") appendFileSync(process.env.YOVA_BLOCK_CAPTURE!, JSON.stringify({ stage: "independent-choice-judgments", output: result.output_parsed }) + "\n");
+        if (args[0].text?.format && Reflect.get(args[0].text.format, "name") === "yova_block_semantic_review") appendFileSync(process.env.YOVA_BLOCK_CAPTURE!, JSON.stringify({ stage: "independent-choice-judgments", output: result.output_parsed }) + "\n");
       }, () => undefined);
       return response;
     });
@@ -117,7 +117,7 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared prac
     const prepared = await generateWorkBlock(context, {}, capturedProvider());
     const review = capturedProvider();
     const outcomes = [];
-    for (const flaw of ["ambiguous", "unsupported", "duplicate"] as const) {
+    for (const flaw of ["ambiguous", "unsupported", "duplicate", "duplicate_rephrased"] as const) {
       const block = structuredClone(prepared.block); const answerKeys = structuredClone(prepared.answerKeys);
       if (flaw === "ambiguous") {
         block.questions[0]!.format = "multiple_choice";
@@ -129,11 +129,12 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared prac
         answerKeys[0]!.answer = "C55H72MgN4O5, about 893.5 g/mol";
       } else {
         block.questions[1] = { ...block.questions[0]!, id: block.questions[1]!.id };
+        if (flaw === "duplicate_rephrased") block.questions[1]!.prompt = `Answer the same question using the same options: ${block.questions[0]!.prompt}`;
         answerKeys[1] = { ...answerKeys[0]!, questionId: answerKeys[1]!.questionId };
       }
       const result = await review.review({ block, answerKeys, assignedTopics: context.knowledgeTopics, deferredContent: ["Photosynthesis and chlorophyll"] }, { timeoutMs: 25_000 });
       outcomes.push({ flaw, ...result });
     }
     expect(outcomes.filter(result => result.verdict !== "fail")).toEqual([]);
-  }, 170_000);
+  }, 195_000);
 });

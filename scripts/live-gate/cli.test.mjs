@@ -26,10 +26,11 @@ test("the audit pins all original canaries so deletion cannot silently shrink th
   assert.ok(existsSync("scripts/live-gate/policy.json"));
   const policy = JSON.parse(readFileSync("scripts/live-gate/policy.json", "utf8"));
   assert.equal(policy.baselineCommit, "e03a082659f51172c0b06bf84daffdd5599ac773");
-  assert.equal(policy.requiredCases.length, 75);
-  assert.equal(policy.requiredCases.filter(test => test.file !== "src/evals/grader-calibration.live.test.ts").length, 66);
+  assert.equal(policy.requiredCases.length, 81);
+  assert.equal(policy.requiredCases.filter(test => !["src/evals/grader-calibration.live.test.ts", "src/evals/brief-c-practice.live.test.ts"].includes(test.file)).length, 66);
   assert.equal(policy.requiredCases.filter(test => test.file === "src/evals/grader-calibration.live.test.ts").length, 9);
-  assert.equal(new Set(policy.requiredCases.map((test) => test.id)).size, 75);
+  assert.equal(policy.requiredCases.filter(test => test.file === "src/evals/brief-c-practice.live.test.ts").length, 6);
+  assert.equal(new Set(policy.requiredCases.map((test) => test.id)).size, 81);
   assert.equal(policy.requiredCases.filter((test) => test.file.startsWith("e2e/")).length, 2);
   for (const entry of policy.requiredCases) assert.ok(existsSync(entry.file), entry.file);
 });

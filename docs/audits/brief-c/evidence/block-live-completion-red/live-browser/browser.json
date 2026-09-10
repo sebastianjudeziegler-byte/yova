@@ -1,0 +1,179 @@
+{
+  "suites": [
+    {
+      "title": "plan-launch-live.spec.ts",
+      "file": "plan-launch-live.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 240000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 42713,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"complete\"\u001b[39m\nReceived: \u001b[31m\"ready\"\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"complete\"\u001b[39m\nReceived: \u001b[31m\"ready\"\u001b[39m\n    at /home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts:115:41",
+                    "location": {
+                      "file": "/home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts",
+                      "column": 41,
+                      "line": 115
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 113 |\u001b[39m     \u001b[36mreturn\u001b[39m {plan\u001b[33m:\u001b[39msnapshot\u001b[33m.\u001b[39mplans\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mfind((plan\u001b[33m:\u001b[39m\u001b[33mLearningPlan\u001b[39m)\u001b[33m=>\u001b[39mplan\u001b[33m.\u001b[39mid\u001b[33m===\u001b[39mplanId)\u001b[33m,\u001b[39mcompletion\u001b[33m:\u001b[39msnapshot\u001b[33m.\u001b[39msessionCompletions\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mfind((completion\u001b[33m:\u001b[39m{planId\u001b[33m:\u001b[39mstring})\u001b[33m=>\u001b[39mcompletion\u001b[33m.\u001b[39mplanId\u001b[33m===\u001b[39mplanId)}\u001b[33m;\u001b[39m\n \u001b[90m 114 |\u001b[39m   }\u001b[33m,\u001b[39mfixture\u001b[33m.\u001b[39mplan\u001b[33m.\u001b[39mid)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 115 |\u001b[39m   expect(saved\u001b[33m.\u001b[39mplan\u001b[33m.\u001b[39msessions[\u001b[35m0\u001b[39m]\u001b[33m.\u001b[39mstatus)\u001b[33m.\u001b[39mtoBe(\u001b[32m\"complete\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                                         \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 116 |\u001b[39m   expect(saved\u001b[33m.\u001b[39mcompletion\u001b[33m.\u001b[39mfeedback)\u001b[33m.\u001b[39mtoBeNull()\u001b[33m;\u001b[39m\n \u001b[90m 117 |\u001b[39m   expect(saved\u001b[33m.\u001b[39mcompletion\u001b[33m.\u001b[39mtotalAnswers)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m0\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 118 |\u001b[39m   expect(apiResults\u001b[33m.\u001b[39msome(result\u001b[33m=>\u001b[39m(result\u001b[33m.\u001b[39mpath\u001b[33m.\u001b[39mincludes(\u001b[32m\"/lesson\"\u001b[39m) \u001b[33m||\u001b[39m result\u001b[33m.\u001b[39mpath \u001b[33m===\u001b[39m \u001b[32m\"/api/sessions/block/explanation\"\u001b[39m) \u001b[33m&&\u001b[39m result\u001b[33m.\u001b[39mstatus\u001b[33m===\u001b[39m\u001b[35m200\u001b[39m))\u001b[33m.\u001b[39mtoBe(\u001b[36mtrue\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts",
+                        "column": 41,
+                        "line": 115
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"complete\"\u001b[39m\nReceived: \u001b[31m\"ready\"\u001b[39m\n\n  113 |     return {plan:snapshot.plans?.find((plan:LearningPlan)=>plan.id===planId),completion:snapshot.sessionCompletions?.find((completion:{planId:string})=>completion.planId===planId)};\n  114 |   },fixture.plan.id);\n> 115 |   expect(saved.plan.sessions[0].status).toBe(\"complete\");\n      |                                         ^\n  116 |   expect(saved.completion.feedback).toBeNull();\n  117 |   expect(saved.completion.totalAnswers).toBeGreaterThan(0);\n  118 |   expect(apiResults.some(result=>(result.path.includes(\"/lesson\") || result.path === \"/api/sessions/block/explanation\") && result.status===200)).toBe(true);\n    at /home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts:115:41"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-10T13:51:28.954Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/home/runner/work/yova/yova/artifacts/brief-c/live-browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/home/runner/work/yova/yova/artifacts/brief-c/live-browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/runner/work/yova/yova/artifacts/brief-c/live-browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/home/runner/work/yova/yova/artifacts/brief-c/live-browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts",
+                    "column": 41,
+                    "line": 115
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "79fe5f1ef4e6098d6823-1b697a48444582855768",
+          "file": "plan-launch-live.spec.ts",
+          "line": 9,
+          "column": 5
+        },
+        {
+          "title": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 240000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 28122,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"complete\"\u001b[39m\nReceived: \u001b[31m\"ready\"\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"complete\"\u001b[39m\nReceived: \u001b[31m\"ready\"\u001b[39m\n    at /home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts:115:41",
+                    "location": {
+                      "file": "/home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts",
+                      "column": 41,
+                      "line": 115
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 113 |\u001b[39m     \u001b[36mreturn\u001b[39m {plan\u001b[33m:\u001b[39msnapshot\u001b[33m.\u001b[39mplans\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mfind((plan\u001b[33m:\u001b[39m\u001b[33mLearningPlan\u001b[39m)\u001b[33m=>\u001b[39mplan\u001b[33m.\u001b[39mid\u001b[33m===\u001b[39mplanId)\u001b[33m,\u001b[39mcompletion\u001b[33m:\u001b[39msnapshot\u001b[33m.\u001b[39msessionCompletions\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mfind((completion\u001b[33m:\u001b[39m{planId\u001b[33m:\u001b[39mstring})\u001b[33m=>\u001b[39mcompletion\u001b[33m.\u001b[39mplanId\u001b[33m===\u001b[39mplanId)}\u001b[33m;\u001b[39m\n \u001b[90m 114 |\u001b[39m   }\u001b[33m,\u001b[39mfixture\u001b[33m.\u001b[39mplan\u001b[33m.\u001b[39mid)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 115 |\u001b[39m   expect(saved\u001b[33m.\u001b[39mplan\u001b[33m.\u001b[39msessions[\u001b[35m0\u001b[39m]\u001b[33m.\u001b[39mstatus)\u001b[33m.\u001b[39mtoBe(\u001b[32m\"complete\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                                         \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 116 |\u001b[39m   expect(saved\u001b[33m.\u001b[39mcompletion\u001b[33m.\u001b[39mfeedback)\u001b[33m.\u001b[39mtoBeNull()\u001b[33m;\u001b[39m\n \u001b[90m 117 |\u001b[39m   expect(saved\u001b[33m.\u001b[39mcompletion\u001b[33m.\u001b[39mtotalAnswers)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m0\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 118 |\u001b[39m   expect(apiResults\u001b[33m.\u001b[39msome(result\u001b[33m=>\u001b[39m(result\u001b[33m.\u001b[39mpath\u001b[33m.\u001b[39mincludes(\u001b[32m\"/lesson\"\u001b[39m) \u001b[33m||\u001b[39m result\u001b[33m.\u001b[39mpath \u001b[33m===\u001b[39m \u001b[32m\"/api/sessions/block/explanation\"\u001b[39m) \u001b[33m&&\u001b[39m result\u001b[33m.\u001b[39mstatus\u001b[33m===\u001b[39m\u001b[35m200\u001b[39m))\u001b[33m.\u001b[39mtoBe(\u001b[36mtrue\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts",
+                        "column": 41,
+                        "line": 115
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"complete\"\u001b[39m\nReceived: \u001b[31m\"ready\"\u001b[39m\n\n  113 |     return {plan:snapshot.plans?.find((plan:LearningPlan)=>plan.id===planId),completion:snapshot.sessionCompletions?.find((completion:{planId:string})=>completion.planId===planId)};\n  114 |   },fixture.plan.id);\n> 115 |   expect(saved.plan.sessions[0].status).toBe(\"complete\");\n      |                                         ^\n  116 |   expect(saved.completion.feedback).toBeNull();\n  117 |   expect(saved.completion.totalAnswers).toBeGreaterThan(0);\n  118 |   expect(apiResults.some(result=>(result.path.includes(\"/lesson\") || result.path === \"/api/sessions/block/explanation\") && result.status===200)).toBe(true);\n    at /home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts:115:41"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-10T13:52:14.122Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/home/runner/work/yova/yova/artifacts/brief-c/live-browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/home/runner/work/yova/yova/artifacts/brief-c/live-browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/runner/work/yova/yova/artifacts/brief-c/live-browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/home/runner/work/yova/yova/artifacts/brief-c/live-browser/artifacts/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/home/runner/work/yova/yova/e2e/plan-launch-live.spec.ts",
+                    "column": 41,
+                    "line": 115
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "79fe5f1ef4e6098d6823-7046a1dc109a97365bd7",
+          "file": "plan-launch-live.spec.ts",
+          "line": 9,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-10T13:51:10.728Z",
+    "duration": 92628.35500000001,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

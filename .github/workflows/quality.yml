@@ -231,8 +231,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: Upload closeout evidence
+      - name: Sanitize closeout evidence
+        id: sanitize
         if: always()
+        run: node scripts/sanitize-ci-artifacts.mjs artifacts/quality test-results
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Upload closeout evidence
+        if: ${{ !cancelled() && steps.sanitize.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: yova-quality-evidence-${{ github.run_id }}
