@@ -64,6 +64,18 @@ describe("Brief C checked block progress", () => {
     expect(progress.attempts[0]!.assisted).toBe(true);
     expect(progress.complete).toBe(false);
   });
+  it("continuing after requested help advances without an answer or demonstrated evidence", () => {
+    const block = fixture(); const question = block.questions[0]!;
+    const action = BlockActionSchema.parse({ action: "continue_after_help", questionId: question.id });
+    const initial = initialBlockProgress(block.id);
+    expect(() => advanceBlockProgress(block, initial, action)).toThrow(/request help/);
+    let progress = advanceBlockProgress(block, initial, { action: "help_requested", questionId: question.id });
+    progress = advanceBlockProgress(block, progress, action);
+    expect(progress.attempts[0]).toMatchObject({ questionId: question.id, outcome: "unscored", assisted: true });
+    expect(progress.attempts[0]!.feedback).toMatch(/continued after help.*not independent evidence/i);
+    expect(blockCheckpointCounts(block, progress).completedSteps).toBe(1);
+    expect(checkedBlockEvidence(block, progress, BLOCK_ROUTE_ID)).toEqual([]);
+  });
   it("reporting a checked bad question preserves the response but excludes it from evidence and the receipt", () => {
     const { block, progress: finished } = completeCheck();
     const before = { ...finished, complete: false, receipt: null };

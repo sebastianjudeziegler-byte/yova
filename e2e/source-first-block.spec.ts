@@ -109,6 +109,10 @@ test(finalBlock ? "finishing the final source-first block persists completion an
     states.set(body.blockId, progress);
     if (body.action === "source_complete" && !progress.sourceCompletedIds.includes(body.sourceId)) progress.sourceCompletedIds.push(body.sourceId);
     if (body.action === "help_requested" && !progress.helpRequestedQuestionIds.includes(body.questionId)) progress.helpRequestedQuestionIds.push(body.questionId);
+    if (body.action === "continue_after_help" && !progress.attempts.some(item => item.questionId === body.questionId)) {
+      expect(progress.helpRequestedQuestionIds).toContain(body.questionId);
+      progress.attempts.push({ questionId: body.questionId, outcome: "unscored", assisted: true, feedback: "You continued after help; this is not independent evidence." });
+    }
     if (body.action === "answer" && !progress.attempts.some(item => item.questionId === body.questionId)) progress.attempts.push({ questionId: body.questionId, outcome: "secure", assisted: progress.helpRequestedQuestionIds.includes(body.questionId), feedback: "You connected the correct ATP products with favorable energy transfer." });
     if (body.action === "complete") {
       expect(progress.sourceCompletedIds).toHaveLength(1); expect(progress.attempts).toHaveLength(2);
@@ -120,7 +124,18 @@ test(finalBlock ? "finishing the final source-first block persists completion an
     explanationStreams += 1;
     return route.fulfill({ contentType: "text/plain", body: "Enzymes lower the activation energy needed for a reaction. They do not change the reaction's free-energy difference." });
   });
-  await page.route("**/api/tutor", route => route.fulfill({ status: 503, json: { error: "Help is temporarily unavailable. Your practice is saved." } }));
+  let helpRequests = 0;
+  await page.route("**/api/tutor", route => {
+    helpRequests += 1;
+    if (helpRequests === 1) return route.fulfill({ status: 503, json: { error: "Help is temporarily unavailable. Your practice is saved." } });
+    const threadId = "c0000000-0000-4000-8000-000000000098";
+    return route.fulfill({ json: { threadId, model: "fixture-only", persistence: "ephemeral", proposedAction: null,
+      messages: [
+        { id: "c0000000-0000-4000-8000-000000000096", threadId, role: "user", content: "Show me one example.", createdAt: NOW.toISOString() },
+        { id: "c0000000-0000-4000-8000-000000000097", threadId, role: "assistant", content: "A coupled favorable reaction can supply free energy for a process that requires energy. You may continue when ready.", createdAt: NOW.toISOString() },
+      ],
+    } });
+  });
   await page.goto("/?qa=preview");
   await openNext(page);
   const block = page.getByRole("region", { name: "Session work block" });
@@ -143,9 +158,18 @@ test(finalBlock ? "finishing the final source-first block persists completion an
   await expect(block).toContainText("why can a cell couple", { ignoreCase: true });
   expect(prepared).toBe(1);
   await page.screenshot({ path: testInfo.outputPath("02-resumed-check.png"), fullPage: true });
-  await block.getByLabel("Your answer").fill("The favorable hydrolysis reaction supplies free energy to the coupled process.");
-  await block.getByRole("button", { name: "Check answer", exact: true }).click();
-  await block.getByRole("button", { name: "Continue", exact: true }).click();
+  if (finalBlock) {
+    await block.getByRole("button", { name: "Show me an example", exact: true }).click();
+    await expect(block).toContainText("You may continue when ready.");
+    await block.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(block.getByRole("button", { name: "Check answer", exact: true })).toHaveCount(0);
+    await expect(block.getByRole("button", { name: "Finish block" })).toBeEnabled();
+    expect([...states.values()][0]!.attempts[1]!.outcome).toBe("unscored");
+  } else {
+    await block.getByLabel("Your answer").fill("The favorable hydrolysis reaction supplies free energy to the coupled process.");
+    await block.getByRole("button", { name: "Check answer", exact: true }).click();
+    await block.getByRole("button", { name: "Continue", exact: true }).click();
+  }
   await block.getByRole("button", { name: "Finish block" }).click();
   await expect(page.getByRole("status").filter({ hasText: "You demonstrated ATP" })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("03-receipt.png"), fullPage: true });
