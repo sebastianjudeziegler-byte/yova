@@ -53,6 +53,15 @@ jobs:
       - name: Preserve Brief 0.5 negative protections
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/lib/openai/streamed-validator-calibration.test.ts src/lib/session-generation/question-context.test.ts src/evals/brief-0-5-rubric.test.ts src/lib/session-generation/completion-contract.test.ts src/lib/session-generation/lesson-brief.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/negative-protections.json
+      - name: Replay database migrations and check block authority
+        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-db]') }}
+        run: |
+          pnpm exec supabase init
+          pnpm exec supabase db start
+          pnpm exec supabase test db supabase/tests/database/20260910_work_block_authority.test.sql --local | tee artifacts/brief-c/block-database.txt
+      - name: Stop isolated database
+        if: ${{ always() && contains(github.event.head_commit.message, '[brief-c-db]') }}
+        run: pnpm exec supabase stop --no-backup
       - name: Install focused browser
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-browser]') }}
         run: pnpm exec playwright install --with-deps chromium
