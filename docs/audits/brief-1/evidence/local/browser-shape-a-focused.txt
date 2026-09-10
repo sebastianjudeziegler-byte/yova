@@ -1,0 +1,6 @@
+
+Running 1 test using 1 worker
+
+  ✓  1 [baseline-chromium] › e2e/baseline-session.spec.ts:64:5 › a learner is routed through Shape A, produces, compares, and finishes with a personalization note (2.7s)
+
+  1 passed (7.5s)

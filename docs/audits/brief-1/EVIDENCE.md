@@ -1,0 +1,133 @@
+# Brief 1 — Session shapes and routing
+
+Branch: `codex/baseline-sessions-routing`. Base: `main` at `80323614fec32563a340528fb558a84657a00773` (the Brief B merge), tagged `vision-freeze-2026-09-10` and pushed before any narrowing.
+
+Governing documents: [00-SCOPE](../../redesign/00-SCOPE.md), [06-STANDING-RULES](../../redesign/06-STANDING-RULES.md), [01-SESSION-SHAPES](../../redesign/01-SESSION-SHAPES.md), [02-ROUTING](../../redesign/02-ROUTING.md), [03-ONBOARDING](../../redesign/03-ONBOARDING.md), [04-AI-SLOTS](../../redesign/04-AI-SLOTS.md). The eight redesign documents were added to the repository in this branch; they were not in `docs/redesign/` before.
+
+## CI
+
+_Filled in after the pull request's `YOVA quality` run. Everything below this heading is local evidence: unit, lint, typecheck, and one focused browser case, per the standing rules._
+
+## What changed
+
+The baseline session shapes are switched on by default (`YOVA_BASELINE_SESSION_SHAPES` unset or anything but `"false"`). With the flag on, opening any ready session runs the coded Shape A or Shape C flow; the pre-baseline generated runtime is not deleted and stays reachable with the flag off. The browser suite runs the pre-baseline specs against a flag-off server and the new `baseline-*.spec.ts` cases against a flag-on server ([playwright.config.ts](../../../playwright.config.ts)), so every case that passed on `main` still runs exactly as it did.
+
+| Brief item | Delivered | Where |
+| --- | --- | --- |
+| 1. Shape A and Shape C as coded flows | Pure reducers; the step order is code, the AI fills bounded slots. Shape B is out of scope: `problem_solving`, `programming` and mixed topics with problems route to Shape A with a worked example as the source and carry `temporaryRoute: shape_b_not_built` plus rule `L1.temporary.shape_b_not_built`. | [shape-a.ts](../../../src/lib/session-shapes/shape-a.ts), [shape-c.ts](../../../src/lib/session-shapes/shape-c.ts), runner [baseline-session.tsx](../../../src/components/baseline-session.tsx) |
+| 2. Routing function | Five layers and six conflict rules as one pure function; every decision returns `{ layer, ruleId, field, value, reason }`. Learner "Change method" is itself a recorded rule (`L5.learner_change_method.<step>`). | [session-route.ts](../../../src/lib/routing/session-route.ts), input builder [route-for-session.ts](../../../src/lib/routing/route-for-session.ts) |
+| 3. Onboarding reorder and stable IDs | Ten questions in the 03-ONBOARDING order with Q6/Q7 rewritten verbatim. Answers are keyed by question ID in an `OnboardingAnswers` record; a one-time migration reads a positional profile once, and a derived projection keeps the legacy positions and database columns populated for readers not migrated here. Routing reads option IDs only. Learners edit answers by dropdown in You; no re-onboarding. | [onboarding/questions.ts](../../../src/lib/onboarding/questions.ts), [onboarding/answers.ts](../../../src/lib/onboarding/answers.ts), persistence in [learner-profile.ts](../../../src/lib/personalization/learner-profile.ts) and [preview-store.ts](../../../src/lib/persistence/preview-store.ts), UI [baseline-onboarding.tsx](../../../src/components/baseline-onboarding.tsx), [baseline-profile-editor.tsx](../../../src/components/baseline-profile-editor.tsx) |
+| 4. AI slots 1–4 | One request, one slot. Slot 2 produces the explanation, key points and questions in one call from one context; code re-binds every question to a key point from that call. Retry once, then the honest error; never fabricated content. Slot 3 has no verdict field and verdict language is rejected. Slot 1 templates honestly from the learner's own material when the provider is absent. | [shape-slot-generator.ts](../../../src/lib/openai/shape-slot-generator.ts), [slots-schema.ts](../../../src/lib/session-shapes/slots-schema.ts), handler [shape-slot-handler.ts](../../../src/lib/server/shape-slot-handler.ts), route [api/sessions/shape](../../../src/app/api/sessions/shape/route.ts) |
+| 5. Practice composition | One question per key point clamped 3–8, caps for `shorter_sections` and the 10–15 band, Q7 weighting order, round 2+ only the misses, ceiling 3 (+1 for `forget_during_tests`) then escalation. MCQ only, checked in code. | [compose-practice.ts](../../../src/lib/practice/compose-practice.ts), rounds in [shape-c.ts](../../../src/lib/session-shapes/shape-c.ts) |
+| 6. Dropdowns replace free text | In the baseline path a learner changes a session only through "Change method" buttons (Layer 5) and the You profile dropdowns. The baseline runner has no free-text change field and never calls `/api/sessions/generate`, `/api/plans/adjust` direction, or the session-setup note. | [baseline-session.tsx](../../../src/components/baseline-session.tsx) |
+| 7. Session end screen | What's next (the next unfinished session or "Nothing else queued") plus a one-sentence personalization note built from the rule ID, rendered with `data-rule-id`. | [personalization-note.ts](../../../src/lib/routing/personalization-note.ts) |
+| 8. Retire what this replaces | See the table below. Nothing is deleted; the validators are off the live path because the live path no longer generates or validates a session. | — |
+
+## Red / green
+
+Every new behaviour ships with tests that fail on the `vision-freeze-2026-09-10` tree and pass on this branch.
+
+| Item | Red (on `vision-freeze-2026-09-10`) | Green (this branch) |
+| --- | --- | --- |
+| Onboarding record and migration | `src/lib/onboarding/answers.test.ts` fails: module absent | 14 pass |
+| Routing (five layers, six conflict rules, input sweep) | `src/lib/routing/session-route.test.ts` fails: module absent | 60 pass |
+| Personalization delta (permanent gate) | `src/lib/routing/personalization-delta.test.ts` fails: module absent | 5 pass; printout [personalization-delta.json](evidence/personalization-delta.json) |
+| Personalization note | `personalization-note.test.ts` fails | 4 pass |
+| Routing input from a plan session | `route-for-session.test.ts` fails | 5 pass |
+| Shape A reducer | `shape-a.test.ts` fails | 12 pass |
+| Shape C reducer, rounds, ceiling, escalation | `shape-c.test.ts` fails | 9 pass |
+| Practice composition | `compose-practice.test.ts` fails | 11 pass |
+| Slot generator (one call, retry once, honest error, no verdict) | `shape-slot-generator.test.ts` fails | 14 pass |
+| Slot handler (auth/preview, rate limit, honest 503/502) | `shape-slot-handler.test.ts` fails | 6 pass |
+| Source context for a topic | `source-context.test.ts` fails | 5 pass |
+| Backward compatibility of stored profiles | `learner-profile.test.ts` "keeps older plain-text profile context backward compatible" went red during development when the projection clobbered free text at legacy position 9; fixed by leaving unrecognised legacy values alone | green |
+
+Red capture: [evidence/red/unit-on-vision-freeze.txt](evidence/red/unit-on-vision-freeze.txt) (11 files fail, every one "Cannot find module"). Green capture: [evidence/local/unit-and-runner-green.txt](evidence/local/unit-and-runner-green.txt), 4,172 unit passes and 18 runner checks. Lint (`eslint .`) and `tsc --noEmit` pass.
+
+Browser (one focused case locally, per the standing rules): [evidence/local/browser-shape-a-focused.txt](evidence/local/browser-shape-a-focused.txt). The remaining baseline cases (Shape C memorization block with two rounds; positional profile migration in You) and both viewports run only in CI.
+
+## Two contrasting profiles, same topic, same material
+
+From [personalization-delta.json](evidence/personalization-delta.json). Topic: `conceptual_learning`, learn block, placement not assessed, the learner has a source.
+
+| | P1 | P2 |
+| --- | --- | --- |
+| Saved answers | evening · 10–15 min · loses focus very often · exact guidance · concrete example first · proves by mapping · gist-leaning · often delays · shorter sections + simpler instructions · forgets during tests | morning · 45–60 min · rarely loses focus · learner choice · try then feedback · proves by explaining · detail-leaning · on time · no support · nothing else |
+| Shape / method | A · Concept Mapping | A · Feynman Technique |
+| Step order | direct → away → **worked structure** → produce (map) → compare → repair | **produce first** → direct → away → compare → repair |
+| Timer | 11 min (15 −1 band −25%, clamped) | 55 min |
+| Questions | cap 5, definitions and terms first, 4 rounds max | cap 8, relationships first, 3 rounds max |
+| Instruction style | plain, task restated each step | standard |
+| Visibility | silent (no chooser) | chooser with YOVA's pick pre-selected |
+| Note rule | `L3.q5.concrete_example` | `L3.q5.try_then_feedback` |
+| Differing properties | entry, produce step, timer, question count/weighting, instruction style (5 of 5 required ≥ 3) | |
+
+Shared rule IDs between the two: `L1.conceptual_learning.learn`, `L2.not_assessed`, `L4.timer_resolved`, `C6.rule_ids_recorded` only. The test asserts on rule IDs, not text.
+
+## Routing function: coverage of the input space
+
+The routing input is finite: 7 task types × 2 block kinds × 4 evidence levels × source yes/no × problems yes/no = **224 topic contexts**; ten questions with 5+5+4+3+5+4+3+5+7+4 = **45 option values**. [session-route.test.ts](../../../src/lib/routing/session-route.test.ts):
+
+- Sweep: every context × every single-option profile plus the empty profile = **224 × 46 = 10,304 routes**, asserting a rule ID on every decision, Layer 1/2/5 presence, `C6.rule_ids_recorded`, timer 10–60, question cap 3–8, round ceiling 3–4, method in the catalog, Shape C ⇒ no produce step.
+- Layer 1: all seven task types, both block kinds, mixed-with-problems, temporary Shape B route.
+- Layer 2: all four evidence levels.
+- Layer 3: every Q5 value (including the one-level bound across every evidence level), every Q6 value, `solve_it` on procedural and non-procedural tasks, outline variant ignoring Q6, Q10 `examples_before_ready`.
+- Layer 4: every Q2 band, Q3 often/very often vs rarely, every Q7 value, each Q9 modifier, Q1, both Q10 effects, timer clamp at both ends, and a proof that no Layer 4 option changes the shape for any task type.
+- Layer 5: every Q4 value and the unanswered default.
+- Conflict rules 1–6: explicit cases for each (`C1.layer1_wins.*`, `C2.q9_visual_overrides_q6`, `C3.q5_one_level_only`, `C4.timer_clamp`, `C5.*_default`, `C6.rule_ids_recorded`).
+- Determinism: same input ⇒ deep-equal output.
+
+Combinations of several answers at once are not enumerated exhaustively (the full product is ~10⁹); the layers are independent by construction (each reads one question) except where a conflict rule names the interaction, and each named interaction has a direct test.
+
+## Retired from the live path, and what guarantees the property now
+
+With the flag on, the session path never calls `/api/sessions/generate` or `/api/sessions/lesson`, so nothing in that pipeline runs for a learner. The code is preserved for the flag-off runtime and its tests remain green (the full unit run above includes the Brief 0.5 off-topic, deferred-topic and genuine-duplicate rejections, unchanged).
+
+| Retired validator (live path) | Lived in | What guarantees the property now |
+| --- | --- | --- |
+| Subject / scope lexical validators: `validateStreamedLessonScope`, `lessonIdeaSharesTargetSubject`, `streamed_target_subject`, `streamed_lesson_scope` | `openai/streamed-teaching-generator.ts`, `session-generation/streamed-skeleton.ts` | Slot 2 generates for one topic in one call; code binds every question to a key point from that same call (`composePracticeRound` in `compose-practice.ts`, `bindQuestionsToKeyPoints` in `shape-slot-generator.ts`). A question outside the key points is rejected, retried once, then the honest error. |
+| Duplicate claim / recognition dedupe: `streamed_target_assignment_duplicate`, `normalizeRecoveryQuestion`, `session_practice_variation`, `session_practice_metadata` | `streamed-teaching-generator.ts`, `learning/practice-variation.ts` | `composePracticeRound` rejects repeated question ids and repeated choices; one question per key point is selected before any second. |
+| Core recall knowledge injection (`coreRecallKnowledgeForLesson`, `includeCoreRecallKnowledge`; the untaught-NADH repair) | `session-generation/lesson-assessment-contract.ts` | Structural: key points derive from the explanation and questions from the key points in one context, so practice cannot test what the explanation did not cover (04-AI-SLOTS principle). |
+| Generated-structure validators: `validateStandardGuidedSessionActivityMix`, `validateSessionContentSpecificity`, `session_structure`, `session_full_structure`, `session_recovery_structure`, `session_method_fidelity`, `session_coverage_fidelity`, `session_required_typed_recall`, `missing_typed_recall`, `explain_phase_type`, `validateStreamedTargetAssignments`, `validateMethodRuntimeActivities`, `validateAttachedMethodRuntimes` | `session-generation/schema.ts`, `openai/session-generator.ts`, `session-generation/method-runtime.ts` | The step sequence is `shapeASteps` / `shapeCReducer`; the method is a routed produce step, not generated prose. There is no generated structure to inspect. |
+| Time budget and pacing: `validateSessionTimeBudget`, `validateStreamedTeachingPacing`, `streamedTeachingPacingContract`, `lessonIdeaCapacityForMinutes` | `session-generation/time-budget.ts`, `streamed-pacing.ts`, `lesson-brief.ts` | Sessions are topic-sized; the timer comes from the profile (`routeSession` Layer 4, clamped 10–60) and is a nudge, never a boundary. Nothing is fitted to a slot. |
+| Adjustment fidelity (free-text note): `validateSessionAdjustmentFidelity`, `session_adjustment_fidelity` | `session-generation/adjustment-fidelity.ts` | No free text in the baseline path; "Change method" is a button that produces `withProduceStepOverride`. |
+| Source grounding: `session_source_grounding`, `studyRouteSourceBindingIssue` | `study-route/source-contract.ts`, `session-generator.ts` | Shape A1 names the learner's material (Slot 1) and never renders or reasons about it; comparison and practice receive bounded excerpts of the learner's own mapped chunks (`source-context.ts`). |
+| Route/generation contract: `generatedSessionStudyRouteIssue`, `route_conflict` | `study-route/generation-contract.ts` | The route is `routeSession(routingInputForSession(...))` at open time; nothing generated can disagree with it. |
+| Cache contracts: `cachedSessionActivityContractIssue`, `hydratedSessionResourceCacheIssue`, `generatedSessionDefersStoredPlanTargets` | `session-generation/cache-*.ts`, `deferred-cache-contract.ts` | No generated session resource is cached; Slot 4 questions are fresh per attempt (nonce). |
+| Completion contract: `validateSessionCompletionContract` | `session-generation/completion-contract.ts` | Completion is the reducer's terminal state; a topic is done when a full round passes clean (`shape-c.ts`). |
+| Free-response verdicts for produce steps (`answer-evaluator.ts` secure / needs_review) | `session-evaluation` | Slot 3 returns feedback with no verdict field and rejects pass/fail/score language; it can neither block the learner nor set topic status. |
+| Scheduled-retrieval validators: `scheduled_retrieval_format`, `scheduled_retrieval_validation` | `learning/scheduled-retrieval.ts` | Practice blocks are Shape C: multiple choice checked in code. |
+
+New checks on the live path are structural, not prose-inspecting: key-point binding, distinct choices, correct index within choices, count clamp, verdict-language rejection.
+
+## Migration: existing saved profiles survive the ID change
+
+- A label-only positional profile and an ID-based positional profile both migrate to the same ID-keyed record, keep the two retired questions' answers under `legacy`, leave the two rewritten questions unanswered (no legacy answer can be trusted for them), and project back to the identical legacy positions ([answers.test.ts](../../../src/lib/onboarding/answers.test.ts)).
+- Stored profiles gain the record exactly once on read: preview snapshots in `normalizePreviewAnswers`, cloud profiles in `mergeStoredAdditionalContext` (which also writes it into `additional_context` on save). Free text at a legacy position is left alone (the pre-existing backward-compatibility test).
+- Browser case (CI): a snapshot written by a pre-Brief-1 build shows its answers under the new question IDs in You and a new answer persists across reload.
+
+## Gates
+
+| Gate | Status |
+| --- | --- |
+| Personalization delta test on rule IDs | permanent, [personalization-delta.test.ts](../../../src/lib/routing/personalization-delta.test.ts); runs in the unit step of `YOVA quality` |
+| Existing create → activate → open session → complete | the pre-baseline browser suite runs unchanged on the flag-off server; the baseline journey (create → activate → open → complete) has its own cases on the flag-on server |
+| Full gate in CI | pending the pull request run (see CI above) |
+| Migration test | unit and browser, above |
+
+## Deliberately not done
+
+- Shape B, ingestion, syllabus, natural-language changes, calendar and the plan model (Brief 2). The pre-baseline "ahead of schedule" confirmation still guards an early start; the baseline browser test clicks "Start now, keep dates". Removing that confirmation belongs to the plan model.
+- Q1 energy window and Q10 `long_plan_shutdown` are recorded by routing (`preferredWindow`, `homeQueueCollapsed`) but nothing schedules or collapses yet; both consumers are plan-model / Home work in Brief 2 ("Home screen ordering is unchanged from current behaviour").
+- The canonical eleven-question questionnaire, the personalization center, deep-profile slots 10–16 and the study-profile funnel are untouched and still reachable in You; the baseline onboarding replaces only the onboarding stage. Remaining positional readers (`duration-signals.ts`, `personalization-evidence.ts`, `canonical-profile-migration.ts`) read the projection, which the record keeps in sync.
+- Merge, deploy, production settings, live gate runs on this machine, the full browser suite locally.
+
+## Local commands run
+
+```
+corepack pnpm exec vitest run
+node --test --test-concurrency=1 scripts/live-gate/*.test.mjs
+corepack pnpm lint
+corepack pnpm exec tsc --noEmit
+pnpm exec playwright test e2e/baseline-session.spec.ts --project baseline-chromium -g "Shape A"
+```
