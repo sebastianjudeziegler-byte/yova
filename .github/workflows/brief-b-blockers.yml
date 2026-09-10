@@ -24,14 +24,23 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Capture shortening regression before correction
-        continue-on-error: true
+      - name: Verify scoped corrections and static gates
         run: |
           mkdir -p artifacts/blockers
-          pnpm exec vitest run src/lib/plan-revision/revision-shortening.test.ts src/lib/plan-generation/revision-clock-windows.test.ts --reporter=default --reporter=json --outputFile=artifacts/blockers/shortening-red.json
+          pnpm exec vitest run --reporter=default --reporter=json --outputFile=artifacts/blockers/unit.json
+          pnpm lint
+          pnpm exec tsc --noEmit
+      - name: Install isolated browser
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Exercise six blocked cases on desktop and mobile
+        run: pnpm test:e2e e2e/core-learning-loop.spec.ts e2e/plan-schedule-date.spec.ts --grep 'visibly shortened inside recipe|10-minute outside teaching-first session|overdue outside teaching-first session|overdue arbitrary inside session|scheduled-review setup stays fixed|shorter sessions preserve weekly availability' --retries=0 --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/blockers/browser.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: brief-b-blockers-${{ github.run_id }}
-          path: artifacts/blockers
+          path: |
+            artifacts/blockers
+            test-results
           retention-days: 30

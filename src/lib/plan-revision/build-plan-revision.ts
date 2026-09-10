@@ -25,7 +25,7 @@ const capacityChoices = [
 ];
 const capacityFailure = (explanation: string): RevisionCapacity => ({ status: "insufficient", explanation, choices: capacityChoices });
 
-type Unit = { topicId: string; original: LearningPlanSession | null; keepOriginalId: boolean; maximumSessions: 1 | 2; operationIndex: number; order: number };
+type Unit = { topicId: string; original: LearningPlanSession | null; keepOriginalId: boolean; maximumSessions: 1 | 2; operationIndex: number; order: number; partIndex?: number; partCount?: number };
 
 /** Code owns the affected set, topic map, sequence, modes, timing and methods.
  * The provider receives only bounded fixed slots for the selected future work. */
@@ -89,7 +89,13 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
       replacements.set(original.id, { ...original, status: "skipped" });
       continue;
     }
-    for (const [index, topicId] of retained.entries()) units.push({ topicId, original, keepOriginalId: index === 0, maximumSessions: 1, operationIndex: operationFor(topicId), order: original.sequence });
+    const shorter = edits.get(original.id)?.durationMinutes;
+    const partCount = Math.max(retained.length, shorter ? Math.ceil(original.estimatedMinutes / shorter) : 1);
+    for (let index = 0; index < partCount; index += 1) {
+      const topicId = retained[Math.min(index, retained.length - 1)]!;
+      units.push({ topicId, original, keepOriginalId: index === 0, maximumSessions: 1, operationIndex: operationFor(topicId), order: original.sequence,
+        ...(shorter && partCount > 1 ? { partIndex: index + 1, partCount } : {}) });
+    }
   }
   for (const topicId of scope.newTopicIds) {
     if (units.some(unit => unit.topicId === topicId) || removed.has(topicId)) continue;
@@ -120,15 +126,17 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     const existingStart = unit!.original && !edit?.scheduledFor && !applied.scheduleChanged && !explicitReorder ? Date.parse(unit!.original.scheduledFor) : now.getTime();
     const prerequisiteEnd = Math.max(now.getTime(), ...scope.dependencies.filter(dependency => dependency.topicId === unit!.topicId).map(dependency => rebuiltEnd.get(dependency.predecessorTopicId) ?? now.getTime()));
     const earliest = Math.max(now.getTime(), existingStart, prerequisiteEnd, Date.parse(scope.notBeforeByTopic[unit!.topicId] ?? now.toISOString()));
-    const selectedTime = edit?.scheduledFor ?? (protection?.pinnedTime ? unit!.original!.scheduledFor : undefined);
+    const selectedTime = (unit!.partIndex ?? 1) === 1 ? edit?.scheduledFor ?? (protection?.pinnedTime ? unit!.original!.scheduledFor : undefined) : undefined;
     if (selectedTime && Date.parse(selectedTime) < earliest) {
       blockers.push({ topicId: topic.id, message: `The chosen time for ${topic.title} is before its earlier work can finish.` });
       break;
     }
     const subRequest = scopedRequest(applied.request, [topic.id], unit!.maximumSessions);
     const priorSessions = plan.sessions.filter(session => session.status !== "skipped" && unit!.original && session.sequence < unit!.original.sequence && session.topicIds?.includes(topic.id)).map(session => ({ key: `existing:${session.id}`, topicIds: [topic.id] }));
-    const revisionContext: NormalPlanRevisionContext = { reservations: [...reservations], earliestStart: selectedTime ?? new Date(earliest).toISOString(), priorSessions };
-    const chosenMethod = edit?.methodId ?? (unit!.original?.studyRoute?.agency.selectedBy === "learner" ? unit!.original.studyRoute.approach.primaryMethodId : undefined);
+    const previousParts = prepared.filter(item => item.unit.original?.id === unit!.original?.id && item.unit.topicId === topic.id);
+    const revisionContext: NormalPlanRevisionContext = { reservations: [...reservations], earliestStart: selectedTime ?? new Date(earliest).toISOString(),
+      priorSessions: [...priorSessions, ...previousParts.map((_, index) => ({ key: `part:${index}`, topicIds: [topic.id] }))] };
+    const chosenMethod = edit?.methodId ?? (unit!.original?.studyRoute && (edit?.durationMinutes || unit!.original.studyRoute.agency.selectedBy === "learner") ? unit!.original.studyRoute.approach.primaryMethodId : undefined);
     const scopedMethodContext = { ...methodContext, ...(chosenMethod ? { methodChoicesBySequence: { 1: { methodId: chosenMethod, evidenceRef: `learner-choice:plan-revision:${plan.id}:${unit!.original?.id ?? unit!.topicId}:${chosenMethod}` } } } : {}) };
     const sourceAdded = delta.operations.some((operation, index) => !controls.excludedOperationIndexes.includes(index) && operation.op === "attach_source" && operation.topic_id === topic.id);
     const sourceBudget = sourceAdded && unit!.original
@@ -178,7 +186,12 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
       for (const [index, session] of generated.sessions.entries()) {
         const original = unit.keepOriginalId && index === 0 ? unit.original : null;
         const id = original?.id ?? makeUuid();
-        const rebound = bindRevisionSession({ plan, session, original, id, now, protection });
+        const rebound = bindRevisionSession({ plan, session: unit.partCount ? { ...session,
+          title: `${session.title.slice(0, 90)} · Part ${unit.partIndex} of ${unit.partCount}`,
+          originSessionId: unit.original!.originSessionId ?? unit.original!.id,
+          originalContentMinutes: unit.original!.originalContentMinutes ?? unit.original!.estimatedMinutes,
+          segmentIndex: unit.partIndex, segmentCount: unit.partCount,
+        } : session, original, id, now, protection });
         const edit = original ? edits.get(original.id) : index === 0 ? newEdits.get(unit.operationIndex) : undefined;
         const editedFields = [...new Set([...(original?.revisionEditedFields ?? protection?.editedFields ?? []),
           ...(edit?.scheduledFor ? ["scheduledFor" as const] : []), ...(edit?.durationMinutes ? ["estimatedMinutes" as const] : []), ...(edit?.methodId ? ["method" as const] : [])])];
@@ -193,13 +206,13 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     sessions = plan.sessions;
     capacity = capacityFailure(blockers.map(blocker => blocker.message).join(" "));
   } else if (addedSessions.length || delta.operations.some(operation => operation.op === "reorder")) {
-    sessions = assignFutureSequence(sessions, protectedIds);
+    sessions = assignFutureSequence(sessions, new Set([...protectedIds, ...plan.sessions.filter(session => !affected.has(session.id)).map(session => session.id)]));
   }
   const revisionId = makeUuid();
   const after = { ...plan, sourceMode: applied.request.materialMode === "upload" ? "user_materials" as const : "yova_generated" as const, materials: applied.request.materials.map(material => ({ ...material, textContent: null })), revisionId, deadline: applied.request.deadline, knowledgeMap: nextMap, schedulePreferences: { timeZone: applied.request.timeZone, availability: applied.request.availability }, sessions };
   const lines: RevisionLine[] = applied.lines.map(line => {
     const beforeSessions = plan.sessions.filter(session => line.topicId ? session.topicIds?.includes(line.topicId) && affected.has(session.id) : affected.has(session.id));
-    const afterSessions = sessions.filter(session => line.topicId ? session.topicIds?.includes(line.topicId) && (affected.has(session.id) || addedSessions.some(added => added.id === session.id)) : affected.has(session.id));
+    const afterSessions = sessions.filter(session => line.topicId ? session.topicIds?.includes(line.topicId) && (affected.has(session.id) || addedSessions.some(added => added.id === session.id)) : affected.has(session.id) || addedSessions.some(added => added.id === session.id));
     return { ...line, before: beforeSessions.map(sessionDescription), after: afterSessions.filter(session => session.status !== "skipped").map(session => {
       const operation = delta.operations[line.operationIndex];
       const source = operation?.op === "attach_source" ? operation.url ?? applied.request.materials.find(material => material.id === operation.material_id)?.name ?? "Attached file" : null;

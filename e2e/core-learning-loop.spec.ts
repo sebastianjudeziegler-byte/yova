@@ -3209,12 +3209,15 @@ test("scheduled-review setup stays fixed and opens the exact active or Study Now
   await page.getByRole("button", { name: "Open the goal instead" }).click();
   await expect(page.locator(".tabs").getByRole("button", { name: /^Recent/ })).toHaveClass(/active/);
   await expect(page.getByRole("heading", { name: "Study Now Osmosis Practice" })).toBeVisible();
-  await expect(page.getByLabel("Add source materials")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add file or link", exact: true })).toBeVisible();
   await expect(page.getByText("osmosis-notes.txt", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Change the plan without losing progress" })).toBeVisible();
-  await expect(page.getByText("1 scheduled review keeps the original duration, concept, and return time.", { exact: false })).toBeVisible();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Review your changes" })).toBeVisible();
+  // The editor changed; the saved review contract did not. Assert the actual
+  // protected review instead of relying on a removed explanatory sentence.
+  const savedReview = await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.find((plan: { title: string }) => plan.title === "Study Now Osmosis Practice").sessions.find((session: { reviewType?: string }) => Boolean(session.reviewType)));
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.find((plan: { title: string }) => plan.title === "Study Now Osmosis Practice").sessions.find((session: { reviewType?: string }) => Boolean(session.reviewType)))).toEqual(savedReview);
 
   await page.getByRole("button", { name: "Start next session" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -4094,8 +4097,9 @@ async function rebuildLatestStudyNowPlanForMinutes(page: Page, minutes: number) 
     if (plan.schedulePreferences?.availability?.[0]) return plan.schedulePreferences.availability[0];
     const start = new Date(plan.sessions[0].scheduledFor);
     const end = new Date(start.getTime() + 60 * 60_000);
-    const time = (date: Date) => date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
-    return { day: start.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }), window: `${time(start)}–${time(end)}` };
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const time = (date: Date) => date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
+    return { day: start.toLocaleDateString("en-US", { weekday: "long", timeZone }), window: `${time(start)}–${time(end)}` };
   });
   const kept = adjustmentPanel.getByRole("checkbox", { name: /^Keep existing window/ });
   for (let index = 0; index < await kept.count(); index += 1) await kept.nth(index).uncheck();

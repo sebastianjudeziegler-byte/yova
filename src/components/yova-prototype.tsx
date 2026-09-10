@@ -251,6 +251,9 @@ import {
   resumedSessionAdjustment,
 } from "@/lib/learning/session-resume";
 import { selectFreeResponseMode } from "@/lib/learning/response-mode";
+import { previewClientPlanRevision, sendPlanRevisionRequest, savedPlanAvailability } from "@/components/plan-revision/revision-client";
+import { RevisionPlanSchema } from "@/lib/plan-revision/revision-schema";
+import type { SignedPreview } from "@/components/plan-revision/plan-revision-preview";
 import { LivingPlanRevision, type RevisionClient, type RevisionLaunch } from "@/components/plan-revision/living-plan-revision";
 import type { MapDelta } from "@/lib/plan-revision/map-delta";
 import { applySessionRevisionPatches, sessionRevisionPatches } from "@/lib/plan-revision/revision-patch";
@@ -683,6 +686,9 @@ export function YovaPrototype({
   const [creatorReviewSourceFirst, setCreatorReviewSourceFirst] = useState(false);
   const [calendarStorageRevision, setCalendarStorageRevision] = useState(0);
   const [revisionLaunch, setRevisionLaunch] = useState<RevisionLaunch | null>(null);
+  const [quickRevision, setQuickRevision] = useState<{ signed: SignedPreview; message: string; undone?: boolean } | null>(null);
+  const [quickRevisionError, setQuickRevisionError] = useState<string | null>(null);
+  const [quickRevisionUndoing, setQuickRevisionUndoing] = useState(false);
   const awaitingRevision = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [learningDetailPlanId, setLearningDetailPlanId] = useState<string | null>(null);
@@ -3789,6 +3795,36 @@ export function YovaPrototype({
     };
   };
 
+  const revisionClient: RevisionClient = {
+    launch: revisionLaunch,
+    onReviewClosed: () => {
+      awaitingRevision.current?.reject(new Error("Preview cancelled. Your plan is unchanged."));
+      awaitingRevision.current = null;
+    },
+    developmentPreview: browserPreviewMode || account?.identityMode === "preview",
+    accountId: account?.id ?? "browser-preview", plans,
+    profileSummary: buildPlanProfileSummary(answers), previewCanonicalProfile: effectivePreviewCanonicalProfile ?? undefined,
+    onOpenCalendar: () => setActiveTab("Calendar"),
+    onSaved: (saved, previous, changedSessionIds) => {
+      const current = plansRef.current.find(candidate => candidate.id === saved.id);
+      if (!current || (current.revisionId ?? current.id) !== (previous.revisionId ?? previous.id)) throw new Error("This plan changed while saving. Reload its latest revision before continuing.");
+      const patches = sessionRevisionPatches(previous, saved).filter(patch => !changedSessionIds || changedSessionIds.includes(patch.id));
+      const sessions = applySessionRevisionPatches({ current: current.sessions, patches, protectedSessionIds: new Set([
+        ...sessionInterruptions.map(item => item.planSessionId), ...activeSessionCheckpoints.map(item => item.planSessionId),
+      ]) });
+      const next = { ...saved, sessions };
+      const nextPlans = plansRef.current.map(candidate => candidate.id === saved.id ? next : candidate);
+      if (account?.identityMode === "preview") {
+        savePreviewSnapshot({ version: 1, account, signedIn, onboardingAnswers: answers, onboardingCompleted,
+          alphaEntered: onboardingCompleted, plans: nextPlans, deadlineMilestones, sessionCompletions, sessionInterruptions, updatedAt: new Date().toISOString() });
+      }
+      plansRef.current = nextPlans;
+      setPlans(nextPlans);
+      awaitingRevision.current?.resolve();
+      awaitingRevision.current = null;
+    },
+  };
+
   // Older entry points open the same reviewed editor. They cannot write a
   // session or report success before the accepted revision is persisted.
   const adjustPlan = async (input: PlanAdjustmentRequest) => {
@@ -3797,9 +3833,9 @@ export function YovaPrototype({
     if (awaitingRevision.current) throw new Error("Finish or cancel the open plan preview first.");
     const requestedMinutes = [10, 15, 25, 45, 60].find(minutes => minutes === input.futureSessionMinutes) as 10 | 15 | 25 | 45 | 60 | undefined;
     const selectedSessions = plan.sessions.filter(session => ["ready", "upcoming"].includes(session.status) && !session.resource && !session.reviewType);
-    const reviewDuration = !input.direction && requestedMinutes !== undefined && plan.schedulePreferences && selectedSessions.some(session => session.estimatedMinutes !== requestedMinutes);
+    const reviewDuration = !input.direction && requestedMinutes !== undefined && selectedSessions.some(session => session.estimatedMinutes !== requestedMinutes);
     const delta: MapDelta = { operations: reviewDuration
-      ? [{ op: "set_availability", availability: plan.schedulePreferences!.availability }]
+      ? [{ op: "set_availability", availability: savedPlanAvailability(plan) }]
       : input.deadline && input.deadline !== plan.deadline ? [{ op: "set_deadline", iso: input.deadline }] : [] };
     if (reviewDuration && input.deadline && input.deadline !== plan.deadline) delta.operations.push({ op: "set_deadline", iso: input.deadline });
     const saved = new Promise<void>((resolve, reject) => { awaitingRevision.current = { resolve, reject }; });
@@ -3832,12 +3868,30 @@ export function YovaPrototype({
       throw new Error("YOVA cannot safely split this session into that time window. Move it or review the session setup instead.");
     }
 
-    await adjustPlan({
-      planId: plan.id,
-      deadline: plan.deadline,
-      studyMode: plan.studyMode,
-      futureSessionMinutes: estimatedMinutes,
-    });
+    const duration = estimatedMinutes as 10 | 15 | 25 | 45 | 60;
+    const availability = savedPlanAvailability(plan);
+    // A Study Now goal has no recurring schedule to enlarge. The explicit
+    // split action requests a bounded block now, including the reset between
+    // its parts; unrelated work and calendar events remain reservations.
+    if (!plan.schedulePreferences?.availability.length) {
+      const now = new Date();
+      const budget = Math.ceil(session.estimatedMinutes / duration) * (duration + 5);
+      const end = new Date(now.getTime() + budget * 60000);
+      const time = (value: Date) => value.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      availability.splice(0, availability.length, { day: now.toLocaleDateString("en-US", { weekday: "long" }), window: `${time(now)}–${time(end)}`, minutes: budget });
+    }
+    const delta: MapDelta = { operations: [{ op: "set_availability", availability }] };
+    const controls = { excludedOperationIndexes: [], sessionEdits: [{ sessionId: session.id, operationIndex: 0, durationMinutes: duration }] };
+    const signed = await previewClientPlanRevision({ plan, client: revisionClient, delta, controls });
+    if (!signed.proposal.canApply || signed.proposal.capacity.status !== "fits") {
+      setRevisionLaunch({ key: makeUuid(), planId: plan.id, delta, controls, type: "set_availability" });
+      setSelectedPlanId(plan.id); setLearningDetailPlanId(plan.id); setStage("app"); setActiveTab("Learning");
+      throw new Error(signed.proposal.capacity.explanation);
+    }
+    const result = await sendPlanRevisionRequest({ action: "apply", ...signed });
+    await revisionClient.onSaved(RevisionPlanSchema.parse(result.plan) as LearningPlan, plan, result.changedSessionIds);
+    setQuickRevision({ signed, message: result.receipt.message });
+    setQuickRevisionError(null);
   };
 
   const applyTutorAction = async (action: TutorProposedAction) => {
@@ -4566,38 +4620,21 @@ export function YovaPrototype({
     return <SessionComplete currentSession={currentSession} knowledgeMap={activePlan?.knowledgeMap} completionMode={sessionCompletionMode} completedAt={sessionCompletedAt ?? new Date().toISOString()} requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} feedback={sessionCompletionFeedback} onFeedback={setSessionCompletionFeedback} recoveryNotice={sessionRecoveryNotice} recoveryIssue={sessionRecoveryIssue} onFinish={async (feedback, applyRecommendedChange) => { if (!await completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes, applyRecommendedChange)) return; setStage("app"); setActiveTab("Home"); }} />;
   }
 
-  const revisionClient: RevisionClient = {
-    launch: revisionLaunch,
-    onReviewClosed: () => {
-      awaitingRevision.current?.reject(new Error("Preview cancelled. Your plan is unchanged."));
-      awaitingRevision.current = null;
-    },
-    developmentPreview: browserPreviewMode || account?.identityMode === "preview",
-    accountId: account?.id ?? "browser-preview", plans,
-    profileSummary: buildPlanProfileSummary(answers), previewCanonicalProfile: effectivePreviewCanonicalProfile ?? undefined,
-    onOpenCalendar: () => setActiveTab("Calendar"),
-    onSaved: (saved, previous, changedSessionIds) => {
-      const current = plansRef.current.find(candidate => candidate.id === saved.id);
-      if (!current || (current.revisionId ?? current.id) !== (previous.revisionId ?? previous.id)) throw new Error("This plan changed while saving. Reload its latest revision before continuing.");
-      const patches = sessionRevisionPatches(previous, saved).filter(patch => !changedSessionIds || changedSessionIds.includes(patch.id));
-      const sessions = applySessionRevisionPatches({ current: current.sessions, patches, protectedSessionIds: new Set([
-        ...sessionInterruptions.map(item => item.planSessionId), ...activeSessionCheckpoints.map(item => item.planSessionId),
-      ]) });
-      const next = { ...saved, sessions };
-      const nextPlans = plansRef.current.map(candidate => candidate.id === saved.id ? next : candidate);
-      if (account?.identityMode === "preview") {
-        savePreviewSnapshot({ version: 1, account, signedIn, onboardingAnswers: answers, onboardingCompleted,
-          alphaEntered: onboardingCompleted, plans: nextPlans, deadlineMilestones, sessionCompletions, sessionInterruptions, updatedAt: new Date().toISOString() });
-      }
-      plansRef.current = nextPlans;
-      setPlans(nextPlans);
-      awaitingRevision.current?.resolve();
-      awaitingRevision.current = null;
-    },
-  };
 
   return <>
     <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={() => beginCalendarAdd()} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
+      {quickRevision && <div className="plan-revision-receipt"><div role="status"><p>{quickRevision.message}</p>{!quickRevision.undone && <button className="button secondary" disabled={quickRevisionUndoing} onClick={async () => {
+        const current = plansRef.current.find(plan => plan.id === quickRevision.signed.proposal.planId);
+        if (!current) return;
+        setQuickRevisionUndoing(true); setQuickRevisionError(null);
+        try {
+          const result = await sendPlanRevisionRequest({ action: "undo", planId: current.id, expectedRevisionId: quickRevision.signed.proposal.revisionId,
+            ...(revisionClient.developmentPreview ? { developmentPlan: current, ...quickRevision.signed } : {}) });
+          await revisionClient.onSaved(RevisionPlanSchema.parse(result.plan) as LearningPlan, current, result.changedSessionIds);
+          setQuickRevision({ ...quickRevision, message: result.receipt.message, undone: true });
+        } catch (error) { setQuickRevisionError(error instanceof Error ? error.message : "Undo could not be saved."); }
+        finally { setQuickRevisionUndoing(false); }
+      }}>{quickRevisionUndoing ? "Restoring…" : "Undo"}</button>}</div>{quickRevisionError && <p role="alert">{quickRevisionError}</p>}</div>}
       {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("study-now"); }} milestones={agendaMilestones} onOpenAgenda={() => setActiveTab("Calendar")} />}
       {activeTab === "Learning" && <LearningScreen revisionClient={revisionClient} plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} preferredMethodIds={savedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={personalizationState.controls.selfReport} onPreferredMethodIdsChange={changePreferredMethodIds} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap}  />}
       {activeTab === "Calendar" && <CalendarScreen

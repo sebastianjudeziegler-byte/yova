@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { savedPlanAvailability } from "./revision-client";
 import type { LearningPlan } from "@/lib/domain";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { MapDelta, MapDeltaOperation } from "@/lib/plan-revision/map-delta";
@@ -53,6 +54,7 @@ export function PlanRevisionPreview(props: Props) {
   const [day, setDay] = useState("Monday");
   const [window, setWindow] = useState("18:00–19:00");
   const [minutes, setMinutes] = useState(60);
+  const [shorterMinutes, setShorterMinutes] = useState<10 | 15 | 25 | 45 | 60>(15);
   const [keptWindows, setKeptWindows] = useState(() => (props.plan.schedulePreferences?.availability ?? []).map((_, index) => index));
   const sequence = useRef(0);
   const started = useRef(false);
@@ -126,6 +128,14 @@ export function PlanRevisionPreview(props: Props) {
     catch (failure) { setError(failure instanceof Error ? failure.message : "The file could not be attached."); }
     finally { setStaging(false); }
   }
+  function previewShorterSessions() {
+    const operationIndex = delta.operations.length;
+    const nextDelta: MapDelta = { operations: [...delta.operations, { op: "set_availability", availability: savedPlanAvailability(props.plan) }] };
+    const edits = props.plan.sessions.filter(session => ["ready", "upcoming"].includes(session.status) && !session.resource && !session.reviewType && session.estimatedMinutes > shorterMinutes)
+      .map(session => ({ sessionId: session.id, operationIndex, durationMinutes: shorterMinutes }));
+    setAdding(false);
+    void refresh(nextDelta, { ...controls, sessionEdits: [...controls.sessionEdits.filter(edit => !edits.some(next => next.sessionId === edit.sessionId)), ...edits] });
+  }
   function addChange() {
     let operation: MapDeltaOperation;
     if (newType === "attach_source") {
@@ -168,7 +178,7 @@ export function PlanRevisionPreview(props: Props) {
           {line?.blockedReason && <p>{line.blockedReason}</p>}
           {included && preview && line?.sessionIds.map((sessionId, sessionIndex) => {
             const session = preview.proposal.after.sessions.find(item => item.id === sessionId);
-            if (!session || (operation.op === "add_topic" && sessionIndex > 0)) return null;
+            if (!session || (operation.op === "add_topic" && sessionIndex > 0) || (session.originSessionId && session.id !== session.originSessionId)) return null;
             const choices = props.choicesForSession(preview.proposal, sessionId);
             return <div key={sessionId} className="plan-revision-session-controls">
               <label>Method for {session.title}<select value={session.studyRoute?.approach.primaryMethodId ?? ""} disabled={saving || pending} onChange={event => editSession(sessionId, index, { methodId: event.target.value as CoreMethodId })}>
@@ -201,7 +211,7 @@ export function PlanRevisionPreview(props: Props) {
       {newType === "add_topic" && <><label>Topic title<input value={newTitle} onChange={event => setNewTitle(event.target.value)} /></label><label>What should this topic cover?<textarea aria-invalid={newDescription.length > 400 || undefined} aria-describedby="revision-description-limit" value={newDescription} onChange={event => setNewDescription(event.target.value)} /><small id="revision-description-limit" role={newDescription.length > 400 ? "alert" : undefined}>{newDescription.length}/400 characters</small></label></>}
       {["add_topic", "reorder"].includes(newType) && <label>After topic<select value={afterTopic} onChange={event => setAfterTopic(event.target.value)}>{topics.map(topic => <option key={topic.id} value={topic.id}>{topic.title}</option>)}</select></label>}
       {newType === "set_deadline" && <label>Deadline<input type="datetime-local" value={deadline} onChange={event => setDeadline(event.target.value)} /></label>}
-      {newType === "set_availability" && <><label>Day<select aria-label="Day" value={day} onChange={event => setDay(event.target.value)}>{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(value => <option key={value}>{value}</option>)}</select></label><label>Time window<input value={window} onChange={event => setWindow(event.target.value)} /></label><label>Minutes<input type="number" min={10} max={180} value={minutes} onChange={event => setMinutes(Number(event.target.value))} /></label><div>{(props.plan.schedulePreferences?.availability ?? []).map((slot, index) => <label key={index}><input type="checkbox" checked={keptWindows.includes(index)} onChange={event => setKeptWindows(previous => event.target.checked ? [...previous, index] : previous.filter(value => value !== index))} />Keep existing window: {slot.day} {slot.window}</label>)}</div><p>Keep the windows you still want, and add the time above.</p></>}
+      {newType === "set_availability" && <><label>Future session length<select value={shorterMinutes} onChange={event => setShorterMinutes(Number(event.target.value) as typeof shorterMinutes)}>{[10, 15, 25, 45, 60].map(value => <option key={value} value={value}>{value} minutes</option>)}</select></label><button type="button" className="button secondary" onClick={previewShorterSessions}>Preview shorter sessions</button><p>Keep all remaining work and your saved weekly windows.</p><label>Day<select aria-label="Day" value={day} onChange={event => setDay(event.target.value)}>{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(value => <option key={value}>{value}</option>)}</select></label><label>Time window<input value={window} onChange={event => setWindow(event.target.value)} /></label><label>Minutes<input type="number" min={10} max={180} value={minutes} onChange={event => setMinutes(Number(event.target.value))} /></label><div>{(props.plan.schedulePreferences?.availability ?? []).map((slot, index) => <label key={index}><input type="checkbox" checked={keptWindows.includes(index)} onChange={event => setKeptWindows(previous => event.target.checked ? [...previous, index] : previous.filter(value => value !== index))} />Keep existing window: {slot.day} {slot.window}</label>)}</div><p>Keep the windows you still want, and add the time above.</p></>}
       <button type="button" className="button secondary" onClick={addChange} disabled={!newTopic || (newType === "add_topic" && (!newTitle.trim() || !newDescription.trim() || newDescription.length > 400)) || (newType === "attach_source" && !stagedFile && !sourceUrl.trim())}>{newType === "attach_source" ? "Preview source attachment" : "Preview change"}</button>
     </fieldset>}
     <footer><button type="button" className="button secondary" disabled={saving} onClick={props.onCancel}>Cancel</button>
