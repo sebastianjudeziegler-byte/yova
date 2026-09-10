@@ -168,16 +168,17 @@ describe("YOVA prototype UI contracts", () => {
     const setupEnd = component.indexOf("export function formatSessionPreparationTopic", setupStart);
     const setup = component.slice(setupStart, setupEnd);
     const sourcesStart = component.indexOf("function PlanSources");
-    const sourcesEnd = component.indexOf("function materialAttachmentWasCommitted", sourcesStart);
+    const sourcesEnd = component.indexOf("function AskScreen", sourcesStart);
     const sources = component.slice(sourcesStart, sourcesEnd);
 
     expect(setup).toContain('routeContract?.resolution.source === "stored"');
     expect(setup).toContain("Time in this recipe");
     expect(setup).toContain("To change this time, cancel and choose Adjust on the goal before starting.");
     expect(setup).toContain("availableMinutes: committedStudyRoute ? null : availableMinutes");
-    expect(sources).toContain("const sourceChangeLocked");
-    expect(sources).toContain("Finish your prepared lesson before adding sources");
-    expect(sources).toContain("canAddSource && <MaterialLinkImporter");
+    expect(sources).toContain("onClick={onReview}");
+    expect(sources).toContain("Add file or link");
+    expect(sources).not.toContain("/api/materials/attach");
+    expect(readSource("src/lib/plan-revision/apply-service.ts")).toContain("applySessionRevisionPatches");
   });
 
   it("keeps ready-session method control bounded, visible, and server-authoritative", () => {
@@ -308,12 +309,11 @@ describe("YOVA prototype UI contracts", () => {
 
     expect(detail).toContain('const canManagePlan = operational && view !== "archive"');
     expect(detail).toContain("canManagePlan && hasAdjustableUnfinishedWork");
-    expect(detail).toContain("canManagePlan && showAdjustments");
+    expect(detail).toContain("canManagePlan && revisionRequest");
     expect(detail).toContain("canExtend={canManagePlan}");
     expect(detail).toContain("editable={canManagePlan}");
-    expect(component).toContain("adjustableUnfinishedCount");
-    expect(component).toContain("ordinary unfinished");
-    expect(component).toContain('protectedReviewCount === 1 ? "review keeps" : "reviews keep"');
+    expect(detail).toContain("<LivingPlanRevision");
+    expect(readSource("src/lib/plan-revision/revision-session-scope.ts")).toContain("session.reviewType || session.reviewConcept");
   });
 
   it("uses one fail-closed recovery decision for labels, allowance, and launch", () => {

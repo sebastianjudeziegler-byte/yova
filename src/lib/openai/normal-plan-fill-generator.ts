@@ -34,6 +34,7 @@ export type NormalPlanFillGenerationInput = Readonly<{
   /** The single request clock already used to compose the fixed envelopes. */
   now: Date;
   methodContext?: InitialPlanMethodRoutingContext;
+  revisionContext?: import("@/lib/plan-generation/normal-plan-revision-context").NormalPlanRevisionContext;
 }>;
 
 export type NormalPlanFillGenerationOptions = Readonly<{

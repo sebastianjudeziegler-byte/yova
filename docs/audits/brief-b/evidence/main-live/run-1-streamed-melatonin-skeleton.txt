@@ -1,0 +1,130 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/streamed-melatonin-skeleton.live.test.ts[2m > [22m[2mlive streamed Melatonin session skeleton[2m > [22m[2mreliably creates the affected 15-minute teaching-first session
+[22m[39mMelatonin streamed skeleton run {
+  run: [33m1[39m,
+  generationStats: {
+    elapsedMs: [33m10082[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'streamed_lesson_scope'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mtrue[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Darkness and circadian timing”. Later targets that must remain exact entries in deferredContent: “Pineal melatonin release”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+    inputTokens: [33m7829[39m,
+    cachedInputTokens: [33m3840[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m1589[39m,
+    validationIssueCode: [32m'streamed_deferred_content'[39m,
+    recoveryMode: [32m'safe_learn'[39m,
+    strategy: [32m'streamed'[39m,
+    stage: [32m'complete'[39m
+  },
+  deliveryModes: {
+    presentation: [32m'overview_first'[39m,
+    repair: [32m'smaller_steps'[39m,
+    retention: [32m'delayed_retrieval'[39m,
+    firstActionMinutes: [33m2[39m,
+    maximumActivities: [33m5[39m
+  },
+  phases: [
+    [32m'model'[39m,
+    [32m'explain'[39m,
+    [32m'repair'[39m,
+    [32m'reexplain'[39m,
+    [32m'transfer'[39m,
+    [32m'schedule_return'[39m
+  ],
+  focusedMinutes: [33m15[39m
+}
+
+[90mstdout[2m | src/evals/streamed-melatonin-skeleton.live.test.ts[2m > [22m[2mlive streamed Melatonin session skeleton[2m > [22m[2mreliably creates the affected 15-minute teaching-first session
+[22m[39mMelatonin streamed skeleton run {
+  run: [33m2[39m,
+  generationStats: {
+    elapsedMs: [33m7698[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'streamed_lesson_scope'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mtrue[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Darkness and circadian timing”. Later targets that must remain exact entries in deferredContent: “Pineal melatonin release”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+    inputTokens: [33m7829[39m,
+    cachedInputTokens: [33m6912[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m1543[39m,
+    validationIssueCode: [32m'streamed_deferred_content'[39m,
+    recoveryMode: [32m'safe_learn'[39m,
+    strategy: [32m'streamed'[39m,
+    stage: [32m'complete'[39m
+  },
+  deliveryModes: {
+    presentation: [32m'overview_first'[39m,
+    repair: [32m'smaller_steps'[39m,
+    retention: [32m'delayed_retrieval'[39m,
+    firstActionMinutes: [33m2[39m,
+    maximumActivities: [33m5[39m
+  },
+  phases: [
+    [32m'model'[39m,
+    [32m'explain'[39m,
+    [32m'repair'[39m,
+    [32m'reexplain'[39m,
+    [32m'transfer'[39m,
+    [32m'schedule_return'[39m
+  ],
+  focusedMinutes: [33m15[39m
+}
+
+[90mstdout[2m | src/evals/streamed-melatonin-skeleton.live.test.ts[2m > [22m[2mlive streamed Melatonin session skeleton[2m > [22m[2mreliably creates the affected 15-minute teaching-first session
+[22m[39mMelatonin streamed skeleton run {
+  run: [33m3[39m,
+  generationStats: {
+    elapsedMs: [33m9190[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'streamed_lesson_scope'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mtrue[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Darkness and circadian timing”. Later targets that must remain exact entries in deferredContent: “Pineal melatonin release”. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. A target-assigned claim also contains deferred-session substance. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator."[39m,
+    inputTokens: [33m7829[39m,
+    cachedInputTokens: [33m6912[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m1670[39m,
+    validationIssueCode: [32m'streamed_deferred_content'[39m,
+    recoveryMode: [32m'safe_learn'[39m,
+    strategy: [32m'streamed'[39m,
+    stage: [32m'complete'[39m
+  },
+  deliveryModes: {
+    presentation: [32m'overview_first'[39m,
+    repair: [32m'smaller_steps'[39m,
+    retention: [32m'delayed_retrieval'[39m,
+    firstActionMinutes: [33m2[39m,
+    maximumActivities: [33m5[39m
+  },
+  phases: [
+    [32m'model'[39m,
+    [32m'explain'[39m,
+    [32m'repair'[39m,
+    [32m'reexplain'[39m,
+    [32m'transfer'[39m,
+    [32m'schedule_return'[39m
+  ],
+  focusedMinutes: [33m15[39m
+}
+
+ [32m✓[39m src/evals/streamed-melatonin-skeleton.live.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 27318[2mms[22m[39m
+     [33m[2m✓[22m[39m reliably creates the affected 15-minute teaching-first session [33m 27316[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m   Start at [22m 12:45:43
+[2m   Duration [22m 27.82s[2m (transform 480ms, setup 0ms, import 401ms, tests 27.32s, environment 0ms)[22m
+
+
+Exit code: 0

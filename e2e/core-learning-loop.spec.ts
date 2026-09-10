@@ -466,6 +466,7 @@ test("an inactive-plan generation response cannot open a stale built-in lesson",
 });
 
 test("a visibly shortened inside recipe keeps its method in the fallback workpad", async ({ page }) => {
+  await freezePlanClock(page);
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
       status: 502,
@@ -1059,6 +1060,7 @@ test("a fallback method workpad resumes its timer and checked targets after relo
 });
 
 test("a 10-minute outside teaching-first session loads its built-in method lesson", async ({ page }) => {
+  await freezePlanClock(page);
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
       status: 502,
@@ -1210,7 +1212,7 @@ test("an overdue arbitrary inside session splits and loads a route-faithful 10-m
 
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
-    "Review eigenvalues and eigenvectors for practice",
+    "Review DNA and RNA for practice",
   );
   await page.getByRole("button", { name: "15 minutes", exact: true }).click();
   await page.getByRole("button", { name: "I understand the basics but need practice" }).click();
@@ -1228,21 +1230,26 @@ test("an overdue arbitrary inside session splits and loads a route-faithful 10-m
     const stored = window.localStorage.getItem("yova.preview.v1");
     if (!stored) throw new Error("Expected the inside-YOVA Study Now plan in the preview snapshot.");
     const snapshot = JSON.parse(stored) as {
-      plans?: Array<{ sessions?: Array<{
-        scheduledFor?: string;
-        status?: string;
-        contentTargets?: string[];
-        completionEvidence?: string[];
-      }> }>;
+      plans?: LearningPlan[];
       updatedAt?: string;
     };
-    const ready = snapshot.plans?.at(-1)?.sessions?.find((session) => session.status === "ready");
+    const plan = snapshot.plans?.at(-1);
+    const ready = plan?.sessions.find((session) => session.status === "ready");
     if (!ready) throw new Error("Expected a ready inside-YOVA session to make overdue.");
     ready.scheduledFor = new Date(Date.now() - 6 * 60 * 60 * 1_000).toISOString();
     // Acronym-only targets have no tokens in the curated-template heuristic.
     // The generic fallback must use its exact saved-target contract instead.
     ready.contentTargets = ["DNA and RNA"];
     ready.completionEvidence = ["Explain the saved relationship in your own words"];
+    // Revision owns content through the accepted map. Keep this acronym-only
+    // fixture coherent instead of attaching biology copy to eigenvalue IDs.
+    const topics = plan?.knowledgeMap?.topics.filter(topic => ready.topicIds?.includes(topic.id));
+    if (!topics?.length) throw new Error("Expected the accepted topic for the saved target.");
+    for (const topic of topics) {
+      topic.title = "DNA and RNA";
+      topic.description = "Compare DNA and RNA and explain their relationship.";
+      topic.subtopics = [];
+    }
     snapshot.updatedAt = new Date().toISOString();
     window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
   });
@@ -1280,7 +1287,7 @@ test("an overdue arbitrary inside session splits and loads a route-faithful 10-m
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   await page.getByRole("button", { name: /^Recent \d+$/ }).click();
   const unfinishedStudyNowPlan = page.locator(".learning-goal-card").filter({
-    hasText: /eigenvalues and eigenvectors/i,
+    hasText: /DNA and RNA/i,
   });
   await expect(unfinishedStudyNowPlan).toContainText("NEXT SESSION");
   await expect(unfinishedStudyNowPlan.getByRole("button", { name: "Start next", exact: true })).toBeVisible();
@@ -2147,15 +2154,13 @@ test("learner text fields keep long pastes visible and block submission until tr
   await page.getByRole("button", { name: "Open goal" }).click();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
 
-  const adjustmentPanel = page.locator(".plan-adjustment-panel");
-  const planDirection = adjustmentPanel.getByLabel("What should be different?");
+  const adjustmentPanel = page.getByRole("region", { name: "Plan change preview" });
+  await adjustmentPanel.getByLabel("Change type").selectOption("add_topic");
+  const planDirection = adjustmentPanel.getByLabel("What should this topic cover?");
   await planDirection.fill(longPaste);
   await expect(planDirection).toHaveValue(longPaste);
   await expect(planDirection).toHaveAttribute("aria-invalid", "true");
-  await expect(adjustmentPanel.locator("#plan-adjustment-direction-limit")).toContainText(
-    "800/500 · 300 characters over the limit.",
-  );
-  await expect(adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" })).toBeDisabled();
+  await expect(adjustmentPanel.getByRole("button", { name: "Preview change", exact: true })).toBeDisabled();
 });
 
 test("an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged", async ({ page }) => {
@@ -2178,11 +2183,16 @@ test("an unverified topic rewrite leaves the learner's saved plan and completed 
   const savedPlan = () => page.evaluate(id => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.find((plan: LearningPlan) => plan.id === id), planId);
   const before = await savedPlan();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
-  const panel = page.locator(".plan-adjustment-panel");
-  await expect(panel).toContainText("Free-text topic changes are not available in an active plan.");
-  await panel.getByLabel("What should be different?").fill("Replace the next Link reaction session with photosynthesis and chloroplasts instead. Leave my completed Glycolysis session unchanged.");
-  await panel.getByRole("button", { name: "Approve and rebuild plan" }).click();
-  await expect(panel).toContainText("YOVA could not verify that content change. Your plan is unchanged.");
+  const panel = page.getByRole("region", { name: "Plan change preview" });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByLabel("What should be different?")).toHaveCount(0);
+  const rejected = await page.evaluate(async plan => {
+    const response = await fetch("/api/plans/adjust", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ planId: plan.id, direction: "Replace the next Link reaction session with photosynthesis and chloroplasts instead. Leave my completed Glycolysis session unchanged.", estimatedMinutes: 25, studyMode: "inside_yova", deadline: null }) });
+    return { status: response.status, body: await response.json() };
+  }, before);
+  expect(rejected.status).toBe(409);
+  expect(rejected.body.code).toBe("plan_direction_unverified");
+  expect(rejected.body.error).toContain("Your plan is unchanged");
   expect(await savedPlan()).toEqual(before);
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Respiration revision audit" })).toBeVisible();
@@ -2886,6 +2896,7 @@ test("finishing a shortened guided lesson keeps every deferred target as exact n
 });
 
 test("adjusting ordinary future work preserves the exact scheduled review contract", async ({ page }) => {
+  await freezePlanClock(page, new Date("2030-06-03T12:00:00.000Z"));
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
@@ -2910,6 +2921,11 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
       rationale: "Keep the delayed evidence check exact while resizing later content practice.",
       createdAt: "2026-08-20T12:00:00.000Z",
       materials: [],
+      schedulePreferences: { timeZone: "UTC", availability: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map(day => ({ day, window: "15:00–17:00", minutes: 120 })) },
+      knowledgeMap: { version: 1,
+        scopeJudgment: { band: "unit_or_exam", label: "Plate boundary evidence", minimumSessions: 1, recommendedSessions: 2, maximumSessions: 2, minimumTeachingSessions: 1, explanation: "Apply geological evidence and preserve the delayed review." },
+        topics: [{ id: topicId, title: "Plate boundary evidence", description: "Use geological evidence to compare convergent and divergent boundaries.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null }],
+        placementCheck: { status: "skipped", completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] } },
       sessions: [{
         id: "66000000-0000-4000-8000-000000000011",
         sequence: 1,
@@ -2954,18 +2970,13 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
   await planCard.getByRole("button", { name: "Open goal" }).click();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
 
-  const adjustmentPanel = page.locator(".plan-adjustment-panel");
-  const futureWindow = adjustmentPanel.getByRole("combobox", { name: "Future session window" });
-  // The first runnable row is a five-minute scheduled review. The adjustment
-  // control must take its default from ordinary content, not that review.
-  await expect(futureWindow).toHaveValue("25");
-  await expect(adjustmentPanel).toContainText(
-    "1 scheduled review keeps the original duration, concept, and return time.",
-  );
-  await futureWindow.selectOption("15");
-  await adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" }).click();
-
-  await expect(adjustmentPanel).toHaveCount(0);
+  const adjustmentPanel = page.getByRole("region", { name: "Plan change preview" });
+  await adjustmentPanel.getByLabel("Change type").selectOption("attach_source");
+  await adjustmentPanel.getByLabel("Source URL").fill("https://example.com/plate-boundary-notes");
+  await adjustmentPanel.getByRole("button", { name: "Preview source attachment" }).click();
+  await expect(adjustmentPanel).toContainText("Study this source, then practice");
+  await adjustmentPanel.getByRole("button", { name: "Confirm changes" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
   await expect.poll(() => page.evaluate(() => {
     const stored = window.localStorage.getItem("yova.preview.v1");
     if (!stored) return null;
@@ -3025,14 +3036,9 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
     },
     ordinary: [{
       sequence: 2,
-      estimatedMinutes: 15,
+      estimatedMinutes: 45,
       status: "upcoming",
-      originSessionId: "66000000-0000-4000-8000-000000000012",
-    }, {
-      sequence: 3,
-      estimatedMinutes: 15,
-      status: "upcoming",
-      originSessionId: "66000000-0000-4000-8000-000000000012",
+      originSessionId: undefined,
     }],
   });
 
@@ -3040,8 +3046,10 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
   await expect(timeline).toContainText("Verify the mantle-convection relationship");
   await expect(timeline.locator(".timeline-row").filter({ hasText: "Verify the mantle-convection relationship" }))
     .toContainText("5 min");
-  await expect(timeline.locator(".timeline-row").filter({ hasText: "Apply evidence at contrasting plate boundaries" }))
-    .toHaveCount(2);
+  expect(await page.evaluate(() => {
+    const plan = JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.find((item: LearningPlan) => item.title === "Plate Boundary Evidence Plan");
+    return plan.knowledgeMap.topics[0].attachedSources;
+  })).toEqual([{ url: "https://example.com/plate-boundary-notes" }]);
 });
 
 test("scheduled-review setup stays fixed and opens the exact active or Study Now goal", async ({ page }) => {
@@ -3206,12 +3214,15 @@ test("scheduled-review setup stays fixed and opens the exact active or Study Now
   await page.getByRole("button", { name: "Open the goal instead" }).click();
   await expect(page.locator(".tabs").getByRole("button", { name: /^Recent/ })).toHaveClass(/active/);
   await expect(page.getByRole("heading", { name: "Study Now Osmosis Practice" })).toBeVisible();
-  await expect(page.getByLabel("Add source materials")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add file or link", exact: true })).toBeVisible();
   await expect(page.getByText("osmosis-notes.txt", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Change the plan without losing progress" })).toBeVisible();
-  await expect(page.getByText("1 scheduled review keeps the original duration, concept, and return time.", { exact: false })).toBeVisible();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Review your changes" })).toBeVisible();
+  // The editor changed; the saved review contract did not. Assert the actual
+  // protected review instead of relying on a removed explanatory sentence.
+  const savedReview = await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.find((plan: { title: string }) => plan.title === "Study Now Osmosis Practice").sessions.find((session: { reviewType?: string }) => Boolean(session.reviewType)));
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.find((plan: { title: string }) => plan.title === "Study Now Osmosis Practice").sessions.find((session: { reviewType?: string }) => Boolean(session.reviewType)))).toEqual(savedReview);
 
   await page.getByRole("button", { name: "Start next session" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -3314,53 +3325,56 @@ test("a normal conceptual plan visibly moves from Learn to later Practice and co
   expect(activatedRoutes.every((session) => session.lifecycle === "committed")).toBe(true);
 });
 
-test("map revision cannot activate a stale draft and fresh placement uses the revised map", async ({ page }) => {
+test("map revision cannot activate a stale draft and reviewed starting level preserves placement", async ({ page }) => {
+  await freezePlanClock(page);
   let releaseUpdate: (() => void) | undefined;
   let updateStarted = false;
   let activated = 0;
-  let revisedMap: LearningPlan["knowledgeMap"];
-  const diagnosticMaps: unknown[] = [];
+  let previewBody: { proposal: { after: LearningPlan; before: LearningPlan } } | undefined;
+  let diagnosticRequests = 0;
   page.on("request", request => {
     if (new URL(request.url()).pathname === "/api/plans/activate") activated += 1;
+    if (request.url().includes("/api/plans/generate?mode=diagnostic")) diagnosticRequests += 1;
   });
-  await page.route("**/api/plans/generate*", async route => {
-    const url = new URL(route.request().url());
+  await page.route("**/api/plans/adjust", async route => {
     const input = route.request().postDataJSON();
-    if (url.searchParams.get("mode") === "diagnostic") diagnosticMaps.push(input.knowledgeMap);
-    if (input.mapCorrection && url.searchParams.get("mode") !== "diagnostic") {
+    if (input.action === "preview" && !updateStarted) {
       updateStarted = true;
       await new Promise<void>(resolve => { releaseUpdate = resolve; });
-      const response = await route.fetch();
-      const body = await response.json();
-      revisedMap = body.plan.knowledgeMap;
-      await route.fulfill({ response, json: body });
+      const response = await route.fetch(); previewBody = await response.json();
+      await route.fulfill({ response, json: previewBody });
     } else await route.continue();
   });
-  await createPreviewAccount(page);
-  await completeOnboarding(page);
-  await beginPlanFromAdd(page, "Build me a plan to understand cellular respiration from scratch.");
+  await createPreviewAccount(page); await completeOnboarding(page);
+  await beginPlanFromAdd(page, "Build me a plan to understand cellular respiration from scratch in three weeks.");
   await page.getByRole("button", { name: "45 minutes", exact: true }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
   await expect(page.getByText("Plan ready", { exact: true })).toBeVisible({ timeout: 30_000 });
-  await page.getByLabel("Requested topic map change").fill("Include a comparison of aerobic and anaerobic respiration.");
-  await page.getByRole("button", { name: "Update map and plan" }).click();
+  const priorDiagnostics = diagnosticRequests;
+  await page.getByRole("button", { name: "Change content", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Plan change preview" });
+  await panel.getByLabel("Topic title", { exact: true }).fill("Fermentation comparison");
+  await panel.getByLabel("What should this topic cover?").fill("Compare fermentation with aerobic respiration after glycolysis.");
+  await panel.getByRole("button", { name: "Preview change", exact: true }).click();
   await expect.poll(() => updateStarted).toBe(true);
   try {
     await expect(page.getByRole("button", { name: "Use this plan" })).toBeDisabled();
-    for (const name of ["Change content", "Change source", "Change schedule", "Change starting level"]) {
-      await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
-    }
+    for (const name of ["Change content", "Change source", "Change schedule", "Change starting level"]) await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
     expect(activated).toBe(0);
   } finally { releaseUpdate?.(); }
-  await expect(page.getByRole("status").filter({ hasText: "Map updated:" })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: "Change starting level" }).click();
-  await expect(page.getByRole("button", { name: "Skip for now" })).toBeVisible({ timeout: 30_000 });
-  expect(diagnosticMaps.length).toBe(2);
-  expect((diagnosticMaps[1] as NonNullable<LearningPlan["knowledgeMap"]>).topics.map(topic => topic.id))
-    .toEqual(revisedMap?.topics.map(topic => topic.id));
+  await expect(panel.getByRole("button", { name: "Confirm changes" })).toBeEnabled();
+  await panel.getByRole("button", { name: "Confirm changes" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
+  expect(previewBody!.proposal.after.knowledgeMap!.placementCheck).toEqual(previewBody!.proposal.before.knowledgeMap!.placementCheck);
+  await page.getByRole("button", { name: "Change starting level", exact: true }).click();
+  await expect(panel.getByLabel("Change type")).toHaveValue("mark_covered");
+  await expect(page.getByRole("button", { name: "Use this plan" })).toBeDisabled();
+  expect(diagnosticRequests).toBe(priorDiagnostics);
   expect(activated).toBe(0);
+  await panel.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Use this plan" })).toBeEnabled();
 });
 
 test("normal-plan review changes one offered method without regenerating or rewriting other routes", async ({ page }) => {
@@ -3755,11 +3769,13 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await expect(planContract).toContainText("YOUR SCHEDULE");
   await expect(page.locator(".generated-session-focus").first()).toContainText("Focus:");
   await page.getByRole("button", { name: "Change schedule" }).click();
-  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Skip for now" }).click();
-  await page.getByRole("button", { name: "Generate my plan" }).click();
-  await expect(page.getByText("Plan ready")).toBeVisible();
+  const schedulePreview = page.getByRole("region", { name: "Plan change preview" });
+  await expect(schedulePreview.getByLabel("Change type")).toHaveValue("set_availability");
+  await schedulePreview.getByLabel("Day", { exact: true }).selectOption("Sunday");
+  await schedulePreview.getByLabel("Time window", { exact: true }).fill("20:00–21:00");
+  await schedulePreview.getByRole("button", { name: "Preview change", exact: true }).click();
+  await schedulePreview.getByRole("button", { name: "Confirm changes" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
   const reviewedMethods = (await page.locator(
     ".generated-timeline article > div > p:not(.generated-session-focus)",
   ).allTextContents()).map((method) => method.trim());
@@ -3808,14 +3824,21 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   const initialSessionCount = await page.locator(".timeline-row").count();
   expect(initialSessionCount).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
-  await expect(page.getByText(/Time controls the size of each content slice/)).toBeVisible();
-  await page.getByRole("combobox", { name: /Future session window/ }).selectOption("15");
-  await page.getByRole("button", { name: "Approve and rebuild plan" }).click();
-
-  await expect.poll(async () => page.locator(".timeline-row").count()).toBeGreaterThan(initialSessionCount);
+  const activePreview = page.getByRole("region", { name: "Plan change preview" });
+  await activePreview.getByLabel("Change type").selectOption("set_availability");
+  const kept = activePreview.getByRole("checkbox", { name: /^Keep existing window/ });
+  for (let index = 0; index < await kept.count(); index += 1) await kept.nth(index).uncheck();
+  await activePreview.getByLabel("Day", { exact: true }).selectOption("Thursday");
+  await activePreview.getByLabel("Time window", { exact: true }).fill("18:00–18:15");
+  await activePreview.getByLabel("Minutes", { exact: true }).fill("15");
+  await activePreview.getByRole("button", { name: "Preview change", exact: true }).click();
+  // Capacity across the fixed deadline is explicit. An impossible reduction
+  // keeps the current plan and offers the existing degrade choices.
+  await expect(activePreview).toContainText(/Move a block|Shorten scope|Add time/);
+  await expect(activePreview.getByRole("button", { name: "Confirm changes" })).toBeDisabled();
+  await activePreview.getByRole("button", { name: "Cancel", exact: true }).click();
   const adjustedDurations = await page.locator(".timeline-row > span:last-child").allTextContents();
-  expect(adjustedDurations.length).toBeGreaterThan(initialSessionCount);
-  expect(adjustedDurations.every((duration) => Number.parseInt(duration, 10) <= 15)).toBe(true);
+  expect(adjustedDurations).toHaveLength(initialSessionCount);
   const planClock = await page.evaluate(() => {
     const snapshot = JSON.parse(window.localStorage.getItem("yova.preview.v1")!) as { plans: LearningPlan[] };
     const plan = snapshot.plans.at(-1)!;
@@ -4072,9 +4095,24 @@ async function rebuildLatestStudyNowPlanForMinutes(page: Page, minutes: number) 
   await latestPlan.getByRole("button", { name: "Open goal" }).click();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
 
-  const adjustmentPanel = page.locator(".plan-adjustment-panel");
-  await adjustmentPanel.getByRole("combobox", { name: "Future session window" }).selectOption(String(minutes));
-  await adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" }).click();
+  const adjustmentPanel = page.getByRole("region", { name: "Plan change preview" });
+  await adjustmentPanel.getByLabel("Change type").selectOption("set_availability");
+  const savedWindow = await page.evaluate(() => {
+    const plan = JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.at(-1);
+    if (plan.schedulePreferences?.availability?.[0]) return plan.schedulePreferences.availability[0];
+    const start = new Date(plan.sessions[0].scheduledFor);
+    const end = new Date(start.getTime() + 60 * 60_000);
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const time = (date: Date) => date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
+    return { day: start.toLocaleDateString("en-US", { weekday: "long", timeZone }), window: `${time(start)}–${time(end)}` };
+  });
+  const kept = adjustmentPanel.getByRole("checkbox", { name: /^Keep existing window/ });
+  for (let index = 0; index < await kept.count(); index += 1) await kept.nth(index).uncheck();
+  await adjustmentPanel.getByLabel("Day", { exact: true }).selectOption(savedWindow.day);
+  await adjustmentPanel.getByLabel("Time window", { exact: true }).fill(savedWindow.window);
+  await adjustmentPanel.getByLabel("Minutes", { exact: true }).fill(String(minutes));
+  await adjustmentPanel.getByRole("button", { name: "Preview change", exact: true }).click();
+  await adjustmentPanel.getByRole("button", { name: "Confirm changes" }).click();
   await expect(adjustmentPanel).toHaveCount(0);
   await page.getByRole("button", { name: "Start next session", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();

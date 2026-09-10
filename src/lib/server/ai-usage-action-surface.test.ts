@@ -61,9 +61,9 @@ describe("AI usage action API surface", () => {
       .map(({ file }) => file))
       .toEqual(["materials/route.ts"]);
 
+    expect(routeSources.find(({ file }) => file === "materials/attach/route.ts")?.source).toContain("plan_revision_preview_required");
     for (const route of [
       "materials/link/route.ts",
-      "materials/attach/route.ts",
       "plans/generate/route.ts",
     ]) {
       expect(routeSources.find(({ file }) => file === route)?.source)

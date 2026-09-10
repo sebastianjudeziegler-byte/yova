@@ -1,0 +1,85 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = extensions, public, pg_catalog;
+select extensions.plan(24);
+
+insert into auth.users(id,email) values ('b1000000-0000-4000-8000-000000000001','living-plan-boundary@example.com');
+insert into public.learning_items(id,user_id,title,kind,topic,source_mode,study_mode)
+values ('b1000000-0000-4000-8000-000000000002','b1000000-0000-4000-8000-000000000001','AP Biology','topic','AP Biology','yova_generated','inside_yova');
+insert into public.plans(id,user_id,learning_item_id,rationale,knowledge_map,generation_inputs)
+values ('b1000000-0000-4000-8000-000000000003','b1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000002','Preserve completed biology work.',
+  '{"version":1,"topics":[{"id":"b1000000-0000-4000-8000-000000000004","title":"Water polarity","description":"Explain partial charges in water molecules.","status":"not_started","initialEvidence":null}],"placementCheck":{"status":"skipped","completedAt":null,"demonstratedTopicIds":[],"gapTopicIds":[]}}', '{}');
+insert into public.plan_sessions(id,user_id,plan_id,sequence,title,objective,method,method_rationale,estimated_minutes,status,step_data)
+values ('b1000000-0000-4000-8000-000000000005','b1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000003',1,'Completed respiration','Explain cellular respiration','Feynman Technique','Explain the connections.',25,'complete','{"learnerWork":"Keep my completed explanation"}');
+
+create temporary table before_completed as select to_jsonb(s) as row from public.plan_sessions s where id='b1000000-0000-4000-8000-000000000005';
+create temporary table revision_payload as select jsonb_build_object(
+  'operationId','b1000000-0000-4000-8000-000000000006', 'planId',p.id,
+  'expectedRevisionId',coalesce(to_jsonb(p)->>'current_revision_id',p.id::text),
+  'revisionId','b1000000-0000-4000-8000-000000000006',
+  'expectedMap',p.knowledge_map,
+  'knowledgeMap',jsonb_set(p.knowledge_map,'{topics,0,initialEvidence}','{"source":"learner_report","outcome":"covered_elsewhere","checked":false}'),
+  'deadline',null, 'generationRequest','{}'::jsonb,'sessions','[]'::jsonb,'fixedEvents','[]'::jsonb,
+  'proposal',jsonb_build_object('id','b1000000-0000-4000-8000-000000000006'),
+  'receipt',jsonb_build_object('message','Practice Water polarity; everything else unchanged.')
+) as payload from public.plans p where id='b1000000-0000-4000-8000-000000000003';
+
+create function pg_temp.attempt_revision(payload jsonb) returns text language plpgsql as $$
+begin
+  execute 'select public.apply_plan_revision($1,$2)' using 'b1000000-0000-4000-8000-000000000001'::uuid,payload;
+  return 'saved';
+exception when others then return sqlstate;
+end $$;
+select set_config('request.jwt.claim.sub','b1000000-0000-4000-8000-000000000001',true);
+select extensions.is(pg_temp.attempt_revision(payload),'saved','the reviewed declaration saves without rewriting completed work') from revision_payload;
+select extensions.is((select knowledge_map#>>'{topics,0,initialEvidence,outcome}' from public.plans where id='b1000000-0000-4000-8000-000000000003'),'covered_elsewhere','the topic displays learned-elsewhere coverage');
+select extensions.is((select knowledge_map#>>'{topics,0,status}' from public.plans where id='b1000000-0000-4000-8000-000000000003'),'not_started','the report does not become evidenced knowledge');
+select extensions.is((select to_jsonb(s) from public.plan_sessions s where id='b1000000-0000-4000-8000-000000000005'),(select row from before_completed),'completed session and learner work remain byte-identical');
+select extensions.is(pg_temp.attempt_revision(payload),'saved','an exact lost-response retry acknowledges the same save') from revision_payload;
+select extensions.is(pg_temp.attempt_revision(jsonb_set(payload,'{operationId}','"b1000000-0000-4000-8000-000000000007"')),'40001','an obsolete preview cannot overwrite the saved revision') from revision_payload;
+select extensions.ok(coalesce((select not has_function_privilege('authenticated',p.oid,'execute') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='apply_plan_revision'),false),'a browser cannot submit arbitrary rebuilt sessions to the database');
+select extensions.ok(coalesce((select has_function_privilege('service_role',p.oid,'execute') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='apply_plan_revision'),false),'only the signing server can submit an accepted patch');
+select extensions.ok(coalesce((select not has_table_privilege('authenticated',c.oid,'insert,update,delete') from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname='plan_revisions'),false),'revision history cannot be forged by a browser');
+select extensions.is((select knowledge_map->'placementCheck' from public.plans where id='b1000000-0000-4000-8000-000000000003'),(select payload#>'{expectedMap,placementCheck}' from revision_payload),'the placement ledger remains unchanged');
+insert into public.plans(id,user_id,learning_item_id,rationale,knowledge_map,generation_inputs)
+values ('b1000000-0000-4000-8000-000000000009','b1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000002','Keep the accepted draft revision.', '{}', '{"planRevisionId":"b1000000-0000-4000-8000-000000000010"}');
+select extensions.is((select to_jsonb(p)->>'current_revision_id' from public.plans p where id='b1000000-0000-4000-8000-000000000009'),'b1000000-0000-4000-8000-000000000010','activation retains the accepted draft revision for the next preview');
+insert into public.plan_sessions(id,user_id,plan_id,sequence,title,objective,method,method_rationale,estimated_minutes,status,step_data)
+values ('b1000000-0000-4000-8000-000000000012','b1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000003',2,'Undone added session','Removed by Undo','Feynman Technique','This row retains route history.',25,'skipped','{"revisionRetired":true}');
+select extensions.ok(not exists(select 1 from jsonb_array_elements(public.read_plan_revision_context('b1000000-0000-4000-8000-000000000003')->'plan'->'sessions') s where s->>'id'='b1000000-0000-4000-8000-000000000012'),'a session removed by Undo does not reappear in the learner plan after reload');
+-- Use an already claimed, owner-bound export as required by the existing API.
+select set_config('request.jwt.claims','{"sub":"b1000000-0000-4000-8000-000000000001","session_id":"b1000000-0000-4000-8000-000000000013"}',true);
+insert into public.account_data_exports(id,user_id,session_id,status,temp_storage_path,final_storage_path,prepare_expires_at)
+values('b1000000-0000-4000-8000-000000000014','b1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000013','finalizing',
+'b1000000-0000-4000-8000-000000000001/b1000000-0000-4000-8000-000000000014/device-state.json',
+'b1000000-0000-4000-8000-000000000001/b1000000-0000-4000-8000-000000000014/yova-data.json',now()+interval '10 minutes');
+select extensions.is(jsonb_array_length(public.export_yova_account_data()->'planRevisions'),1,'the learner account export includes their saved plan revision receipt');
+select extensions.ok(not has_function_privilege('authenticated','public.adjust_learning_plan_with_routes(jsonb)','execute'),'the browser cannot bypass reviewed deltas through the retired wholesale adjustment RPC');
+select extensions.ok(not has_function_privilege('authenticated','public.attach_materials_to_plan(jsonb)','execute'),'the browser cannot bypass a topic preview through the retired material attachment RPC');
+insert into public.material_uploads(id,user_id,filename,storage_path,mime_type,byte_size,processing_status,extracted_text,expires_at)
+values ('b1000000-0000-4000-8000-000000000015','b1000000-0000-4000-8000-000000000001','Water notes.txt','b1000000-0000-4000-8000-000000000001/b1000000-0000-4000-8000-000000000015/notes.txt','text/plain',100,'ready','Water has partial charges.',now()+interval '1 hour');
+create temporary table source_payload as select payload || jsonb_build_object(
+  'operationId','b1000000-0000-4000-8000-000000000016','revisionId','b1000000-0000-4000-8000-000000000016',
+  'expectedRevisionId',p.current_revision_id,'expectedMap',p.knowledge_map,
+  'knowledgeMap',jsonb_set(p.knowledge_map,'{topics,0,attachedSources}','[{"material_id":"b1000000-0000-4000-8000-000000000015"}]'),
+  'generationRequest',jsonb_build_object('materials',jsonb_build_array(jsonb_build_object('id','b1000000-0000-4000-8000-000000000015')))
+) as payload from revision_payload cross join public.plans p where p.id='b1000000-0000-4000-8000-000000000003';
+select extensions.is(pg_temp.attempt_revision(payload),'saved','a verified source promotes atomically with the topic attachment') from source_payload;
+select extensions.is((select filename from public.materials where id='b1000000-0000-4000-8000-000000000015'),'Water notes.txt','the learner can reopen the attached source by name');
+select extensions.is((select count(*)::integer from public.material_uploads where id='b1000000-0000-4000-8000-000000000015'),0,'the attached file no longer expires as a staged upload');
+select extensions.is((select to_jsonb(s) from public.plan_sessions s where id='b1000000-0000-4000-8000-000000000005'),(select row from before_completed),'source attachment keeps completed work exact');
+select extensions.ok(not exists(select 1 from public.private_storage_cleanup_receipts where source_material_id='b1000000-0000-4000-8000-000000000015'),'promotion does not schedule deletion of the newly attached file');
+create temporary table undone_source_payload as select payload || jsonb_build_object(
+  'operationId','b1000000-0000-4000-8000-000000000017','revisionId','b1000000-0000-4000-8000-000000000006',
+  'expectedRevisionId',p.current_revision_id,'expectedMap',p.knowledge_map,
+  'knowledgeMap',payload->'expectedMap','generationRequest','{"materialMode":"none","materials":[]}'::jsonb
+) as payload from source_payload cross join public.plans p where p.id='b1000000-0000-4000-8000-000000000003';
+select extensions.is(pg_temp.attempt_revision(payload),'saved','Undo saves the earlier topic source list') from undone_source_payload;
+select extensions.is(jsonb_array_length(public.read_plan_revision_context('b1000000-0000-4000-8000-000000000003')#>'{plan,materials}'),0,'the undone source stays absent from the restored plan after server reload');
+select extensions.is((select count(*)::integer from public.materials where id='b1000000-0000-4000-8000-000000000015'),1,'Undo retains the private file for the learner instead of deleting it');
+-- Exercise the inner activation writer used by the permit/route wrapper; its
+-- historical ACL remains closed to clients, so this fixture runs as postgres.
+select public.save_generated_plan('{"id":"b1000000-0000-4000-8000-000000000020","learningItemId":"b1000000-0000-4000-8000-000000000021","title":"Reviewed draft","topic":"Water polarity","kind":"topic","sourceMode":"yova_generated","studyMode":"inside_yova","status":"active","rationale":"Retain the chosen time and duration on activation.","sessions":[{"id":"b1000000-0000-4000-8000-000000000022","sequence":1,"title":"Practice water polarity","objective":"Explain partial charges.","method":"Feynman Technique","methodReason":"Use my worked example.","scheduledFor":"2030-06-03T15:00:00.000Z","estimatedMinutes":15,"status":"upcoming","amountLabel":"One explanation","learningMode":"study","revisionEditedFields":["scheduledFor","estimatedMinutes"]}]}'::jsonb);
+select extensions.is((select step_data->'revisionEditedFields' from public.plan_sessions where id='b1000000-0000-4000-8000-000000000022'),'["scheduledFor","estimatedMinutes"]'::jsonb,'draft activation retains reviewed time and duration protections');
+select * from extensions.finish();
+rollback;

@@ -726,7 +726,8 @@ export function CalendarScreen(props: CalendarScreenProps) {
   const overdueEntry = availableEntries.find(({ session }) => (
     session.status === "ready"
       && session.id !== dismissedRecoverySessionId
-      && isSessionOverdue(session.scheduledFor, now)
+      && (isSessionOverdue(session.scheduledFor, now)
+        || (session.id === completedRecoverySplit?.sessionId && (session.segmentCount ?? 1) > 1))
   )) ?? null;
   const overdueBlock = overdueEntry
     ? model.blocks.find((block): block is Extract<CalendarBlock, { source: "plan_session" }> => (

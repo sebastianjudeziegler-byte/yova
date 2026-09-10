@@ -57,9 +57,20 @@ export function enumeratePlanAvailabilitySlots(
         continue;
       }
 
-      const hour = WINDOW_HOUR[window.window.toLocaleLowerCase()] ?? 17;
-      const date = localDateTimeToUtc(calendarDate, hour, input.timeZone);
-      const windowEnd = date.getTime() + window.minutes * 60_000;
+      const clock = /^(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})$/.exec(window.window.trim());
+      const clockParts = clock?.slice(1).map(Number);
+      const validClock = clockParts && clockParts[0]! < 24 && clockParts[1]! < 60 && clockParts[2]! < 24 && clockParts[3]! < 60;
+      const hour = validClock ? clockParts[0]! : WINDOW_HOUR[window.window.toLocaleLowerCase()] ?? 17;
+      const minute = validClock ? clockParts[1]! : 0;
+      const date = localDateTimeToUtc(calendarDate, hour, input.timeZone, minute);
+      const requestedEnd = date.getTime() + window.minutes * 60_000;
+      // Explicit preview ranges are real boundaries. Named legacy windows keep
+      // their established start and requested budget.
+      const rangeEnd = validClock ? localDateTimeToUtc(
+        clockParts[2]! * 60 + clockParts[3]! <= hour * 60 + minute ? addCalendarDays(calendarDate, 1) : calendarDate,
+        clockParts[2]!, input.timeZone, clockParts[3]!,
+      ).getTime() : requestedEnd;
+      const windowEnd = Math.min(requestedEnd, rangeEnd);
       const exactEnd = deadline === null ? windowEnd : Math.min(windowEnd, deadline);
       const startsAt = Math.max(date.getTime(), now.getTime());
       const minutes = Math.floor((exactEnd - startsAt) / 60_000);
@@ -175,8 +186,8 @@ function weekdayForCalendarDate(date: CalendarDate) {
   }).format(new Date(Date.UTC(date.year, date.month - 1, date.day, 12)));
 }
 
-function localDateTimeToUtc(date: CalendarDate, hour: number, timeZone: string) {
-  const initialGuess = Date.UTC(date.year, date.month - 1, date.day, hour);
+function localDateTimeToUtc(date: CalendarDate, hour: number, timeZone: string, minute = 0) {
+  const initialGuess = Date.UTC(date.year, date.month - 1, date.day, hour, minute);
   const observed = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hourCycle: "h23",

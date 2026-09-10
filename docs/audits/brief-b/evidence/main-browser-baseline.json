@@ -1,0 +1,1598 @@
+{
+  "commit": "c7b3ca99964524cefc04437b7236b37fe8fe2666",
+  "run": 34392578535,
+  "job": 102604285761,
+  "source": "Completed Actions job log, ordinary browser step; 265 passing named results",
+  "rows": [
+    {
+      "file": "accessibility-regression.spec.ts",
+      "name": "the initial HTML provides useful public content without waiting for JavaScript",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "accessibility-regression.spec.ts",
+      "name": "form placeholder text keeps AA contrast on public surfaces",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "accessibility-regression.spec.ts",
+      "name": "Ask YOVA history traps focus, closes on Escape, and restores its trigger",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "accessibility-regression.spec.ts",
+      "name": "primary authenticated screens have no serious WCAG A/AA Axe violations",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "account-security.spec.ts",
+      "name": "makes account personalization visible, editable, persistent, and mobile-safe",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "account-security.spec.ts",
+      "name": "explains the self-service export scope and the downloaded-copy boundary",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "account-security.spec.ts",
+      "name": "clears signed-in UI after confirmed sign-out even when preview storage removal throws",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "a deadline can live in Calendar, be completed, and stay out of Learning",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "an overdue standalone deadline remains reachable and actionable",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "an outside assignment routes to one outside-YOVA session",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "a multi-session assignment skips an irrelevant knowledge quiz",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "speech and presentation plans bypass placement and use artifact-aware modes",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "general learning stays deadline-free until the user chooses otherwise",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "a timed product-rule request becomes a specific one-off session",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "an unfinished one-off session stays out of ongoing Learning goals",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "one account never sees another account's deadline",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "agenda-scheduling.spec.ts",
+      "name": "Calendar refuses unchanged and past custom session times",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "two simultaneous tabs preserve both new events and each tab refreshes",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "a stale event edit cannot overwrite the other tab and the draft remains available",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "Quick Add preserves weekdays, explicit dates and exam clocks",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "a deadline can be saved without inventing a study block and corrected later",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "manual events support full keyboard-editable fields and immediate undo",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "details stay visible and focused, and Escape returns focus to the selected block",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "overlapping commitments have distinct clickable lanes and a named conflict",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "full-day grid includes early, late and overnight work on the correct days",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "all deadlines can be searched, inspected and reached beyond the visible week",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "the inline suggestion Move action opens its editor",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "approved adjustments respect zero capacity and fixed commitments and disclose their destination",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "manual workload is included in adjustment totals and has a useful Move action",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "Add recognizes the communications timetable and saves a lasting Monday/Wednesday series",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "every two days supports a finite occurrence count and stops on the right date",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "one occurrence can move, be cancelled and be restored without changing the series",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "the whole series can be edited and deleted with one undoable action",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "missing times and unsupported patterns stay editable instead of saving a guessed schedule",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "the class keeps 11:30 local time after daylight saving ends",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "moving an occurrence to a different month keeps its details in view",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "moving an item into a future recurring class detects the conflict beyond the current week",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "concurrent edits to a recurring series preserve the second tab's unsaved draft",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-safety.spec.ts",
+      "name": "a failed browser save keeps the draft and retry creates one event",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-safety.spec.ts",
+      "name": "an adjustment is rechecked when another tab changes destination availability",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-safety.spec.ts",
+      "name": "completion can be undone without closing the event details",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-safety.spec.ts",
+      "name": "visual review of Agenda, event editor and overlapping Week blocks",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "Calendar exposes Week and Agenda surfaces with bounded keyboard navigation",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "quick add confirms its interpretation, persists by account, and can be undone",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "quick add clamps an overlong title before confirmation and persists without crashing",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "exiting a quick-add plan draft returns to Calendar without losing or duplicating the manual deadline",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-in time adjustment stay connected",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "Calendar Start opens the exact ready session and fails closed on an ambiguous legacy plan",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "a future overloaded-day issue edits only that date's availability",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "learner-owned blocks resize and suggested moves become pinned only after approval",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "canonical-study-profile.spec.ts",
+      "name": "YOVA canonical Study Profile › builds the canonical 11-question profile, imports it into an account, and skips duplicate onboarding",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "canonical-study-profile.spec.ts",
+      "name": "YOVA canonical Study Profile › restores only a valid saved canonical draft",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "canonical-study-profile.spec.ts",
+      "name": "YOVA canonical Study Profile › finishes safely and explains the fallback when browser storage is unavailable",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "canonical-study-profile.spec.ts",
+      "name": "YOVA canonical Study Profile › exposes semantic progress, pressed choices, and predictable keyboard focus",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "canonical-study-profile.spec.ts",
+      "name": "YOVA canonical Study Profile › keeps landing, questionnaire, and summary inside narrow mobile viewports",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Study Now lets the learner review and safely choose an eligible method before activation",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Study Now discloses omitted scope before starting and lets the learner change time",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "durable allowance exhaustion loads the committed method workpad and names the reset",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "durable allowance exhaustion without a safe fallback has its own non-retryable state",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "streamed lesson quota uses its built-in explanation and surfaces the reset",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a confident misconception is repaired now without a duplicate follow-up",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a support request keeps the committed practice recipe when fallback generation fails",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an inactive-plan generation response cannot open a stale built-in lesson",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a visibly shortened inside recipe keeps its method in the fallback workpad",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a built-in fallback never ignores a learner's custom session requirement",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a new topic is taught before YOVA asks for independent performance",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a World War I beginner receives real teaching and a direct model answer",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an opaque class label is stopped until the learner names the actual calculus concept",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a teaching-first inside outage does not start with unsupported recall",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a temporary AI failure loads a subject-specific startup funding lesson",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "home lets the learner browse prioritized recommendations without opening every plan",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "outside study gives a concrete source-based session instead of pretending YOVA owns the content",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an arbitrary outside method workpad completes as practice without changing topic evidence",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a fallback method workpad resumes its timer and checked targets after reload",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a 10-minute outside teaching-first session loads its built-in method lesson",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue outside teaching-first session splits into runnable 10-minute parts",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "the backend rejects an opaque goal even when the browser guard is bypassed",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "plan generation remains a draft until the learner activates it",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a learner can stop twice without losing progress or earlier evidence",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a lesson and its reopened model teach every fact required by the glycolysis recall check",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a resumed streamed question can reopen its prior lesson by persisted activity index",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a refresh recovers semantic progress without saving draft answers or inventing an interruption",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a saved first-step recall round resumes at the next prompt without persisting draft text",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "learner text fields keep long pastes visible and block submission until trimmed",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Calendar Agenda stays first and contained at a 375px viewport",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "spent guided-session allowance is visible before Home or Calendar opens setup",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "spent allowance still permits a saved session to continue",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "the product shell keeps every core destination and creation path usable",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Ask YOVA turns structured explanations and math into readable interface content",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "the session tutor stays anchored to the exact learning activity",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a planning request outage still produces a reviewable plan from YOVA's saved inputs",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "legacy split work reopens as an active plan with runnable ten-minute sessions",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "finishing a shortened guided lesson keeps every deferred target as exact next work",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "adjusting ordinary future work preserves the exact scheduled review contract",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "map revision cannot activate a stale draft and fresh placement uses the revised map",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "normal-plan review changes one offered method without regenerating or rewriting other routes",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "session setup changes one committed method and generates from its exact successor route",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a multi-session plan carries one clear source decision from Add to Learning",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "archived, draft, and deleted-plan projections stay out of current-work surfaces",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "material setup clearly supports files, articles, and YouTube transcripts",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "material drop zone accepts drag gestures and explains rejected files",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "personalization.spec.ts",
+      "name": "the canonical profile is visible, correctable, persistent, and experiment-free",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "explicit 1-minute availability remains a priority card",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "explicit 3-minute availability remains a priority card",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "explicit 5-minute availability remains a priority card",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "explicit 9-minute availability remains a priority card",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "consolidated: a 1-day deadline survives placement, plan review and activation",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "consolidated: a 3-day deadline survives placement, plan review and activation",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "consolidated: a three-minute priority records no completion",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "a natural deadline and an edited date survive every schedule control",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "explicit study days survive intake and later time changes",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "a historical topic date cannot override the learner's real deadline",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "shorter sessions preserve weekly availability and explain insufficient time",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "an overfull plan returns to its schedule and recovers without a client crash",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "changing the goal through Back replaces the old placement map",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile-report-compatibility.spec.ts",
+      "name": "YOVA Study Profile private report compatibility › keeps report credentials server-side until email confirmation",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile-report-compatibility.spec.ts",
+      "name": "YOVA Study Profile private report compatibility › keeps unknown-token failures generic through the API and report route",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › requires waitlist confirmation before revealing any report",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › opens a bound report only after explicit waitlist confirmation",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › keeps results locked when report creation fails",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › uses a generic not-found screen for an unknown private token",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › requires an explicit POST to confirm a fragment-only waitlist token",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › routes public Study Profile support and privacy requests to hello@yovaapp.com",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › keeps working when browser storage is unavailable",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › clears expired, future-dated, and timestamp-free browser drafts",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › exposes semantic 14-step progress and dynamic radio keyboard help",
+      "project": "desktop-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "accessibility-regression.spec.ts",
+      "name": "the initial HTML provides useful public content without waiting for JavaScript",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "accessibility-regression.spec.ts",
+      "name": "form placeholder text keeps AA contrast on public surfaces",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "accessibility-regression.spec.ts",
+      "name": "Ask YOVA history traps focus, closes on Escape, and restores its trigger",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "accessibility-regression.spec.ts",
+      "name": "primary authenticated screens have no serious WCAG A/AA Axe violations",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "account-security.spec.ts",
+      "name": "makes account personalization visible, editable, persistent, and mobile-safe",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "account-security.spec.ts",
+      "name": "explains the self-service export scope and the downloaded-copy boundary",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "account-security.spec.ts",
+      "name": "clears signed-in UI after confirmed sign-out even when preview storage removal throws",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "a deadline can live in Calendar, be completed, and stay out of Learning",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "an overdue standalone deadline remains reachable and actionable",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "an outside assignment routes to one outside-YOVA session",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "a multi-session assignment skips an irrelevant knowledge quiz",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "speech and presentation plans bypass placement and use artifact-aware modes",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "general learning stays deadline-free until the user chooses otherwise",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "a timed product-rule request becomes a specific one-off session",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "an unfinished one-off session stays out of ongoing Learning goals",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "one account never sees another account's deadline",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "agenda-scheduling.spec.ts",
+      "name": "Calendar refuses unchanged and past custom session times",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "two simultaneous tabs preserve both new events and each tab refreshes",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "a stale event edit cannot overwrite the other tab and the draft remains available",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "Quick Add preserves weekdays, explicit dates and exam clocks",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "a deadline can be saved without inventing a study block and corrected later",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "manual events support full keyboard-editable fields and immediate undo",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "details stay visible and focused, and Escape returns focus to the selected block",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "overlapping commitments have distinct clickable lanes and a named conflict",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "full-day grid includes early, late and overnight work on the correct days",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "all deadlines can be searched, inspected and reached beyond the visible week",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "the inline suggestion Move action opens its editor",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "approved adjustments respect zero capacity and fixed commitments and disclose their destination",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
+      "name": "manual workload is included in adjustment totals and has a useful Move action",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "Add recognizes the communications timetable and saves a lasting Monday/Wednesday series",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "every two days supports a finite occurrence count and stops on the right date",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "one occurrence can move, be cancelled and be restored without changing the series",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "the whole series can be edited and deleted with one undoable action",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "missing times and unsupported patterns stay editable instead of saving a guessed schedule",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "the class keeps 11:30 local time after daylight saving ends",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "moving an occurrence to a different month keeps its details in view",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "moving an item into a future recurring class detects the conflict beyond the current week",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "concurrent edits to a recurring series preserve the second tab's unsaved draft",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-safety.spec.ts",
+      "name": "a failed browser save keeps the draft and retry creates one event",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-safety.spec.ts",
+      "name": "an adjustment is rechecked when another tab changes destination availability",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-safety.spec.ts",
+      "name": "completion can be undone without closing the event details",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-safety.spec.ts",
+      "name": "visual review of Agenda, event editor and overlapping Week blocks",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "Calendar exposes Week and Agenda surfaces with bounded keyboard navigation",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "quick add confirms its interpretation, persists by account, and can be undone",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "quick add clamps an overlong title before confirmation and persists without crashing",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "exiting a quick-add plan draft returns to Calendar without losing or duplicating the manual deadline",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-in time adjustment stay connected",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "Calendar Start opens the exact ready session and fails closed on an ambiguous legacy plan",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "a future overloaded-day issue edits only that date's availability",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "calendar-tab.spec.ts",
+      "name": "learner-owned blocks resize and suggested moves become pinned only after approval",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "canonical-study-profile.spec.ts",
+      "name": "YOVA canonical Study Profile › builds the canonical 11-question profile, imports it into an account, and skips duplicate onboarding",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "canonical-study-profile.spec.ts",
+      "name": "YOVA canonical Study Profile › restores only a valid saved canonical draft",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "canonical-study-profile.spec.ts",
+      "name": "YOVA canonical Study Profile › finishes safely and explains the fallback when browser storage is unavailable",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "canonical-study-profile.spec.ts",
+      "name": "YOVA canonical Study Profile › exposes semantic progress, pressed choices, and predictable keyboard focus",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "canonical-study-profile.spec.ts",
+      "name": "YOVA canonical Study Profile › keeps landing, questionnaire, and summary inside narrow mobile viewports",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Study Now lets the learner review and safely choose an eligible method before activation",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Study Now discloses omitted scope before starting and lets the learner change time",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "durable allowance exhaustion loads the committed method workpad and names the reset",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "durable allowance exhaustion without a safe fallback has its own non-retryable state",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "streamed lesson quota uses its built-in explanation and surfaces the reset",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a confident misconception is repaired now without a duplicate follow-up",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a support request keeps the committed practice recipe when fallback generation fails",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an inactive-plan generation response cannot open a stale built-in lesson",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a visibly shortened inside recipe keeps its method in the fallback workpad",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a built-in fallback never ignores a learner's custom session requirement",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a new topic is taught before YOVA asks for independent performance",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a World War I beginner receives real teaching and a direct model answer",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an opaque class label is stopped until the learner names the actual calculus concept",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a teaching-first inside outage does not start with unsupported recall",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a temporary AI failure loads a subject-specific startup funding lesson",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "home lets the learner browse prioritized recommendations without opening every plan",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "outside study gives a concrete source-based session instead of pretending YOVA owns the content",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an arbitrary outside method workpad completes as practice without changing topic evidence",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a fallback method workpad resumes its timer and checked targets after reload",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a 10-minute outside teaching-first session loads its built-in method lesson",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue outside teaching-first session splits into runnable 10-minute parts",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "the backend rejects an opaque goal even when the browser guard is bypassed",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "plan generation remains a draft until the learner activates it",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a learner can stop twice without losing progress or earlier evidence",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a lesson and its reopened model teach every fact required by the glycolysis recall check",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a resumed streamed question can reopen its prior lesson by persisted activity index",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a refresh recovers semantic progress without saving draft answers or inventing an interruption",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a saved first-step recall round resumes at the next prompt without persisting draft text",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "learner text fields keep long pastes visible and block submission until trimmed",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Calendar Agenda stays first and contained at a 375px viewport",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "spent guided-session allowance is visible before Home or Calendar opens setup",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "spent allowance still permits a saved session to continue",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "the product shell keeps every core destination and creation path usable",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Ask YOVA turns structured explanations and math into readable interface content",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "the session tutor stays anchored to the exact learning activity",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a planning request outage still produces a reviewable plan from YOVA's saved inputs",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "legacy split work reopens as an active plan with runnable ten-minute sessions",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "finishing a shortened guided lesson keeps every deferred target as exact next work",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "adjusting ordinary future work preserves the exact scheduled review contract",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "map revision cannot activate a stale draft and fresh placement uses the revised map",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "normal-plan review changes one offered method without regenerating or rewriting other routes",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "session setup changes one committed method and generates from its exact successor route",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a multi-session plan carries one clear source decision from Add to Learning",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "archived, draft, and deleted-plan projections stay out of current-work surfaces",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "material setup clearly supports files, articles, and YouTube transcripts",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "material drop zone accepts drag gestures and explains rejected files",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "personalization.spec.ts",
+      "name": "the canonical profile is visible, correctable, persistent, and experiment-free",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "explicit 1-minute availability remains a priority card",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "explicit 3-minute availability remains a priority card",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "explicit 5-minute availability remains a priority card",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "explicit 9-minute availability remains a priority card",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "consolidated: a 1-day deadline survives placement, plan review and activation",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "consolidated: a 3-day deadline survives placement, plan review and activation",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "consolidated: a three-minute priority records no completion",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "a natural deadline and an edited date survive every schedule control",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "explicit study days survive intake and later time changes",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "a historical topic date cannot override the learner's real deadline",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "shorter sessions preserve weekly availability and explain insufficient time",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "an overfull plan returns to its schedule and recovers without a client crash",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "changing the goal through Back replaces the old placement map",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile-report-compatibility.spec.ts",
+      "name": "YOVA Study Profile private report compatibility › keeps report credentials server-side until email confirmation",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile-report-compatibility.spec.ts",
+      "name": "YOVA Study Profile private report compatibility › keeps unknown-token failures generic through the API and report route",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › requires waitlist confirmation before revealing any report",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › opens a bound report only after explicit waitlist confirmation",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › keeps results locked when report creation fails",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › uses a generic not-found screen for an unknown private token",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › requires an explicit POST to confirm a fragment-only waitlist token",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › routes public Study Profile support and privacy requests to hello@yovaapp.com",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › keeps every pre-report screen usable on common phone widths",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › keeps working when browser storage is unavailable",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › clears expired, future-dated, and timestamp-free browser drafts",
+      "project": "mobile-chromium",
+      "status": "pass"
+    },
+    {
+      "file": "study-profile.spec.ts",
+      "name": "YOVA Study Profile › exposes semantic 14-step progress and dynamic radio keyboard help",
+      "project": "mobile-chromium",
+      "status": "pass"
+    }
+  ]
+}

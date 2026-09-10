@@ -1,13 +1,9 @@
+import { normalPlanAvailability, normalPlanModeDecisions, type NormalPlanRevisionContext } from "@/lib/plan-generation/normal-plan-revision-context";
 import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-plan-pipeline";
 import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
 import type { InitialPlanMethodRoutingContext } from "@/lib/study-route/initial-plan-method-routing";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import { classifyLearningTask } from "@/lib/learning/method-router";
-import {
-  canonicalizePlanAvailabilitySlots,
-  enumeratePlanAvailabilitySlots,
-} from "@/lib/plan-generation/availability-slots";
-import { resolveInitialPlanSessionModes } from "@/lib/plan-generation/initial-session-mode";
 import {
   type NormalPlanEnvelopeComposition,
   type NormalPlanSessionEnvelope,
@@ -49,6 +45,7 @@ export type NormalPlanProviderFillInputOptions = Readonly<{
   /** One server-owned clock shared with envelope composition. */
   now: Date;
   methodContext?: InitialPlanMethodRoutingContext;
+  revisionContext?: NormalPlanRevisionContext;
 }>;
 
 /**
@@ -61,13 +58,14 @@ export function buildNormalPlanProviderFillInput({
   composition,
   now,
   methodContext,
+  revisionContext,
 }: NormalPlanProviderFillInputOptions): string {
   // Reuse the public strict-fill boundary so prompt construction cannot accept
   // a request/composition pair that the prose binder would later reject.
   buildNormalPlanProviderFillSchema({ request, composition });
   const parsedRequest = PlanGenerationRequestSchema.parse(request);
   const clock = parseClock(now);
-  assertPromptCompositionBinding(parsedRequest, composition, clock);
+  assertPromptCompositionBinding(parsedRequest, composition, clock, revisionContext);
 
   const topicsById = new Map(
     parsedRequest.knowledgeMap!.topics.map((topic) => [topic.id, topic]),
@@ -75,7 +73,7 @@ export function buildNormalPlanProviderFillInput({
   const materialById = new Map(
     parsedRequest.materials.map((material) => [material.id, material]),
   );
-  const fixedPlan = buildNormalPlanFromFixedEnvelope({ request: parsedRequest, composition, now: clock,
+  const fixedPlan = buildNormalPlanFromFixedEnvelope({ request: parsedRequest, composition, now: clock, revisionContext,
     fill: buildNormalPlanFallbackFill({ request: parsedRequest, composition }),
     methodContext: methodContext ?? { profileVersion: composition.profileVersion, personalization: { decisions: [], methodTie: { state: { controls: { experiments: false }, activeExperiment: null, experimentHistory: [] }, signals: [] } }, observedEvidence: [] },
   });
@@ -213,10 +211,11 @@ function assertPromptCompositionBinding(
   },
   composition: NormalPlanEnvelopeComposition,
   clock: Date,
+  revisionContext?: NormalPlanRevisionContext,
 ) {
   const knowledgeMap = request.knowledgeMap!;
   const topicsById = new Map(knowledgeMap.topics.map((topic) => [topic.id, topic]));
-  const resolvedModes = resolveInitialPlanSessionModes({
+  const resolvedModes = normalPlanModeDecisions({
     learningIntentRecommendation: {
       intent: request.learningIntent,
       basis: "Validate the fixed composition against the accepted request intent.",
@@ -226,7 +225,7 @@ function assertPromptCompositionBinding(
       key: envelope.envelopeId,
       topicIds: envelope.topicIds,
     })),
-  });
+  }, revisionContext);
   const maximumDayIndex = Math.max(...composition.envelopes.map((envelope) => (
     envelope.availabilityDayIndex
   )));
@@ -242,10 +241,7 @@ function assertPromptCompositionBinding(
   ) {
     throw promptCompositionMismatch();
   }
-  const slots = canonicalizePlanAvailabilitySlots(
-    enumeratePlanAvailabilitySlots(request, clock, maximumDayIndex + 1),
-    clock,
-  );
+  const slots = normalPlanAvailability({ request, now: clock, searchDays: maximumDayIndex + 1, revisionContext });
 
   composition.envelopes.forEach((envelope, index) => {
     const firstTopic = topicsById.get(envelope.topicIds[0]!)!;

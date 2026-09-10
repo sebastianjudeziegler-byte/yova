@@ -1,0 +1,36 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions, pg_catalog;
+select extensions.plan(11);
+create temporary table fixture(data jsonb);
+insert into fixture values('__FIXTURE__'::jsonb);
+select set_config('request.jwt.claim.sub','b2000000-0000-4000-8000-000000000001',true);
+insert into auth.users(id,email) values('b2000000-0000-4000-8000-000000000001','living-plan-real-routes@example.com');
+insert into public.learning_items(id,user_id,title,kind,topic,source_mode,study_mode,deadline)
+select (data#>>'{before,learningItemId}')::uuid,'b2000000-0000-4000-8000-000000000001',data#>>'{before,title}',data#>>'{before,kind}',data#>>'{before,topic}',data#>>'{before,sourceMode}',data#>>'{before,studyMode}',(data#>>'{before,deadline}')::timestamptz from fixture;
+insert into public.plans(id,user_id,learning_item_id,status,rationale,knowledge_map,generation_inputs)
+select (data#>>'{before,id}')::uuid,'b2000000-0000-4000-8000-000000000001',(data#>>'{before,learningItemId}')::uuid,'active',data#>>'{before,rationale}',data#>'{before,knowledgeMap}',data->'request' from fixture;
+insert into public.plan_sessions(id,user_id,plan_id,sequence,title,objective,method,method_rationale,scheduled_for,estimated_minutes,status,step_data)
+select (s->>'id')::uuid,'b2000000-0000-4000-8000-000000000001',(data#>>'{before,id}')::uuid,(s->>'sequence')::smallint,s->>'title',s->>'objective',s->>'method',s->>'methodReason',(s->>'scheduledFor')::timestamptz,(s->>'estimatedMinutes')::smallint,s->>'status',s-array['id','sequence','title','objective','method','methodReason','scheduledFor','estimatedMinutes','status','studyRoute']
+from fixture cross join lateral jsonb_array_elements(data#>'{before,sessions}') s;
+do $$ declare r jsonb; begin for r in select s->'studyRoute' from fixture cross join lateral jsonb_array_elements(data#>'{before,sessions}') s loop perform public.commit_study_route_revision(r); end loop; end $$;
+create temporary table unchanged_before as select id,to_jsonb(s) as row from public.plan_sessions s where id<>(select (data->>'changedId')::uuid from fixture);
+create temporary table accepted_patch as
+select jsonb_build_object('operationId',data#>>'{proposal,id}','planId',data#>>'{before,id}','expectedRevisionId',data#>>'{before,id}','revisionId',data#>>'{proposal,revisionId}',
+  'expectedMap',data#>'{before,knowledgeMap}','knowledgeMap',data#>'{after,knowledgeMap}','deadline',data#>'{after,deadline}','generationRequest',data#>'{proposal,generationRequest}',
+  'sessions',jsonb_build_array(jsonb_build_object('id',data->>'changedId','beforeFingerprint',public.plan_revision_session_fingerprint(s),'after',(select value from jsonb_array_elements(data#>'{after,sessions}') where value->>'id'=data->>'changedId'))),
+  'fixedEvents','[]'::jsonb,'proposal',data->'proposal','receipt',jsonb_build_object('message','Practice Electron transport chain; everything else unchanged.')) as payload
+from fixture join public.plan_sessions s on s.id=(data->>'changedId')::uuid;
+select extensions.lives_ok(format('select public.apply_plan_revision(%L::uuid,%L::jsonb)','b2000000-0000-4000-8000-000000000001',payload::text),'the real composer patch saves with its successor route') from accepted_patch;
+select extensions.is((select s.step_data->>'learningMode' from public.plan_sessions s,fixture where s.id=(data->>'changedId')::uuid),'study','the saved session displays Practice');
+select extensions.is((select r.route_payload#>>'{approach,mode}' from public.plan_sessions s join public.study_routes r on r.route_revision_id=s.committed_route_revision_id,fixture where s.id=(data->>'changedId')::uuid),'practice','execution agrees with the reviewed practice label');
+select extensions.ok(not exists(select 1 from unchanged_before b join public.plan_sessions s on s.id=b.id where b.row is distinct from to_jsonb(s)),'all other stored rows remain byte-identical');
+select extensions.is((select count(*)::integer from public.plan_revisions where user_id='b2000000-0000-4000-8000-000000000001'),1,'the accepted change has one durable receipt');
+select extensions.lives_ok(format('select public.read_plan_revision_context(%L::uuid)',data#>>'{before,id}'),'the owner can read the canonical active-plan projection') from fixture;
+select extensions.is(public.read_plan_revision_context((data#>>'{before,id}')::uuid)#>>'{plan,revisionId}',data#>>'{proposal,revisionId}','readback carries the newly saved revision') from fixture;
+select extensions.throws_ok(format('select public.apply_plan_revision(%L::uuid,%L::jsonb)','b2000000-0000-4000-8000-000000000001',(payload||jsonb_build_object('operationId','b2000000-0000-4000-8000-000000000011'))::text),'40001','plan_revision_obsolete_preview','a stale preview cannot overwrite the first accepted change') from accepted_patch;
+select extensions.is((select count(*)::integer from public.plan_sessions where user_id='b2000000-0000-4000-8000-000000000001'),(select jsonb_array_length(data#>'{before,sessions}') from fixture),'one topic revision does not duplicate sessions');
+select extensions.ok((select (protection->>'pinnedTime')::boolean from fixture cross join lateral jsonb_array_elements(public.read_plan_revision_context((data#>>'{before,id}')::uuid)->'protections') protection where protection->>'sessionId'=data->>'changedId'),'an explicit preview time remains pinned for the next revision');
+select extensions.ok((select protection->'editedFields' ? 'estimatedMinutes' from fixture cross join lateral jsonb_array_elements(public.read_plan_revision_context((data#>>'{before,id}')::uuid)->'protections') protection where protection->>'sessionId'=data->>'changedId'),'the next revision preserves the learner-chosen duration');
+select * from extensions.finish();
+rollback;

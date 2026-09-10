@@ -3440,3 +3440,19 @@ h1, h2, h3, p { margin-top: 0; }
   .founder-tester-state { grid-template-columns: auto 1fr; }
   .founder-tester-resend { width: 100%; grid-column: 1 / -1; margin-top: 2px; }
 }
+
+/* Reviewed plan changes share the plan's existing cards and controls. */
+.plan-revision-preview, .plan-revision-receipt { margin: 24px 0; padding: 24px; border: 1px solid var(--line, #d9dde2); border-radius: 18px; background: var(--surface, #fff); }
+.plan-revision-preview header p, .plan-revision-capacity p { margin: 8px 0 16px; }
+.plan-revision-line { padding: 18px 0; border-top: 1px solid var(--line, #d9dde2); }
+.plan-revision-preview label { display: grid; gap: 7px; margin: 10px 0; font-size: 14px; }
+.plan-revision-preview label:has(input[type="checkbox"]) { display: flex; align-items: center; }
+.plan-revision-preview select, .plan-revision-preview input:not([type="checkbox"]), .plan-revision-preview textarea { width: 100%; max-width: 100%; min-width: 0; border: 1px solid #c7ced7; border-radius: 8px; padding: 10px; background: #fff; color: #182636; }
+.plan-revision-comparison, .plan-revision-session-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+.plan-revision-comparison ul { padding-left: 18px; overflow-wrap: anywhere; }
+.plan-revision-preview footer, .plan-topic-actions, .plan-revision-capacity { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.plan-revision-preview footer { justify-content: flex-end; }
+.plan-revision-capacity p { flex-basis: 100%; }
+.plan-revision-preview fieldset { padding: 14px; border: 1px solid #c7ced7; border-radius: 10px; margin-top: 16px; min-width: 0; }
+.knowledge-topic-list a { overflow-wrap: anywhere; }
+@media (max-width: 640px) { .plan-revision-preview, .plan-revision-receipt { padding: 16px; } .plan-revision-comparison, .plan-revision-session-controls { grid-template-columns: minmax(0, 1fr); gap: 8px; } .plan-topic-actions .button { min-height: 44px; } }

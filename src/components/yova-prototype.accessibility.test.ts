@@ -107,7 +107,11 @@ describe("learner-facing accessibility contracts", () => {
       .toContain('aria-label="Study Now topic or result"');
     const planCreator = readFileSync(resolve(process.cwd(), "src/components/plan-creator.tsx"), "utf8");
     expect(planCreator).toContain('aria-label="Learning goal or deadline"');
-    expect(planCreator).toContain('aria-label="Requested topic map change"');
+    const revisionEditor = readFileSync(resolve(process.cwd(), "src/components/plan-revision/plan-revision-preview.tsx"), "utf8");
+    expect(planCreator).toContain("<LivingPlanRevision");
+    expect(revisionEditor).toContain("<label>Topic title<input");
+    expect(revisionEditor).toContain("<label>What should this topic cover?<textarea");
+    expect(revisionEditor).toContain("<label>Source URL<input");
     expect(prototypeSource).toContain('aria-label="Question about this lesson"');
   });
 

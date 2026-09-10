@@ -79,7 +79,7 @@ export function verifyKnowledgeMapReceipt(map: PlanKnowledgeMap, receipt: string
 }
 
 export function mapClaimsEvidence(map: PlanKnowledgeMap) {
-  return map.topics.some(topic => topic.status !== "not_started" || topic.initialEvidence !== null)
+  return map.topics.some(topic => topic.status !== "not_started" || topic.initialEvidence !== null || topic.placementEvidence != null)
     || map.placementCheck.status === "completed"
     || map.placementCheck.demonstratedTopicIds.length > 0 || map.placementCheck.gapTopicIds.length > 0;
 }

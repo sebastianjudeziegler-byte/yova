@@ -16,7 +16,7 @@ const git = (...args) => {
   return result.stdout.trim();
 };
 const branch = git("rev-parse", "HEAD");
-const baseline = "e03a082659f51172c0b06bf84daffdd5599ac773";
+const baseline = "c7b3ca99964524cefc04437b7236b37fe8fe2666";
 const configPath = resolve(root, "playwright.profile-comparison.config.ts");
 const rows = [];
 
@@ -78,7 +78,7 @@ export default defineConfig({ ...base, retries: 0, workers: 1,
   writeFileSync(resolve(output, "report.json"), JSON.stringify(rows, null, 2));
   const before = rows.find(row => row.revision === "main");
   const after = rows.find(row => row.revision === "branch");
-  writeFileSync(resolve(output, "report.md"), `# Study Profile phone-width comparison\n\n| Test | main e03a082 | Combined release |\n| --- | --- | --- |\n| Mobile pre-report screens at 320/360/390/430px | ${before?.state ?? "unavailable"} | ${after?.state ?? "unavailable"} |\n\nSame installed dependencies and browser, sequential source checkouts, no retries. Raw outcomes are retained in each result.json. Missing/setup results are unavailable, not red or green.\n`);
+  writeFileSync(resolve(output, "report.md"), `# Study Profile phone-width comparison\n\n| Test | main c7b3ca9 | Combined release |\n| --- | --- | --- |\n| Mobile pre-report screens at 320/360/390/430px | ${before?.state ?? "unavailable"} | ${after?.state ?? "unavailable"} |\n\nSame installed dependencies and browser, sequential source checkouts, no retries. Raw outcomes are retained in each result.json. Missing/setup results are unavailable, not red or green.\n`);
   // Existing ordinary-suite failures retain their original gating result.
   // This comparison independently blocks only a demonstrated new regression.
   if (before?.state === "pass" && after?.state === "fail") process.exitCode = 1;

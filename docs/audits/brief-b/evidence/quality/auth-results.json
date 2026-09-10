@@ -1,0 +1,220 @@
+{
+  "stats": {
+    "startTime": "2026-09-09T23:00:35.747Z",
+    "duration": 98887.91100000001,
+    "expected": 15,
+    "skipped": 1,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "rows": [
+    {
+      "file": "cloud-sync-recovery.spec.ts",
+      "name": "Retry retires two permanently rejected terminal events without losing their recovery export",
+      "project": "desktop-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "cloud-sync-recovery.spec.ts",
+      "name": "startup retires a stale routed completion from a ready session using cloud route authority",
+      "project": "desktop-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "cloud-sync-recovery.spec.ts",
+      "name": "cloud-only private-export metadata keeps AA text contrast",
+      "project": "desktop-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "cloud-sync-recovery.spec.ts",
+      "name": "Retry retires two permanently rejected terminal events without losing their recovery export",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "cloud-sync-recovery.spec.ts",
+      "name": "startup retires a stale routed completion from a ready session using cloud route authority",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "cloud-sync-recovery.spec.ts",
+      "name": "cloud-only private-export metadata keeps AA text contrast",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "public-auth.spec.ts",
+      "name": "presents public signup without a private-alpha gate",
+      "project": "desktop-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "public-auth.spec.ts",
+      "name": "creates a public password account with consent and a security token",
+      "project": "desktop-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "public-auth.spec.ts",
+      "name": "keeps password errors generic and password recovery non-enumerating",
+      "project": "desktop-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "public-auth.spec.ts",
+      "name": "keeps the standalone email-confirmation page at AA text contrast",
+      "project": "desktop-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "public-auth.spec.ts",
+      "name": "fits the public account form on a phone-sized viewport",
+      "project": "desktop-chromium",
+      "status": "skipped",
+      "results": [
+        {
+          "status": "skipped",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "public-auth.spec.ts",
+      "name": "presents public signup without a private-alpha gate",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "public-auth.spec.ts",
+      "name": "creates a public password account with consent and a security token",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "public-auth.spec.ts",
+      "name": "keeps password errors generic and password recovery non-enumerating",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "public-auth.spec.ts",
+      "name": "keeps the standalone email-confirmation page at AA text contrast",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "public-auth.spec.ts",
+      "name": "fits the public account form on a phone-sized viewport",
+      "project": "mobile-chromium",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "errors": []
+        }
+      ]
+    }
+  ]
+}

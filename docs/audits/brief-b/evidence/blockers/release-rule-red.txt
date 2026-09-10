@@ -1,0 +1,76 @@
+✖ the release gate reports an unchanged main defect without blocking (1.738116ms)
+✔ a new pass-to-fail regression blocks even when other failures are pre-existing (0.235557ms)
+✖ a scoped fix with a lower pass rate blocks; an improvement does not (0.35584ms)
+✔ provider unavailability is neither a pass nor a semantic regression (0.169534ms)
+✖ an established quarantine cannot conceal a scoped regression or an omitted case (1.010746ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 2
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 71.027774
+
+✖ failing tests:
+
+test at scripts/live-gate/regression.test.mjs:5:1
+✖ the release gate reports an unchanged main defect without blocking (1.738116ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///home/runner/work/yova/yova/scripts/live-gate/regression.test.mjs:6:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1397:25)
+      at Test.start (node:internal/test_runner/test:1257:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/live-gate/regression.test.mjs:11:1
+✖ a scoped fix with a lower pass rate blocks; an improvement does not (0.35584ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///home/runner/work/yova/yova/scripts/live-gate/regression.test.mjs:13:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1397:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:969:18)
+      at Test.postRun (node:internal/test_runner/test:1537:19)
+      at Test.run (node:internal/test_runner/test:1462:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/live-gate/regression.test.mjs:18:1
+✖ an established quarantine cannot conceal a scoped regression or an omitted case (1.010746ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///home/runner/work/yova/yova/scripts/live-gate/regression.test.mjs:19:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1397:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:969:18)
+      at Test.postRun (node:internal/test_runner/test:1537:19)
+      at Test.run (node:internal/test_runner/test:1462:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

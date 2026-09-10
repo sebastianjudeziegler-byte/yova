@@ -1,0 +1,60 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'One product-rule skill in short sessi…'
+[22m[39m
+YOVA connected journey · One product-rule skill in short sessions
+Plan · 4 sessions · 100/100 · 17.3s
+First session · learn · Feynman Technique · 15 min
+Lesson · 5 activities · 100/100 · 8.3s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'Full beginner calculus pathway'
+[22m[39m
+YOVA connected journey · Full beginner calculus pathway
+Plan · 8 sessions · 100/100 · 34.5s
+First session · learn · Worked Examples · 25 min
+Lesson · 5 activities · 100/100 · 9.1s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+[90mstdout[2m | src/evals/plan-session-journey.live.test.ts[2m > [22m[2mlive plan-to-session journeys[2m > [22m[2m'History essay using outside sources'
+[22m[39m
+YOVA connected journey · History essay using outside sources
+Plan · 3 sessions · 100/100 · 32.7s
+First session · learn · Outline from Memory · 30 min
+Lesson · 4 activities · 100/100 · 7.8s
+Personalization · Show the overall relationship before the details. | Keep the current action prominent and make the full path optional. | You asked for the big picture first, so YOVA will establish the overall model before the details.
+
+
+ [31m❯[39m src/evals/plan-session-journey.live.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 145919[2mms[22m[39m
+     [32m✓[39m the requested journey exists[32m 1[2mms[22m[39m
+     [33m[2m✓[22m[39m 'One product-rule skill in short sessi…' [33m 25985[2mms[22m[39m
+[31m     [31m×[31m 'World War I unit guide in short sessi…'[39m[33m 35797[2mms[22m[39m
+     [33m[2m✓[22m[39m 'Full beginner calculus pathway' [33m 43630[2mms[22m[39m
+     [33m[2m✓[22m[39m 'History essay using outside sources' [33m 40504[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/plan-session-journey.live.test.ts[2m > [22mlive plan-to-session journeys[2m > [22m'World War I unit guide in short sessi…'
+[31m[1mSessionGenerationFailure[22m: YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.[39m
+[36m [2m❯[22m generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:[2m100:13[22m[39m
+    [90m 98|[39m     [35mif[39m (error [35minstanceof[39m [33mSessionGenerationFailure[39m) {
+    [90m 99|[39m       [35mconst[39m stats [33m=[39m error[33m.[39mgenerationStats[33m;[39m
+    [90m100|[39m       [35mthrow[39m [35mnew[39m [33mSessionGenerationFailure[39m(
+    [90m   |[39m             [31m^[39m
+    [90m101|[39m         error[33m.[39mmessage[33m,[39m
+    [90m102|[39m         {
+[90m [2m❯[22m src/evals/plan-session-journey.live.test.ts:[2m58:30[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m4 passed[39m[22m[90m (5)[39m
+[2m   Start at [22m 12:40:14
+[2m   Duration [22m 146.59s[2m (transform 610ms, setup 0ms, import 573ms, tests 145.92s, environment 0ms)[22m
+
+
+Exit code: 1

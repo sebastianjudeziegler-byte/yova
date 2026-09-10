@@ -1,0 +1,97 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/yova/yova[39m
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'calculus'
+[22m[39mcalculus {
+  elapsedMs: [33m8717[39m,
+  attempts: [33m2[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'session_required_typed_recall'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m'A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count. The compact teaching recovery rebuilt the V17 lesson from server-owned target assignments, cycles, evidence metadata, and timing, then passed the complete validator.'[39m,
+  inputTokens: [33m9389[39m,
+  cachedInputTokens: [33m0[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1538[39m,
+  validationIssueCode: [1mnull[22m,
+  recoveryMode: [32m'safe_learn'[39m,
+  strategy: [32m'streamed'[39m,
+  stage: [32m'complete'[39m
+} self_explanation
+
+[90mstderr[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'osmosis'
+[22m[39mosmosis SessionGenerationFailure: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane as a selective barrier”; “Osmosis”; “Simple osmosis example”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_3; every active target must have a taught, checked claim.
+    at generateProductionSessionWithOpenAI [90m(/home/runner/work/yova/yova/[39msrc/lib/openai/session-generation-strategy.ts:100:13[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90m/home/runner/work/yova/yova/[39msrc/evals/launch-session-journeys.live.test.ts:42:22
+    at [90mfile:///home/runner/work/yova/yova/[39mnode_modules/[4m.pnpm[24m/@vitest+runner@4.1.10/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:20 {
+  generationStats: {
+    elapsedMs: [33m12678[39m,
+    attempts: [33m2[39m,
+    firstAttemptPassed: [33mfalse[39m,
+    failedValidator: [32m'streamed_lesson_scope'[39m,
+    repairAttempted: [33mtrue[39m,
+    repairSucceeded: [33mfalse[39m,
+    repairReason: [32m'semantic_validation'[39m,
+    repairDetail: [32m"The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane as a selective barrier”; “Osmosis”; “Simple osmosis example”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_3; every active target must have a taught, checked claim."[39m,
+    inputTokens: [33m18761[39m,
+    cachedInputTokens: [33m7680[39m,
+    cacheWriteTokens: [33m0[39m,
+    outputTokens: [33m3031[39m,
+    validationIssueCode: [32m'streamed_target_missing'[39m,
+    stage: [32m'validation'[39m,
+    cause: [32m'semantic_validation'[39m,
+    strategy: [32m'streamed'[39m
+  },
+  structuralDiagnostic: [90mundefined[39m
+}
+
+[90mstdout[2m | src/evals/launch-session-journeys.live.test.ts[2m > [22m[2mlaunch session journeys with committed recipes[2m > [22m[2m'recall'
+[22m[39mrecall {
+  elapsedMs: [33m7562[39m,
+  attempts: [33m1[39m,
+  firstAttemptPassed: [33mfalse[39m,
+  failedValidator: [32m'session_practice_variation'[39m,
+  repairAttempted: [33mtrue[39m,
+  repairSucceeded: [33mtrue[39m,
+  repairReason: [32m'semantic_validation'[39m,
+  repairDetail: [32m'YOVA restored the evidence-derived practice-intent metadata without changing the question, answer, phase, support, or misconception content, then reran the complete validator.'[39m,
+  inputTokens: [33m10404[39m,
+  cachedInputTokens: [33m0[39m,
+  cacheWriteTokens: [33m0[39m,
+  outputTokens: [33m1447[39m,
+  validationIssueCode: [32m'session_practice_metadata'[39m,
+  strategy: [32m'full'[39m,
+  stage: [32m'complete'[39m
+} concept_mapping
+
+ [31m❯[39m src/evals/launch-session-journeys.live.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 39283[2mms[22m[39m
+     [33m[2m✓[22m[39m 'calculus' [33m 14281[2mms[22m[39m
+[31m     [31m×[31m 'osmosis'[39m[33m 15377[2mms[22m[39m
+     [33m[2m✓[22m[39m 'recall' [33m 9623[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/evals/launch-session-journeys.live.test.ts[2m > [22mlaunch session journeys with committed recipes[2m > [22m'osmosis'
+[31m[1mSessionGenerationFailure[22m: OpenAI did not return a complete streamed teaching skeleton after 1 repair attempt. The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: “Cell membrane as a selective barrier”; “Osmosis”; “Simple osmosis example”. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. The provider omitted target_3; every active target must have a taught, checked claim.[39m
+[36m [2m❯[22m generateProductionSessionWithOpenAI src/lib/openai/session-generation-strategy.ts:[2m100:13[22m[39m
+    [90m 98|[39m     [35mif[39m (error [35minstanceof[39m [33mSessionGenerationFailure[39m) {
+    [90m 99|[39m       [35mconst[39m stats [33m=[39m error[33m.[39mgenerationStats[33m;[39m
+    [90m100|[39m       [35mthrow[39m [35mnew[39m [33mSessionGenerationFailure[39m(
+    [90m   |[39m             [31m^[39m
+    [90m101|[39m         error[33m.[39mmessage[33m,[39m
+    [90m102|[39m         {
+[90m [2m❯[22m src/evals/launch-session-journeys.live.test.ts:[2m42:22[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 16:04:18
+[2m   Duration [22m 40.07s[2m (transform 762ms, setup 0ms, import 659ms, tests 39.28s, environment 0ms)[22m
+
+
+Exit code: 1

@@ -49,6 +49,7 @@ export type InitialPlanMethodRoutingContext = {
   observedEvidence: readonly CanonicalObservedMethodEvidence[];
   /** Server-owned, account-stable assignment for this new route issuance. */
   rolloutDecision?: PersonalizationRolloutDecision;
+  methodChoicesBySequence?: Readonly<Record<number, { methodId: import("@/lib/learning/method-catalog").CoreMethodId; evidenceRef: string }>>;
 };
 
 /**
@@ -98,9 +99,10 @@ export function integrateInitialPlanMethodRoutes({
         methodEvidenceComparisonContextForRoute(route),
       ),
       ...routedInputs,
+      learnerChoice: context.methodChoicesBySequence?.[session.sequence],
     });
     const isFixedPlan = route.provenance.routerVersion.split("+").includes(NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION);
-    const selected = isFixedPlan ? initialPlanProfileMethod(canonicalSelection, routedInputs.personalization?.canonicalProfile, Boolean(routedInputs.personalization?.preferredMethodIds?.length)) : canonicalSelection;
+    const selected = isFixedPlan ? initialPlanProfileMethod(canonicalSelection, routedInputs.personalization?.canonicalProfile, Boolean(routedInputs.personalization?.preferredMethodIds?.length || context.methodChoicesBySequence?.[session.sequence])) : canonicalSelection;
     const proposed = methodReasons?.[index];
     const reason = isFixedPlan ? personalizedMethodReason({ request, session: { ...session, method: selected.selectedMethodName }, proposed: proposed && !usedReasons.has(proposed.trim()) ? proposed : undefined }) : selected.learnerFacingReason;
     usedReasons.add(reason);

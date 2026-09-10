@@ -1,3 +1,4 @@
+import { coveredPersonalizationDelta, assertCoveredPersonalizationDelta } from "./personalization-delta-fixture";
 import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { assertPersonalizationDelta, deltaFixture, deltaTopicId, deterministicDeltaPlan, learnerPrintout, PROFILE_1 } from "./personalization-delta-fixture";
@@ -136,4 +137,13 @@ describe("Brief A permanent personalization delta", () => {
     expect(plan.sessions[0].methodReason).toMatch(/example/);
   });
 
+});
+
+
+describe("Brief B permanent covered-topic personalization delta", () => {
+  it("keeps both saved profiles in Practice with visibly different activity amount and support", async () => {
+    const first = await coveredPersonalizationDelta(1);
+    const second = await coveredPersonalizationDelta(2);
+    assertCoveredPersonalizationDelta(first.after, second.after);
+  });
 });

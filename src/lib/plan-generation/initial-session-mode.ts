@@ -1,3 +1,4 @@
+import { learnerReportedCoverage, measuredPlacementEvidence } from "@/lib/knowledge-map/topic-evidence";
 import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
 import {
   PlanKnowledgeMapSchema,
@@ -48,6 +49,7 @@ export type InitialPlanModeSessionInput = Readonly<{
 }>;
 
 export type InitialPlanTargetModeBasis =
+  | "learner_report"
   | "placement_gap"
   | "placement_demonstrated"
   | "recorded_encounter"
@@ -283,7 +285,7 @@ function validatePlacementState(
       placement.completedAt !== null
       || demonstrated.size > 0
       || gaps.size > 0
-      || knowledgeMap.topics.some((topic) => topic.initialEvidence !== null)
+      || knowledgeMap.topics.some((topic) => measuredPlacementEvidence(topic) !== null)
     ) {
       throw new InitialPlanModeRoutingError(
         "invalid_placement_state",
@@ -300,7 +302,7 @@ function validatePlacementState(
     );
   }
   for (const topic of knowledgeMap.topics) {
-    const evidence = topic.initialEvidence;
+    const evidence = measuredPlacementEvidence(topic);
     const expectedOutcome = demonstrated.has(topic.id)
       ? "demonstrated"
       : gaps.has(topic.id)
@@ -340,7 +342,10 @@ function firstTargetDecision(
   topic: KnowledgeMapTopic,
   intent: LearningIntent,
 ): InitialPlanTargetModeDecision {
-  const initialEvidence = topic.initialEvidence;
+  if (learnerReportedCoverage(topic)) return targetDecision({
+    topicId: topic.id, learningMode: "study", basisCode: "learner_report", evidenceRefs: [],
+  });
+  const initialEvidence = measuredPlacementEvidence(topic);
   if (initialEvidence?.outcome === "gap") {
     return targetDecision({
       topicId: topic.id,
@@ -421,6 +426,8 @@ function decisionBasisSummary(
     target.basisCode === basisCode
   )).length;
   const parts: string[] = [];
+  const reported = count("learner_report");
+  if (reported) parts.push(`${reported} reported learned elsewhere; practice will check it`);
   const placementGaps = count("placement_gap");
   const placementDemonstrated = count("placement_demonstrated");
   const recordedEncounters = count("recorded_encounter");

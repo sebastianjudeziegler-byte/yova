@@ -1,0 +1,6350 @@
+{
+  "mainCommit": "c7b3ca99964524cefc04437b7236b37fe8fe2666",
+  "branchCommit": "347f53947d56d61fba76202748c1be58cf649e41",
+  "liveCounts": {
+    "pass": 50,
+    "fail": 5,
+    "flaky": 20,
+    "unavailable": 2
+  },
+  "browserFlakes": [],
+  "regressions": [],
+  "rows": [
+    {
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'calculus'",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Established flaky quarantine; raw outcomes retained",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'osmosis'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Established flaky quarantine; raw outcomes retained",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'recall'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Established flaky quarantine; raw outcomes retained",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/launch-lesson-streams.live.test.ts::launch lesson delivery > streams the validated calculus teaching",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 1,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 1,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Unavailable samples are neither red nor green",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/launch-lesson-streams.live.test.ts::launch lesson delivery > streams the validated osmosis teaching",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 1,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Unavailable samples are neither red nor green",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > the requested case exists",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'catches confident biology keyword soup'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'marks a materially incomplete causal …'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'does not reward a true statement that…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts a concise programming explana…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'accepts a concise programming explana…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'history: complete-history'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'biology: underspecified-biology'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: underspecified-history'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'biology: missing-context-biology'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: missing-context-history'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/lesson-tutor.live.test.ts::live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/lesson-tutor.live.test.ts::live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/material-osmosis-session.live.test.ts::live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/outside-teaching-reliability.live.test.ts::live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/personalization-delta.live.test.ts::Brief A real-provider personalization delta > writes two distinct learner plans inside fixed slots using the real provider",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > the requested case exists",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Biology test with learner notes'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus problem-solving plan'",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus unit with mixed placement ev…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'One product-rule skill in short sessi…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'World War I unit guide in short sessi…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Full beginner calculus pathway'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'General-learning startup funding path…'",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 1,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'History essay using outside sources'",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 1,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Beginner JavaScript practice'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'General-learning finance pathway'",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 1,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > the requested journey exists",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Established flaky quarantine; raw outcomes retained",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Established flaky quarantine; raw outcomes retained",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'History essay using outside sources'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > the requested case exists",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Biology teaching from learner notes'",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Pre-existing or improved failure; no product fix claimed",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Bioenergetics multi-target retrieval …'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute temperature and reacti…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute first product-rule les…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Production-shaped derivative-foundati…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'World War I teaching for a complete b…'",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Pre-existing or improved failure; no product fix claimed",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped 45-minute World War I baseline…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Calculus repair after a weak check'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Self-contained delayed calculus review'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History writing outside YOVA'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Beginner JavaScript with fading suppo…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'General-learning finance application'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute vocabulary review'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Startup funding foundations for a new…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History reasoning from a primary-sour…'",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Pre-existing or improved failure; no product fix claimed",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Literature close reading from a short…'",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Pre-existing or improved failure; no product fix claimed",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Spanish conversation with supported t…'",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Teaching from a thin biology study gu…'",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Pre-existing or improved failure; no product fix claimed",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/streamed-ap-biology.live.test.ts::live streamed AP Biology session > builds a topic-specific teaching skeleton",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/streamed-melatonin-skeleton.live.test.ts::live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/streamed-rayleigh.live.test.ts::live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/streamed-world-war-one-lesson.live.test.ts::live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/streamed-world-war-one-skeleton.live.test.ts::live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/streamed-world-war-one-skeleton.live.test.ts::live streamed World War I session skeleton > reliably creates a valid subject-specific session outline",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/teaching-assessment-contract.live.test.ts::live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/lib/diagnostics/map-diagnostic.live.test.ts::live map diagnostic generation > generates from a material map and reports latency",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "Established flaky quarantine; raw outcomes retained",
+      "suite": "live"
+    },
+    {
+      "id": "src/lib/diagnostics/map-diagnostic.live.test.ts::live map diagnostic generation > generates from a ai_generated map and reports latency",
+      "main": {
+        "passes": 0,
+        "failures": 1,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "e2e/plan-launch-live.spec.ts::desktop-chromium::a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "e2e/plan-launch-live.spec.ts::mobile-chromium::a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "src/evals/personalization-delta.live.test.ts::Brief B real-provider covered-topic delta > personalizes the amount and support of revised practice without a model-written session",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "live"
+    },
+    {
+      "id": "accessibility-regression.spec.ts::desktop-chromium::the initial HTML provides useful public content without waiting for JavaScript",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "accessibility-regression.spec.ts::desktop-chromium::form placeholder text keeps AA contrast on public surfaces",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "accessibility-regression.spec.ts::desktop-chromium::Ask YOVA history traps focus, closes on Escape, and restores its trigger",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "accessibility-regression.spec.ts::desktop-chromium::primary authenticated screens have no serious WCAG A/AA Axe violations",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "account-security.spec.ts::desktop-chromium::makes account personalization visible, editable, persistent, and mobile-safe",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "account-security.spec.ts::desktop-chromium::explains the self-service export scope and the downloaded-copy boundary",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "account-security.spec.ts::desktop-chromium::clears signed-in UI after confirmed sign-out even when preview storage removal throws",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::desktop-chromium::a deadline can live in Calendar, be completed, and stay out of Learning",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::desktop-chromium::an overdue standalone deadline remains reachable and actionable",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::desktop-chromium::an outside assignment routes to one outside-YOVA session",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::desktop-chromium::a multi-session assignment skips an irrelevant knowledge quiz",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::desktop-chromium::speech and presentation plans bypass placement and use artifact-aware modes",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::desktop-chromium::general learning stays deadline-free until the user chooses otherwise",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::desktop-chromium::a timed product-rule request becomes a specific one-off session",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::desktop-chromium::an unfinished one-off session stays out of ongoing Learning goals",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::desktop-chromium::one account never sees another account's deadline",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "agenda-scheduling.spec.ts::desktop-chromium::Calendar refuses unchanged and past custom session times",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::two simultaneous tabs preserve both new events and each tab refreshes",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::a stale event edit cannot overwrite the other tab and the draft remains available",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::Quick Add preserves weekdays, explicit dates and exam clocks",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::a deadline can be saved without inventing a study block and corrected later",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::manual events support full keyboard-editable fields and immediate undo",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::details stay visible and focused, and Escape returns focus to the selected block",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::overlapping commitments have distinct clickable lanes and a named conflict",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::full-day grid includes early, late and overnight work on the correct days",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::all deadlines can be searched, inspected and reached beyond the visible week",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::the inline suggestion Move action opens its editor",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::approved adjustments respect zero capacity and fixed commitments and disclose their destination",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::desktop-chromium::manual workload is included in adjustment totals and has a useful Move action",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::desktop-chromium::Add recognizes the communications timetable and saves a lasting Monday/Wednesday series",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::desktop-chromium::every two days supports a finite occurrence count and stops on the right date",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::desktop-chromium::one occurrence can move, be cancelled and be restored without changing the series",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::desktop-chromium::the whole series can be edited and deleted with one undoable action",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::desktop-chromium::missing times and unsupported patterns stay editable instead of saving a guessed schedule",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::desktop-chromium::the class keeps 11:30 local time after daylight saving ends",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::desktop-chromium::moving an occurrence to a different month keeps its details in view",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::desktop-chromium::moving an item into a future recurring class detects the conflict beyond the current week",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::desktop-chromium::concurrent edits to a recurring series preserve the second tab's unsaved draft",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-safety.spec.ts::desktop-chromium::a failed browser save keeps the draft and retry creates one event",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-safety.spec.ts::desktop-chromium::an adjustment is rechecked when another tab changes destination availability",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-safety.spec.ts::desktop-chromium::completion can be undone without closing the event details",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-safety.spec.ts::desktop-chromium::visual review of Agenda, event editor and overlapping Week blocks",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::desktop-chromium::Calendar exposes Week and Agenda surfaces with bounded keyboard navigation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::desktop-chromium::quick add confirms its interpretation, persists by account, and can be undone",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::desktop-chromium::quick add clamps an overlong title before confirmation and persists without crashing",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::desktop-chromium::exiting a quick-add plan draft returns to Calendar without losing or duplicating the manual deadline",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::desktop-chromium::finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::desktop-chromium::authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-in time adjustment stay connected",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::desktop-chromium::Calendar Start opens the exact ready session and fails closed on an ambiguous legacy plan",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::desktop-chromium::a future overloaded-day issue edits only that date's availability",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::desktop-chromium::learner-owned blocks resize and suggested moves become pinned only after approval",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "canonical-study-profile.spec.ts::desktop-chromium::YOVA canonical Study Profile > builds the canonical 11-question profile, imports it into an account, and skips duplicate onboarding",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "canonical-study-profile.spec.ts::desktop-chromium::YOVA canonical Study Profile > restores only a valid saved canonical draft",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "canonical-study-profile.spec.ts::desktop-chromium::YOVA canonical Study Profile > finishes safely and explains the fallback when browser storage is unavailable",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "canonical-study-profile.spec.ts::desktop-chromium::YOVA canonical Study Profile > exposes semantic progress, pressed choices, and predictable keyboard focus",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "canonical-study-profile.spec.ts::desktop-chromium::YOVA canonical Study Profile > keeps landing, questionnaire, and summary inside narrow mobile viewports",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::Study Now lets the learner review and safely choose an eligible method before activation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::Study Now discloses omitted scope before starting and lets the learner change time",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::durable allowance exhaustion loads the committed method workpad and names the reset",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::durable allowance exhaustion without a safe fallback has its own non-retryable state",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::streamed lesson quota uses its built-in explanation and surfaces the reset",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a confident misconception is repaired now without a duplicate follow-up",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a support request keeps the committed practice recipe when fallback generation fails",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::an inactive-plan generation response cannot open a stale built-in lesson",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a visibly shortened inside recipe keeps its method in the fallback workpad",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a built-in fallback never ignores a learner's custom session requirement",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a new topic is taught before YOVA asks for independent performance",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a World War I beginner receives real teaching and a direct model answer",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::an opaque class label is stopped until the learner names the actual calculus concept",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a teaching-first inside outage does not start with unsupported recall",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a temporary AI failure loads a subject-specific startup funding lesson",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::home lets the learner browse prioritized recommendations without opening every plan",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::outside study gives a concrete source-based session instead of pretending YOVA owns the content",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::an arbitrary outside method workpad completes as practice without changing topic evidence",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a fallback method workpad resumes its timer and checked targets after reload",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a 10-minute outside teaching-first session loads its built-in method lesson",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::an overdue outside teaching-first session splits into runnable 10-minute parts",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::the backend rejects an opaque goal even when the browser guard is bypassed",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::plan generation remains a draft until the learner activates it",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a learner can stop twice without losing progress or earlier evidence",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a lesson and its reopened model teach every fact required by the glycolysis recall check",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a resumed streamed question can reopen its prior lesson by persisted activity index",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a refresh recovers semantic progress without saving draft answers or inventing an interruption",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a saved first-step recall round resumes at the next prompt without persisting draft text",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::learner text fields keep long pastes visible and block submission until trimmed",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::Calendar Agenda stays first and contained at a 375px viewport",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::spent guided-session allowance is visible before Home or Calendar opens setup",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::spent allowance still permits a saved session to continue",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::the product shell keeps every core destination and creation path usable",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::Ask YOVA turns structured explanations and math into readable interface content",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::the session tutor stays anchored to the exact learning activity",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a planning request outage still produces a reviewable plan from YOVA's saved inputs",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::legacy split work reopens as an active plan with runnable ten-minute sessions",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::finishing a shortened guided lesson keeps every deferred target as exact next work",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::adjusting ordinary future work preserves the exact scheduled review contract",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::map revision cannot activate a stale draft and reviewed starting level preserves placement",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::normal-plan review changes one offered method without regenerating or rewriting other routes",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::session setup changes one committed method and generates from its exact successor route",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::a multi-session plan carries one clear source decision from Add to Learning",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::archived, draft, and deleted-plan projections stay out of current-work surfaces",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::material setup clearly supports files, articles, and YouTube transcripts",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::desktop-chromium::material drop zone accepts drag gestures and explains rejected files",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "personalization.spec.ts::desktop-chromium::the canonical profile is visible, correctable, persistent, and experiment-free",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::explicit 1-minute availability remains a priority card",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::explicit 3-minute availability remains a priority card",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::explicit 5-minute availability remains a priority card",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::explicit 9-minute availability remains a priority card",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::consolidated: a 1-day deadline survives placement, plan review and activation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::consolidated: a 3-day deadline survives placement, plan review and activation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::consolidated: a three-minute priority records no completion",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::a natural deadline and an edited date survive every schedule control",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::explicit study days survive intake and later time changes",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::a historical topic date cannot override the learner's real deadline",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::shorter sessions preserve weekly availability and explain insufficient time",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::an overfull plan returns to its schedule and recovers without a client crash",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::desktop-chromium::changing the goal through Back replaces the old placement map",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile-report-compatibility.spec.ts::desktop-chromium::YOVA Study Profile private report compatibility > keeps report credentials server-side until email confirmation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile-report-compatibility.spec.ts::desktop-chromium::YOVA Study Profile private report compatibility > keeps unknown-token failures generic through the API and report route",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::desktop-chromium::YOVA Study Profile > requires waitlist confirmation before revealing any report",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::desktop-chromium::YOVA Study Profile > opens a bound report only after explicit waitlist confirmation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::desktop-chromium::YOVA Study Profile > keeps results locked when report creation fails",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::desktop-chromium::YOVA Study Profile > uses a generic not-found screen for an unknown private token",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::desktop-chromium::YOVA Study Profile > requires an explicit POST to confirm a fragment-only waitlist token",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::desktop-chromium::YOVA Study Profile > routes public Study Profile support and privacy requests to hello@yovaapp.com",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::desktop-chromium::YOVA Study Profile > keeps working when browser storage is unavailable",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::desktop-chromium::YOVA Study Profile > clears expired, future-dated, and timestamp-free browser drafts",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::desktop-chromium::YOVA Study Profile > exposes semantic 14-step progress and dynamic radio keyboard help",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "accessibility-regression.spec.ts::mobile-chromium::the initial HTML provides useful public content without waiting for JavaScript",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "accessibility-regression.spec.ts::mobile-chromium::form placeholder text keeps AA contrast on public surfaces",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "accessibility-regression.spec.ts::mobile-chromium::Ask YOVA history traps focus, closes on Escape, and restores its trigger",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "accessibility-regression.spec.ts::mobile-chromium::primary authenticated screens have no serious WCAG A/AA Axe violations",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "account-security.spec.ts::mobile-chromium::makes account personalization visible, editable, persistent, and mobile-safe",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "account-security.spec.ts::mobile-chromium::explains the self-service export scope and the downloaded-copy boundary",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "account-security.spec.ts::mobile-chromium::clears signed-in UI after confirmed sign-out even when preview storage removal throws",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::mobile-chromium::a deadline can live in Calendar, be completed, and stay out of Learning",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::mobile-chromium::an overdue standalone deadline remains reachable and actionable",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::mobile-chromium::an outside assignment routes to one outside-YOVA session",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::mobile-chromium::a multi-session assignment skips an irrelevant knowledge quiz",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::mobile-chromium::speech and presentation plans bypass placement and use artifact-aware modes",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::mobile-chromium::general learning stays deadline-free until the user chooses otherwise",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::mobile-chromium::a timed product-rule request becomes a specific one-off session",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::mobile-chromium::an unfinished one-off session stays out of ongoing Learning goals",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "add-to-yova.spec.ts::mobile-chromium::one account never sees another account's deadline",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "agenda-scheduling.spec.ts::mobile-chromium::Calendar refuses unchanged and past custom session times",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::two simultaneous tabs preserve both new events and each tab refreshes",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::a stale event edit cannot overwrite the other tab and the draft remains available",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::Quick Add preserves weekdays, explicit dates and exam clocks",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::a deadline can be saved without inventing a study block and corrected later",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::manual events support full keyboard-editable fields and immediate undo",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::details stay visible and focused, and Escape returns focus to the selected block",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::overlapping commitments have distinct clickable lanes and a named conflict",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::full-day grid includes early, late and overnight work on the correct days",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::all deadlines can be searched, inspected and reached beyond the visible week",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::the inline suggestion Move action opens its editor",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::approved adjustments respect zero capacity and fixed commitments and disclose their destination",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-journeys.spec.ts::mobile-chromium::manual workload is included in adjustment totals and has a useful Move action",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::mobile-chromium::Add recognizes the communications timetable and saves a lasting Monday/Wednesday series",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::mobile-chromium::every two days supports a finite occurrence count and stops on the right date",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::mobile-chromium::one occurrence can move, be cancelled and be restored without changing the series",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::mobile-chromium::the whole series can be edited and deleted with one undoable action",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::mobile-chromium::missing times and unsupported patterns stay editable instead of saving a guessed schedule",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::mobile-chromium::the class keeps 11:30 local time after daylight saving ends",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::mobile-chromium::moving an occurrence to a different month keeps its details in view",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::mobile-chromium::moving an item into a future recurring class detects the conflict beyond the current week",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-recurring.spec.ts::mobile-chromium::concurrent edits to a recurring series preserve the second tab's unsaved draft",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-safety.spec.ts::mobile-chromium::a failed browser save keeps the draft and retry creates one event",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-safety.spec.ts::mobile-chromium::an adjustment is rechecked when another tab changes destination availability",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-safety.spec.ts::mobile-chromium::completion can be undone without closing the event details",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-safety.spec.ts::mobile-chromium::visual review of Agenda, event editor and overlapping Week blocks",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::mobile-chromium::Calendar exposes Week and Agenda surfaces with bounded keyboard navigation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::mobile-chromium::quick add confirms its interpretation, persists by account, and can be undone",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::mobile-chromium::quick add clamps an overlong title before confirmation and persists without crashing",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::mobile-chromium::exiting a quick-add plan draft returns to Calendar without losing or duplicating the manual deadline",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::mobile-chromium::finishing a quick-add plan replaces the manual deadline with one linked authoritative outcome",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::mobile-chromium::authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-in time adjustment stay connected",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::mobile-chromium::Calendar Start opens the exact ready session and fails closed on an ambiguous legacy plan",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::mobile-chromium::a future overloaded-day issue edits only that date's availability",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "calendar-tab.spec.ts::mobile-chromium::learner-owned blocks resize and suggested moves become pinned only after approval",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "canonical-study-profile.spec.ts::mobile-chromium::YOVA canonical Study Profile > builds the canonical 11-question profile, imports it into an account, and skips duplicate onboarding",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "canonical-study-profile.spec.ts::mobile-chromium::YOVA canonical Study Profile > restores only a valid saved canonical draft",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "canonical-study-profile.spec.ts::mobile-chromium::YOVA canonical Study Profile > finishes safely and explains the fallback when browser storage is unavailable",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "canonical-study-profile.spec.ts::mobile-chromium::YOVA canonical Study Profile > exposes semantic progress, pressed choices, and predictable keyboard focus",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "canonical-study-profile.spec.ts::mobile-chromium::YOVA canonical Study Profile > keeps landing, questionnaire, and summary inside narrow mobile viewports",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::Study Now lets the learner review and safely choose an eligible method before activation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::Study Now discloses omitted scope before starting and lets the learner change time",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::durable allowance exhaustion loads the committed method workpad and names the reset",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::durable allowance exhaustion without a safe fallback has its own non-retryable state",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::streamed lesson quota uses its built-in explanation and surfaces the reset",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a confident misconception is repaired now without a duplicate follow-up",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a support request keeps the committed practice recipe when fallback generation fails",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::an inactive-plan generation response cannot open a stale built-in lesson",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a visibly shortened inside recipe keeps its method in the fallback workpad",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a built-in fallback never ignores a learner's custom session requirement",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a new topic is taught before YOVA asks for independent performance",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a World War I beginner receives real teaching and a direct model answer",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::an opaque class label is stopped until the learner names the actual calculus concept",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a teaching-first inside outage does not start with unsupported recall",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a temporary AI failure loads a subject-specific startup funding lesson",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::home lets the learner browse prioritized recommendations without opening every plan",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::outside study gives a concrete source-based session instead of pretending YOVA owns the content",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::an arbitrary outside method workpad completes as practice without changing topic evidence",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a fallback method workpad resumes its timer and checked targets after reload",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a 10-minute outside teaching-first session loads its built-in method lesson",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::an overdue outside teaching-first session splits into runnable 10-minute parts",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::the backend rejects an opaque goal even when the browser guard is bypassed",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::plan generation remains a draft until the learner activates it",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a learner can stop twice without losing progress or earlier evidence",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a lesson and its reopened model teach every fact required by the glycolysis recall check",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a resumed streamed question can reopen its prior lesson by persisted activity index",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a refresh recovers semantic progress without saving draft answers or inventing an interruption",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a saved first-step recall round resumes at the next prompt without persisting draft text",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::learner text fields keep long pastes visible and block submission until trimmed",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::Calendar Agenda stays first and contained at a 375px viewport",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::spent guided-session allowance is visible before Home or Calendar opens setup",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::spent allowance still permits a saved session to continue",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::the product shell keeps every core destination and creation path usable",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::Ask YOVA turns structured explanations and math into readable interface content",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::the session tutor stays anchored to the exact learning activity",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a planning request outage still produces a reviewable plan from YOVA's saved inputs",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::legacy split work reopens as an active plan with runnable ten-minute sessions",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::finishing a shortened guided lesson keeps every deferred target as exact next work",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::adjusting ordinary future work preserves the exact scheduled review contract",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::scheduled-review setup stays fixed and opens the exact active or Study Now goal",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::map revision cannot activate a stale draft and reviewed starting level preserves placement",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::normal-plan review changes one offered method without regenerating or rewriting other routes",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::session setup changes one committed method and generates from its exact successor route",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::a multi-session plan carries one clear source decision from Add to Learning",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::archived, draft, and deleted-plan projections stay out of current-work surfaces",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::material setup clearly supports files, articles, and YouTube transcripts",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "core-learning-loop.spec.ts::mobile-chromium::material drop zone accepts drag gestures and explains rejected files",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "personalization.spec.ts::mobile-chromium::the canonical profile is visible, correctable, persistent, and experiment-free",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::explicit 1-minute availability remains a priority card",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::explicit 3-minute availability remains a priority card",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::explicit 5-minute availability remains a priority card",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::explicit 9-minute availability remains a priority card",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::consolidated: a 1-day deadline survives placement, plan review and activation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::consolidated: a 3-day deadline survives placement, plan review and activation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::consolidated: a three-minute priority records no completion",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::a natural deadline and an edited date survive every schedule control",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::explicit study days survive intake and later time changes",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::a historical topic date cannot override the learner's real deadline",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::shorter sessions preserve weekly availability and explain insufficient time",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::an overfull plan returns to its schedule and recovers without a client crash",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "plan-schedule-date.spec.ts::mobile-chromium::changing the goal through Back replaces the old placement map",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile-report-compatibility.spec.ts::mobile-chromium::YOVA Study Profile private report compatibility > keeps report credentials server-side until email confirmation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile-report-compatibility.spec.ts::mobile-chromium::YOVA Study Profile private report compatibility > keeps unknown-token failures generic through the API and report route",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::mobile-chromium::YOVA Study Profile > requires waitlist confirmation before revealing any report",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::mobile-chromium::YOVA Study Profile > opens a bound report only after explicit waitlist confirmation",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::mobile-chromium::YOVA Study Profile > keeps results locked when report creation fails",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::mobile-chromium::YOVA Study Profile > uses a generic not-found screen for an unknown private token",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::mobile-chromium::YOVA Study Profile > requires an explicit POST to confirm a fragment-only waitlist token",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::mobile-chromium::YOVA Study Profile > routes public Study Profile support and privacy requests to hello@yovaapp.com",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::mobile-chromium::YOVA Study Profile > keeps every pre-report screen usable on common phone widths",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::mobile-chromium::YOVA Study Profile > keeps working when browser storage is unavailable",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::mobile-chromium::YOVA Study Profile > clears expired, future-dated, and timestamp-free browser drafts",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "study-profile.spec.ts::mobile-chromium::YOVA Study Profile > exposes semantic 14-step progress and dynamic radio keyboard help",
+      "main": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "living-plan.spec.ts::desktop-chromium::active topics offer learned-elsewhere and source actions without a verification quiz",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "living-plan.spec.ts::desktop-chromium::founder journey preserves completed work, previews two topic changes, saves a receipt and undoes the revision",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "living-plan.spec.ts::desktop-chromium::a failed revision save shows no success receipt and preserves the original plan for retry",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "living-plan.spec.ts::desktop-chromium::draft topic edits use the reviewed delta and keep the other sessions for activation",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "living-plan.spec.ts::desktop-chromium::the availability editor can replace a window without regenerating the draft",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "living-plan.spec.ts::mobile-chromium::active topics offer learned-elsewhere and source actions without a verification quiz",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "living-plan.spec.ts::mobile-chromium::founder journey preserves completed work, previews two topic changes, saves a receipt and undoes the revision",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "living-plan.spec.ts::mobile-chromium::a failed revision save shows no success receipt and preserves the original plan for retry",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "living-plan.spec.ts::mobile-chromium::draft topic edits use the reviewed delta and keep the other sessions for activation",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    },
+    {
+      "id": "living-plan.spec.ts::mobile-chromium::the availability editor can replace a window without regenerating the draft",
+      "main": {
+        "passes": 0,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 0
+      },
+      "branch": {
+        "passes": 1,
+        "failures": 0,
+        "unavailable": 0,
+        "total": 1
+      },
+      "blocks": false,
+      "reason": "No regression",
+      "suite": "browser"
+    }
+  ]
+}

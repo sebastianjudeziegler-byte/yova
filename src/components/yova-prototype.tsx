@@ -4,8 +4,6 @@ import { coreRecallKnowledgeForLesson, includeCoreRecallKnowledge } from "@/lib/
 import { SavedLessonReview, type SavedLessonReviewIdentity } from "@/components/saved-lesson-review";
 
 import { generatedSessionDefersAllStoredPlanTargets } from "@/lib/session-generation/deferred-cache-contract";
-import { deferredTopicSessionFields } from "@/lib/learning/deferred-topic-session";
-import { fetchClientJson, GENERATION_REQUEST_TIMEOUT_MS, readClientStateBeforeDeadline } from "@/lib/http/client-json";
 import { topicDisplayLabel } from "@/lib/learning/topic-display-label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -36,7 +34,6 @@ import {
   Sparkles,
   Target,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
@@ -56,7 +53,6 @@ import {
   type GuidedSessionAllowanceDisplayState,
 } from "@/components/guided-session-allowance-notice";
 import { LearningContent } from "@/components/learning-content";
-import { MaterialLinkImporter } from "@/components/material-link-importer";
 import { MethodLibrary } from "@/components/method-library";
 import { CanonicalProfileCenter } from "@/components/personalization/canonical-profile-center";
 import { PlanCreator } from "@/components/plan-creator";
@@ -96,7 +92,6 @@ import {
   type ConfidenceEvidence,
   type ConfidenceLevel,
   type DeadlineMilestone,
-  type LearningMaterial,
   type LearningPlan,
   type LearningPlanSession,
   type PreviewAccount,
@@ -161,11 +156,9 @@ import {
   prepareConceptReviewSessionStudyRoute,
   preparePostSessionStudyRouteTransition,
 } from "@/lib/study-route/post-session-transition";
-import { preparePlanAdjustmentStudyRoutes } from "@/lib/study-route/plan-adjustment";
 import { createCommittedMethodChoiceSuccessor } from "@/lib/study-route/committed-method-choice";
 import { CommittedMethodChoiceResponseSchema } from "@/lib/study-route/committed-method-choice-schema";
 import { explainStudyRouteDuration } from "@/lib/study-route/duration-explanation";
-import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-levels";
 import {
   resolveExecutedStudyRouteSessionContract,
   resolveStudyRouteSessionContract,
@@ -258,6 +251,12 @@ import {
   resumedSessionAdjustment,
 } from "@/lib/learning/session-resume";
 import { selectFreeResponseMode } from "@/lib/learning/response-mode";
+import { previewClientPlanRevision, sendPlanRevisionRequest, savedPlanAvailability } from "@/components/plan-revision/revision-client";
+import { RevisionPlanSchema } from "@/lib/plan-revision/revision-schema";
+import type { SignedPreview } from "@/components/plan-revision/plan-revision-preview";
+import { LivingPlanRevision, type RevisionClient, type RevisionLaunch } from "@/components/plan-revision/living-plan-revision";
+import type { MapDelta } from "@/lib/plan-revision/map-delta";
+import { applySessionRevisionPatches, sessionRevisionPatches } from "@/lib/plan-revision/revision-patch";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import {
@@ -323,23 +322,14 @@ import {
   type SessionDeliveryPolicy,
 } from "@/lib/personalization/session-delivery-policy";
 import { reportProductError } from "@/lib/monitoring/client";
-import { PlanAdjustmentResponseSchema, type PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
+import type { PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
 import {
   MAX_RUNTIME_PLAN_SESSIONS,
   PublicPlanDiagnosticQuestionSchema,
   type PublicPlanDiagnosticQuestion,
 } from "@/lib/plan-generation/schema";
-import {
-  buildProtectedPlanAdjustmentSessions,
-  learningPlanSessionToAdjustableRow,
-  MAX_ADJUSTED_PLAN_SESSIONS,
-  mergeAuthoritativeProtectedPlanAdjustmentSession,
-} from "@/lib/learning/content-based-plan-adjustment";
-import { applyPlanDirectionFallback } from "@/lib/learning/plan-direction";
 import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
 import { deleteArchivedPlan } from "@/lib/learning/plan-deletion";
-import { MaterialAttachmentResponseSchema } from "@/lib/materials/attachment-schema";
-import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import {
   ActiveSessionCheckpointConflictError,
   ActiveSessionCheckpointTerminalError,
@@ -695,6 +685,11 @@ export function YovaPrototype({
   const [creatorCalendarEventId, setCreatorCalendarEventId] = useState<string | null>(null);
   const [creatorReviewSourceFirst, setCreatorReviewSourceFirst] = useState(false);
   const [calendarStorageRevision, setCalendarStorageRevision] = useState(0);
+  const [revisionLaunch, setRevisionLaunch] = useState<RevisionLaunch | null>(null);
+  const [quickRevision, setQuickRevision] = useState<{ signed: SignedPreview; message: string; undone?: boolean } | null>(null);
+  const [quickRevisionError, setQuickRevisionError] = useState<string | null>(null);
+  const [quickRevisionUndoing, setQuickRevisionUndoing] = useState(false);
+  const awaitingRevision = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [learningDetailPlanId, setLearningDetailPlanId] = useState<string | null>(null);
   const [sessionCompletions, setSessionCompletions] = useState<SessionCompletion[]>([]);
@@ -3800,203 +3795,60 @@ export function YovaPrototype({
     };
   };
 
+  const revisionClient: RevisionClient = {
+    launch: revisionLaunch,
+    onReviewClosed: () => {
+      awaitingRevision.current?.reject(new Error("Preview cancelled. Your plan is unchanged."));
+      awaitingRevision.current = null;
+    },
+    developmentPreview: browserPreviewMode || account?.identityMode === "preview",
+    accountId: account?.id ?? "browser-preview", plans,
+    profileSummary: buildPlanProfileSummary(answers), previewCanonicalProfile: effectivePreviewCanonicalProfile ?? undefined,
+    onOpenCalendar: () => setActiveTab("Calendar"),
+    onSaved: (saved, previous, changedSessionIds) => {
+      const current = plansRef.current.find(candidate => candidate.id === saved.id);
+      if (!current || (current.revisionId ?? current.id) !== (previous.revisionId ?? previous.id)) throw new Error("This plan changed while saving. Reload its latest revision before continuing.");
+      const patches = sessionRevisionPatches(previous, saved).filter(patch => !changedSessionIds || changedSessionIds.includes(patch.id));
+      const sessions = applySessionRevisionPatches({ current: current.sessions, patches, protectedSessionIds: new Set([
+        ...sessionInterruptions.map(item => item.planSessionId), ...activeSessionCheckpoints.map(item => item.planSessionId),
+      ]) });
+      const next = { ...saved, sessions };
+      const nextPlans = plansRef.current.map(candidate => candidate.id === saved.id ? next : candidate);
+      if (account?.identityMode === "preview") {
+        savePreviewSnapshot({ version: 1, account, signedIn, onboardingAnswers: answers, onboardingCompleted,
+          alphaEntered: onboardingCompleted, plans: nextPlans, deadlineMilestones, sessionCompletions, sessionInterruptions, updatedAt: new Date().toISOString() });
+      }
+      plansRef.current = nextPlans;
+      setPlans(nextPlans);
+      awaitingRevision.current?.resolve();
+      awaitingRevision.current = null;
+    },
+  };
+
+  // Older entry points open the same reviewed editor. They cannot write a
+  // session or report success before the accepted revision is persisted.
   const adjustPlan = async (input: PlanAdjustmentRequest) => {
-    const requestedPlan = plansRef.current.find((candidate) => candidate.id === input.planId);
-    if (!requestedPlan) throw new Error("YOVA could not find that plan.");
-    const protectedWorkSession = requestedPlan.sessions.find((session) => (
-      (session.status === "ready" || session.status === "upcoming")
-      && !isScheduledRetrievalSession(session)
-      && (
-        Boolean(session.resource)
-        || sessionInterruptions.some((interruption) => interruption.planSessionId === session.id)
-        || activeSessionCheckpoints.some((checkpoint) => checkpoint.planSessionId === session.id)
-      )
-    ));
-    if (protectedWorkSession) {
-      throw new Error("This plan has an unfinished session with saved work. Finish that session before rebuilding the remaining plan.");
-    }
-
-    if (account?.identityMode === "preview") {
-      const plan = requestedPlan;
-      const settledSessions = plan.sessions.filter((session) => session.status === "complete" || session.status === "skipped");
-      const unfinishedSessions = plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming");
-      const protectedReviews = unfinishedSessions.filter(isScheduledRetrievalSession);
-      let adjustableSessions = unfinishedSessions
-        .filter((session) => !isScheduledRetrievalSession(session))
-        .map(learningPlanSessionToAdjustableRow);
-      const newSessionOriginIds: Record<string, string> = {};
-      if (input.includeDeferred && plan.knowledgeMap) {
-        const alreadyIncluded = new Set(unfinishedSessions.flatMap((session) => session.topicIds ?? []));
-        const deferred = plan.knowledgeMap.topics.filter((topic) => topic.deferred && !alreadyIncluded.has(topic.id));
-        const fallbackScheduleTime = new Date(plan.sessions.at(-1)?.scheduledFor ?? plan.createdAt).getTime();
-        const latestTime = unfinishedSessions.reduce(
-          (latest, session) => Math.max(latest, new Date(session.scheduledFor).getTime()),
-          fallbackScheduleTime,
-        );
-        const exactDeferredOriginId = adjustableSessions.at(-1)?.id
-          ?? unfinishedSessions.at(-1)?.id
-          ?? plan.sessions.at(-1)?.id;
-        adjustableSessions = [...adjustableSessions, ...deferred.map((topic, index) => {
-          const id = makeUuid();
-          if (exactDeferredOriginId) newSessionOriginIds[id] = exactDeferredOriginId;
-          return {
-          id,
-          sequence: plan.sessions.length + index + 1,
-          ...deferredTopicSessionFields(topic, plan.topic),
-          scheduled_for: new Date(latestTime + (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
-          estimated_minutes: input.futureSessionMinutes,
-          status: "upcoming" as const,
-        }; })];
-      }
-      const redirectedSessions = input.direction && adjustableSessions.length
-        ? applyPlanDirectionFallback(adjustableSessions, input.direction, plan.topic)
-        : adjustableSessions;
-      const replacements = buildProtectedPlanAdjustmentSessions(
-        [
-          ...redirectedSessions,
-          ...protectedReviews.map(learningPlanSessionToAdjustableRow),
-        ],
-        input.futureSessionMinutes,
-        Math.max(0, ...settledSessions.map((session) => session.sequence)) + 1,
-        MAX_ADJUSTED_PLAN_SESSIONS - settledSessions.length,
-        plan.schedulePreferences ? { ...plan.schedulePreferences, deadline: input.deadline } : undefined,
-      );
-      if (!replacements.length) throw new Error("This plan has no unfinished content to adjust.");
-      const includedTopicIds = new Set(replacements.flatMap((session) => session.topicIds ?? []));
-      const scalarReplacements = replacements.map((replacement) => {
-        if (!("reviewType" in replacement) || !replacement.reviewType) return replacement;
-        const original = protectedReviews.find((session) => session.id === replacement.id);
-        return original ? { ...original, sequence: replacement.sequence } : replacement;
-      });
-      const routedReplacements = preparePlanAdjustmentStudyRoutes({
-        plan,
-        replacementSessions: scalarReplacements,
-        nextStudyMode: input.studyMode,
-        changedAt: new Date().toISOString(),
-        reason: input.direction
-          ?? "The learner changed the remaining plan schedule, duration, or execution environment.",
-        newSessionOriginIds,
-      });
-      setPlans((current) => current.map((candidate) => candidate.id === input.planId ? {
-        ...candidate,
-        deadline: input.deadline,
-        studyMode: input.studyMode,
-        knowledgeMap: input.includeDeferred && candidate.knowledgeMap ? {
-          ...candidate.knowledgeMap,
-          topics: candidate.knowledgeMap.topics.map((topic) => includedTopicIds.has(topic.id) ? { ...topic, deferred: null } : topic),
-        } : candidate.knowledgeMap,
-        sessions: [
-          ...settledSessions,
-          ...routedReplacements,
-        ].sort((left, right) => left.sequence - right.sequence),
-      } : candidate));
-      return;
-    }
-
-    try {
-      const { response, body } = await fetchClientJson("/api/plans/adjust", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      }, {
-        timeoutMs: input.direction ? GENERATION_REQUEST_TIMEOUT_MS : 30_000,
-        timeoutMessage: "YOVA could not confirm the update in time. Reload this goal before trying again; your saved progress is safe.",
-        invalidResponseMessage: "YOVA could not confirm the plan update. Reload this goal to check its schedule.",
-      });
-      if (!response.ok) {
-        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
-          ? body.error
-          : "YOVA could not adjust that plan.";
-        throw new Error(message);
-      }
-      const parsed = PlanAdjustmentResponseSchema.safeParse(body);
-      if (!parsed.success) throw new Error("The adjusted plan came back in an unsafe format.");
-      const includedTopicIds = new Set(parsed.data.sessions.flatMap((session) => session.topicIds));
-      setPlans((current) => current.map((plan) => {
-        if (plan.id !== parsed.data.planId) return plan;
-        const settledSessions = plan.sessions.filter((session) => session.status === "complete" || session.status === "skipped");
-        const protectedReviews = new Map(plan.sessions
-          .filter(isScheduledRetrievalSession)
-          .map((session) => [session.id, session]));
-        return {
-          ...plan,
-          deadline: parsed.data.deadline,
-          studyMode: parsed.data.studyMode,
-          knowledgeMap: input.includeDeferred && plan.knowledgeMap ? {
-            ...plan.knowledgeMap,
-            topics: plan.knowledgeMap.topics.map((topic) => includedTopicIds.has(topic.id) ? { ...topic, deferred: null } : topic),
-          } : plan.knowledgeMap,
-          sessions: [
-            ...settledSessions,
-            ...parsed.data.sessions.map((session) => {
-              if (!isScheduledRetrievalSession(session)) return session;
-              const original = protectedReviews.get(session.id);
-              return mergeAuthoritativeProtectedPlanAdjustmentSession(original, session);
-            }),
-          ].sort((left, right) => left.sequence - right.sequence),
-        };
-      }));
-    } catch (error) {
-      try {
-        const expectedAccountId = account?.id;
-        if (expectedAccountId) {
-          const fresh = await readClientStateBeforeDeadline(async () => {
-            if ((await getAuthenticatedAccount())?.id !== expectedAccountId) return null;
-            const snapshot = await loadAuthenticatedLearningStateWithRetry();
-            return (await getAuthenticatedAccount())?.id === expectedAccountId ? snapshot : null;
-          }, 8_000);
-          const saved = fresh?.plans.find(plan => plan.id === input.planId);
-          const pending = new Set([...pendingSessionCompletionPlanSessionIds(expectedAccountId), ...pendingSessionInterruptionPlanSessionIds(expectedAccountId)]);
-          if (saved && !saved.sessions.some(session => pending.has(session.id))) {
-            setPlans(current => current.map(plan => plan.id === saved.id ? saved : plan));
-          }
-        }
-      } catch {
-        // A failed readback cannot establish whether the write committed.
-        // Preserve the local view and the request's reload guidance.
-      }
-      throw error;
-    }
+    const plan = plansRef.current.find(candidate => candidate.id === input.planId);
+    if (!plan) throw new Error("YOVA could not find that plan.");
+    if (awaitingRevision.current) throw new Error("Finish or cancel the open plan preview first.");
+    const requestedMinutes = [10, 15, 25, 45, 60].find(minutes => minutes === input.futureSessionMinutes) as 10 | 15 | 25 | 45 | 60 | undefined;
+    const selectedSessions = plan.sessions.filter(session => ["ready", "upcoming"].includes(session.status) && !session.resource && !session.reviewType);
+    const reviewDuration = !input.direction && requestedMinutes !== undefined && selectedSessions.some(session => session.estimatedMinutes !== requestedMinutes);
+    const delta: MapDelta = { operations: reviewDuration
+      ? [{ op: "set_availability", availability: savedPlanAvailability(plan) }]
+      : input.deadline && input.deadline !== plan.deadline ? [{ op: "set_deadline", iso: input.deadline }] : [] };
+    if (reviewDuration && input.deadline && input.deadline !== plan.deadline) delta.operations.push({ op: "set_deadline", iso: input.deadline });
+    const saved = new Promise<void>((resolve, reject) => { awaitingRevision.current = { resolve, reject }; });
+    setRevisionLaunch({ key: makeUuid(), planId: plan.id, delta,
+      ...(reviewDuration ? { controls: { excludedOperationIndexes: [], sessionEdits: selectedSessions.filter(session => session.estimatedMinutes !== requestedMinutes).map(session => ({ sessionId: session.id, operationIndex: 0, durationMinutes: requestedMinutes })) } } : {}),
+      type: input.direction ? "add_topic" : "set_availability" });
+    setSelectedPlanId(plan.id); setLearningDetailPlanId(plan.id);
+    setStage("app"); setActiveTab("Learning");
+    await saved;
   };
 
   const updatePlanKnowledgeMap = (planId: string, knowledgeMap: PlanKnowledgeMap) => {
     setPlans((current) => current.map((plan) => plan.id === planId ? { ...plan, knowledgeMap } : plan));
-  };
-
-  const attachMaterials = async (planId: string, materialIds: string[]) => {
-    const response = await fetch("/api/materials/attach", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ planId, materialIds }),
-    });
-    const body: unknown = await response.json();
-    if (!response.ok) {
-      const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
-        ? body.error
-        : "YOVA could not attach those materials.";
-      const error = new Error(message) as Error & { attachmentCommitted?: boolean };
-      error.attachmentCommitted = Boolean(
-        typeof body === "object" && body && "committed" in body && body.committed === true,
-      );
-      throw error;
-    }
-    const parsed = MaterialAttachmentResponseSchema.safeParse(body);
-    if (!parsed.success) {
-      const error = new Error(
-        "The sources were attached, but YOVA could not refresh them safely. Do not add them again; reload this goal.",
-      ) as Error & { attachmentCommitted: true };
-      error.attachmentCommitted = true;
-      throw error;
-    }
-    setPlans((current) => current.map((plan) => plan.id === parsed.data.planId ? {
-      ...plan,
-      sourceMode: parsed.data.sourceMode,
-      materials: parsed.data.materials,
-      knowledgeMap: parsed.data.knowledgeMap,
-      sessions: plan.sessions.map((session) => session.status === "ready" || session.status === "upcoming"
-        ? { ...session, resource: undefined, studyRoute: parsed.data.studyRoutes?.find((route) => route.identity.sessionId === session.id) ?? session.studyRoute }
-        : session),
-    } : plan));
   };
 
   const adjustSessionDuration = async (planSessionId: string, estimatedMinutes: number) => {
@@ -4016,12 +3868,30 @@ export function YovaPrototype({
       throw new Error("YOVA cannot safely split this session into that time window. Move it or review the session setup instead.");
     }
 
-    await adjustPlan({
-      planId: plan.id,
-      deadline: plan.deadline,
-      studyMode: plan.studyMode,
-      futureSessionMinutes: estimatedMinutes,
-    });
+    const duration = estimatedMinutes as 10 | 15 | 25 | 45 | 60;
+    const availability = savedPlanAvailability(plan);
+    // A Study Now goal has no recurring schedule to enlarge. The explicit
+    // split action requests a bounded block now, including the reset between
+    // its parts; unrelated work and calendar events remain reservations.
+    if (!plan.schedulePreferences?.availability.length) {
+      const now = new Date();
+      const budget = Math.ceil(session.estimatedMinutes / duration) * (duration + 5);
+      const end = new Date(now.getTime() + budget * 60000);
+      const time = (value: Date) => value.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      availability.splice(0, availability.length, { day: now.toLocaleDateString("en-US", { weekday: "long" }), window: `${time(now)}–${time(end)}`, minutes: budget });
+    }
+    const delta: MapDelta = { operations: [{ op: "set_availability", availability }] };
+    const controls = { excludedOperationIndexes: [], sessionEdits: [{ sessionId: session.id, operationIndex: 0, durationMinutes: duration }] };
+    const signed = await previewClientPlanRevision({ plan, client: revisionClient, delta, controls });
+    if (!signed.proposal.canApply || signed.proposal.capacity.status !== "fits") {
+      setRevisionLaunch({ key: makeUuid(), planId: plan.id, delta, controls, type: "set_availability" });
+      setSelectedPlanId(plan.id); setLearningDetailPlanId(plan.id); setStage("app"); setActiveTab("Learning");
+      throw new Error(signed.proposal.capacity.explanation);
+    }
+    const result = await sendPlanRevisionRequest({ action: "apply", ...signed });
+    await revisionClient.onSaved(RevisionPlanSchema.parse(result.plan) as LearningPlan, plan, result.changedSessionIds);
+    setQuickRevision({ signed, message: result.receipt.message });
+    setQuickRevisionError(null);
   };
 
   const applyTutorAction = async (action: TutorProposedAction) => {
@@ -4569,7 +4439,7 @@ export function YovaPrototype({
     onCreatePlan={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("plan-creator"); }}
     onCreateSession={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("study-now"); }}
   />;
-  if (stage === "plan-creator") return <PlanCreator seed={creatorSeed ?? undefined} initialSeedStep={creatorReviewSourceFirst ? "source" : "schedule"} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setCreatorReviewSourceFirst(false); setStage("app"); }} onFinish={(plan) => {
+  if (stage === "plan-creator") return <PlanCreator revisionAccountId={account?.id} activePlans={plans} seed={creatorSeed ?? undefined} initialSeedStep={creatorReviewSourceFirst ? "source" : "schedule"} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setCreatorReviewSourceFirst(false); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -4750,10 +4620,23 @@ export function YovaPrototype({
     return <SessionComplete currentSession={currentSession} knowledgeMap={activePlan?.knowledgeMap} completionMode={sessionCompletionMode} completedAt={sessionCompletedAt ?? new Date().toISOString()} requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} feedback={sessionCompletionFeedback} onFeedback={setSessionCompletionFeedback} recoveryNotice={sessionRecoveryNotice} recoveryIssue={sessionRecoveryIssue} onFinish={async (feedback, applyRecommendedChange) => { if (!await completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes, applyRecommendedChange)) return; setStage("app"); setActiveTab("Home"); }} />;
   }
 
+
   return <>
     <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={() => beginCalendarAdd()} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
+      {quickRevision && <div className="plan-revision-receipt"><div role="status"><p>{quickRevision.message}</p>{!quickRevision.undone && <button className="button secondary" disabled={quickRevisionUndoing} onClick={async () => {
+        const current = plansRef.current.find(plan => plan.id === quickRevision.signed.proposal.planId);
+        if (!current) return;
+        setQuickRevisionUndoing(true); setQuickRevisionError(null);
+        try {
+          const result = await sendPlanRevisionRequest({ action: "undo", planId: current.id, expectedRevisionId: quickRevision.signed.proposal.revisionId,
+            ...(revisionClient.developmentPreview ? { developmentPlan: current, ...quickRevision.signed } : {}) });
+          await revisionClient.onSaved(RevisionPlanSchema.parse(result.plan) as LearningPlan, current, result.changedSessionIds);
+          setQuickRevision({ ...quickRevision, message: result.receipt.message, undone: true });
+        } catch (error) { setQuickRevisionError(error instanceof Error ? error.message : "Undo could not be saved."); }
+        finally { setQuickRevisionUndoing(false); }
+      }}>{quickRevisionUndoing ? "Restoring…" : "Undo"}</button>}</div>{quickRevisionError && <p role="alert">{quickRevisionError}</p>}</div>}
       {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("study-now"); }} milestones={agendaMilestones} onOpenAgenda={() => setActiveTab("Calendar")} />}
-      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} preferredMethodIds={savedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={personalizationState.controls.selfReport} onPreferredMethodIdsChange={changePreferredMethodIds} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
+      {activeTab === "Learning" && <LearningScreen revisionClient={revisionClient} plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} preferredMethodIds={savedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={personalizationState.controls.selfReport} onPreferredMethodIdsChange={changePreferredMethodIds} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap}  />}
       {activeTab === "Calendar" && <CalendarScreen
         initialCalendarDescription={calendarDescription}
         onCalendarDescriptionConsumed={() => setCalendarDescription(null)}
@@ -5319,7 +5202,7 @@ function AskBar({ value, onChange, onSubmit, pending = false, hero = false }: { 
   return <form className={`ask-bar ${hero ? "hero" : ""}`} onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}>{!hero && <Sparkles size={20} />}<input aria-label="Ask YOVA" placeholder={hero ? "Ask YOVA about anything you're studying…" : "Ask YOVA anything or describe what you need…"} value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : hero ? <span className="ask-bar-send-label">Ask</span> : <Send size={18} />}</button></form>;
 }
 
-function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, preferredMethodIds: selectedPreferredMethodIds, syncedPreferenceKey, statedPreferencesEnabled, onPreferredMethodIdsChange, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; preferredMethodIds: readonly CoreMethodId[]; syncedPreferenceKey: string | null; statedPreferencesEnabled: boolean; onPreferredMethodIdsChange: (methodIds: CoreMethodId[]) => void | Promise<void>; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onDeletePlan: (planId: string) => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
+function LearningScreen({ revisionClient, plans, detailPlanId, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, preferredMethodIds: selectedPreferredMethodIds, syncedPreferenceKey, statedPreferencesEnabled, onPreferredMethodIdsChange, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate }: { revisionClient: RevisionClient; plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; preferredMethodIds: readonly CoreMethodId[]; syncedPreferenceKey: string | null; statedPreferencesEnabled: boolean; onPreferredMethodIdsChange: (methodIds: CoreMethodId[]) => void | Promise<void>; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onDeletePlan: (planId: string) => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void }) {
   const [view, setView] = useState<LearningSection>(() => {
     const requestedPlan = plans.find((plan) => plan.id === detailPlanId);
     if (requestedPlan?.status === "archived") return "archive";
@@ -5374,7 +5257,7 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
       <button type="button" aria-current={view === "methods" ? "page" : undefined} className={view === "methods" ? "active" : ""} onClick={() => changeView("methods")}>Methods <span>{CORE_METHOD_IDS.length}</span></button>
     </nav>
     {statusError && <div className="chat-error"><AlertCircle size={16} /><span>{statusError}</span></div>}
-    {showingMethods ? <MethodLibrary preferredMethodIds={selectedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={statedPreferencesEnabled} onPreferredMethodIdsChange={onPreferredMethodIdsChange} /> : plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} activeSessionCheckpoints={activeSessionCheckpoints.filter((checkpoint) => checkpoint.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onDeletePlan={() => onDeletePlan(plan.id)} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} activeSessionCheckpoints={activeSessionCheckpoints} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Build your first plan <ArrowRight size={17} /></button>}</section>}
+    {showingMethods ? <MethodLibrary preferredMethodIds={selectedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={statedPreferencesEnabled} onPreferredMethodIdsChange={onPreferredMethodIdsChange} /> : plan ? <LearningPlanDetail key={`${plan.id}:${revisionClient.launch?.key ?? "detail"}`} revisionClient={revisionClient} plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} activeSessionCheckpoints={activeSessionCheckpoints.filter((checkpoint) => checkpoint.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onDeletePlan={() => onDeletePlan(plan.id)} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate}  /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} activeSessionCheckpoints={activeSessionCheckpoints} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Build your first plan <ArrowRight size={17} /></button>}</section>}
   </div>;
 }
 
@@ -5415,8 +5298,11 @@ function LearningOverview({ plans, allPlans, view, interruptions, activeSessionC
   </>;
 }
 
-function LearningPlanDetail({ plan, view, completions, interruptions, activeSessionCheckpoints, changingStatus, onBack, onStart, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plan: LearningPlan; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; changingStatus: boolean; onBack: () => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onDeletePlan: () => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
-  const [showAdjustments, setShowAdjustments] = useState(false);
+function LearningPlanDetail({ revisionClient, plan, view, completions, interruptions, activeSessionCheckpoints, changingStatus, onBack, onStart, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate }: { revisionClient: RevisionClient; plan: LearningPlan; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; changingStatus: boolean; onBack: () => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onDeletePlan: () => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void }) {
+  const [revisionRequest, setRevisionRequest] = useState<Omit<RevisionLaunch, "planId"> | null>(revisionClient.launch?.planId === plan.id ? revisionClient.launch : null);
+  const reviseTopic = (topicId: string, action: "mark_covered" | "attach_source") => {
+    setRevisionRequest({ key: makeUuid(), topicId, delta: { operations: action === "mark_covered" ? [{ op: action, topic_id: topicId }] : [] } });
+  };
   const [extendingMap, setExtendingMap] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const completeCount = plan.sessions.filter((session) => session.status === "complete").length;
@@ -5461,20 +5347,21 @@ function LearningPlanDetail({ plan, view, completions, interruptions, activeSess
 
   return <>
     <button className="learning-back" onClick={onBack}><ArrowLeft size={16} /> All {view === "recent" ? "recent learning" : view === "archive" ? "archived learning" : "active learning"}</button>
-    <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{topicDisplayLabel(plan.topic)}</p><span className="learning-approach-badge">{plan.learningIntent === "learn" ? <BookOpen size={14} /> : <Target size={14} />}{plan.learningIntent === "learn" ? "Building understanding, then practice" : "Practice, diagnose, and repair"}</span><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{resumePoint ? `${resumePoint.completedSteps} of ${resumePoint.totalSteps} sections saved in the current session` : `${completeCount} of ${plan.sessions.length} sessions complete`}</small></div><div className="learning-hero-actions">{canManagePlan && readySession && <button className="button primary" onClick={onStart}>{resumePoint ? "Continue session" : "Start next session"}</button>}{canManagePlan && hasAdjustableUnfinishedWork && <button className="button hero-secondary" onClick={() => setShowAdjustments((value) => !value)}><Settings2 size={16} /> {showAdjustments ? "Close" : "Adjust"}</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button>{view === "archive" && <PlanDeletionControl planTitle={plan.title} onDelete={onDeletePlan} />}</div></section>
-    {canManagePlan && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
+    <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{topicDisplayLabel(plan.topic)}</p><span className="learning-approach-badge">{plan.learningIntent === "learn" ? <BookOpen size={14} /> : <Target size={14} />}{plan.learningIntent === "learn" ? "Building understanding, then practice" : "Practice, diagnose, and repair"}</span><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{resumePoint ? `${resumePoint.completedSteps} of ${resumePoint.totalSteps} sections saved in the current session` : `${completeCount} of ${plan.sessions.length} sessions complete`}</small></div><div className="learning-hero-actions">{canManagePlan && readySession && <button className="button primary" onClick={onStart}>{resumePoint ? "Continue session" : "Start next session"}</button>}{canManagePlan && hasAdjustableUnfinishedWork && <button className="button hero-secondary" onClick={() => setRevisionRequest({ key: makeUuid(), delta: { operations: [] }, type: "set_availability" })}><Settings2 size={16} /> Adjust</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button>{view === "archive" && <PlanDeletionControl planTitle={plan.title} onDelete={onDeletePlan} />}</div></section>
+
     {view === "recent" && <section className="learning-history-summary"><div><span>{presentAsCompleted ? "Completed" : "Plan state"}</span><strong>{presentAsCompleted ? formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt) : "Unfinished work"}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
     {view === "archive" && <section className="learning-history-summary" aria-label="Archived goal history"><div><span>Started</span><strong>{formatCompletionDate(plan.createdAt)}</strong></div><div><span>Progress kept</span><strong>{completeCount} of {plan.sessions.length} sessions</strong></div><div><span>Attached materials</span><strong>{plan.materials?.length ?? 0}</strong></div></section>}
-    <PlanKnowledgeMapPanel plan={plan} completions={completions} canExtend={canManagePlan} extending={extendingMap} error={mapError} onExtend={() => void extendDeferredTopics()} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} />
+    <PlanKnowledgeMapPanel onReviseTopic={canManagePlan ? reviseTopic : undefined} plan={plan} completions={completions} canExtend={canManagePlan} extending={extendingMap} error={mapError} onExtend={() => void extendDeferredTopics()} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} />
+    {canManagePlan && revisionRequest && <LivingPlanRevision key={revisionRequest.key} plan={plan} client={revisionClient} initialDelta={revisionRequest.delta} initialTopicId={revisionRequest.topicId} initialType={revisionRequest.type} initialControls={revisionRequest.controls} onClose={() => { setRevisionRequest(null); revisionClient.onReviewClosed?.(); }} />}
     <section className="section-block plan-timeline"><div className="section-title"><div><h3>{view === "recent" ? presentAsCompleted ? "What you completed" : "Sessions in this study" : "Your plan"}</h3><p>{view === "recent" && !presentAsCompleted ? "Completed sessions are checked. Unfinished sessions remain listed without being counted as completed." : "The sequence YOVA will guide you through, one session at a time."}</p></div><span>{plan.sessions.length} sessions</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small><b>{selectSessionLearningMode(plan, session) === "learn" ? "Teaching first" : "Practice first"}</b> · {selectSessionMethodName(plan, session)} · {formatSessionTime(session.scheduledFor)}</small></div><span>{selectSessionActiveMinutes(plan, session)} min</span></div>)}</div></section>
     <PlanAdaptations plan={plan} />
-    <PlanSources plan={plan} editable={canManagePlan} onAttach={onAttachMaterials} />
+    <PlanSources plan={plan} editable={canManagePlan} onReview={() => setRevisionRequest({ key: makeUuid(), delta: { operations: [] }, type: "attach_source" })} />
     <PlanResources plan={plan} />
     <ConceptSignalsPanel signals={conceptSignals} />
   </>;
 }
 
-function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error, onExtend, onAdjustPlan, onKnowledgeMapUpdate }: { plan: LearningPlan; completions: SessionCompletion[]; canExtend: boolean; extending: boolean; error: string | null; onExtend: () => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void }) {
+function PlanKnowledgeMapPanel({ onReviseTopic, plan, completions, canExtend, extending, error, onExtend, onAdjustPlan, onKnowledgeMapUpdate }: { onReviseTopic?: (topicId: string, action: "mark_covered" | "attach_source") => void; plan: LearningPlan; completions: SessionCompletion[]; canExtend: boolean; extending: boolean; error: string | null; onExtend: () => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void }) {
   const placementOperationRef = useRef<string | null>(null);
   const [placementOpen, setPlacementOpen] = useState(false);
   const [placementLoading, setPlacementLoading] = useState(false);
@@ -5590,7 +5477,7 @@ function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error,
       .map((id) => topicById.get(id)?.title)
       .filter((title): title is string => Boolean(title))
       .map((title) => topicDisplayLabel(title, "This topic"));
-    return <li key={topic.id}><span className={`knowledge-topic-index ${topic.displayStatus}`}>{topic.displayStatus === "secure" ? <Check size={15} /> : index + 1}</span><div><div className="knowledge-topic-heading"><strong>{topicDisplayLabel(topic.title, "This topic")}</strong><span className={`knowledge-topic-status ${topic.displayStatus}`}>{topicStatusLabel(topic.displayStatus)}</span></div><p>{topic.description}</p>{prerequisites.length > 0 && <small>Builds on {prerequisites.join(", ")}</small>}<small>{topic.origin === "material" ? `${topic.sourceReferences.length} source ${topic.sourceReferences.length === 1 ? "location" : "locations"} mapped` : "Structured by YOVA for this goal"}</small></div></li>;
+    return <li key={topic.id} data-topic-id={topic.id}><span className={`knowledge-topic-index ${topic.displayStatus}`}>{topic.displayStatus === "secure" ? <Check size={15} /> : index + 1}</span><div><div className="knowledge-topic-heading"><strong>{topicDisplayLabel(topic.title, "This topic")}</strong><span className={`knowledge-topic-status ${topic.displayStatus}`}>{topicStatusLabel(topic.displayStatus)}</span></div><p>{topic.description}</p>{prerequisites.length > 0 && <small>Builds on {prerequisites.join(", ")}</small>}<small>{topic.origin === "material" ? `${topic.sourceReferences.length} source ${topic.sourceReferences.length === 1 ? "location" : "locations"} mapped` : "Structured by YOVA for this goal"}</small>{topic.initialEvidence?.source === "learner_report" && <small>Learned elsewhere · practice will check what you know</small>}{topic.attachedSources?.map((source, sourceIndex) => <small key={sourceIndex}>{"url" in source ? <a href={source.url} target="_blank" rel="noreferrer">{source.url}</a> : plan.materials?.find(material => material.id === source.material_id)?.name ?? "Attached source"}</small>)}{onReviseTopic && !topic.removed && <div className="plan-topic-actions"><button type="button" className="button secondary" onClick={() => onReviseTopic(topic.id, "mark_covered")}>I already learned this</button><button type="button" className="button secondary" onClick={() => onReviseTopic(topic.id, "attach_source")}>Attach a source</button></div>}</div></li>;
   })}</ol>{deferred.length > 0 && <div className="deferred-topic-block"><div><span>OUTSIDE THE CURRENT TIME BUDGET</span><strong>This plan currently skips {deferred.length} {deferred.length === 1 ? "topic" : "topics"}.</strong><p>{deferred.map((topic) => `${topicDisplayLabel(topic.title, "This topic")}: ${topic.deferred?.reason}`).join(" ")}</p></div>{canExtend && <button className="button secondary" disabled={extending} onClick={onExtend}>{extending ? <span className="button-spinner" /> : <><Plus size={16} /> Extend plan to include them</>}</button>}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
 }
 
@@ -5644,110 +5531,12 @@ function formatConceptSignal(signal: ConceptSignal) {
   return `${signal.secureAttempts} secure ${signal.secureAttempts === 1 ? "check" : "checks"} across ${signal.attempts} attempts`;
 }
 
-function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editable: boolean; onAttach: (planId: string, materialIds: string[]) => Promise<void> }) {
-  const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+function PlanSources({ plan, editable, onReview }: { plan: LearningPlan; editable: boolean; onReview: () => void }) {
   const materials = plan.materials ?? [];
-  const atLimit = materials.length >= 5;
-  const sourceChangeLocked = plan.sessions.some((session) => (
-    (session.status === "ready" || session.status === "upcoming")
-    && Boolean(session.resource)
-  ));
-  const canAddSource = editable && !sourceChangeLocked && !atLimit;
-
-  const addFiles = async (files: FileList | null) => {
-    if (!files?.length || adding) return;
-    setAdding(true);
-    setError(null);
-    setNotice(null);
-    const { accepted, errors } = await uploadMaterialFiles(Array.from(files), materials);
-
-    if (accepted.length) {
-      try {
-        await onAttach(plan.id, accepted.map((material) => material.id));
-      } catch (attachError) {
-        if (!materialAttachmentWasCommitted(attachError)) {
-          await Promise.allSettled(accepted.map((material) => deleteUploadedMaterial(material.id)));
-        }
-        setError(attachError instanceof Error ? attachError.message : "YOVA could not attach those materials.");
-      }
-    }
-    if (errors.length) setError(errors[0]);
-    setAdding(false);
-  };
-
-  const addLinkedSource = async (material: LearningMaterial, materialNotice: string | null) => {
-    setAdding(true);
-    setError(null);
-    setNotice(null);
-    try {
-      await onAttach(plan.id, [material.id]);
-      setNotice(materialNotice);
-    } catch (attachError) {
-      if (!materialAttachmentWasCommitted(attachError)) {
-        await deleteUploadedMaterial(material.id).catch(() => undefined);
-      }
-      setError(attachError instanceof Error ? attachError.message : "YOVA could not attach that source.");
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{canAddSource && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add files"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. {sourceChangeLocked ? "Finish the prepared lesson before changing its sources." : "Add private sources to use in future sessions. Completed progress stays saved. New topics appear in Saved for later; use Adjust to include them."}</p></div></div>}{canAddSource && <MaterialLinkImporter existingCount={materials.length} disabled={adding} onImported={(material, materialNotice) => { void addLinkedSource(material, materialNotice); }} />}{sourceChangeLocked && editable && <p className="source-limit">Finish your prepared lesson before adding sources. Your completed sessions will stay saved.</p>}{atLimit && editable && !sourceChangeLocked && <p className="source-limit">This goal has reached the five-material limit.</p>}{notice && <p className="material-notice"><AlertCircle size={15} /> {notice}</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
-}
-
-function materialAttachmentWasCommitted(error: unknown) {
-  return error instanceof Error
-    && "attachmentCommitted" in error
-    && (error as Error & { attachmentCommitted?: boolean }).attachmentCommitted === true;
-}
-
-function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; onCancel: () => void; onSave: (input: PlanAdjustmentRequest) => Promise<void> }) {
-  const firstUnfinished = plan.sessions.find((session) => (
-    (session.status === "ready" || session.status === "upcoming")
-    && !isScheduledRetrievalSession(session)
-  ));
-  const initialMinutes = firstUnfinished
-    ? Math.max(10, Math.min(90, Math.round(firstUnfinished.estimatedMinutes)))
-    : 25;
-  const minuteOptions = [...new Set([...NORMAL_STUDY_DURATION_LEVELS, initialMinutes])]
-    .sort((left, right) => left - right);
-  const [deadlineDate, setDeadlineDate] = useState(plan.deadline ? localDateInput(plan.deadline) : "");
-  const [minutes, setMinutes] = useState(initialMinutes);
-  const [studyMode, setStudyMode] = useState(plan.studyMode);
-  const [direction, setDirection] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const adjustableUnfinishedCount = plan.sessions.filter((session) => (
-    (session.status === "ready" || session.status === "upcoming")
-    && !isScheduledRetrievalSession(session)
-  )).length;
-  const protectedReviewCount = plan.sessions.filter((session) => (
-    (session.status === "ready" || session.status === "upcoming")
-    && isScheduledRetrievalSession(session)
-  )).length;
-  const directionLimit = getCharacterLimitState(direction);
-
-  const save = async () => {
-    if (saving || directionLimit.isOverLimit) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await onSave({
-        planId: plan.id,
-        deadline: deadlineDate ? new Date(`${deadlineDate}T23:59:00`).toISOString() : null,
-        studyMode,
-        futureSessionMinutes: minutes,
-        direction: direction.trim() || null,
-      });
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "YOVA could not adjust this plan.");
-      setSaving(false);
-    }
-  };
-
-  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Choose a supported adjustment, or change timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Choose No calculations, Teach it first, or More examples below." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>The suggestions change how you study the existing topics. Free-text topic changes are not available in an active plan. Scheduled reviews keep their exact return contract. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Calendar times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}>{minuteOptions.map((option) => <option value={option} key={option}>{option} minutes</option>)}</select><small>Time controls the size of each content slice, not whether it counts as learned.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {adjustableUnfinishedCount} ordinary unfinished {adjustableUnfinishedCount === 1 ? "session" : "sessions"} can be adjusted safely. Finished sessions and recorded learning evidence are never erased.{protectedReviewCount > 0 ? ` ${protectedReviewCount} scheduled ${protectedReviewCount === 1 ? "review keeps" : "reviews keep"} the original duration, concept, and return time.` : ""}</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || adjustableUnfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <><span className="button-spinner" aria-hidden="true" /><span role="status">Updating plan…</span></> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
+  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3>{editable && <button className="button secondary" onClick={onReview}><Plus size={15} /> Add file or link</button>}</div>
+    {materials.length ? <div className="source-material-list">{materials.map(material => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span></div>)}</div>
+      : <p><strong>Created by YOVA</strong>. Teaching and practice for this goal. Attach a source to a topic to plan time for it; completed work stays saved.</p>}
+  </section>;
 }
 
 function AskScreen({ plans, question, onQuestion, onApplyAction, analyticsEnabled }: { plans: LearningPlan[]; question: string; onQuestion: (question: string) => void; onApplyAction: (action: TutorProposedAction) => Promise<void>; analyticsEnabled: boolean }) {
@@ -8326,11 +8115,6 @@ function formatAgendaTime(isoDate: string) {
   }).format(new Date(isoDate));
 }
 
-function localDateInput(isoDate: string) {
-  const date = new Date(isoDate);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
 
 function formatPlanDeadline(deadline: string | null) {
   if (!deadline) return "FLEXIBLE";

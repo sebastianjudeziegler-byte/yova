@@ -1,0 +1,17 @@
+2026-09-10T09:05:13.3305928Z ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+2026-09-10T09:05:13.3319713Z  FAIL  src/lib/plan-generation/revision-clock-windows.test.ts > clock windows accepted by the revision preview > keeps a ready-now block at the chosen local time instead of moving it to 17:00
+2026-09-10T09:05:13.3322141Z AssertionError: expected [ { …(2) } ] to deeply equal [ { …(2) } ]
+2026-09-10T09:05:13.3326080Z -     "at": "2026-09-02T10:00:00.000Z",
+2026-09-10T09:05:13.3326963Z +     "at": "2026-09-03T00:00:00.000Z",
+2026-09-10T09:05:13.3359572Z  FAIL  src/lib/plan-generation/revision-clock-windows.test.ts > clock windows accepted by the revision preview > never allocates past an explicit end even when the requested minutes are larger
+2026-09-10T09:05:13.3362074Z AssertionError: expected [ { …(3) } ] to deeply equal [ { …(3) } ]
+2026-09-10T09:05:13.3366239Z -     "at": "2026-09-02T10:15:00.000Z",
+2026-09-10T09:05:13.3367169Z -     "end": "2026-09-02T10:25:00.000Z",
+2026-09-10T09:05:13.3367983Z -     "minutes": 10,
+2026-09-10T09:05:13.3368747Z +     "at": "2026-09-02T16:00:00.000Z",
+2026-09-10T09:05:13.3369589Z +     "end": "2026-09-02T17:00:00.000Z",
+2026-09-10T09:05:13.3370368Z +     "minutes": 60,
+2026-09-10T09:05:13.3385791Z  FAIL  src/lib/plan-revision/revision-shortening.test.ts > reviewed shorter sessions retain the accepted work > keeps every remaining part and leaves unrelated sessions byte-identical
+2026-09-10T09:05:13.3388081Z AssertionError: expected [ { …(16) } ] to have a length of 2 but got 1
+2026-09-10T09:05:13.3404735Z  Test Files  2 failed (2)
+2026-09-10T09:05:13.3414693Z       Tests  3 failed (3)

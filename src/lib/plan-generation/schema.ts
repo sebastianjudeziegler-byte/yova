@@ -195,6 +195,7 @@ export const ProviderGeneratedPlanDraftSchema = GeneratedPlanDraftSchema.extend(
 });
 
 export const LearningPlanSchema = z.object({
+  revisionId: z.string().uuid().optional(),
   id: z.string().min(1),
   learningItemId: z.string().min(1),
   title: z.string().min(1),
@@ -216,6 +217,7 @@ export const LearningPlanSchema = z.object({
   knowledgeMap: PlanKnowledgeMapSchema.optional(),
   materials: z.array(StoredMaterialSchema).max(5),
   sessions: z.array(z.object({
+    revisionEditedFields: z.array(z.enum(["title", "objective", "method", "methodReason", "scheduledFor", "estimatedMinutes"])).max(6).optional(),
     id: z.string().min(1),
     sequence: z.number().int().positive(),
     title: z.string().min(1),

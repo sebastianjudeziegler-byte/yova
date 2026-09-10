@@ -1,0 +1,26 @@
+✔ one documented command invokes the full live runner (0.602827ms)
+✔ CI runs the full set nightly and accepts an explicit PR revision without exposing fork credentials (0.252946ms)
+✔ the audit pins all original canaries so deletion cannot silently shrink the full gate (1.059687ms)
+✔ REAL, STALE, and new semantic failures block; audited flakes still execute and report their result (3.097842ms)
+✔ provider timeouts/quota and missing keys are neither red nor green, even for a quarantined case (0.57523ms)
+✔ UI timeouts, invalid schemas, and unexecuted cases cannot hide as provider outages or flakes (0.252093ms)
+✔ a mixed batch cannot hide a semantic defect behind another attempt's outage (0.215373ms)
+✔ a recovered REAL case is green without changing its classification (0.195368ms)
+✔ full discovery includes future canaries and runs the launch producer before its consumer (0.998092ms)
+✔ desktop and mobile stay separate in the artifact and retain visible failure reasons (0.446487ms)
+✔ published errors retain provider classification without credentials, headers, or request bodies (0.381849ms)
+✔ Vitest's already-serialized batch errors retain provider-unavailable accounting (1.058326ms)
+✔ the documented draft-placement rename retains its comparison identity without hiding other missing cases (0.745481ms)
+✔ the release gate reports an unchanged main defect without blocking (0.13221ms)
+✔ a new pass-to-fail regression blocks even when other failures are pre-existing (0.109603ms)
+✔ a scoped fix with a lower pass rate blocks; an improvement does not (0.712579ms)
+✔ provider unavailability is neither a pass nor a semantic regression (0.148729ms)
+✔ an established quarantine cannot conceal a scoped regression or an omitted case (0.146543ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 123.541637

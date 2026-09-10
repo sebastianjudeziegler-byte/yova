@@ -1,0 +1,13 @@
+✔ the release gate reports an unchanged main defect without blocking (1.289203ms)
+✔ a new pass-to-fail regression blocks even when other failures are pre-existing (0.185675ms)
+✔ a scoped fix with a lower pass rate blocks; an improvement does not (0.275782ms)
+✔ provider unavailability is neither a pass nor a semantic regression (0.222923ms)
+✔ an established quarantine cannot conceal a scoped regression or an omitted case (0.221581ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 71.028452

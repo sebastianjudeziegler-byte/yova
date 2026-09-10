@@ -1,3 +1,5 @@
+import { normalPlanAvailability, normalPlanModeDecisions, type NormalPlanRevisionContext } from "@/lib/plan-generation/normal-plan-revision-context";
+import { measuredPlacementEvidence } from "@/lib/knowledge-map/topic-evidence";
 import { startingDifficultyTopicIds } from "@/lib/plan-generation/learner-plan-copy";
 import type { SessionLearningMode } from "@/lib/domain";
 import { NORMAL_STUDY_DURATION_LEVELS, type NormalStudyDurationMinutes } from "@/lib/study-route/duration-levels";
@@ -12,8 +14,6 @@ import {
   type PlanKnowledgeMap,
 } from "@/lib/knowledge-map/schema";
 import {
-  canonicalizePlanAvailabilitySlots,
-  enumeratePlanAvailabilitySlots,
   type PlanAvailabilitySlot,
 } from "@/lib/plan-generation/availability-slots";
 import {
@@ -21,7 +21,6 @@ import {
   type SessionContentBudget,
 } from "@/lib/plan-generation/content-budget";
 import {
-  resolveInitialPlanSessionModes,
   type InitialPlanModeRuleTraceEntry,
   type InitialPlanSessionModeBasis,
   type InitialPlanTargetModeDecision,
@@ -88,6 +87,9 @@ export type NormalPlanDurationContext = Readonly<{
   profile: NormalStudyDurationRecommendationInput["profile"];
   recentOutcomes: readonly NormalDurationOutcome[];
   capacityMaximumMinutes?: NormalStudyDurationMinutes;
+  learnerOverrideMinutes?: NormalStudyDurationMinutes;
+  /** Deterministic source-reading allowance for a reviewed attachment. */
+  sourceStudyBudgetMinutes?: NormalStudyDurationMinutes;
 }>;
 
 export type NormalPlanEnvelopeInput = Readonly<{
@@ -100,6 +102,7 @@ export type NormalPlanEnvelopeInput = Readonly<{
   durationContext: NormalPlanDurationContext;
   now: Date;
   searchDays?: number;
+  revisionContext?: NormalPlanRevisionContext;
 }>;
 
 export const NORMAL_PLAN_DEFERRAL_REASON_CODES = [
@@ -245,14 +248,14 @@ export function composeNormalPlanEnvelopes(
     );
   }
   const firstModes = activeTopics.length > 0
-    ? resolveInitialPlanSessionModes({
+    ? normalPlanModeDecisions({
         learningIntentRecommendation: input.learningIntentRecommendation,
         knowledgeMap,
         sessions: activeTopics.map((topic) => ({
           key: `first:${topic.id}`,
           topicIds: [topic.id],
         })),
-      })
+      }, input.revisionContext)
     : [];
   const firstDecisionById = new Map(firstModes.map((decision) => [
     decision.targetDecisions[0]!.topicId,
@@ -276,11 +279,7 @@ export function composeNormalPlanEnvelopes(
     learnTargetCount,
   );
 
-  const enumeratedSlots = enumeratePlanAvailabilitySlots(request, now, searchDays);
-  const slots = canonicalizePlanAvailabilitySlots(
-    enumeratedSlots,
-    now,
-  );
+  const slots = normalPlanAvailability({ request, now, searchDays, revisionContext: input.revisionContext });
   const maximumSessions = Math.min(
     knowledgeMap.scopeJudgment.maximumSessions,
     MAX_GENERATED_PLAN_SESSIONS,
@@ -371,6 +370,7 @@ export function composeNormalPlanEnvelopes(
         now,
         searchDays,
         boundedSlots: slots,
+        revisionContext: input.revisionContext,
         cursor: withOptionalPractice.cursor,
         durationContext: selectedDurationContext,
         learningMode: nextUnscheduledTarget.firstMode,
@@ -383,6 +383,7 @@ export function composeNormalPlanEnvelopes(
     drafts: withOptionalPractice.envelopes,
     knowledgeMap,
     learningIntentRecommendation: input.learningIntentRecommendation,
+    revisionContext: input.revisionContext,
   });
   assertCoverageInvariants({
     envelopes,
@@ -705,8 +706,11 @@ function placeSession({
       }],
     } : baseRecommendation;
     const resolvedDuration = resolveNormalStudyDurationPrecedence({
-      systemRecommendation: recommendation,
-      learnerOverrideMinutes: null,
+      systemRecommendation: durationContext.sourceStudyBudgetMinutes ? {
+        ...recommendation, minutes: durationContext.sourceStudyBudgetMinutes,
+        ruleTrace: [...recommendation.ruleTrace, { ruleId: "plan_revision_source_budget_v1", result: `source_study_${durationContext.sourceStudyBudgetMinutes}_minutes`, reason: "Allow time to study the attached source before practicing this topic.", evidenceRefs: [] }],
+      } : recommendation,
+      learnerOverrideMinutes: durationContext.learnerOverrideMinutes ?? null,
       hardMaximumMinutes: remaining,
     });
     const duration = resolvedDuration;
@@ -733,7 +737,9 @@ function finalizeEnvelopes({
   drafts,
   knowledgeMap,
   learningIntentRecommendation,
+  revisionContext,
 }: {
+  revisionContext?: NormalPlanRevisionContext;
   drafts: readonly DraftEnvelope[];
   knowledgeMap: PlanKnowledgeMap;
   learningIntentRecommendation: NormalPlanEnvelopeInput["learningIntentRecommendation"];
@@ -741,14 +747,14 @@ function finalizeEnvelopes({
   if (!drafts.length) return [];
   const envelopeIds = drafts.map((_, index) => envelopeIdFor(index));
   const topicsById = new Map(knowledgeMap.topics.map((topic) => [topic.id, topic]));
-  const decisions = resolveInitialPlanSessionModes({
+  const decisions = normalPlanModeDecisions({
     learningIntentRecommendation,
     knowledgeMap,
     sessions: drafts.map((draft, index) => ({
       key: envelopeIds[index]!,
       topicIds: draft.targets.map((target) => target.topic.id),
     })),
-  });
+  }, revisionContext);
   return drafts.map((draft, index) => {
     const decision = decisions[index]!;
     if (decision.learningMode !== draft.learningMode) {
@@ -1098,9 +1104,10 @@ function prerequisiteEvidenceRefsFor(
   if (!topic) return [];
   // A current placement gap is direct evidence that this prerequisite still
   // needs instruction. Older encounter/status fields cannot satisfy it.
-  if (topic.initialEvidence?.outcome === "gap") return [];
-  if (topic.initialEvidence?.outcome === "demonstrated") {
-    return [`placement:${topic.id}:${topic.initialEvidence.observedAt}`];
+  const evidence = measuredPlacementEvidence(topic);
+  if (evidence?.outcome === "gap") return [];
+  if (evidence?.outcome === "demonstrated") {
+    return [`placement:${topic.id}:${evidence.observedAt}`];
   }
   if (topic.status === "evidenced" || topic.status === "secure") {
     return [`knowledge-map-topic:${topic.id}:status:${topic.status}`];
@@ -1140,6 +1147,7 @@ function deadlineRestrictsAvailability({
   now,
   searchDays,
   boundedSlots,
+  revisionContext,
   cursor,
   durationContext,
   learningMode,
@@ -1150,6 +1158,7 @@ function deadlineRestrictsAvailability({
   now: Date;
   searchDays: number;
   boundedSlots: readonly PlanAvailabilitySlot[];
+  revisionContext?: NormalPlanRevisionContext;
   cursor: Cursor;
   durationContext: NormalPlanDurationContext;
   learningMode: SessionLearningMode;
@@ -1166,14 +1175,7 @@ function deadlineRestrictsAvailability({
     startingDifficulty,
   };
   if (placeSession({ ...placementInput, slots: boundedSlots })) return false;
-  const horizonSlots = canonicalizePlanAvailabilitySlots(
-    enumeratePlanAvailabilitySlots({
-      availability: request.availability,
-      deadline: null,
-      timeZone: request.timeZone,
-    }, now, searchDays),
-    now,
-  );
+  const horizonSlots = normalPlanAvailability({ request: { ...request, deadline: null }, now, searchDays, revisionContext });
   return placeSession({ ...placementInput, slots: horizonSlots }) !== null;
 }
 

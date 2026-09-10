@@ -100,6 +100,7 @@ type LearningItemRow = {
 
 type PlanRow = {
   id: string;
+  current_revision_id: string | null;
   learning_item_id: string;
   status: PlanStatus;
   rationale: string;
@@ -373,7 +374,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     supabase.from("profiles").select("display_name,onboarding_completed_at").maybeSingle(),
     supabase.from("learner_profiles").select("common_blocker,guidance_preference,preferred_session_min,preferred_session_max,explanation_preference,focus_frequency,starting_pattern,energy_window,primary_improvement_goal,additional_context").maybeSingle(),
     supabase.from("learning_items").select("id,title,kind,topic,deadline,source_mode,study_mode,created_at").order("created_at", { ascending: true }),
-    supabase.from("plans").select("id,learning_item_id,status,rationale,generation_inputs,knowledge_map,created_at").order("created_at", { ascending: true }),
+    supabase.from("plans").select("id,learning_item_id,status,rationale,generation_inputs,knowledge_map,created_at,current_revision_id").order("created_at", { ascending: true }),
     supabase.from("plan_sessions").select("id,plan_id,sequence,title,objective,method,method_rationale,scheduled_for,estimated_minutes,status,step_data,committed_route_revision_id").order("sequence", { ascending: true }),
     supabase.from("study_routes").select("route_revision_id,route_lineage_id,revision_number,schema_version,lifecycle,plan_id,plan_session_id,predecessor_revision_id,route_payload,created_at,committed_at").eq("lifecycle", "committed").order("revision_number", { ascending: true }),
     supabase.from("session_attempts").select("id,plan_session_id,started_at,completed_at,actual_minutes,correct_answers,total_answers,user_feedback,result_data").not("completed_at", "is", null).order("completed_at", { ascending: true }),
@@ -464,7 +465,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   for (const row of sessionRows) {
     // Replaced parts remain in storage to retire their route identities safely.
     // They are not learner-skipped work and must not reappear after a reload.
-    if (row.status === "skipped" && readTextProperty(row.step_data, "routeAdjustmentRetiredAt")) continue;
+    if (row.status === "skipped" && (readTextProperty(row.step_data, "routeAdjustmentRetiredAt") || readProperty(row.step_data, "revisionRetired") === true)) continue;
     const studyRoute = row.committed_route_revision_id
       ? committedRoutesById.get(row.committed_route_revision_id) ?? null
       : null;
@@ -488,6 +489,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     const amountLabel = readTextProperty(row.step_data, "amountLabel")
       || `${row.estimated_minutes} min`;
     const session: LearningPlanSession = {
+      ...(readStringArrayProperty(row.step_data, "revisionEditedFields").length ? { revisionEditedFields: readStringArrayProperty(row.step_data, "revisionEditedFields").filter((field): field is NonNullable<LearningPlanSession["revisionEditedFields"]>[number] => ["title", "objective", "method", "methodReason", "scheduledFor", "estimatedMinutes"].includes(field)) } : {}),
       id: row.id,
       sequence: row.sequence,
       title: row.title,
@@ -549,6 +551,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
 
     return [{
       id: planRow.id,
+      revisionId: planRow.current_revision_id ?? planRow.id,
       learningItemId: item.id,
       title: resolveLearningTitle(item.title, topic),
       topic,
@@ -564,7 +567,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       rationale: planRow.rationale,
       createdAt: planRow.created_at || item.created_at,
       knowledgeMap,
-      materials: materialsByItemId.get(item.id) ?? [],
+      materials: (materialsByItemId.get(item.id) ?? []).filter(material => !Array.isArray(readProperty(planRow.generation_inputs, "revisionMaterialIds")) || readStringArrayProperty(planRow.generation_inputs, "revisionMaterialIds").includes(material.id)),
       sessions,
     }];
   });

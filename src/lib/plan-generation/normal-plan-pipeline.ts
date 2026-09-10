@@ -1,15 +1,13 @@
+import { applyCoveredPracticeSupport, coveredPracticeAmountLabel } from "@/lib/plan-revision/covered-practice-support";
+import { normalPlanAvailability, normalPlanModeDecisions, type NormalPlanRevisionContext } from "@/lib/plan-generation/normal-plan-revision-context";
+import { measuredPlacementEvidence } from "@/lib/knowledge-map/topic-evidence";
 import { normalPlanAmountLabel } from "@/lib/plan-generation/learner-plan-copy";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import { LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import { classifyLearningTask } from "@/lib/learning/method-router";
-import {
-  canonicalizePlanAvailabilitySlots,
-  enumeratePlanAvailabilitySlots,
-} from "@/lib/plan-generation/availability-slots";
 import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import {
   INITIAL_PLAN_MODE_ROUTING_VERSION,
-  resolveInitialPlanSessionModes,
 } from "@/lib/plan-generation/initial-session-mode";
 import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
 import {
@@ -53,6 +51,7 @@ export type NormalPlanPipelineInput = Readonly<{
   fill: unknown;
   now: Date;
   methodContext: InitialPlanMethodRoutingContext;
+  revisionContext?: NormalPlanRevisionContext;
 }>;
 
 type AcceptedNormalPlanRequest = PlanGenerationRequest & {
@@ -85,6 +84,7 @@ export function buildNormalPlanFromFixedEnvelope(
   assertCompositionMatchesRequest({
     request,
     composition: input.composition,
+    revisionContext: input.revisionContext,
     now,
   });
 
@@ -127,7 +127,11 @@ export function buildNormalPlanFromFixedEnvelope(
     composition: input.composition,
     methodProfileVersion: input.methodContext.profileVersion,
   });
-  return deepFreeze(validated);
+  return deepFreeze({ ...validated, sessions: validated.sessions.map(session => {
+    const route = applyCoveredPracticeSupport({ route: session.studyRoute!, map: request.knowledgeMap,
+      profile: input.methodContext.rolloutDecision?.personalizationEnabled ? input.methodContext.personalization.canonicalProfile : null });
+    return route === session.studyRoute ? session : { ...session, studyRoute: route, amountLabel: coveredPracticeAmountLabel(route) };
+  }) });
 }
 
 function parseAcceptedRequest(request: PlanGenerationRequest): AcceptedNormalPlanRequest {
@@ -151,7 +155,9 @@ function assertCompositionMatchesRequest({
   request,
   composition,
   now,
+  revisionContext,
 }: {
+  revisionContext?: NormalPlanRevisionContext;
   request: AcceptedNormalPlanRequest;
   composition: NormalPlanEnvelopeComposition;
   now: Date;
@@ -169,11 +175,11 @@ function assertCompositionMatchesRequest({
   const scope = request.knowledgeMap.scopeJudgment;
   const recovery = composition.capacityRecovery;
   if (recovery) {
-    const learnCount = resolveInitialPlanSessionModes({
+    const learnCount = normalPlanModeDecisions({
       learningIntentRecommendation:{intent:request.learningIntent,basis:"Use the accepted starting evidence."},
       knowledgeMap:request.knowledgeMap,
       sessions:request.knowledgeMap.topics.filter(topic=>!topic.deferred).map(topic=>({key:topic.id,topicIds:[topic.id]})),
-    }).filter(decision=>decision.learningMode==="learn").length;
+    }, revisionContext).filter(decision=>decision.learningMode==="learn").length;
     const reduced = recovery.stage === "reduced_scope" || recovery.stage === "triage";
     const expectedTeaching = Math.min(reduced ? 1 : scope.minimumTeachingSessions, learnCount);
     const expectedPractice = recovery.stage === "triage" ? "none" : recovery.stage === "shorter_sessions" ? scope.maximumSessions > 1 ? "all" : "none" : "last_teaching";
@@ -200,7 +206,7 @@ function assertCompositionMatchesRequest({
   }
 
   const topicsById = new Map(request.knowledgeMap.topics.map((topic) => [topic.id, topic]));
-  const expectedModes = resolveInitialPlanSessionModes({
+  const expectedModes = normalPlanModeDecisions({
     learningIntentRecommendation: {
       intent: request.learningIntent,
       basis: "The accepted request fixes the starting Learn or Practice recommendation.",
@@ -210,7 +216,7 @@ function assertCompositionMatchesRequest({
       key: envelope.envelopeId,
       topicIds: envelope.topicIds,
     })),
-  });
+  }, revisionContext);
   const initialTargetIds = new Set<string>();
   const scheduledTargetIds = new Set<string>();
   let leftInitialCoverage = false;
@@ -312,7 +318,7 @@ function assertCompositionMatchesRequest({
     initialTargetIds,
   });
   validateCoveragePolicy({ request, composition, initialTargetIds });
-  validateAvailabilityAllocation({ request, composition, now });
+  validateAvailabilityAllocation({ request, composition, now, revisionContext });
 }
 
 function validateDeferrals({
@@ -414,7 +420,9 @@ function validateAvailabilityAllocation({
   request,
   composition,
   now,
+  revisionContext,
 }: {
+  revisionContext?: NormalPlanRevisionContext;
   request: AcceptedNormalPlanRequest;
   composition: NormalPlanEnvelopeComposition;
   now: Date;
@@ -425,10 +433,7 @@ function validateAvailabilityAllocation({
   if (!Number.isInteger(searchDays) || searchDays < 1 || searchDays > 366) {
     throw pipelineError("The envelope availability horizon is invalid.");
   }
-  const slots = canonicalizePlanAvailabilitySlots(
-    enumeratePlanAvailabilitySlots(request, now, searchDays),
-    now,
-  );
+  const slots = normalPlanAvailability({ request, now, searchDays, revisionContext });
   let slotIndex = 0;
   let notBefore = now.getTime();
   const unavailableMinutes = (index: number) => slots[index]
@@ -622,9 +627,10 @@ function prerequisiteEvidenceRefs(
   if (!topic) return [];
   // Current placement evidence wins over a stale recorded status. A topic
   // marked evidenced before a later gap still blocks an unscheduled dependent.
-  if (topic.initialEvidence?.outcome === "gap") return [];
-  if (topic.initialEvidence?.outcome === "demonstrated") {
-    return [`placement:${topic.id}:${topic.initialEvidence.observedAt}`];
+  const evidence = measuredPlacementEvidence(topic);
+  if (evidence?.outcome === "gap") return [];
+  if (evidence?.outcome === "demonstrated") {
+    return [`placement:${topic.id}:${evidence.observedAt}`];
   }
   if (topic.status === "evidenced" || topic.status === "secure") {
     return [`knowledge-map-topic:${topic.id}:status:${topic.status}`];
