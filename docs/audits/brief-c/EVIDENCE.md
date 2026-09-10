@@ -1,6 +1,6 @@
 # Brief C — evidence
 
-Status: topic-scoped source binding passes three CI samples, database boundaries pass 244 assertions, and the founder delivery journey passes desktop/mobile. Final-session completion and whole-block review corrections are under CI verification. Provider checks are paused for the requested CI-key replacement; the full closeout gate and PR are not yet complete.
+Status: topic-scoped source binding passes three CI samples, database boundaries pass 244 assertions, and the founder delivery journey passes desktop/mobile. Final-session completion now passes desktop/mobile; whole-block review still awaits live verification. Provider checks are paused for the requested CI-key replacement; the full closeout gate and PR are not yet complete.
 
 - Branch: `codex/brief-c-source-first-practice`.
 - Starting source: `971e258c539046276e8d165fdaa4651639831044`, Brief B's current head.
@@ -47,10 +47,10 @@ Provider integration follows the existing configured session model and the offic
 | Practice quality | Cards, MCQ/short-answer quizzes, and worked problems are section-supported, answerable, unambiguous, and give useful feedback. Negative cases retain off-topic/deferred-topic/duplicate protection under the approved contract. | Fixed slots `f804079`; ambiguity/duplicates `3961c5d`–`0120c8f` | Subject canaries pass; whole-set semantic correction awaiting live verification |
 | Stable set | Leave/resume, reveal, and report-bad-question retain the saved set and progress. Another resource or route cannot inherit that progress. | Cache `ab93975`; preview state `7ff78fd` | Unit/API, browser resume and DB `c345646` |
 | Profile delta | Same lecture PDF/topic: differ on at least three of first practice kind, example presence, hint availability, and set size; receipts also differ and reference the profile. Record side-by-side P1/P2 printouts. | No block delta `33fab1c`; cache `ab93975` | Deterministic `8b98efb`; real PDF `3961c5d` and `c345646`; [printouts](PROFILE-BLOCKS.md) |
-| Completion and evidence | Source completion alone cannot finish a block or create topic evidence. Only checked practice produces evidence; forged client outcomes and stale/wrong-resource receipts are rejected. | Client-minted completion `1141eae`; assisted/report evidence `22ad8dd` | 244 DB assertions + API/unit `c345646`; final-session UI correction pending |
+| Completion and evidence | Source completion alone cannot finish a block or create topic evidence. Only checked practice produces evidence; forged client outcomes and stale/wrong-resource receipts are rejected. | Client-minted completion `1141eae`; assisted/report evidence `22ad8dd` | 244 DB assertions + API/unit `c345646`; final-session desktop/mobile `bede303` |
 | Receipt | The completed block states what was demonstrated, what changed, and what comes next, referencing profile or actual result. | Initial block cache/UI `ab93975`, `3bbde23` | Profile/result receipts, deterministic/runtime + founder `c345646` |
 | A17 | First block meets the founder-approved broad-calculus behavior. | New block contract absent in `33fab1c`; valid first-block false rejection `2237384` | Permanent bounded-topic canary passes `0120c8f`; new reviewer samples pending |
-| Founder journey | Frozen clock, sourced PDF topic plus unsourced topic; source-first versus AI explanation; leave/resume mid-quiz; practice required; receipt. Desktop and mobile screenshots/video. | No block view `3bbde23`; no saved explanation stream `3893998` | Desktop 1/1, mobile 1/1, zero retries `c345646`; separate final-plan completion RED `2237384` |
+| Founder journey | Frozen clock, sourced PDF topic plus unsourced topic; source-first versus AI explanation; leave/resume mid-quiz; practice required; receipt. Desktop and mobile screenshots/video. | No block view `3bbde23`; no saved explanation stream `3893998` | Desktop 1/1, mobile 1/1, zero retries `c345646`; final-plan completion RED `2237384` → deterministic desktop/mobile GREEN `bede303` |
 
 The closeout gate runs in GitHub Actions: unit, lint, typecheck, build, migration replay/database tests if changed, desktop/mobile browser journeys, Brief A/B compatibility, no-source streamed/graded/completed flow, and live canaries. Compare failed cases with main at recorded source revisions. A pass-to-fail or lower scoped pass rate blocks; intermittent non-regressions are quarantined with captures and backlogged; provider/environment unavailability is neither red nor green. Do not count Brief B's prior results as Brief C verification.
 
@@ -62,7 +62,7 @@ Known pre-existing failures/flakes remain outside this brief: deferred legacy-ma
 
 ## Default generation path inventory
 
-See [DEFAULT-GENERATION-PATHS.md](DEFAULT-GENERATION-PATHS.md). Its current entries describe the starting source, not the promised final state. At closeout, identify every remaining default AI lesson-generation call and prove that each is reachable only for unlearned work without a source. Optional targeted help remains separate from default lesson generation.
+See [DEFAULT-GENERATION-PATHS.md](DEFAULT-GENERATION-PATHS.md). It lists the implemented block path and the retained historical-resource exceptions. At closeout, identify every remaining default AI lesson-generation call and prove that each is reachable only for unlearned work without a source. Optional targeted help remains separate from default lesson generation.
 
 ### Browser fixture preparation
 
@@ -132,3 +132,9 @@ Diagnostic [CI 34485124305](https://github.com/sebastianjudeziegler-byte/yova/ac
 
 
 Artifact containment: GitHub push protection rejected unpublished commit `08e0a52` because run 28’s raw Playwright JSON serialized the provider key in `config.webServer.env`. Removed the complete config, amended the unpublished commit, and deleted affected GitHub artifact `10155373247` (UI confirmed deletion). Retained results/screens are unchanged. Publishing now strips browser configuration and redacts secret values before upload, with permanent runner tests. Requested rotation of the CI key; provider verification pauses pending replacement. No production setting or credential changed.
+
+
+[CI 34486413662](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34486413662), `51b41d4`: **green**. Full unit **4,075 pass / 0 fail / 94 skipped**; lint, typecheck, artifact-safety runner tests, 39 block checks and 101 retained negatives pass. Three source-boundary samples each pass 45 checks (one DB fixture skip). Founder desktop/mobile pass with zero retries. Provider stages were deliberately not executed pending the requested key replacement; they are not counted as passing. Sanitization succeeds before artifact upload. [Retained results](evidence/block-nonprovider-green/).
+
+
+[CI 34486743076](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34486743076), `bede303`: production build, lint/typecheck and focused/negative suites **green**. Original founder journey plus final-session completion regression each pass on desktop/mobile: **4/4, zero retries**. The latter completes a plan with no remaining session, exits the block and preserves completion after reload. This verifies the runtime identity correction against run 28’s observed failure; the actual provider-powered browser case remains pending key replacement. [Retained evidence](evidence/block-final-completion-green/). Run 31 was cancelled; no results claimed.
