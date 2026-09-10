@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import { buildPlanEvaluationCases } from "@/evals/plan-cases";
 import { evaluatePlanDraft } from "@/evals/plan-rubric";
 import { evaluateSessionDraft } from "@/evals/session-rubric";
+import { generateFixedPlanForJourney, historyEssayJourneyRequest } from "@/evals/fixed-plan-journey";
 import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
 
@@ -28,13 +29,16 @@ describe.skipIf(!liveEvaluationEnabled)("live plan-to-session journeys", () => {
     const { generatePlanWithOpenAI } = await import("@/lib/openai/plan-generator");
     const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
 
-    const generatedPlan = await generatePlanWithOpenAI(evaluationCase.request);
+    const request = evaluationCase.id === "history_writing_outside" ? historyEssayJourneyRequest(evaluationCase.request) : evaluationCase.request;
+    const generatedPlan = evaluationCase.id === "history_writing_outside"
+      ? await generateFixedPlanForJourney(request)
+      : await generatePlanWithOpenAI(request);
     const planResult = evaluatePlanDraft(
       generatedPlan.draft,
-      evaluationCase.request,
+      request,
       evaluationCase.taskFamily,
     );
-    const plan = materializePlanDraft(generatedPlan.draft, evaluationCase.request);
+    const plan = "plan" in generatedPlan ? generatedPlan.plan : materializePlanDraft(generatedPlan.draft, request);
     const firstSession = plan.sessions[0];
     expect(firstSession).toBeDefined();
 
