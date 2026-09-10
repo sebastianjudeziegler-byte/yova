@@ -55,6 +55,24 @@ describe("Brief C checked block progress", () => {
     expect(progress.hintCounts[block.questions[0]!.id]).toBe(1);
     expect(progress.attempts[0]!.assisted).toBe(true);
   });
+  it("targeted help before checking cannot become independent evidence, including after resume", () => {
+    const block = fixture(2); const question = block.questions[0]!;
+    let progress = advanceBlockProgress(block, initialBlockProgress(block.id), BlockActionSchema.parse({ action: "help_requested", questionId: question.id }));
+    progress = advanceBlockProgress(block, JSON.parse(JSON.stringify(progress)), { action: "answer", questionId: question.id, answer: "ADP and inorganic phosphate" }, {
+      questionId: question.id, outcome: "secure", assisted: false, feedback: "Both products are present.",
+    });
+    expect(progress.attempts[0]!.assisted).toBe(true);
+    expect(progress.complete).toBe(false);
+  });
+  it("reporting a checked bad question preserves the response but excludes it from evidence and the receipt", () => {
+    const { block, progress: finished } = completeCheck();
+    const before = { ...finished, complete: false, receipt: null };
+    const reported = advanceBlockProgress(block, before, { action: "report", questionId: block.questions[0]!.id });
+    expect(reported.attempts).toEqual(before.attempts);
+    const complete = advanceBlockProgress(block, reported, { action: "complete" });
+    expect(checkedBlockEvidence(block, complete, BLOCK_ROUTE_ID)).toHaveLength(1);
+    expect(complete.receipt).toMatch(/demonstrated 1.*1 answer remains unverified/);
+  });
   it("completed profile receipts explain the result, recorded change and next step", () => {
     const p1 = completeCheck(1); const p2 = completeCheck(2);
     expect(p1.progress.receipt).toMatch(/demonstrated 2.*short check.*recorded.*next planned block/);

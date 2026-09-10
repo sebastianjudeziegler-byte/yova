@@ -7,7 +7,23 @@ vi.mock("@/lib/openai/client", () => ({ getOpenAIClient: () => ({ responses: { p
 vi.mock("@/lib/openai/config", () => ({ getOpenAISessionConfig: () => ({ model: "unit-fixture" }) }));
 
 describe("provider fills code-owned block slots", () => {
+  it("rejects an apparently passing review when independent choice checking finds two defensible answers", async () => {
+    const { WorkBlockSchema } = await import("./schema");
+    const { blockFixture } = await import("@/evals/brief-c-block-fixture");
+    const block = WorkBlockSchema.parse(blockFixture().block);
+    const question = block.questions[0]!;
+    question.prompt = "Which process uses or transforms energy?";
+    question.choices = ["ATP regeneration", "ATP hydrolysis", "Neither"];
+    parse.mockReset();
+    parse.mockResolvedValue({ output_parsed: { verdict: "pass", reason: "The chosen answer is supported.", choiceChecks: { [question.id]: [0, 1] } } });
+    const { createBlockProvider } = await import("./provider");
+    const result = await createBlockProvider().review({ block, answerKeys: [{ questionId: question.id, answer: "ATP hydrolysis", requiredIdeas: ["ATP hydrolysis"], explanation: "ATP hydrolysis transforms energy.", sourceIds: [block.sources[0]!.id], workedSolution: [] }], assignedTopics: generationContext(1).knowledgeTopics, deferredContent: [] }, { timeoutMs: 25_000 });
+    expect(result.verdict).toBe("fail");
+    expect(result.reason).toMatch(/one defensible answer/);
+    expect(parse).toHaveBeenCalledTimes(1);
+  });
   it("binds content by fixed slot key and keeps requested hints and the first example required", async () => {
+    parse.mockReset();
     const context = generationContext(1);
     parse.mockImplementation(async request => {
       if (request.text.format.name === "yova_block_semantic_review") return { id: "review", output_parsed: { verdict: "pass", reason: "The two questions are source-supported and distinct." } };
