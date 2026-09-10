@@ -1,0 +1,15 @@
+{
+  "repository": "sebastianjudeziegler-byte/yova",
+  "baseCommit": "80323614fec32563a340528fb558a84657a00773",
+  "testedCommit": "c3422c41eef747622d6c9aac0ab07b1032a629a2",
+  "productChangesSinceBase": [],
+  "runId": 34472411719,
+  "jobId": 102855145979,
+  "artifactId": 10150065548,
+  "artifactName": "brief-c-focused-34472411719",
+  "artifactZipSha256FromActions": "54bfd766b6b914600f873edf6e5fab48a866538fa04a5ee6efda48a9b8442b44",
+  "runUrl": "https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34472411719",
+  "sourceBoundary": { "passed": 2, "failed": 1, "pending": 0 },
+  "validatorSuites": { "files": 5, "passed": 101, "failed": 0, "pending": 0 },
+  "verificationLocation": "GitHub Actions only"
+}

@@ -1,6 +1,6 @@
 # Brief C — evidence
 
-Status: initial CI regression evidence pending. No product behavior has changed.
+Status: initial CI regression captured; source-binding pipeline decision pending. No product behavior has changed.
 
 - Branch: `codex/brief-c-source-first-practice`.
 - Starting source: `971e258c539046276e8d165fdaa4651639831044`, Brief B's current head.
@@ -10,6 +10,8 @@ Status: initial CI regression evidence pending. No product behavior has changed.
 - Founder decisions are approved in [DECISIONS.md](DECISIONS.md), including one cached semantic check per block and no validation retry loops.
 
 ## Verification to collect in GitHub Actions
+
+Initial CI: [34472411719](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34472411719), tested commit `c3422c4` on base `8032361`. Mixed-source entry **one red / two green controls**; five validator suites **101/101 green**. Only tests, workflow and documentation differ from main product code. [Raw evidence](evidence/initial-source-boundary/) and [root cause / proposed pipeline correction](SOURCE-BINDING-DECISION.md). The unsourced Enzymes session cannot open because the pipeline commits the other topic's PDF requirement onto it. No correction or green claim yet.
 
 Every behavior row below needs an observed failing assertion before implementation and a passing assertion afterward. These are planned checks, not results.
 
