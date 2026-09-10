@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { writeFileSync, appendFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { generationContext } from "./brief-c-generation-fixture";
 import { generateWorkBlock } from "@/lib/session-blocks/generate";
@@ -7,6 +7,17 @@ import { advanceBlockProgress, initialBlockProgress } from "@/lib/session-blocks
 import { WorkBlockSchema } from "@/lib/session-blocks/schema";
 
 vi.mock("server-only", () => ({}));
+
+// Fixture-only capture: exact preparation and review, including rejected
+// candidates. Never includes credentials or authentic learner data.
+function capturedProvider() {
+  const provider = createBlockProvider();
+  const record = (value: unknown) => { if (process.env.YOVA_BLOCK_CAPTURE) appendFileSync(process.env.YOVA_BLOCK_CAPTURE, JSON.stringify(value) + "\n"); };
+  return { ...provider,
+    generate: async (...args: Parameters<typeof provider.generate>) => { const output = await provider.generate(...args); record({ stage: "fill", input: args[0], output }); return output; },
+    review: async (...args: Parameters<typeof provider.review>) => { const output = await provider.review(...args); record({ stage: "review", input: args[0], output }); return output; },
+  };
+}
 
 const subjects = [
   { label: "biology terminology", kind: "flashcards", title: "Memorize ATP terminology", objective: "Recall the names of ATP hydrolysis products and regeneration inputs.", text: "ATP stands for adenosine triphosphate. ADP stands for adenosine diphosphate. Inorganic phosphate is abbreviated Pi. Hydrolysis of ATP with water produces ADP and Pi. Regeneration requires ADP, Pi, and energy from another reaction." },
@@ -22,7 +33,7 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared prac
     context.learningGoal.title = subject.title; context.learningGoal.topic = subject.title;
     context.session.objective = subject.objective; context.session.title = subject.title;
     context.materials[0]!.text = subject.text;
-    const prepared = await generateWorkBlock(context, {});
+    const prepared = await generateWorkBlock(context, {}, capturedProvider());
     const block = WorkBlockSchema.parse(prepared.block);
     expect(block.activities[0]?.kind).toBe("read_source_section");
     const practice = block.activities.find(activity => activity.questionIds.length)!;
@@ -37,7 +48,7 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared prac
   it("delivers three practice differences for the same PDF and profile-referencing receipts", async () => {
     const delivered = [];
     for (const profile of [1, 2] as const) {
-      const { block } = await generateWorkBlock(generationContext(profile), {});
+      const { block } = await generateWorkBlock(generationContext(profile), {}, capturedProvider());
       // Reveal/continue is a legitimate completion with no demonstrated evidence.
       let progress = initialBlockProgress(block.id);
       for (const source of block.sources) progress = advanceBlockProgress(block, progress, { action: "source_complete", sourceId: source.id });
@@ -63,8 +74,8 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared prac
 
   it("rejects semantically ambiguous, unsupported, and duplicate quiz items without retrying", async () => {
     const context = generationContext(1);
-    const prepared = await generateWorkBlock(context, {});
-    const review = createBlockProvider();
+    const prepared = await generateWorkBlock(context, {}, capturedProvider());
+    const review = capturedProvider();
     for (const flaw of ["ambiguous", "unsupported", "duplicate"] as const) {
       const block = structuredClone(prepared.block); const answerKeys = structuredClone(prepared.answerKeys);
       if (flaw === "ambiguous") {

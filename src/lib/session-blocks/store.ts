@@ -48,7 +48,7 @@ export function publicBlockProgress(stored: z.infer<typeof StoredBlockSchema>, p
 // authenticated use always goes through the private database ledger above.
 type StoredBlock = z.infer<typeof StoredBlockSchema>;
 const previewGlobal = globalThis as typeof globalThis & { yovaDevelopmentBlocks?: Map<string, { expiresAt: number; stored: StoredBlock }> };
-function developmentBlocks() {
+function developmentBlocks(): Map<string, { expiresAt: number; stored: StoredBlock }> {
   if (process.env.NODE_ENV !== "development") throw new Error("Development block storage is unavailable.");
   const blocks = previewGlobal.yovaDevelopmentBlocks ??= new Map();
   for (const [key, entry] of blocks) if (entry.expiresAt <= Date.now()) blocks.delete(key);
@@ -67,7 +67,7 @@ export function saveDevelopmentBlock(binding: BlockBinding, resource: unknown, a
   while (blocks.size >= 100) blocks.delete(blocks.keys().next().value!);
   blocks.set(key, { stored, expiresAt: Date.now() + 12 * 60 * 60 * 1000 });
 }
-export function readDevelopmentBlock(binding: BlockBinding) {
+export function readDevelopmentBlock(binding: BlockBinding): StoredBlock {
   const entry = developmentBlocks().get(developmentKey(binding));
   if (!entry) throw new Error("This development preview expired. Reopen its recovery options to prepare a new block.");
   return structuredClone(entry.stored);

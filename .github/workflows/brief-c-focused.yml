@@ -54,7 +54,7 @@ jobs:
         run: pnpm lint
       - name: Block generation defaults
         if: ${{ !cancelled() }}
-        run: pnpm exec vitest run src/evals/brief-c-generation.test.ts src/evals/brief-c-source-media.test.ts src/evals/brief-c-block-runtime.test.ts src/lib/study-route/generation-contract.test.ts src/app/api/sessions/block/route.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/block-generation.json
+        run: pnpm exec vitest run src/evals/brief-c-generation.test.ts src/evals/brief-c-source-media.test.ts src/lib/session-blocks/provider.test.ts src/evals/brief-c-block-runtime.test.ts src/lib/study-route/generation-contract.test.ts src/app/api/sessions/block/route.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/block-generation.json
       - name: Preserve Brief 0.5 negative protections
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/lib/openai/streamed-validator-calibration.test.ts src/lib/session-generation/question-context.test.ts src/evals/brief-0-5-rubric.test.ts src/lib/session-generation/completion-contract.test.ts src/lib/session-generation/lesson-brief.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/negative-protections.json
@@ -73,6 +73,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YOVA_RUN_LIVE_BLOCKS: "1"
+          YOVA_BLOCK_CAPTURE: ${{ github.workspace }}/artifacts/brief-c/provider-captures.jsonl
           YOVA_BLOCK_PRINTOUT: ${{ github.workspace }}/artifacts/brief-c/profile-blocks.json
       - name: Replay database migrations and check block authority
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-db]') }}

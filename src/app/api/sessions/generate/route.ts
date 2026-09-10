@@ -1412,9 +1412,11 @@ async function generateBrowserPreviewSession(
         }),
       }),
     );
-    if (session.schemaVersion === 19) saveDevelopmentBlock({
-      planId: input.planId, planSessionId: input.planSessionId, routeRevisionId: input.routeRevisionId, blockId: session.block.id,
-    }, session, "blockAnswerKeys" in generated ? generated.blockAnswerKeys : []);
+    if (session.schemaVersion === 19) {
+      if (!input.routeRevisionId) throw new Error("A saved work block needs its committed route before it can open.");
+      saveDevelopmentBlock({ planId: input.planId, planSessionId: input.planSessionId, routeRevisionId: input.routeRevisionId, blockId: session.block.id },
+        session, "blockAnswerKeys" in generated ? generated.blockAnswerKeys : []);
+    }
     logSuccessfulGeneration(requestId, generated.model, generated.generationStats, "browser");
 
     return NextResponse.json(SessionGenerationResponseSchema.parse({

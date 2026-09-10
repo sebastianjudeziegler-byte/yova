@@ -1,3 +1,4 @@
+import { usesTopicSourceBinding } from "@/lib/study-route/topic-source-binding";
 import { describe, expect, it } from "vitest";
 import { deltaFixture, deltaTopicId } from "./personalization-delta-fixture";
 import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-plan-pipeline";
@@ -80,6 +81,7 @@ describe("Brief C source-first entry authority", () => {
     for (const [id, bytes] of before) expect(JSON.stringify(proposal.after.sessions.find(item => item.id === id)), id).toBe(bytes);
     const revised = proposal.after.sessions.find(item => item.topicIds?.includes(changedTopic))!;
     expect(revised.studyRoute!.target.sourceRequirements.requiredSourceIds).toEqual([materialId]);
+    expect(usesTopicSourceBinding(revised.studyRoute!)).toBe(true);
   });
 
   it("still refuses a sourced block when its PDF is unavailable or a different source is substituted", () => {
