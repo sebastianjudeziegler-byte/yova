@@ -33,6 +33,10 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared prac
     context.learningGoal.title = subject.title; context.learningGoal.topic = subject.title;
     context.session.objective = subject.objective; context.session.title = subject.title;
     context.materials[0]!.text = subject.text;
+    context.materials[0]!.name = `${subject.label} lecture.pdf`;
+    context.materials[0]!.locationLabel = `Page 1 — ${subject.title}`;
+    topic.sourceReferences[0]!.locationLabel = context.materials[0]!.locationLabel;
+    context.session.contentTargets = [subject.title]; context.session.completionEvidence = [subject.objective];
     const prepared = await generateWorkBlock(context, {}, capturedProvider());
     const block = WorkBlockSchema.parse(prepared.block);
     expect(block.activities[0]?.kind).toBe("read_source_section");

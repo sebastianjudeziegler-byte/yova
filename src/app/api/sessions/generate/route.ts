@@ -441,27 +441,44 @@ export async function POST(request: Request) {
         { status: 409, headers: responseHeaders(requestId, failureStats) },
       );
     }
+    // Brief B can attach a usable file without changing map references. Open
+    // its first stored content section, visibly labelled, without ingestion
+    // or map/session revision. Exact mapped sections always take precedence.
+    const attachedMaterialIds = [...new Set(selectedTopics.flatMap(topic => (topic.attachedSources ?? [])
+      .flatMap(source => "material_id" in source && !topic.sourceReferences.some(reference => reference.materialId === source.material_id && reference.sectionRole === "content_source") ? [source.material_id] : [])))];
+    const attachmentChunks: TopicMaterialChunkRow[] = [];
+    for (const materialId of attachedMaterialIds) {
+      if (!(materialRows ?? []).some(material => material.id === materialId)) continue;
+      const result = await supabase.from("material_chunks")
+        .select("id,material_id,chunk_index,location_label,section_role,chunk_text")
+        .eq("user_id", user.id).eq("material_id", materialId).eq("section_role", "content_source")
+        .order("chunk_index", { ascending: true }).limit(1);
+      if (result.error) throw result.error;
+      attachmentChunks.push(...(result.data ?? []) as TopicMaterialChunkRow[]);
+    }
+    const selectedChunks = [...(chunkResult.data ?? []), ...attachmentChunks] as TopicMaterialChunkRow[];
     const materialExcerpts = buildTopicMaterialExcerpts({
-      chunkRows: (chunkResult.data ?? []) as TopicMaterialChunkRow[],
+      chunkRows: selectedChunks,
       materialNames: new Map((materialRows ?? []).map((material) => [material.id, material.filename])),
       materialMetadata: new Map((materialRows ?? []).map((material) => [material.id, material.metadata])),
       orderedChunkIds,
+      attachedMaterialIds,
     }).filter((excerpt) => excerpt.text.trim().length >= 12);
-    if (orderedChunkIds.length > 0 && materialExcerpts.length !== orderedChunkIds.length) {
+    if (orderedChunkIds.some(id => !materialExcerpts.some(excerpt => excerpt.chunkId === id))) {
       const failureStats = recordPreflightFailure("source_unavailable");
       return NextResponse.json(
         { error: "A mapped source section is empty. Reprocess the material before starting this session." },
         { status: 409, headers: responseHeaders(requestId, failureStats) },
       );
     }
-    // A topic with mapped chunks must use those exact chunks. AI-origin topics
-    // have no source references and are intentionally taught from model knowledge.
-    const effectiveSourceMode = orderedChunkIds.length > 0
+    // Mapped/attached topics use their own stored sections. Unsourced topics
+    // remain on model knowledge; another topic's file is never inherited.
+    const effectiveSourceMode = materialExcerpts.length > 0
       ? "user_materials"
       : "yova_generated";
     const routeSourceIssue = studyRouteSourceBindingIssue(committedStudyRoute, {
       readyMaterialIds: (materialRows ?? []).map((material) => material.id),
-      selectedChunkMaterialIds: (chunkResult.data ?? []).map((chunk) => chunk.material_id),
+      selectedChunkMaterialIds: selectedChunks.map((chunk) => chunk.material_id),
       topicSourceIds: sourceIdsForTopics(selectedTopics),
     });
     if (routeSourceIssue) {

@@ -44,7 +44,7 @@ select set_config('request.jwt.claim.role','authenticated',true);
 select public.complete_plan_session_with_route(jsonb_build_object('attemptId','c2000000-0000-4000-8000-000000000009','planId',data#>>'{plan,id}','planSessionId',data#>>'{session,id}',
  'routeRevisionId',data#>>'{resource,routeRevisionId}','completionVariant','guided','startedAt',now()-interval '20 minutes','completedAt',now(),'actualMinutes',20,'plannedMinutes',(data#>>'{session,estimatedMinutes}')::integer,
  'correctAnswers',99,'totalAnswers',99,'conceptEvidence',jsonb_build_array(jsonb_build_object('concept','FORGED','outcome','secure')),'confidenceEvidence','[]'::jsonb)) from fixture;
-select extensions.is((select correct_answers from public.session_attempts where id='c2000000-0000-4000-8000-000000000009'),2,'the saved completion ignores client scores and uses checked answers');
+select extensions.is((select correct_answers::integer from public.session_attempts where id='c2000000-0000-4000-8000-000000000009'),2,'the saved completion ignores client scores and uses checked answers');
 select extensions.is((select result_data->'conceptEvidence' from public.session_attempts where id='c2000000-0000-4000-8000-000000000009'),(select data#>'{summary,conceptEvidence}' from fixture),'only server-bound topic evidence reaches the gap record');
 select * from extensions.finish();
 rollback;

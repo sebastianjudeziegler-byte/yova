@@ -1,0 +1,26 @@
+/home/runner/work/yova/yova/supabase/tests/database/20260830_broad_recall_retry_containment.test.sql .............. ok
+/home/runner/work/yova/yova/supabase/tests/database/20260830_expanded_method_agency_boundary.test.sql ............. ok
+/home/runner/work/yova/yova/supabase/tests/database/20260830_signed_in_generation_readiness.test.sql .............. ok
+/home/runner/work/yova/yova/supabase/tests/database/20260831_study_profile_waitlist_double_opt_in.test.sql ........ ok
+/home/runner/work/yova/yova/supabase/tests/database/20260904_ai_usage_ledger_acl.test.sql ......................... ok
+/home/runner/work/yova/yova/supabase/tests/database/20260904_storage_and_untrusted_write_quotas.test.sql .......... ok
+/home/runner/work/yova/yova/supabase/tests/database/20260906_study_profile_meta_attribution.test.sql .............. ok
+/home/runner/work/yova/yova/supabase/tests/database/20260906_study_profile_minor_conversion_suppression.test.sql .. ok
+/home/runner/work/yova/yova/supabase/tests/database/20260907_founder_analytics_dashboards.test.sql ................ ok
+/home/runner/work/yova/yova/supabase/tests/database/20260907_founder_people_directory.test.sql .................... ok
+/home/runner/work/yova/yova/supabase/tests/database/20260907_placement_integrity.test.sql ......................... ok
+/home/runner/work/yova/yova/supabase/tests/database/20260907_saved_lesson_deliveries.test.sql ..................... ok
+/home/runner/work/yova/yova/supabase/tests/database/20260909_living_plan_revision.test.sql ........................ ok
+/home/runner/work/yova/yova/supabase/tests/database/20260910_living_plan_generated.test.sql ....................... ok
+/home/runner/work/yova/yova/supabase/tests/database/20260910_work_block_authority.test.sql ........................ ok
+/home/runner/work/yova/yova/supabase/tests/database/20260910_work_block_generated.test.sql ........................ 
+Dubious, test returned 3 (wstat 768, 0x300)
+Failed 2/17 subtests 
+
+Test Summary Report
+-------------------
+/home/runner/work/yova/yova/supabase/tests/database/20260910_work_block_generated.test.sql                      (Wstat: 768 (exited 3) Tests: 15 Failed: 0)
+  Non-zero exit status: 3
+  Parse errors: Bad plan.  You planned 17 tests but ran 15.
+Files=16, Tests=242,  2 wallclock secs ( 0.07 usr  0.03 sys +  0.13 cusr  0.08 csys =  0.31 CPU)
+Result: FAIL

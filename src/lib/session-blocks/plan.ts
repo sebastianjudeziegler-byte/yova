@@ -38,7 +38,9 @@ export function planBlockContents(context: SessionGenerationContext): BlockConte
     const excerpts = context.materials.filter(material => material.role !== "scope_outline" && material.materialId && material.chunkId
       && (references.some(reference => reference.materialId === material.materialId && reference.chunkId === material.chunkId)
         || (materialIds.has(material.materialId) && !references.some(reference => reference.materialId === material.materialId))));
-    if ((references.length || attachments.length) && !excerpts.length) {
+    if (((references.length || attachments.length) && !excerpts.length)
+      || references.some(reference => !excerpts.some(material => material.materialId === reference.materialId && material.chunkId === reference.chunkId))
+      || [...materialIds].some(id => !excerpts.some(material => material.materialId === id))) {
       throw new Error("This topic's source section is not ready for practice. Open its existing recovery options.");
     }
     return excerpts.map(material => BlockSourceSchema.parse({

@@ -59,7 +59,7 @@ export function WorkBlockSession({ block, planId, planSessionId, routeRevisionId
   }, [block.id, planId, planSessionId, routeRevisionId, steps]);
 
   async function act(action: BlockAction, advance = false) {
-    if (busy || !saved) return;
+    if (busy || !saved) return false;
     setBusy(true); setIssue(null);
     try {
       const response = await fetch("/api/sessions/block", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -70,7 +70,8 @@ export function WorkBlockSession({ block, planId, planSessionId, routeRevisionId
       if (parsed.progress.blockId !== block.id) throw new Error("The saved progress belongs to another block.");
       setSaved(parsed); onProgress(parsed.progress);
       if (advance) { setCursor(steps.find(item => !done(item, parsed.progress))?.id ?? null); setAnswer(""); setHelp(null); }
-    } catch (error) { setIssue(error instanceof Error ? error.message : "Your previous practice is saved."); }
+      return true;
+    } catch (error) { setIssue(error instanceof Error ? error.message : "Your previous practice is saved."); return false; }
     finally { setBusy(false); }
   }
   function continueWork() {
@@ -81,6 +82,7 @@ export function WorkBlockSession({ block, planId, planSessionId, routeRevisionId
     if (helpPending || !activity) return;
     setHelpPending(true); setIssue(null);
     try {
+      if (question && !attempt && !await act({ action: "help_requested", questionId: question.id })) return;
       const response = await fetch("/api/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         planId, threadId: null, persistenceMode: "ephemeral", history: [],
         question: intent === "show_example" ? "Show me one example for this step, then let me continue." : intent === "repair_gap" ? `Why was my answer wrong? ${attempt?.feedback ?? answer}` : "Explain this step briefly, then let me continue.",

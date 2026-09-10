@@ -26,7 +26,7 @@ describe("provider fills code-owned block slots", () => {
     parse.mockReset();
     const context = generationContext(1);
     parse.mockImplementation(async request => {
-      if (request.text.format.name === "yova_block_semantic_review") return { id: "review", output_parsed: { verdict: "pass", reason: "The two questions are source-supported and distinct." } };
+      if (request.text.format.name === "yova_block_semantic_review") return { id: "review", output_parsed: { verdict: "pass", reason: "The two questions are source-supported and distinct.", choiceChecks: { "practice-1": [0] } } };
       const question = (prompt: string, answer: string, choices: string[], workedExample: string | null) => ({ prompt, answer, choices, workedExample, requiredIdeas: [answer], explanation: "Hydrolysis produces ADP and phosphate and supplies free energy for coupled work.", hints: ["Use the hydrolysis sentence in the assigned section."], workedSolution: [] });
       return { id: "fill", output_parsed: { explanations: {}, questions: {
         "practice-1": question("Which products form when ATP reacts with water?", "ADP and inorganic phosphate", ["ADP and inorganic phosphate", "ADP and glucose", "AMP and oxygen"], "For regeneration, ADP and phosphate are inputs; distinguish inputs from products."),

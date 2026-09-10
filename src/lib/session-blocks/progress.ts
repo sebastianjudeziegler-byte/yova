@@ -13,6 +13,7 @@ export const BlockProgressSchema = z.object({
   attempts: z.array(BlockAttemptSchema).max(12),
   revealedQuestionIds: z.array(id).max(12), reportedQuestionIds: z.array(id).max(12),
   hintCounts: z.record(id, z.number().int().min(0).max(3)),
+  helpRequestedQuestionIds: z.array(id).max(12).default([]),
   complete: z.boolean(), receipt: z.string().max(2_000).nullable(),
 }).strict();
 export type BlockProgress = z.infer<typeof BlockProgressSchema>;
@@ -23,13 +24,14 @@ export const BlockActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("explanation_complete"), activityId: id }).strict(),
   z.object({ action: z.literal("answer"), questionId: id, answer: z.string().trim().min(1).max(3_000) }).strict(),
   z.object({ action: z.literal("hint"), questionId: id }).strict(),
+  z.object({ action: z.literal("help_requested"), questionId: id }).strict(),
   z.object({ action: z.literal("reveal"), questionId: id }).strict(),
   z.object({ action: z.literal("report"), questionId: id }).strict(),
   z.object({ action: z.literal("complete") }).strict(),
 ]);
 export type BlockAction = z.infer<typeof BlockActionSchema>;
 export function initialBlockProgress(blockId: string): BlockProgress {
-  return { blockId, sourceCompletedIds: [], explanationCompletedIds: [], attempts: [], revealedQuestionIds: [], reportedQuestionIds: [], hintCounts: {}, complete: false, receipt: null };
+  return { blockId, sourceCompletedIds: [], explanationCompletedIds: [], attempts: [], revealedQuestionIds: [], reportedQuestionIds: [], hintCounts: {}, helpRequestedQuestionIds: [], complete: false, receipt: null };
 }
 export function blockCanComplete(block: WorkBlock, progress: BlockProgress) {
   return progress.blockId === block.id && block.activities.every(activity => (
@@ -39,8 +41,9 @@ export function blockCanComplete(block: WorkBlock, progress: BlockProgress) {
   ));
 }
 export function blockReceipt(block: WorkBlock, progress: BlockProgress) {
-  const secure = progress.attempts.filter(attempt => attempt.outcome === "secure" && !attempt.assisted).length;
-  const gaps = progress.attempts.filter(attempt => attempt.outcome === "needs_review").length;
+  const usable = progress.attempts.filter(attempt => !progress.reportedQuestionIds.includes(attempt.questionId));
+  const secure = usable.filter(attempt => attempt.outcome === "secure" && !attempt.assisted).length;
+  const gaps = usable.filter(attempt => attempt.outcome === "needs_review" && !attempt.assisted).length;
   const unscored = progress.attempts.length - secure - gaps;
   const result = secure ? `You demonstrated ${secure} of ${block.questions.length} ideas` : "This check has not yet demonstrated an independent answer";
   const change = gaps ? `${gaps} ${gaps === 1 ? "idea still needs" : "ideas still need"} work` : unscored ? `${unscored} ${unscored === 1 ? "answer remains" : "answers remain"} unverified` : "the checked ideas are recorded";
@@ -54,7 +57,7 @@ export function checkedBlockEvidence(block: WorkBlock, progress: BlockProgress, 
   if (!progress.complete || !blockCanComplete(block, progress)) return [];
   return progress.attempts.flatMap(attempt => {
     const question = block.questions.find(question => question.id === attempt.questionId);
-    if (!question || attempt.assisted || !["secure", "needs_review"].includes(attempt.outcome)) return [];
+    if (!question || attempt.assisted || progress.reportedQuestionIds.includes(attempt.questionId) || !["secure", "needs_review"].includes(attempt.outcome)) return [];
     return [{ topicId: question.topicId, routeRevisionId, concept: question.prompt.slice(0, 120),
       outcome: attempt.outcome as "secure" | "needs_review", activityType: question.format === "multiple_choice" ? "multiple_choice" : "free_response",
       methodPhase: "retrieve", attempt: 1,
@@ -86,6 +89,8 @@ export function advanceBlockProgress(block: WorkBlock, stored: BlockProgress, ac
     const alreadyChecked = progress.attempts.some(attempt => attempt.questionId === question.id);
     if (action.action === "hint" && !alreadyChecked) {
       progress.hintCounts[question.id] = Math.min(question.hints.length, (progress.hintCounts[question.id] ?? 0) + 1);
+    } else if (action.action === "help_requested" && !alreadyChecked) {
+      progress.helpRequestedQuestionIds = [...new Set([...progress.helpRequestedQuestionIds, question.id])];
     } else if (action.action === "reveal" || action.action === "report") {
       const list = action.action === "reveal" ? "revealedQuestionIds" : "reportedQuestionIds";
       progress[list] = [...new Set([...progress[list], question.id])];
@@ -93,7 +98,7 @@ export function advanceBlockProgress(block: WorkBlock, stored: BlockProgress, ac
         feedback: action.action === "reveal" ? "You viewed the answer. Continue when ready; this is not independent evidence." : "Question reported. You can continue; this item will not count as learning evidence." });
     } else if (action.action === "answer" && !alreadyChecked) {
       if (!checkedAttempt || checkedAttempt.questionId !== question.id) throw new Error("A server-checked answer is required.");
-      progress.attempts.push(BlockAttemptSchema.parse({ ...checkedAttempt, assisted: checkedAttempt.assisted || (progress.hintCounts[question.id] ?? 0) > 0 }));
+      progress.attempts.push(BlockAttemptSchema.parse({ ...checkedAttempt, assisted: checkedAttempt.assisted || progress.helpRequestedQuestionIds.includes(question.id) || (progress.hintCounts[question.id] ?? 0) > 0 }));
     }
   }
   return BlockProgressSchema.parse(progress);

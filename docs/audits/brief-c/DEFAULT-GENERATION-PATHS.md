@@ -1,28 +1,29 @@
 # Brief C — default generation and runtime boundaries
 
-Status: starting-source inventory at `971e258`. This is not a claim that source-first behavior has shipped.
+Implementation inventory; CI closeout remains recorded separately in EVIDENCE.md.
 
-## Current entry points
+## Default lesson generation
 
-| Entry point | Current behavior | Brief C boundary |
-| --- | --- | --- |
-| `src/app/api/sessions/generate/route.ts` authenticated handler | Resolves committed route/topic IDs, mapped source chunks, saved profile and runtime context; calls `generateProductionSessionWithOpenAI`; validates route compatibility and persists a generated resource through `cache_generated_session`. | Select block contents from the existing route and usable topic sources; retain ownership, exact-topic, route-revision, and atomic cache protections. Do not revise the plan from this handler. |
-| Same file, `generateBrowserPreviewSession` | Preview generation calls the same production generator when live provider mode is enabled. | Preview and production need the same content policy; deterministic previews must not be mistaken for provider evidence. |
-| `src/lib/openai/session-generation-strategy.ts` | Chooses streamed teaching, reliable generation, or full generation. Source existence is not currently the deterministic condition deciding whether to teach an AI lesson. | Default AI teaching must have one policy condition: learn/unlearned and no usable source. Sourced learn and practice-only blocks must not fall through to AI lessons. |
-| `src/app/api/sessions/lesson/route.ts` plus `GuidedSession` in `src/components/yova-prototype.tsx` | A `lessonBrief` causes streamed instruction to open; previously saved lesson content is reviewable. | Only an `ai_explanation` default step should open the default lesson stream. Reviewing saved legacy work must remain possible. Targeted help is optional and does not replace/reset the block. |
-| `src/lib/session-generation/source-grounded-degraded.ts` | A last-resort fallback for narrowly scoped mapped material, still expressed as a generated lesson/practice resource. | This fallback is not the source-first default. Do not weaken its legacy protections merely to reuse it for new block contents. |
+There is one policy for newly prepared work: `planBlockContents` assigns an `ai_explanation` only to a learn-mode topic with no assigned usable source. `generateWorkBlock` asks the provider for explanation text only for those topic IDs. Sourced learn work starts with its named source section; covered/evidenced work starts with practice. Both can request optional targeted help.
 
-## Existing persistence and evidence boundaries to retain
+| Entry | Content or mutation boundary |
+| --- | --- |
+| `src/app/api/sessions/generate/route.ts` (authenticated and development-preview handlers) | Resolves existing route, ordered topic IDs, owned source sections and profile; calls the same production block generator. Does not compose or revise sessions. Saves reviewed content and private answer keys before returning the public resource. |
+| `src/lib/openai/session-generation-strategy.ts` → `session-blocks/production-result.ts` → `generate.ts` → `plan.ts` | One block preparation path. Code owns source/explanation/practice order, question IDs/count/formats, source/topic binding and profile support. Provider fills fixed content slots and reviews the whole candidate once. Failure returns to recovery without an automatic retry. |
+| `src/app/api/sessions/block/explanation/route.ts` | Streams the already reviewed, saved explanation. No provider call, regeneration, semantic recheck or progress mutation. Rejects sourced/practice/foreign activities. |
+| `src/app/api/tutor/route.ts` | Optional targeted help requested inside a step. Does not replace the block or its prepared questions. |
+| `src/app/api/sessions/lesson/route.ts` | Compatibility for previously saved V16/V17 lesson briefs and saved-lesson review. Existing legacy streaming/fallback remains available for those historical resources. New V19 blocks never enter this path. This historical exception is retained for the explicit no-regression requirement. |
+| `reliable-session-generator.ts`, `session-generator.ts`, `streamed-teaching-generator.ts`, `source-grounded-degraded.ts` | Legacy generators/validators remain directly callable by existing permanent canaries and the explicit test-only legacy harness. They are not selected by the production generator for new work. No negative protection was removed to make the new default pass. |
 
-- `src/lib/session-generation/resource.ts`: cached resource decoding/conversion must preserve the activity set on reload. New block metadata must survive this boundary, not only first render.
-- `src/lib/learning/active-session-checkpoint.ts`: route/resource fingerprints, immutable progress histories, completion windows, and privacy restrictions protect leave/resume. Checkpoints are progress, not a scoring authority.
-- `src/lib/learning/session-activity-progress.ts`: the deployed method-specific nested marker currently covers retrieval rounds only. Block progress must not be passed through it and silently discarded.
-- `src/app/api/sessions/evaluate/route.ts`: current answer evaluation returns feedback; it does not itself persist an authoritative block result. Brief C must establish server-owned checked results for new blocks instead of trusting a returned verdict resubmitted by a browser.
-- `src/lib/supabase/learning-state-repository.ts` and `complete_plan_session_with_route`: existing runtime completion writer transports results and advances progress. Source completion must remain distinct from practice evidence and cannot bypass the required practice check.
-- `src/lib/diagnostics/map-diagnostic.ts`: the Sept 7 placement validator independently solves questions without the answer key and checks ambiguity, factual accuracy, topic alignment, and independence. This is the existing semantic-review pattern to extend only after the founder's validator decision.
+## Runtime writes and evidence
+
+- `save_session_work_block_v1`: server-only preparation; immutable reviewed block and answer key, exact session/route ownership, existing cache guard retained.
+- `save_session_work_block_progress_v1`: server-only compare-and-save progress; state/resume do not regenerate or re-review. Source ticks are progress only. Raw answers are checked against the saved private key; client verdicts and evidence are rejected.
+- Existing `complete_plan_session_with_route`: for V19, requires the completed private ledger and replaces request scores/evidence with the server summary. Source completion alone cannot complete a block. Existing legacy completion remains.
+- Existing session checkpoint/progress writer: protects in-progress work, stores actual block step counts; it is not scoring authority.
 
 ## Plan revision boundary
 
-Brief B's inventory remains authoritative: `docs/audits/brief-b/MUTATION-PATHS.md`. Its composition/revision pipeline, map delta, session IDs/order/times, explicit edits, and revision guarding are unchanged by this preparation. Runtime resource/checkpoint/evaluation/completion work belongs to the listed runtime exception. Any necessary change to the composition/revision pipeline requires a separate, concrete founder approval before editing it.
+Brief B's [write-path inventory](../brief-b/MUTATION-PATHS.md) remains authoritative. Creation and revision use its single fixed-envelope pipeline: map/calendar delta → `composeNormalPlanEnvelopes` → provider copy fill → materialize. Brief C does not add a composition or revision path. Method-choice, scheduling, activation and runtime writers remain the documented exceptions.
 
-Source resolution must honor existing `sourceReferences`, `attachedSources`, and committed `sourceRequirements`. A mixed sourced/unsourced plan must not bypass source ownership checks or silently reinterpret a committed source binding. Confirm compatibility during implementation; if correction requires changing what the revision pipeline commits, stop and ask.
+The founder explicitly approved one source-only correction: topic-scoped source requirements in the existing envelope-to-route integration, plus the matching source-contract and database projection checks. Unsourced topics cannot inherit another topic's materials. Foreign/missing sources still fail closed. Source revision preserves every other session byte-for-byte. No count/order/timing/method/revision algorithm change is included.

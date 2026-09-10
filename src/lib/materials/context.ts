@@ -27,14 +27,25 @@ export function buildTopicMaterialExcerpts({
   materialNames,
   orderedChunkIds,
   materialMetadata,
+  attachedMaterialIds = [],
 }: {
   chunkRows: TopicMaterialChunkRow[];
   materialNames: Map<string, string>;
   orderedChunkIds: string[];
   materialMetadata?: Map<string, unknown>;
+  /** Explicit topic attachments without a mapped section use their first
+   * existing content section. Never widens an exact mapped reference. */
+  attachedMaterialIds?: string[];
 }): MaterialExcerpt[] {
   const byId = new Map(chunkRows.map((chunk) => [chunk.id, chunk]));
-  return orderedChunkIds.flatMap((chunkId) => {
+  const selectedIds = [...orderedChunkIds];
+  for (const materialId of attachedMaterialIds) {
+    if (orderedChunkIds.some(id => byId.get(id)?.material_id === materialId)) continue;
+    const first = chunkRows.filter(chunk => chunk.material_id === materialId && chunk.section_role === "content_source")
+      .sort((left, right) => left.chunk_index - right.chunk_index)[0];
+    if (first && !selectedIds.includes(first.id)) selectedIds.push(first.id);
+  }
+  return selectedIds.flatMap((chunkId) => {
     const chunk = byId.get(chunkId);
     if (!chunk?.chunk_text.trim()) return [];
     const metadata = materialMetadata?.get(chunk.material_id);

@@ -75,6 +75,20 @@ jobs:
           YOVA_RUN_LIVE_BLOCKS: "1"
           YOVA_BLOCK_CAPTURE: ${{ github.workspace }}/artifacts/brief-c/provider-captures.jsonl
           YOVA_BLOCK_PRINTOUT: ${{ github.workspace }}/artifacts/brief-c/profile-blocks.json
+      - name: Current-production launch and saved-lesson compatibility
+        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-compat-live]') }}
+        run: |
+          status=0
+          for suite in launch-session-journeys launch-lesson-streams plan-creation-blockers; do
+            pnpm exec vitest run "src/evals/$suite.live.test.ts" --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile="artifacts/brief-c/$suite.json" || status=$?
+          done
+          exit "$status"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_RUN_LIVE_LAUNCH_EVALS: "1"
+          YOVA_RUN_LIVE_LESSON_EVALS: "1"
+          YOVA_RUN_LIVE_PLAN_BLOCKERS: "1"
+          YOVA_LIVE_FIXTURE_ROOT: ${{ github.workspace }}/artifacts/brief-c/compat-fixtures
       - name: Replay database migrations and check block authority
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-db]') }}
         run: |
