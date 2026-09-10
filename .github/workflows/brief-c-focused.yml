@@ -53,6 +53,18 @@ jobs:
       - name: Preserve Brief 0.5 negative protections
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/lib/openai/streamed-validator-calibration.test.ts src/lib/session-generation/question-context.test.ts src/evals/brief-0-5-rubric.test.ts src/lib/session-generation/completion-contract.test.ts src/lib/session-generation/lesson-brief.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/negative-protections.json
+      - name: Install focused browser
+        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-browser]') }}
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Source-first desktop and mobile journey
+        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-browser]') }}
+        run: pnpm exec playwright test e2e/source-first-block.spec.ts --retries=0 --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/brief-c/browser.json
+      - name: Retain focused browser captures
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/brief-c/browser; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
