@@ -30,16 +30,15 @@ describe.skipIf(!liveEvaluationEnabled)("live plan-to-session journeys", () => {
     const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
 
     const request = evaluationCase.id === "history_writing_outside" ? historyEssayJourneyRequest(evaluationCase.request) : evaluationCase.request;
-    const generatedPlan = evaluationCase.id === "history_writing_outside"
-      ? await generateFixedPlanForJourney(request)
-      : await generatePlanWithOpenAI(request);
+    const fixedPlan = evaluationCase.id === "history_writing_outside" ? await generateFixedPlanForJourney(request) : null;
+    const generatedPlan = fixedPlan ?? await generatePlanWithOpenAI(request);
     const planResult = evaluatePlanDraft(
       generatedPlan.draft,
       request,
       evaluationCase.taskFamily,
-      "composition" in generatedPlan ? generatedPlan.composition : undefined,
+      fixedPlan?.composition,
     );
-    const plan = "plan" in generatedPlan ? generatedPlan.plan : materializePlanDraft(generatedPlan.draft, request);
+    const plan = fixedPlan?.plan ?? materializePlanDraft(generatedPlan.draft, request);
     const firstSession = plan.sessions[0];
     expect(firstSession).toBeDefined();
 

@@ -1,0 +1,26 @@
+2026-09-10T09:10:14.8859487Z  Test Files  453 passed | 21 skipped (474)
+2026-09-10T09:10:14.8879418Z       Tests  4022 passed | 87 skipped (4109)
+2026-09-10T09:12:00.4718460Z   ✓   1 [desktop-chromium] › e2e/core-learning-loop.spec.ts:468:5 › a visibly shortened inside recipe keeps its method in the fallback workpad (13.1s)
+2026-09-10T09:12:09.0690486Z   ✓   2 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1062:5 › a 10-minute outside teaching-first session loads its built-in method lesson (8.6s)
+2026-09-10T09:12:16.9859225Z [WebServer] Structured plan revision preview failed Error [CanonicalMethodSelectionError]: The learner's selected method is not eligible for this task, stage, and mode.
+2026-09-10T09:12:16.9889151Z [WebServer] > 488 |     throw new CanonicalMethodSelectionError(code, methodId, message);
+2026-09-10T09:12:23.4400605Z   ✘   3 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1103:5 › an overdue outside teaching-first session splits into runnable 10-minute parts (13.5s)
+2026-09-10T09:12:38.2303129Z   ✘   4 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1209:5 › an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad (13.4s)
+2026-09-10T09:12:46.9846211Z   ✓   5 [desktop-chromium] › e2e/core-learning-loop.spec.ts:3050:5 › scheduled-review setup stays fixed and opens the exact active or Study Now goal (8.0s)
+2026-09-10T09:12:55.7753952Z   ✓   6 [desktop-chromium] › e2e/plan-schedule-date.spec.ts:232:5 › shorter sessions preserve weekly availability and explain insufficient time (8.8s)
+2026-09-10T09:13:04.1814701Z   ✓   7 [mobile-chromium] › e2e/core-learning-loop.spec.ts:468:5 › a visibly shortened inside recipe keeps its method in the fallback workpad (7.5s)
+2026-09-10T09:13:12.0569628Z   ✓   8 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1062:5 › a 10-minute outside teaching-first session loads its built-in method lesson (7.9s)
+2026-09-10T09:13:19.0628702Z [WebServer] Structured plan revision preview failed Error [CanonicalMethodSelectionError]: The learner's selected method is not eligible for this task, stage, and mode.
+2026-09-10T09:13:19.0718985Z [WebServer] > 488 |     throw new CanonicalMethodSelectionError(code, methodId, message);
+2026-09-10T09:13:25.7383160Z   ✘   9 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1103:5 › an overdue outside teaching-first session splits into runnable 10-minute parts (12.9s)
+2026-09-10T09:13:41.4260580Z   ✘  10 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1209:5 › an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad (14.1s)
+2026-09-10T09:13:49.9131604Z   ✓  11 [mobile-chromium] › e2e/core-learning-loop.spec.ts:3050:5 › scheduled-review setup stays fixed and opens the exact active or Study Now goal (7.7s)
+2026-09-10T09:13:58.5321295Z   ✓  12 [mobile-chromium] › e2e/plan-schedule-date.spec.ts:232:5 › shorter sessions preserve weekly availability and explain insufficient time (8.6s)
+2026-09-10T09:13:58.7395217Z     Locator: locator('.agenda-recovery-result')
+2026-09-10T09:13:58.7396205Z     Expected substring: "Split applied. Part 1 and each remaining part now have a 10-minute window."
+2026-09-10T09:13:58.7417485Z     Locator: locator('.agenda-recovery-result')
+2026-09-10T09:13:58.7418033Z     Expected substring: "Split applied. Part 1 and each remaining part now have a 10-minute window."
+2026-09-10T09:13:58.7436619Z     Locator: locator('.agenda-recovery-result')
+2026-09-10T09:13:58.7437166Z     Expected substring: "Split applied. Part 1 and each remaining part now have a 10-minute window."
+2026-09-10T09:13:58.7457733Z     Locator: locator('.agenda-recovery-result')
+2026-09-10T09:13:58.7458276Z     Expected substring: "Split applied. Part 1 and each remaining part now have a 10-minute window."

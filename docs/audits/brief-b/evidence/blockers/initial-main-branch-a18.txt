@@ -1,0 +1,18 @@
+2026-09-10T09:02:41.3452470Z ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+2026-09-10T09:02:41.3454927Z  FAIL  src/lib/plan-revision/revision-shortening.test.ts > reviewed shorter sessions retain the accepted work > keeps every remaining part and leaves unrelated sessions byte-identical
+2026-09-10T09:02:41.3456951Z AssertionError: expected [ { …(16) } ] to have a length of 2 but got 1
+2026-09-10T09:02:41.3495405Z  Test Files  1 failed (1)
+2026-09-10T09:02:41.3496454Z       Tests  1 failed (1)
+2026-09-10T09:03:25.8120370Z YOVA connected journey · History essay using outside sources
+2026-09-10T09:03:25.8121088Z Plan · 3 sessions · 100/100 · 21.2s
+2026-09-10T09:03:25.8121828Z First session · learn · Outline from Memory · 40 min
+2026-09-10T09:03:25.8122549Z Lesson · 4 activities · 100/100 · 21.0s
+2026-09-10T09:03:25.8129068Z  Test Files  1 passed (1)
+2026-09-10T09:03:25.8130214Z       Tests  2 passed (2)
+2026-09-10T09:04:08.3437111Z ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+2026-09-10T09:04:08.3439201Z  FAIL  src/evals/plan-session-journey.live.test.ts > live plan-to-session journeys > 'History essay using outside sources'
+2026-09-10T09:04:08.3442198Z SessionGenerationFailure: OpenAI did not return a complete, safe guided session after the bounded repair attempts. The required knowledge check mapped to “Compare the two subjects across two relevant categories” does not visibly assess that essential idea.
+2026-09-10T09:04:08.3446238Z      98|     if (error instanceof SessionGenerationFailure) {
+2026-09-10T09:04:08.3448622Z     100|       throw new SessionGenerationFailure(
+2026-09-10T09:04:08.3453193Z  Test Files  1 failed (1)
+2026-09-10T09:04:08.3454130Z       Tests  1 failed | 1 passed (2)
