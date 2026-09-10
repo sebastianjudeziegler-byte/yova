@@ -1,4 +1,6 @@
 /** Compare recorded observations; never relabel a failure as a passing run. */
+export function canonicalBrowserCaseName(name) { return name; }
+
 export function compareLiveReports(before, after, { scoped = [], quarantined = [] } = {}) {
   const group = report => {
     const groups = new Map();
