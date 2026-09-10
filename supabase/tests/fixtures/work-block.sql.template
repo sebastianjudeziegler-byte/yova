@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select extensions.plan(14);
+select extensions.plan(17);
 create temporary table fixture(data jsonb);
 insert into fixture values('__FIXTURE__'::jsonb);
 select set_config('request.jwt.claim.sub','c2000000-0000-4000-8000-000000000001',true);
@@ -14,6 +14,9 @@ insert into public.plan_sessions(id,user_id,plan_id,sequence,title,objective,met
 select (s->>'id')::uuid,'c2000000-0000-4000-8000-000000000001',(data#>>'{plan,id}')::uuid,(s->>'sequence')::smallint,s->>'title',s->>'objective',s->>'method',s->>'methodReason',(s->>'scheduledFor')::timestamptz,(s->>'estimatedMinutes')::smallint,s->>'status',s-array['id','sequence','title','objective','method','methodReason','scheduledFor','estimatedMinutes','status','studyRoute']
 from fixture cross join lateral jsonb_array_elements(data#>'{plan,sessions}') s;
 do $$ declare r jsonb; begin for r in select s->'studyRoute' from fixture cross join lateral jsonb_array_elements(data#>'{plan,sessions}') s loop perform public.commit_study_route_revision(r); end loop; end $$;
+select extensions.ok(public.study_route_source_matches_map_v1(data#>'{session,studyRoute}',data#>'{plan,knowledgeMap}',data#>>'{plan,sourceMode}'),'the sourced route is bound to its own mapped material') from fixture;
+select extensions.ok(not public.study_route_source_matches_map_v1(jsonb_set(data#>'{session,studyRoute}','{target,sourceRequirements,requiredSourceIds}','["c2000000-0000-4000-8000-000000000099"]'),data#>'{plan,knowledgeMap}',data#>>'{plan,sourceMode}'),'a substituted foreign material remains rejected') from fixture;
+select extensions.ok(not public.study_route_source_matches_map_v1(jsonb_set(s->'studyRoute','{target,sourceRequirements}',data#>'{session,studyRoute,target,sourceRequirements}'),data#>'{plan,knowledgeMap}',data#>>'{plan,sourceMode}'),'an unsourced topic cannot inherit the other topic material') from fixture cross join lateral jsonb_array_elements(data#>'{plan,sessions}') s where not (s->'topicIds' ? (data#>>'{session,topicIds,0}')) limit 1;
 create temporary table cache_payload as select jsonb_build_object('planSessionId',s.id,'expectedRouteRevisionId',s.committed_route_revision_id,
  'generatedSession',data->'resource','expectedKnowledgeMap',p.knowledge_map,'expectedSourceMode',i.source_mode,
  'expectedPlanUpdatedAt',p.updated_at,'expectedSessionUpdatedAt',s.updated_at,'expectedLearningItemUpdatedAt',i.updated_at) payload

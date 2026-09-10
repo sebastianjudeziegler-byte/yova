@@ -14,11 +14,11 @@ insert into public.plan_sessions(id,user_id,plan_id,sequence,title,objective,met
 select (s->>'id')::uuid,'b2000000-0000-4000-8000-000000000001',(data#>>'{before,id}')::uuid,(s->>'sequence')::smallint,s->>'title',s->>'objective',s->>'method',s->>'methodReason',(s->>'scheduledFor')::timestamptz,(s->>'estimatedMinutes')::smallint,s->>'status',s-array['id','sequence','title','objective','method','methodReason','scheduledFor','estimatedMinutes','status','studyRoute']
 from fixture cross join lateral jsonb_array_elements(data#>'{before,sessions}') s;
 do $$ declare r jsonb; begin for r in select s->'studyRoute' from fixture cross join lateral jsonb_array_elements(data#>'{before,sessions}') s loop perform public.commit_study_route_revision(r); end loop; end $$;
-create temporary table unchanged_before as select id,to_jsonb(s) as row from public.plan_sessions s where id<>(select (data->>'changedId')::uuid from fixture);
+create temporary table unchanged_before as select id,to_jsonb(s) as row from public.plan_sessions s where not (select data->'changedIds' ? id::text from fixture);
 create temporary table accepted_patch as
 select jsonb_build_object('operationId',data#>>'{proposal,id}','planId',data#>>'{before,id}','expectedRevisionId',data#>>'{before,id}','revisionId',data#>>'{proposal,revisionId}',
   'expectedMap',data#>'{before,knowledgeMap}','knowledgeMap',data#>'{after,knowledgeMap}','deadline',data#>'{after,deadline}','generationRequest',data#>'{proposal,generationRequest}',
-  'sessions',jsonb_build_array(jsonb_build_object('id',data->>'changedId','beforeFingerprint',public.plan_revision_session_fingerprint(s),'after',(select value from jsonb_array_elements(data#>'{after,sessions}') where value->>'id'=data->>'changedId'))),
+  'sessions',(select jsonb_agg(jsonb_build_object('id',changed.id,'beforeFingerprint',public.plan_revision_session_fingerprint(changed),'after',(select value from jsonb_array_elements(data#>'{after,sessions}') where value->>'id'=changed.id::text))) from public.plan_sessions changed where data->'changedIds' ? changed.id::text),
   'fixedEvents','[]'::jsonb,'proposal',data->'proposal','receipt',jsonb_build_object('message','Practice Electron transport chain; everything else unchanged.')) as payload
 from fixture join public.plan_sessions s on s.id=(data->>'changedId')::uuid;
 select extensions.lives_ok(format('select public.apply_plan_revision(%L::uuid,%L::jsonb)','b2000000-0000-4000-8000-000000000001',payload::text),'the real composer patch saves with its successor route') from accepted_patch;

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ReviewedBlockExplanation } from "./reviewed-block-explanation";
+import { LearningContent } from "./learning-content";
 import { z } from "zod";
 import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
 import { BlockProgressSchema, blockCanComplete, type BlockAction, type BlockProgress } from "@/lib/session-blocks/progress";
@@ -81,11 +83,11 @@ export function WorkBlockSession({ block, planId, planSessionId, routeRevisionId
     try {
       const response = await fetch("/api/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         planId, threadId: null, persistenceMode: "ephemeral", history: [],
-        question: intent === "show_example" ? "Show me one example for this step, then let me continue." : intent === "repair_gap" ? `Why was my answer wrong? ${answer}` : "Explain this step briefly, then let me continue.",
+        question: intent === "show_example" ? "Show me one example for this step, then let me continue." : intent === "repair_gap" ? `Why was my answer wrong? ${attempt?.feedback ?? answer}` : "Explain this step briefly, then let me continue.",
         sessionContext: { planSessionId, activityIndex: block.activities.indexOf(activity), activityTitle: activity.title.slice(0, 180),
           activityType: question ? question.format === "multiple_choice" ? "multiple_choice" : "free_response" : "instruction",
           activityInstruction: (question?.prompt ?? activity.instructions).slice(0, 500), concept: question?.prompt.slice(0, 180) ?? null,
-          methodPhase: question ? "retrieve" : "model", teachingSummary: (source?.text ?? activity.content).slice(0, 1_200) || null,
+          methodPhase: question ? "retrieve" : "model", teachingSummary: ((source?.text ?? block.sources.filter(item => item.topicId === activity.topicId).map(item => item.text).join("\n")) || activity.content).slice(0, 1_200) || null,
           choices: question?.choices.map(value => value.slice(0, 220)) ?? [], referenceAnswer: solution?.answer.slice(0, 800) ?? null,
           feedback: attempt?.feedback.slice(0, 600) ?? null, answerState: attempt ? attempt.outcome === "secure" ? "correct" : "incorrect" : "not_attempted",
           selectedChoice: answer.slice(0, 220) || null, helpIntent: intent },
@@ -109,17 +111,17 @@ export function WorkBlockSession({ block, planId, planSessionId, routeRevisionId
           {source.url && <a href={source.url} target="_blank" rel="noreferrer">Open source section</a>}
           <div className={styles.source}>{source.text}</div><button className="button primary" disabled={busy} onClick={() => void act({ action: "source_complete", sourceId: source.id }, true)}>Mark source done</button>
           <p>Finishing the source records that you read or watched it. The practice check shows what you understood.</p></>}
-        {activity.kind === "ai_explanation" && <><div className={styles.source}>{activity.content}</div><button className="button primary" disabled={busy} onClick={() => void act({ action: "explanation_complete", activityId: activity.id }, true)}>Continue to practice</button></>}
+        {activity.kind === "ai_explanation" && <><div className={styles.source}><ReviewedBlockExplanation key={activity.id} planId={planId} planSessionId={planSessionId} routeRevisionId={routeRevisionId} blockId={block.id} activityId={activity.id} content={activity.content} /></div><button className="button primary" disabled={busy} onClick={() => void act({ action: "explanation_complete", activityId: activity.id }, true)}>Continue to practice</button></>}
         {question && <>
-          {question.workedExample && <aside className={styles.example}><h3>Example first</h3><p>{question.workedExample}</p></aside>}
+          {question.workedExample && <aside className={styles.example}><h3>Example first</h3><LearningContent content={question.workedExample} /></aside>}
           <span className={styles.eyebrow}>{activity.kind === "flashcards" ? "Recall card" : activity.kind === "problems" ? "Worked problem" : "Practice check"}</span>
-          <h3>{question.prompt}</h3>{question.reflectBeforeCheck && <p>Explain it in your own words before checking.</p>}
+          <h3><LearningContent content={question.prompt} inline /></h3>{question.reflectBeforeCheck && <p>Explain it in your own words before checking.</p>}
           {question.choices.length ? <div className={styles.choices}>{question.choices.map(choice => <button key={choice} aria-pressed={answer === choice} disabled={busy || Boolean(attempt)} onClick={() => setAnswer(choice)}>{choice}</button>)}</div>
             : <label className={styles.answer}>Your answer<textarea aria-label="Your answer" rows={4} value={answer} disabled={busy || Boolean(attempt)} onChange={event => setAnswer(event.target.value)} /></label>}
           {!attempt && <button className="button primary" disabled={busy || !answer.trim()} onClick={() => void act({ action: "answer", questionId: question.id, answer })}>{busy ? "Checking…" : "Check answer"}</button>}
           {!!saved && question.hints.slice(0, saved.progress.hintCounts[question.id] ?? 0).map((hint, index) => <p className={styles.hint} key={index}>Hint {index + 1}: {hint}</p>)}
           {!attempt && question.hints.length > (saved?.progress.hintCounts[question.id] ?? 0) && <button className="button secondary" disabled={busy} onClick={() => void act({ action: "hint", questionId: question.id })}>Give me a hint</button>}
-          {attempt && <section className={styles.feedback}><p>{attempt.feedback}</p>{solution && <><p>{solution.answer}</p>{solution.workedSolution.length > 0 && <ol>{solution.workedSolution.map((line, index) => <li key={index}>{line}</li>)}</ol>}</>}
+          {attempt && <section className={styles.feedback}><p>{attempt.feedback}</p>{solution && <><LearningContent content={solution.answer} />{solution.workedSolution.length > 0 && <ol>{solution.workedSolution.map((line, index) => <li key={index}><LearningContent content={line} inline /></li>)}</ol>}</>}
             {attempt.outcome === "needs_review" && <p>You can ask for one targeted example or continue. You do not need to repeat this question.</p>}
             <button className="button primary" disabled={busy} onClick={continueWork}>Continue</button></section>}
           <div className={styles.tools}>{!attempt && <button disabled={busy} onClick={() => void act({ action: "reveal", questionId: question.id })}>Reveal answer</button>}<button disabled={busy || saved?.progress.reportedQuestionIds.includes(question.id)} onClick={() => void act({ action: "report", questionId: question.id })}>Report bad question</button></div>

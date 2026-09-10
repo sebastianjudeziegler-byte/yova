@@ -19,10 +19,14 @@ describe.skipIf(!process.env.YOVA_DB_FIXTURE_PATH)("actual routed persistence fi
     expect(proposal.canApply).toBe(true);
     const after = commitPlanStudyRoutes(proposal.after, DELTA_NOW.toISOString());
     const patches = sessionRevisionPatches(before, after);
-    expect(patches).toHaveLength(1);
+    // The twelve-session fixture has both learn and practice work for ETC.
+    // mark_covered revises both future sessions for that topic on merged main.
+    expect(patches).toHaveLength(2);
+    expect(patches.every(patch => patch.after?.topicIds?.length === 1 && patch.after.topicIds[0] === deltaTopicId(4))).toBe(true);
+    expect(patches.every(patch => patch.after?.learningMode === "study")).toBe(true);
     expect(patches[0]!.after!.learningMode).toBe("study");
     const sql = readFileSync("supabase/tests/fixtures/living-plan-routed.sql.template", "utf8");
-    const data = JSON.stringify({ before, after, proposal, request: fixture.request, changedId: patches[0]!.id }).replaceAll("'", "''");
+    const data = JSON.stringify({ before, after, proposal, request: fixture.request, changedId: chosen.id, changedIds: patches.map(patch => patch.id) }).replaceAll("'", "''");
     writeFileSync(process.env.YOVA_DB_FIXTURE_PATH!, sql.replace("'__FIXTURE__'::jsonb", `'${data}'::jsonb`));
   });
 });
