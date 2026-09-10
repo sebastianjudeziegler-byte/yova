@@ -41,6 +41,9 @@ jobs:
       - name: Typecheck
         if: ${{ !cancelled() }}
         run: pnpm exec tsc --noEmit
+      - name: Block cache delivery
+        if: ${{ !cancelled() }}
+        run: pnpm exec vitest run src/evals/brief-c-block-cache.test.ts --reporter=default --reporter=json --outputFile=artifacts/brief-c/block-cache.json
       - name: Lint
         if: ${{ !cancelled() }}
         run: pnpm lint
