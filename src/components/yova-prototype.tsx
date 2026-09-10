@@ -1,5 +1,7 @@
 "use client";
 
+import { blockCheckpointCounts, type BlockProgress } from "@/lib/session-blocks/progress";
+import { WorkBlockSession, type CheckedBlockSummary } from "@/components/work-block-session";
 import { coreRecallKnowledgeForLesson, includeCoreRecallKnowledge } from "@/lib/session-generation/lesson-assessment-contract";
 import { SavedLessonReview, type SavedLessonReviewIdentity } from "@/components/saved-lesson-review";
 
@@ -704,6 +706,7 @@ export function YovaPrototype({
   const [resumedSessionEvidence, setResumedSessionEvidence] = useState<SessionEvidenceSnapshot | null>(null);
   const [answerRevealed, setAnswerRevealed] = useState(false);
   const [generatedLessonSteps, setGeneratedLessonSteps] = useState<LessonStep[] | null>(null);
+  const [blockRuntimeProgress, setBlockRuntimeProgress] = useState<BlockProgress | null>(null);
   const [generatedPlanSessionId, setGeneratedPlanSessionId] = useState<string | null>(null);
   const [sessionLessonDeliveryInstructions, setSessionLessonDeliveryInstructions] = useState<LessonDeliveryInstructions | null>(null);
   const [streamedLessons, setStreamedLessons] = useState<Record<string, LessonRuntimeState>>({});
@@ -864,6 +867,8 @@ export function YovaPrototype({
   const earlySession = earlySessionPlan?.sessions.find((session) => (
     session.id === earlySessionPlanSessionId && session.status === "ready"
   )) ?? null;
+  const activeWorkBlock = activePlan?.sessions.find(session => session.id === generatedPlanSessionId)?.resource?.block;
+  const activeBlockCounts = activeWorkBlock ? blockCheckpointCounts(activeWorkBlock, blockRuntimeProgress) : null;
   const activeLessonSteps = generatedLessonSteps ?? lessonStepsFor(activePlan);
   const sessionEvidence = mergeSessionEvidenceSummaries(
     resumedSessionEvidence,
@@ -1768,7 +1773,7 @@ export function YovaPrototype({
           : "Your session was recovered. Completed sections are saved; an unfinished answer was not stored."
       : null);
     setSessionRecoveryIssue(null);
-    setStage(awaitingFinish ? "complete" : nextStage);
+    setStage(awaitingFinish && !plan.sessions.some(session => session.status === "ready" && session.resource?.block) ? "complete" : nextStage);
   };
 
   writeActiveSessionCheckpointRef.current = (
@@ -1789,7 +1794,7 @@ export function YovaPrototype({
       || sessionStartedAt === null
       || !activeSessionClockRef.current
       || !activeSessionRunIdRef.current
-      || activeLessonSteps.length === 0
+      || (activeLessonSteps.length === 0 && !activeWorkBlock)
     ) return false;
 
     const currentSession = activePlan.sessions.find((session) => session.status === "ready");
@@ -1841,7 +1846,8 @@ export function YovaPrototype({
 
     const savedAtMs = Date.now();
     const activeSeconds = readActiveSessionSeconds(activeSessionClockRef.current, savedAtMs);
-    const awaitingFinish = statusOverride === "awaiting_finish" || stage === "complete";
+    const awaitingFinish = statusOverride === "awaiting_finish" || stage === "complete"
+      || Boolean(activeBlockCounts && activeBlockCounts.completedSteps === activeBlockCounts.totalSteps);
     const completedActivityCount = awaitingFinish
       ? activeLessonSteps.length
       : Math.min(sessionStep, activeLessonSteps.length);
@@ -1871,11 +1877,11 @@ export function YovaPrototype({
         awaitingFinish,
       })
       : null;
-    const checkpointTotalSteps = methodCounts?.totalSteps
+    const checkpointTotalSteps = activeBlockCounts?.totalSteps ?? methodCounts?.totalSteps
       ?? sourceStepCount + (pendingRepair ? 1 : 0);
-    const checkpointCompletedSteps = methodCounts?.completedSteps
+    const checkpointCompletedSteps = activeBlockCounts?.completedSteps ?? methodCounts?.completedSteps
       ?? (awaitingFinish ? sourceStepCount : completedSourceStepCount);
-    const checkpointResumeStep = methodCounts?.resumeStep
+    const checkpointResumeStep = activeBlockCounts?.resumeStep ?? methodCounts?.resumeStep
       ?? (awaitingFinish ? sourceStepCount : completedSourceStepCount);
     const savedAt = new Date(savedAtMs).toISOString();
     const effectiveCompletedAt = completedAtOverride ?? sessionCompletedAt;
@@ -1973,7 +1979,7 @@ export function YovaPrototype({
   useEffect(() => {
     if (stage !== "session" && stage !== "session-method" && stage !== "complete") return;
     void writeActiveSessionCheckpointRef.current();
-  }, [stage, sessionStep, sessionOutcomes, sessionAttempts, sessionConfidence, resumedSessionEvidence, generatedLessonSteps, sessionCompletedAt, sessionCompletionFeedback, methodWorkProgress, sessionActivityProgress]);
+  }, [stage, sessionStep, sessionOutcomes, sessionAttempts, sessionConfidence, resumedSessionEvidence, generatedLessonSteps, sessionCompletedAt, sessionCompletionFeedback, methodWorkProgress, sessionActivityProgress, blockRuntimeProgress]);
 
   useEffect(() => {
     if (
@@ -2257,6 +2263,7 @@ export function YovaPrototype({
     setAnswerRevealed(false);
     setGeneratedLessonSteps(null);
     setGeneratedPlanSessionId(null);
+    setBlockRuntimeProgress(null);
     setSessionLessonDeliveryInstructions(null);
     lessonStreamControllersRef.current.forEach((controller) => controller.abort());
     lessonStreamControllersRef.current.clear();
@@ -2935,7 +2942,7 @@ export function YovaPrototype({
     await startSession(plan.id, activatedPlan);
   };
 
-  const completeActiveSession = async (correctAnswers: number, totalAnswers: number, feedback: SessionCompletion["feedback"], actualMinutes: number, applyRecommendedChange: boolean) => {
+  const completeActiveSession = async (correctAnswers: number, totalAnswers: number, feedback: SessionCompletion["feedback"], actualMinutes: number, applyRecommendedChange: boolean, checkedBlock?: CheckedBlockSummary) => {
     if (!activePlan) return false;
     const currentSession = activePlan.sessions.find((session) => session.status === "ready");
     if (!currentSession) return false;
@@ -2944,7 +2951,7 @@ export function YovaPrototype({
     const completedAtMs = Date.parse(completedAt);
     const activeSeconds = Math.max(1, sessionElapsedSeconds);
     const checkpointRunId = activeSessionRunIdRef.current;
-    const recordedEvidence = sessionCompletionMode === "unguided_practice"
+    const recordedEvidence = checkedBlock ? { ...checkedBlock, confidenceEvidence: [] } : sessionCompletionMode === "unguided_practice"
       ? {
         correctAnswers: 0,
         totalAnswers: 0,
@@ -3325,9 +3332,9 @@ export function YovaPrototype({
       interruptedAt: interruptedAt.toISOString(),
       plannedMinutes: sessionCapacityMinutes ?? currentSession.estimatedMinutes,
       actualMinutes,
-      completedSteps: methodCounts?.completedSteps ?? Math.min(sessionStep, activeLessonSteps.length),
-      totalSteps: methodCounts?.totalSteps ?? activeLessonSteps.length,
-      resumeStep: methodCounts?.resumeStep ?? resumeStep,
+      completedSteps: activeBlockCounts?.completedSteps ?? methodCounts?.completedSteps ?? Math.min(sessionStep, activeLessonSteps.length),
+      totalSteps: activeBlockCounts?.totalSteps ?? methodCounts?.totalSteps ?? activeLessonSteps.length,
+      resumeStep: activeBlockCounts?.resumeStep ?? methodCounts?.resumeStep ?? resumeStep,
       evidence: interruptionEvidence,
       pendingRepair,
       ...(sessionAdjustment ? { sessionAdjustment } : {}),
@@ -4546,6 +4553,16 @@ export function YovaPrototype({
     onExit={interruptActiveSession}
   />;
   if (stage === "session") {
+    const blockSession = activePlan?.sessions.find(session => session.id === generatedPlanSessionId);
+    const block = blockSession?.resource?.block;
+    if (activePlan && blockSession && block && blockSession.resource?.routeRevisionId) return <WorkBlockSession
+      key={block.id} block={block} planId={activePlan.id} planSessionId={blockSession.id}
+      routeRevisionId={blockSession.resource.routeRevisionId} onExit={interruptActiveSession} onProgress={setBlockRuntimeProgress}
+      onFinish={async summary => {
+        if (!await completeActiveSession(summary.correctAnswers, summary.totalAnswers, null, capturedSessionMinutes, false, summary)) return false;
+        setStage("app"); setActiveTab("Home"); return true;
+      }}
+    />;
     return (
       <GuidedSession
         key={`${activePlan?.id ?? "session"}-${sessionStep}`}

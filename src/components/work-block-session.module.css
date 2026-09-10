@@ -1,0 +1,24 @@
+.shell { padding: 28px 16px; min-height: 100dvh; display: flex; align-items: flex-start; justify-content: center; }
+.block { width: min(100%, 760px); margin: 0 auto; color: var(--text-primary, #242c29); }
+.block h1 { font-size: clamp(1.5rem, 3vw, 2.1rem); line-height: 1.25; margin: 12px 0; }
+.block h2 { font-size: 1.3rem; }
+.block h3 { font-size: 1.05rem; line-height: 1.5; }
+.block p { line-height: 1.6; }
+.eyebrow { font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; color: #566b61; }
+.reason { color: #52665d; font-size: .92rem; }
+.progress { padding: 14px 0; border-bottom: 1px solid #d9e2dd; color: #52665d; }
+.work { padding: 22px 0; }
+.source { white-space: pre-wrap; line-height: 1.75; border-left: 3px solid #bed1c5; padding: 12px 18px; margin: 18px 0; overflow-wrap: anywhere; }
+.example, .feedback, .receipt { padding: 18px; margin: 18px 0; border-radius: 12px; background: #edf4ef; white-space: pre-wrap; }
+.choices { display: grid; gap: 10px; margin: 18px 0; }
+.choices button { text-align: left; border: 1px solid #becbc3; background: #fff; border-radius: 10px; padding: 14px 16px; color: inherit; line-height: 1.5; min-height: 48px; }
+.choices button[aria-pressed="true"] { background: #e7f1eb; border-color: #2d6449; outline: 1px solid #2d6449; }
+.answer { display: grid; gap: 8px; margin: 18px 0; }
+.answer textarea { width: 100%; resize: vertical; padding: 14px; border: 1px solid #becbc3; border-radius: 10px; font: inherit; line-height: 1.5; }
+.tools { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.tools button { padding: 10px 4px; text-decoration: underline; color: #305a46; background: transparent; border: 0; }
+.hint { border-left: 3px solid #9aab8c; padding-left: 12px; }
+.issue { padding: 14px; background: #fff3df; border-radius: 10px; }
+.footerButtons { display: flex; gap: 12px; justify-content: space-between; flex-wrap: wrap; }
+.block footer { border-top: 1px solid #d9e2dd; padding-top: 16px; margin-top: 20px; }
+@media (max-width: 520px) { .shell { padding: 18px 16px; } .footerButtons button { flex: 1; } .source { padding: 10px 12px; } }

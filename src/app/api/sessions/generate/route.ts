@@ -1,3 +1,5 @@
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { initialBlockProgress } from "@/lib/session-blocks/progress";
 import { NextResponse } from "next/server";
 import type { SessionCompletion, SessionInterruption } from "@/lib/domain";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
@@ -56,6 +58,7 @@ import {
   CachedGeneratedSessionSchema,
   CachedGeneratedSessionV15Schema,
   CachedGeneratedSessionV17Schema,
+  CachedGeneratedSessionV19Schema,
   SessionGenerationRequestSchema,
   SessionGenerationResponseSchema,
   type SessionGenerationRequest,
@@ -577,7 +580,7 @@ export async function POST(request: Request) {
       }),
     });
     const cached = readCachedSession(planSession.step_data, expectedCacheVersion);
-    const cachedActivityContractIssue = cached
+    const cachedActivityContractIssue = cached && cached.schemaVersion !== 19
       ? cachedSessionActivityContractIssue(cached, {
         reviewType,
         reviewConcept,
@@ -597,7 +600,7 @@ export async function POST(request: Request) {
       cached
       && !cachedActivityContractIssue
       && !cachedRouteContractIssue
-      && (cached.schemaVersion === 17
+      && (cached.schemaVersion === 17 || cached.schemaVersion === 19
         ? sessionCacheContextMatches(cached.cacheContext, requestedCacheContext)
         : cached.schemaVersion === 15 && !effectiveSessionAdjustment && (
           (!cached.cacheContext && requestedCacheContext.contractFingerprint === undefined)
@@ -949,11 +952,14 @@ export async function POST(request: Request) {
       expectedSessionUpdatedAt: planSession.updated_at,
       expectedLearningItemUpdatedAt: learningItem.updated_at,
     };
-    const { error: cacheError } = await supabase.rpc("cache_generated_session", {
-      payload: cachePayload,
-    });
+    const { error: cacheError } = cachedSession.schemaVersion === 19 && "blockAnswerKeys" in generated
+      ? await createSupabaseAdminClient().rpc("save_session_work_block_v1", {
+          actor_user_id: user.id, payload: cachePayload, answer_keys: generated.blockAnswerKeys,
+          initial_progress: initialBlockProgress(cachedSession.block.id),
+        })
+      : await supabase.rpc("cache_generated_session", { payload: cachePayload });
 
-    if (sessionCacheFailureMustFailClosed(cacheError)) {
+    if (sessionCacheFailureMustFailClosed(cacheError) || (cachedSession.schemaVersion === 19 && cacheError)) {
       const failureStats = sessionStatsAtStage(
         generated.generationStats,
         "persistence",
@@ -1583,7 +1589,7 @@ function readCachedSession(stepData: unknown, expectedSchemaVersion?: 15 | 17) {
   const candidate = (stepData as Record<string, unknown>).generatedSession;
   const parsed = CachedGeneratedSessionSchema.safeParse(candidate);
   if (!parsed.success) return null;
-  return expectedSchemaVersion && parsed.data.schemaVersion !== expectedSchemaVersion ? null : parsed.data;
+  return expectedSchemaVersion && parsed.data.schemaVersion !== 19 && parsed.data.schemaVersion !== expectedSchemaVersion ? null : parsed.data;
 }
 
 function cacheGeneratedSession(
@@ -1600,6 +1606,9 @@ function cacheGeneratedSession(
     model: generated.model,
     generatedAt: new Date().toISOString(),
   };
+  if ("block" in generated.draft) {
+    return CachedGeneratedSessionV19Schema.parse({ schemaVersion: 19, ...shared, cacheContext, activities: [] });
+  }
   if (expectedSchemaVersion === 17) {
     if (!generated.deliveryInstructions) {
       throw new Error("The streamed teaching skeleton did not include delivery instructions.");

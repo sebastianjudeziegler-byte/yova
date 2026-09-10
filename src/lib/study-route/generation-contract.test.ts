@@ -1,9 +1,32 @@
+import { blockFixture } from "@/evals/brief-c-block-fixture";
+import { WorkBlockSchema } from "@/lib/session-blocks/schema";
 import { describe, expect, it } from "vitest";
 import { generatedSessionStudyRouteIssue } from "@/lib/study-route/generation-contract";
 import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
 import type { StudyRoute } from "@/lib/study-route/schema";
 
 describe("generated session StudyRoute contract", () => {
+  it("accepts reviewed block contents while retaining topic, mode and method authority", () => {
+    const committed = route();
+    const block = WorkBlockSchema.parse(blockFixture().block);
+    const topicId = session().topicIds[0]!;
+    block.topicIds = [topicId];
+    block.sources.forEach(item => { item.topicId = topicId; });
+    block.activities.forEach(item => { item.topicId = topicId; });
+    block.questions.forEach(item => { item.topicId = topicId; });
+    block.learningMode = session().methodBriefing.learningMode;
+    if (block.learningMode === "study") block.activities = block.activities.filter(item => item.sourceId === null);
+    const candidate = { ...session(), activities: [], block };
+    expect(generatedSessionStudyRouteIssue(candidate, committed)).toBeNull();
+    expect(generatedSessionStudyRouteIssue({ ...candidate, methodBriefing: { ...candidate.methodBriefing, methodId: "self_explanation" } }, committed)).toMatch(/method/);
+    const foreign = structuredClone(candidate);
+    foreign.block.questions[0]!.topicId = "99999999-9999-4999-8999-999999999999";
+    expect(generatedSessionStudyRouteIssue(foreign, committed)).toMatch(/block/);
+    const missingPractice = structuredClone(candidate);
+    missingPractice.block.questions = [];
+    expect(generatedSessionStudyRouteIssue(missingPractice, committed)).toMatch(/block/);
+  });
+
   it("accepts repeated execution phases while preserving the committed order", () => {
     expect(generatedSessionStudyRouteIssue(session(), route())).toBeNull();
   });

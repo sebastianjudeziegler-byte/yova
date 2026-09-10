@@ -1,0 +1,467 @@
+{
+  "config": {
+    "argv": [
+      "/opt/hostedtoolcache/node/24.20.0/x64/bin/node",
+      "/home/runner/work/yova/yova/node_modules/@playwright/test/cli.js",
+      "test",
+      "e2e/source-first-block.spec.ts",
+      "--retries=0",
+      "--reporter=list,json"
+    ],
+    "configFile": "/home/runner/work/yova/yova/playwright.config.ts",
+    "rootDir": "/home/runner/work/yova/yova/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "ci": {
+        "commitHref": "https://github.com/sebastianjudeziegler-byte/yova/commit/7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+        "commitHash": "7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+        "buildHref": "https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34477518880"
+      },
+      "gitCommit": {
+        "shortHash": "7a49549",
+        "hash": "7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+        "subject": "test(brief-c): supply required browser fixture context [brief-c-browser]",
+        "body": "test(brief-c): supply required browser fixture context [brief-c-browser]\n",
+        "author": {
+          "name": "Sebastian Ziegler",
+          "email": "sebastianjudeziegler-byte@users.noreply.github.com",
+          "time": 1789043684000
+        },
+        "committer": {
+          "name": "Sebastian Ziegler",
+          "email": "sebastianjudeziegler-byte@users.noreply.github.com",
+          "time": 1789043684000
+        },
+        "branch": "codex/brief-c-source-first-practice"
+      },
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/home/runner/work/yova/yova/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "ci": {
+            "commitHref": "https://github.com/sebastianjudeziegler-byte/yova/commit/7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+            "commitHash": "7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+            "buildHref": "https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34477518880"
+          },
+          "gitCommit": {
+            "shortHash": "7a49549",
+            "hash": "7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+            "subject": "test(brief-c): supply required browser fixture context [brief-c-browser]",
+            "body": "test(brief-c): supply required browser fixture context [brief-c-browser]\n",
+            "author": {
+              "name": "Sebastian Ziegler",
+              "email": "sebastianjudeziegler-byte@users.noreply.github.com",
+              "time": 1789043684000
+            },
+            "committer": {
+              "name": "Sebastian Ziegler",
+              "email": "sebastianjudeziegler-byte@users.noreply.github.com",
+              "time": 1789043684000
+            },
+            "branch": "codex/brief-c-source-first-practice"
+          },
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "/home/runner/work/yova/yova/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/home/runner/work/yova/yova/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "ci": {
+            "commitHref": "https://github.com/sebastianjudeziegler-byte/yova/commit/7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+            "commitHash": "7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+            "buildHref": "https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34477518880"
+          },
+          "gitCommit": {
+            "shortHash": "7a49549",
+            "hash": "7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+            "subject": "test(brief-c): supply required browser fixture context [brief-c-browser]",
+            "body": "test(brief-c): supply required browser fixture context [brief-c-browser]\n",
+            "author": {
+              "name": "Sebastian Ziegler",
+              "email": "sebastianjudeziegler-byte@users.noreply.github.com",
+              "time": 1789043684000
+            },
+            "committer": {
+              "name": "Sebastian Ziegler",
+              "email": "sebastianjudeziegler-byte@users.noreply.github.com",
+              "time": 1789043684000
+            },
+            "branch": "codex/brief-c-source-first-practice"
+          },
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "/home/runner/work/yova/yova/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list"
+      ],
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "pnpm dev --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": false,
+      "timeout": 120000,
+      "env": {
+        "GITHUB_STATE": "/home/runner/work/_temp/_runner_file_commands/save_state_3ded4997-4ee4-49a2-b6d6-0017b082e76c",
+        "DOTNET_NOLOGO": "1",
+        "USER": "runner",
+        "npm_config_user_agent": "pnpm/11.16.0 npm/? node/v24.20.0 linux x64",
+        "CI": "true",
+        "USE_BAZEL_FALLBACK_VERSION": "silent:",
+        "RUNNER_ENVIRONMENT": "github-hosted",
+        "GITHUB_ENV": "/home/runner/work/_temp/_runner_file_commands/set_env_3ded4997-4ee4-49a2-b6d6-0017b082e76c",
+        "PIPX_HOME": "/opt/pipx",
+        "JAVA_HOME_8_X64": "/usr/lib/jvm/temurin-8-jdk-amd64",
+        "SHLVL": "1",
+        "HCA_CLOUD_PROVIDER": "azure",
+        "HOME": "/home/runner",
+        "RUNNER_TEMP": "/home/runner/work/_temp",
+        "GITHUB_EVENT_PATH": "/home/runner/work/_temp/_github_workflow/event.json",
+        "JAVA_HOME_11_X64": "/usr/lib/jvm/temurin-11-jdk-amd64",
+        "PIPX_BIN_DIR": "/opt/pipx_bin",
+        "GITHUB_REPOSITORY_OWNER": "sebastianjudeziegler-byte",
+        "GRADLE_HOME": "/usr/share/gradle-9.7.1",
+        "ANDROID_NDK_LATEST_HOME": "/usr/local/lib/android/sdk/ndk/29.0.14206865",
+        "JAVA_HOME_21_X64": "/usr/lib/jvm/temurin-21-jdk-amd64",
+        "GITHUB_RETENTION_DAYS": "90",
+        "GITHUB_REPOSITORY_OWNER_ID": "262470093",
+        "POWERSHELL_DISTRIBUTION_CHANNEL": "GitHub-Actions-Linux",
+        "AZURE_EXTENSION_DIR": "/opt/az/azcliextensions",
+        "GITHUB_HEAD_REF": "",
+        "SYSTEMD_EXEC_PID": "1812",
+        "DO_NOT_TRACK": "1",
+        "ACTIONS_ORCHESTRATION_ID": "47fb2448-a1b6-4832-8531-3841de3e0233.source-boundary.__default",
+        "PLAYWRIGHT_JSON_OUTPUT_FILE": "artifacts/brief-c/browser.json",
+        "GITHUB_GRAPHQL_URL": "https://api.github.com/graphql",
+        "JAVA_HOME_25_X64": "/usr/lib/jvm/temurin-25-jdk-amd64",
+        "NVM_DIR": "/home/runner/.nvm",
+        "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1",
+        "JAVA_HOME_17_X64": "/usr/lib/jvm/temurin-17-jdk-amd64",
+        "ImageVersion": "20260907.300.1",
+        "LOGNAME": "runner",
+        "RUNNER_OS": "Linux",
+        "GITHUB_API_URL": "https://api.github.com",
+        "GITHUB_ARTIFACTS": "/home/runner/work/_temp/_runner_file_commands/artifacts_3ded4997-4ee4-49a2-b6d6-0017b082e76c",
+        "SWIFT_PATH": "/usr/share/swift/usr/bin",
+        "pnpm_config_verify_deps_before_run": "false",
+        "CHROMEWEBDRIVER": "/usr/local/share/chromedriver-linux64",
+        "JOURNAL_STREAM": "9:11884",
+        "GITHUB_WORKFLOW": "Brief C focused evidence",
+        "_": "/home/runner/setup-pnpm/node_modules/.bin/pnpm",
+        "MEMORY_PRESSURE_WATCH": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service/memory.pressure",
+        "GOROOT_1_24_X64": "/opt/hostedtoolcache/go/1.24.13/x64",
+        "ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE": "/opt/actionarchivecache",
+        "GOROOT_1_25_X64": "/opt/hostedtoolcache/go/1.25.14/x64",
+        "GITHUB_RUN_ID": "34477518880",
+        "GITHUB_REF_TYPE": "branch",
+        "BOOTSTRAP_HASKELL_NONINTERACTIVE": "1",
+        "GITHUB_WORKFLOW_SHA": "7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+        "GOROOT_1_26_X64": "/opt/hostedtoolcache/go/1.26.8/x64",
+        "GITHUB_BASE_REF": "",
+        "ImageOS": "ubuntu24",
+        "GITHUB_WORKFLOW_REF": "sebastianjudeziegler-byte/yova/.github/workflows/brief-c-focused.yml@refs/heads/codex/brief-c-source-first-practice",
+        "GITHUB_ACTION_REPOSITORY": "",
+        "ENABLE_RUNNER_TRACING": "true",
+        "PATH": "./node_modules/.bin:/home/runner/work/yova/yova/node_modules/.bin:/opt/hostedtoolcache/node/24.20.0/x64/bin:/home/runner/setup-pnpm/node_modules/.bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+        "ANT_HOME": "/usr/share/ant",
+        "DOTNET_MULTILEVEL_LOOKUP": "0",
+        "RUNNER_TRACKING_ID": "github_bfede0a2-241d-458b-9ffe-10b0b50f5e74",
+        "INVOCATION_ID": "651c55cb5c744a28a03fe7cb2f2ce156",
+        "RUNNER_TOOL_CACHE": "/opt/hostedtoolcache",
+        "GITHUB_ACTION": "__run_12",
+        "GITHUB_RUN_NUMBER": "11",
+        "GITHUB_TRIGGERING_ACTOR": "sebastianjudeziegler-byte",
+        "RUNNER_ARCH": "X64",
+        "XDG_RUNTIME_DIR": "/run/user/1001",
+        "AGENT_TOOLSDIRECTORY": "/opt/hostedtoolcache",
+        "LANG": "C.UTF-8",
+        "VCPKG_INSTALLATION_ROOT": "/usr/local/share/vcpkg",
+        "CONDA": "/usr/share/miniconda",
+        "RUNNER_NAME": "GitHub Actions 1000000375",
+        "XDG_CONFIG_HOME": "/home/runner/.config",
+        "GITHUB_REF_NAME": "codex/brief-c-source-first-practice",
+        "GITHUB_REPOSITORY": "sebastianjudeziegler-byte/yova",
+        "ANDROID_NDK_ROOT": "/usr/local/lib/android/sdk/ndk/27.3.13750724",
+        "GITHUB_ACTION_REF": "",
+        "DEBIAN_FRONTEND": "noninteractive",
+        "SHELL": "/bin/bash",
+        "GITHUB_REPOSITORY_ID": "1323322764",
+        "GITHUB_ACTIONS": "true",
+        "NODE_PATH": "/home/runner/work/yova/yova/node_modules/.pnpm/@playwright+test@1.62.1/node_modules/@playwright/test/node_modules:/home/runner/work/yova/yova/node_modules/.pnpm/@playwright+test@1.62.1/node_modules:/home/runner/work/yova/yova/node_modules/.pnpm/node_modules:/home/runner/setup-pnpm/node_modules/.pnpm/pnpm@11.16.0/node_modules/pnpm/bin/node_modules:/home/runner/setup-pnpm/node_modules/.pnpm/pnpm@11.16.0/node_modules/pnpm/node_modules:/home/runner/setup-pnpm/node_modules/.pnpm/pnpm@11.16.0/node_modules:/home/runner/setup-pnpm/node_modules/.pnpm/node_modules",
+        "GITHUB_REF_PROTECTED": "false",
+        "GITHUB_WORKSPACE": "/home/runner/work/yova/yova",
+        "ACCEPT_EULA": "Y",
+        "GITHUB_JOB": "source-boundary",
+        "GITHUB_SHA": "7a49549176b27d9c4e2b14a1dcc53b72fff34292",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "ACTIONS_RUNNER_RETURN_JOB_RESULT_FOR_HOSTED": "1",
+        "GITHUB_REF": "refs/heads/codex/brief-c-source-first-practice",
+        "GITHUB_ACTOR": "sebastianjudeziegler-byte",
+        "ANDROID_SDK_ROOT": "/usr/local/lib/android/sdk",
+        "PNPM_PACKAGE_NAME": "yova",
+        "GITHUB_PATH": "/home/runner/work/_temp/_runner_file_commands/add_path_3ded4997-4ee4-49a2-b6d6-0017b082e76c",
+        "JAVA_HOME": "/usr/lib/jvm/temurin-17-jdk-amd64",
+        "PWD": "/home/runner/work/yova/yova",
+        "GITHUB_ACTOR_ID": "262470093",
+        "RUNNER_WORKSPACE": "/home/runner/work/yova",
+        "HOMEBREW_CLEANUP_PERIODIC_FULL_DAYS": "3650",
+        "GITHUB_EVENT_NAME": "push",
+        "HOMEBREW_NO_AUTO_UPDATE": "1",
+        "ANDROID_HOME": "/usr/local/lib/android/sdk",
+        "GITHUB_SERVER_URL": "https://github.com",
+        "GECKOWEBDRIVER": "/usr/local/share/gecko_driver",
+        "GHCUP_INSTALL_BASE_PREFIX": "/usr/local",
+        "GITHUB_OUTPUT": "/home/runner/work/_temp/_runner_file_commands/set_output_3ded4997-4ee4-49a2-b6d6-0017b082e76c",
+        "EDGEWEBDRIVER": "/usr/local/share/edge_driver",
+        "npm_command": "exec",
+        "ANDROID_NDK": "/usr/local/lib/android/sdk/ndk/27.3.13750724",
+        "GITHUB_ARTIFACTS_LIST": "/home/runner/work/_temp/_runner_file_commands/artifacts_list_3ded4997-4ee4-49a2-b6d6-0017b082e76c",
+        "TZ": "America/Los_Angeles",
+        "SGX_AESM_ADDR": "1",
+        "PSModulePath": "/root/.local/share/powershell/Modules:/usr/local/share/powershell/Modules:/opt/microsoft/powershell/7/Modules:/usr/share/az_15.6.1",
+        "CHROME_BIN": "/usr/bin/google-chrome",
+        "SELENIUM_JAR_PATH": "/usr/share/java/selenium-server.jar",
+        "MEMORY_PRESSURE_WRITE": "c29tZSAyMDAwMDAgMjAwMDAwMAA=",
+        "PNPM_HOME": "/home/runner/setup-pnpm/node_modules/.bin",
+        "ANDROID_NDK_HOME": "/usr/local/lib/android/sdk/ndk/27.3.13750724",
+        "GITHUB_STEP_SUMMARY": "/home/runner/work/_temp/_runner_file_commands/step_summary_3ded4997-4ee4-49a2-b6d6-0017b082e76c",
+        "BROWSERSLIST_IGNORE_OLD_DATA": "true",
+        "NEXT_PUBLIC_SUPABASE_URL": "",
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "",
+        "OPENAI_API_KEY": "",
+        "RESEND_API_KEY": "",
+        "STUDY_PROFILE_FROM_EMAIL": "",
+        "AUTH_EMAIL_CODE_VERIFICATION": "false",
+        "AUTH_INVITE_ONLY": "false",
+        "AUTH_PASSWORD_ACCOUNTS": "false",
+        "AUTH_CAPTCHA_ENABLED": "false",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "",
+        "SITE_URL": "http://127.0.0.1:3100",
+        "YOVA_E2E": "1"
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "source-first-block.spec.ts",
+      "file": "source-first-block.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "founder source-first block preserves practice on leave/resume and requires the check before completion",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 34368,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.session-setup-shell, .session-shell')\nExpected: visible\nTimeout: 30000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 30000ms\u001b[22m\n\u001b[2m  - waiting for locator('.session-setup-shell, .session-shell')\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.session-setup-shell, .session-shell')\nExpected: visible\nTimeout: 30000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 30000ms\u001b[22m\n\u001b[2m  - waiting for locator('.session-setup-shell, .session-shell')\u001b[22m\n\n    at openNext (/home/runner/work/yova/yova/e2e/source-first-block.spec.ts:49:70)\n    at /home/runner/work/yova/yova/e2e/source-first-block.spec.ts:115:3",
+                    "location": {
+                      "file": "/home/runner/work/yova/yova/e2e/source-first-block.spec.ts",
+                      "column": 70,
+                      "line": 49
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 47 |\u001b[39m   \u001b[36mconst\u001b[39m early \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mgetByRole(\u001b[32m\"button\"\u001b[39m\u001b[33m,\u001b[39m { name\u001b[33m:\u001b[39m \u001b[32m\"Start now, keep dates\"\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m 48 |\u001b[39m   \u001b[36mif\u001b[39m (\u001b[36mawait\u001b[39m early\u001b[33m.\u001b[39misVisible()) \u001b[36mawait\u001b[39m early\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 49 |\u001b[39m   \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m\".session-setup-shell, .session-shell\"\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible({ timeout\u001b[33m:\u001b[39m \u001b[35m30\u001b[39m_000 })\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                      \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 50 |\u001b[39m   \u001b[36mif\u001b[39m (\u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m\".session-setup-shell\"\u001b[39m)\u001b[33m.\u001b[39misVisible()) {\n \u001b[90m 51 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgetByRole(\u001b[32m\"button\"\u001b[39m\u001b[33m,\u001b[39m { name\u001b[33m:\u001b[39m \u001b[32m\"Continue\"\u001b[39m\u001b[33m,\u001b[39m exact\u001b[33m:\u001b[39m \u001b[36mtrue\u001b[39m })\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m 52 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgetByRole(\u001b[32m\"button\"\u001b[39m\u001b[33m,\u001b[39m { name\u001b[33m:\u001b[39m \u001b[32m\"Continue\"\u001b[39m\u001b[33m,\u001b[39m exact\u001b[33m:\u001b[39m \u001b[36mtrue\u001b[39m })\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/home/runner/work/yova/yova/e2e/source-first-block.spec.ts",
+                        "column": 70,
+                        "line": 49
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.session-setup-shell, .session-shell')\nExpected: visible\nTimeout: 30000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 30000ms\u001b[22m\n\u001b[2m  - waiting for locator('.session-setup-shell, .session-shell')\u001b[22m\n\n\n  47 |   const early = page.getByRole(\"button\", { name: \"Start now, keep dates\" });\n  48 |   if (await early.isVisible()) await early.click();\n> 49 |   await expect(page.locator(\".session-setup-shell, .session-shell\")).toBeVisible({ timeout: 30_000 });\n     |                                                                      ^\n  50 |   if (await page.locator(\".session-setup-shell\").isVisible()) {\n  51 |     await page.getByRole(\"button\", { name: \"Continue\", exact: true }).click();\n  52 |     await page.getByRole(\"button\", { name: \"Continue\", exact: true }).click();\n    at openNext (/home/runner/work/yova/yova/e2e/source-first-block.spec.ts:49:70)\n    at /home/runner/work/yova/yova/e2e/source-first-block.spec.ts:115:3"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-10T12:36:59.505Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/home/runner/work/yova/yova/test-results/source-first-block-founder-4bfa8-the-check-before-completion-desktop-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/home/runner/work/yova/yova/test-results/source-first-block-founder-4bfa8-the-check-before-completion-desktop-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/runner/work/yova/yova/test-results/source-first-block-founder-4bfa8-the-check-before-completion-desktop-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/home/runner/work/yova/yova/test-results/source-first-block-founder-4bfa8-the-check-before-completion-desktop-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/home/runner/work/yova/yova/e2e/source-first-block.spec.ts",
+                    "column": 70,
+                    "line": 49
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "47399964fe467bc08995-97a41d04b2f1f58e10ad",
+          "file": "source-first-block.spec.ts",
+          "line": 57,
+          "column": 5
+        },
+        {
+          "title": "founder source-first block preserves practice on leave/resume and requires the check before completion",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 8186,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('region', { name: 'Session work block' })\nExpected substring: \u001b[32m\"Cellular energetics lecture.pdf\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('region', { name: 'Session work block' })\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('region', { name: 'Session work block' })\nExpected substring: \u001b[32m\"Cellular energetics lecture.pdf\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('region', { name: 'Session work block' })\u001b[22m\n\n    at /home/runner/work/yova/yova/e2e/source-first-block.spec.ts:117:23",
+                    "location": {
+                      "file": "/home/runner/work/yova/yova/e2e/source-first-block.spec.ts",
+                      "column": 23,
+                      "line": 117
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 115 |\u001b[39m   \u001b[36mawait\u001b[39m openNext(page)\u001b[33m;\u001b[39m\n \u001b[90m 116 |\u001b[39m   \u001b[36mconst\u001b[39m block \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mgetByRole(\u001b[32m\"region\"\u001b[39m\u001b[33m,\u001b[39m { name\u001b[33m:\u001b[39m \u001b[32m\"Session work block\"\u001b[39m })\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 117 |\u001b[39m   \u001b[36mawait\u001b[39m expect(block)\u001b[33m.\u001b[39mtoContainText(\u001b[32m\"Cellular energetics lecture.pdf\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                       \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 118 |\u001b[39m   \u001b[36mawait\u001b[39m expect(block)\u001b[33m.\u001b[39mtoContainText(\u001b[32m\"Page 1\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 119 |\u001b[39m   \u001b[36mawait\u001b[39m expect(block\u001b[33m.\u001b[39mgetByRole(\u001b[32m\"button\"\u001b[39m\u001b[33m,\u001b[39m { name\u001b[33m:\u001b[39m \u001b[32m\"Mark source done\"\u001b[39m }))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m 120 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mscreenshot({ path\u001b[33m:\u001b[39m testInfo\u001b[33m.\u001b[39moutputPath(\u001b[32m\"01-source-first.png\"\u001b[39m)\u001b[33m,\u001b[39m fullPage\u001b[33m:\u001b[39m \u001b[36mtrue\u001b[39m })\u001b[33m;\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/home/runner/work/yova/yova/e2e/source-first-block.spec.ts",
+                        "column": 23,
+                        "line": 117
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('region', { name: 'Session work block' })\nExpected substring: \u001b[32m\"Cellular energetics lecture.pdf\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('region', { name: 'Session work block' })\u001b[22m\n\n\n  115 |   await openNext(page);\n  116 |   const block = page.getByRole(\"region\", { name: \"Session work block\" });\n> 117 |   await expect(block).toContainText(\"Cellular energetics lecture.pdf\");\n      |                       ^\n  118 |   await expect(block).toContainText(\"Page 1\");\n  119 |   await expect(block.getByRole(\"button\", { name: \"Mark source done\" })).toBeVisible();\n  120 |   await page.screenshot({ path: testInfo.outputPath(\"01-source-first.png\"), fullPage: true });\n    at /home/runner/work/yova/yova/e2e/source-first-block.spec.ts:117:23"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-10T12:37:35.269Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/home/runner/work/yova/yova/test-results/source-first-block-founder-4bfa8-the-check-before-completion-mobile-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/home/runner/work/yova/yova/test-results/source-first-block-founder-4bfa8-the-check-before-completion-mobile-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/runner/work/yova/yova/test-results/source-first-block-founder-4bfa8-the-check-before-completion-mobile-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/home/runner/work/yova/yova/test-results/source-first-block-founder-4bfa8-the-check-before-completion-mobile-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/home/runner/work/yova/yova/e2e/source-first-block.spec.ts",
+                    "column": 23,
+                    "line": 117
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "47399964fe467bc08995-3ec7c248e46c81befbc1",
+          "file": "source-first-block.spec.ts",
+          "line": 57,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-10T12:36:50.000Z",
+    "duration": 53851.663,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

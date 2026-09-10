@@ -1,3 +1,4 @@
+import { WorkBlockSchema } from "@/lib/session-blocks/schema";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import { mapTargetsToKnowledgeTopics } from "@/lib/learning/target-topic-mapping";
 import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
@@ -46,6 +47,17 @@ export function generatedSessionStudyRouteIssue(
       : !exactRouteTargets && !validScopedTargets
   ) {
     return "The generated targets do not match the committed StudyRoute.";
+  }
+
+  if ("block" in session) {
+    const parsed = WorkBlockSchema.safeParse(session.block);
+    if (!parsed.success || !sameOrderedValues(parsed.data.topicIds, session.topicIds)
+      || parsed.data.learningMode !== expectedLearningMode) {
+      return "The generated block does not match the committed topic and mode contract.";
+    }
+    // V19 activities implement the approved block shape. The old lesson phase
+    // recipe remains enforced below for previously saved guided resources.
+    return null;
   }
 
   const expectedPhases = route.execution.orderedPhases.map((phase) => phase.methodPhase);

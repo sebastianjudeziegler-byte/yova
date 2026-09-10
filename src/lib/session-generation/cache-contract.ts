@@ -1,3 +1,4 @@
+import { WorkBlockSchema } from "@/lib/session-blocks/schema";
 import { generatedSessionDefersAllStoredPlanTargets } from "@/lib/session-generation/deferred-cache-contract";
 import type {
   LearningPlan,
@@ -215,16 +216,21 @@ export function hydratedSessionResourceCacheIssue({
     reviewType: session.reviewType ?? null,
   });
   if (
-    resource.schemaVersion !== expectedSchemaVersion
+    (resource.schemaVersion !== 19 && resource.schemaVersion !== expectedSchemaVersion)
     || resource.methodBriefing?.learningMode !== effectiveLearningMode
   ) {
     return "The saved lesson predates the current guided-session architecture.";
   }
+  if (resource.schemaVersion === 19) {
+    const parsed = WorkBlockSchema.safeParse(resource.block);
+    if (!parsed.success || JSON.stringify(parsed.data.topicIds) !== JSON.stringify(resource.topicIds)
+      || parsed.data.learningMode !== effectiveLearningMode) return "The saved block does not match this session's assigned topics and mode.";
+  }
   const activityDraft = resourceActivityContractDraft(resource);
-  if (!activityDraft) {
+  if (!activityDraft && resource.schemaVersion !== 19) {
     return "The saved generated lesson predates the current activity contract.";
   }
-  const activityIssue = cachedSessionActivityContractIssue(activityDraft, {
+  const activityIssue = resource.schemaVersion === 19 ? null : cachedSessionActivityContractIssue(activityDraft!, {
     reviewType: session.reviewType ?? null,
     reviewConcept: session.reviewConcept ?? null,
     estimatedMinutes: session.estimatedMinutes,

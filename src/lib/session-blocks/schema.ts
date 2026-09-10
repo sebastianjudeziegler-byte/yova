@@ -63,6 +63,7 @@ export const WorkBlockSchema = z.object({
   for (const item of [...block.sources, ...block.activities, ...block.questions]) {
     if (!block.topicIds.includes(item.topicId)) reject("Every source, activity and question must bind to an assigned block topic.");
   }
+  if (block.activities.reduce((sum, activity) => sum + Math.max(1, activity.questionIds.length), 0) > 24) reject("A block exceeds the saved-progress step limit.");
   const usedQuestions: string[] = [];
   for (const activity of block.activities) {
     const isSource = activity.kind === "read_source_section" || activity.kind === "watch_source_section";
