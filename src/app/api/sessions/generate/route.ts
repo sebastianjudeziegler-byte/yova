@@ -113,6 +113,7 @@ import {
 } from "@/lib/study-route/normal-plan-generation-copy";
 import { activeStudyRouteTargetIds } from "@/lib/study-route/targets";
 import { studyRouteSourceBindingIssue } from "@/lib/study-route/source-contract";
+import { sourceIdsForTopics } from "@/lib/study-route/topic-source-binding";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -456,6 +457,7 @@ export async function POST(request: Request) {
     const routeSourceIssue = studyRouteSourceBindingIssue(committedStudyRoute, {
       readyMaterialIds: (materialRows ?? []).map((material) => material.id),
       selectedChunkMaterialIds: (chunkResult.data ?? []).map((chunk) => chunk.material_id),
+      topicSourceIds: sourceIdsForTopics(selectedTopics),
     });
     if (routeSourceIssue) {
       const failureStats = recordPreflightFailure("source_unavailable");

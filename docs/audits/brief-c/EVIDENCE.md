@@ -1,6 +1,6 @@
 # Brief C — evidence
 
-Status: initial CI regression captured; source-binding pipeline decision pending. No product behavior has changed.
+Status: source-binding red evidence captured on main's unchanged product code; narrowly approved correction awaiting CI. The rest of Brief C is in progress.
 
 - Branch: `codex/brief-c-source-first-practice`.
 - Starting source: `971e258c539046276e8d165fdaa4651639831044`, Brief B's current head.
@@ -14,6 +14,12 @@ Status: initial CI regression captured; source-binding pipeline decision pending
 Initial CI: [34472411719](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34472411719), tested commit `c3422c4` on base `8032361`. Mixed-source entry **one red / two green controls**; five validator suites **101/101 green**. Only tests, workflow and documentation differ from main product code. [Raw evidence](evidence/initial-source-boundary/) and [root cause / proposed pipeline correction](SOURCE-BINDING-DECISION.md). The unsourced Enzymes session cannot open because the pipeline commits the other topic's PDF requirement onto it. No correction or green claim yet.
 
 Every behavior row below needs an observed failing assertion before implementation and a passing assertion afterward. These are planned checks, not results.
+
+### Pre-existing Brief B source-binding seam
+
+Expanded red run [34473280983](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34473280983), source `958f53ed7f63340d5a4bdb94ebba7e896a62f8ac`: **42 pass / 2 fail / 1 skipped** across the source boundary, normal pipeline and Brief B revision suites. Both failures are the unsourced topic inheriting another topic's PDF requirement. The source-revision byte-identical assertion passes. The five validator protection suites remain **101/101 pass**. Product files at this revision are identical to main `80323614fec32563a340528fb558a84657a00773`, establishing this as a pre-existing Brief B seam. [Expanded raw evidence](evidence/expanded-source-boundary-red/).
+
+Founder approval is limited to topic-scoped source binding. The correction changes only the source requirements and binding provenance committed by the existing normal pipeline, with corresponding runtime source checks. Topic IDs, methods, schedule and revision composition logic remain under their existing owners. Legacy committed routes retain their old source contract; new routes require exactly their assigned topics' sources. Missing, substituted or subsequently changed sources still fail closed. No green claim until CI completes.
 
 | Behavior | Learner-visible assertion and protected boundary | Red | Green |
 | --- | --- | --- | --- |

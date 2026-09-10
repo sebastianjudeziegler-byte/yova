@@ -91,4 +91,16 @@ describe("Brief C source-first entry authority", () => {
       readyMaterialIds: [materialId], selectedChunkMaterialIds: ["b0000000-0000-4000-8000-000000000099"],
     })).not.toBeNull();
   });
+
+  it("does not silently adopt a changed topic attachment or give an unsourced topic a foreign section", () => {
+    const plan = mixedSourcePlan();
+    const sourced = plan.sessions.find(item => item.topicIds?.includes(deltaTopicId(0)))!;
+    const unsourced = plan.sessions.find(item => item.topicIds?.includes(deltaTopicId(1)))!;
+    expect(studyRouteSourceBindingIssue(sourced.studyRoute, {
+      readyMaterialIds: [materialId], selectedChunkMaterialIds: [materialId], topicSourceIds: [],
+    })).not.toBeNull();
+    expect(studyRouteSourceBindingIssue(unsourced.studyRoute, {
+      readyMaterialIds: [materialId], selectedChunkMaterialIds: [materialId], topicSourceIds: [],
+    })).not.toBeNull();
+  });
 });

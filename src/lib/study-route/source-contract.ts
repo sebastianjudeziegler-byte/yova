@@ -1,8 +1,11 @@
 import type { StudyRoute } from "@/lib/study-route/schema";
+import { usesTopicSourceBinding } from "@/lib/study-route/topic-source-binding";
 
 export type StudyRouteSourceRuntime = {
   readyMaterialIds: readonly string[];
   selectedChunkMaterialIds: readonly string[];
+  /** Authoritative selected-map declarations, when the runtime has loaded them. */
+  topicSourceIds?: readonly string[];
 };
 
 /**
@@ -17,6 +20,24 @@ export function studyRouteSourceBindingIssue(
   const source = route.target.sourceRequirements;
   const readyMaterialIds = uniqueSorted(runtime.readyMaterialIds);
   const selectedChunkMaterialIds = uniqueSorted(runtime.selectedChunkMaterialIds);
+
+  if (usesTopicSourceBinding(route)) {
+    const required = uniqueSorted(source.requiredSourceIds);
+    if (runtime.topicSourceIds && !sameStrings(required, uniqueSorted(runtime.topicSourceIds))) {
+      return "This topic's sources no longer match its committed StudyRoute.";
+    }
+    const materialIds = required.filter(id => !id.startsWith("topic-source:"));
+    if (materialIds.some(id => !readyMaterialIds.includes(id))) {
+      return "A required source for this topic is no longer ready.";
+    }
+    if (selectedChunkMaterialIds.some(id => !materialIds.includes(id))) {
+      return "A selected source section belongs to material outside this topic's StudyRoute.";
+    }
+    if (materialIds.length > 0 && selectedChunkMaterialIds.length === 0) {
+      return "This material-grounded StudyRoute has no selected source section for its active targets.";
+    }
+    return null;
+  }
 
   if (source.sourceType === "user_materials") {
     const requiredSourceIds = uniqueSorted(source.requiredSourceIds);

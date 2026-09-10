@@ -1,4 +1,5 @@
 import { normalPlanAmountLabel } from "@/lib/plan-generation/learner-plan-copy";
+import { TOPIC_SOURCE_BINDING_VERSION, topicScopedSourceRequirements } from "@/lib/study-route/topic-source-binding";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import { CORE_METHOD_CATALOG } from "@/lib/learning/method-catalog";
 import {
@@ -413,7 +414,18 @@ function internalRouteShell({
       "YOVA could not construct the private neutral shell for this pending normal-plan session.",
     );
   }
-  return route;
+  // Only fresh routes pass here. Revision keeps unrelated sessions intact and
+  // binds an affected successor through this same composition boundary.
+  return StudyRouteSchema.parse({
+    ...route,
+    target: { ...route.target, sourceRequirements: topicScopedSourceRequirements(plan, session) },
+    provenance: { ...route.provenance, ruleTrace: [...route.provenance.ruleTrace, {
+      ruleId: TOPIC_SOURCE_BINDING_VERSION,
+      result: "topic_scoped_sources",
+      reason: "Required sources belong only to this session's assigned map topics.",
+      evidenceRefs: [],
+    }] },
+  });
 }
 
 function assertPreservedRouteFields(
