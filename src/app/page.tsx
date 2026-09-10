@@ -14,6 +14,10 @@ export default function HomePage() {
   const turnstileSiteKey = process.env.AUTH_CAPTCHA_ENABLED === "true"
     ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || null
     : null;
+  // The baseline session shapes are the product. The pre-baseline generated
+  // runtime stays reachable only with this switched off (preserved, not
+  // deleted; see docs/redesign/00-SCOPE.md and the vision-freeze tag).
+  const baselineSessionShapes = process.env.YOVA_BASELINE_SESSION_SHAPES !== "false";
 
   if (productionNeedsConfiguration) {
     return (
@@ -30,6 +34,7 @@ export default function HomePage() {
   }
 
   return <YovaPrototype
+    baselineSessionShapes={baselineSessionShapes}
     emailCodeVerificationEnabled={emailCodeVerificationEnabled}
     inviteOnly={inviteOnly}
     passwordAccountsEnabled={passwordAccountsEnabled}

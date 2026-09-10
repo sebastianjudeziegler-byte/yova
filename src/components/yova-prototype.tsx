@@ -60,6 +60,13 @@ import { PlanCreator } from "@/components/plan-creator";
 import { PlanDeletionControl } from "@/components/plan-deletion-dialog";
 import { PageHeader } from "@/components/page-header";
 import { PostSessionPersonalizationReceipt } from "@/components/post-session-personalization-receipt";
+import { BaselineSession, type BaselineSessionResult } from "@/components/baseline-session";
+import { BaselineOnboardingIntro, BaselineOnboardingQuestion, BaselineProfileSummary } from "@/components/baseline-onboarding";
+import { BaselineProfileEditor } from "@/components/baseline-profile-editor";
+import { onboardingAnsweredCount, readOnboardingAnswers, writeOnboardingAnswers } from "@/lib/onboarding/answers";
+import { ONBOARDING_QUESTIONS } from "@/lib/onboarding/questions";
+import { routeSession, withProduceStepOverride, type ProduceStep, type SessionRoute } from "@/lib/routing/session-route";
+import { routingInputForSession, sessionTopic } from "@/lib/routing/route-for-session";
 import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
 import { StudyMethodBriefing } from "@/components/study-method-briefing";
 import { StudyRouteRecipeCard } from "@/components/study-route-recipe-card";
@@ -461,7 +468,7 @@ import {
   type TutorThreadSummary,
 } from "@/lib/tutor/schema";
 
-type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session-quota" | "session-method" | "session" | "complete";
+type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session-quota" | "session-method" | "session" | "complete" | "baseline-session";
 type Tab = "Home" | "Learning" | "Calendar" | "Ask YOVA" | "You";
 type LearningPlanView = "active" | "recent" | "archive";
 type LearningSection = LearningPlanView | "methods";
@@ -651,11 +658,14 @@ function retrySafeSessionTerminalAuthority(
 }
 
 export function YovaPrototype({
+  baselineSessionShapes = true,
   emailCodeVerificationEnabled = false,
   inviteOnly = false,
   passwordAccountsEnabled = false,
   turnstileSiteKey = null,
 }: {
+  /** The baseline session shapes (docs/redesign). Off keeps the pre-baseline generated runtime reachable. */
+  baselineSessionShapes?: boolean;
   emailCodeVerificationEnabled?: boolean;
   inviteOnly?: boolean;
   passwordAccountsEnabled?: boolean;
@@ -676,6 +686,7 @@ export function YovaPrototype({
   const [guidedSessionAllowanceChecking, setGuidedSessionAllowanceChecking] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [baselineSessionTarget, setBaselineSessionTarget] = useState<{ planId: string; planSessionId: string; produceStep: ProduceStep | null } | null>(null);
   const [answers, setAnswers] = useState<string[]>([]);
   const [plans, setPlans] = useState<LearningPlan[]>([]);
   const [deadlineMilestones, setDeadlineMilestones] = useState<DeadlineMilestone[]>([]);
@@ -2177,6 +2188,17 @@ export function YovaPrototype({
       ))
       : storedRequestedPlan.sessions.find((session) => session.status === "ready");
     if (!storedRequestedSession) return;
+    if (baselineSessionShapes) {
+      // Baseline: the coded session shapes run the session and fill bounded
+      // AI slots as they go. Nothing is generated or validated up front.
+      sessionGenerationAbortRef.current?.abort();
+      sessionGenerationAbortRef.current = null;
+      setSelectedPlanId(storedRequestedPlan.id);
+      setPendingSessionPlan(null);
+      setBaselineSessionTarget({ planId: storedRequestedPlan.id, planSessionId: storedRequestedSession.id, produceStep: null });
+      setStage("baseline-session");
+      return;
+    }
     const plannedRouteContract = resolveStudyRouteSessionContract(
       storedRequestedPlan,
       storedRequestedSession,
@@ -3224,6 +3246,72 @@ export function YovaPrototype({
     activeSessionResourceFingerprintRef.current = null;
     activeSessionResourceGeneratedAtRef.current = null;
     updateSessionActivityProgress(null);
+    return true;
+  };
+
+  const completeBaselineSession = async (targetPlan: LearningPlan, targetSession: LearningPlanSession, route: SessionRoute, result: BaselineSessionResult) => {
+    const completedAt = new Date().toISOString();
+    const activeSeconds = Math.max(1, result.elapsedSeconds);
+    const executedRouteRevisionId = selectSessionTerminalRouteRevisionId(targetSession);
+    const topicId = targetSession.topicIds?.[0];
+    const completion: SessionCompletion = {
+      id: makeUuid(),
+      planId: targetPlan.id,
+      planSessionId: targetSession.id,
+      ...(executedRouteRevisionId ? { routeRevisionId: executedRouteRevisionId } : {}),
+      startedAt: new Date(Date.parse(completedAt) - activeSeconds * 1_000).toISOString(),
+      completedAt,
+      plannedMinutes: route.timerMinutes,
+      actualMinutes: Math.max(1, Math.round(activeSeconds / 60)),
+      correctAnswers: result.correctAnswers,
+      totalAnswers: result.totalAnswers,
+      feedback: null,
+      observedGap: result.escalated
+        ? `Practice did not pass clean after ${route.practiceRoundCeiling} rounds.`
+        : [...(result.comparison?.missing ?? []), ...(result.comparison?.incorrect ?? [])].join("; ").slice(0, 500),
+      completionMode: "guided",
+      // Shape C answers are checked in code. Shape A's comparison is feedback,
+      // never a verdict, so it records no concept evidence.
+      conceptEvidence: result.keyPointOutcomes.map((outcome) => ({
+        ...(executedRouteRevisionId ? { routeRevisionId: executedRouteRevisionId } : {}),
+        ...(topicId ? { topicId } : {}),
+        concept: outcome.text.slice(0, 160),
+        outcome: outcome.outcome,
+        activityType: "multiple_choice" as const,
+      })),
+      confidenceEvidence: [],
+    };
+    if (account?.identityMode === "supabase") {
+      try {
+        await completeAuthenticatedPlanSession(completion, null, null, null, null, account.id);
+      } catch {
+        const issue = "YOVA could not confirm this completion in the cloud. Your work is still on screen; try Finish again.";
+        setCloudSyncIssue(issue);
+        return false;
+      }
+      setCloudSyncIssue(null);
+    }
+    trackProductEvent({
+      eventName: "session_completed",
+      context: {
+        plannedMinutes: completion.plannedMinutes,
+        actualMinutes: completion.actualMinutes,
+        correctAnswers: completion.correctAnswers,
+        totalAnswers: completion.totalAnswers,
+        feedback: completion.feedback,
+        adaptedNextSession: false,
+        calibrationPattern: summarizeConfidenceCalibration(completion.confidenceEvidence).pattern,
+      },
+    }, analyticsEnabled);
+    setPlans((currentPlans) => currentPlans.map((plan) => (
+      plan.id === targetPlan.id
+        ? completePlanSession({ plan, completedSessionId: targetSession.id, completedAt })
+        : plan
+    )));
+    setSessionCompletions((current) => [...current, completion]);
+    setBaselineSessionTarget(null);
+    setStage("app");
+    setActiveTab("Home");
     return true;
   };
 
@@ -4388,10 +4476,33 @@ export function YovaPrototype({
       else setStage("onboarding-intro");
     }} />;
   }
-  if (stage === "onboarding-intro") return <OnboardingIntro onStart={() => {
-    trackProductEvent({ eventName: "onboarding_started", context: {} }, analyticsEnabled);
-    setStage("onboarding");
-  }} />;
+  if (stage === "onboarding-intro") {
+    const startOnboarding = () => {
+      trackProductEvent({ eventName: "onboarding_started", context: {} }, analyticsEnabled);
+      setStage("onboarding");
+    };
+    return baselineSessionShapes ? <BaselineOnboardingIntro onStart={startOnboarding} /> : <OnboardingIntro onStart={startOnboarding} />;
+  }
+  if (stage === "onboarding" && baselineSessionShapes) {
+    const record = readOnboardingAnswers(answers);
+    return <BaselineOnboardingQuestion
+      index={questionIndex}
+      answers={record}
+      onChange={(next) => setAnswers(writeOnboardingAnswers(answers, next))}
+      onBack={() => setQuestionIndex((value) => Math.max(0, value - 1))}
+      onNext={() => {
+        if (questionIndex === ONBOARDING_QUESTIONS.length - 1) {
+          trackProductEvent({
+            eventName: "onboarding_completed",
+            context: { answeredQuestionCount: onboardingAnsweredCount(record) },
+          }, analyticsEnabled);
+          setOnboardingCompleted(true);
+          setStage("profile");
+        }
+        else setQuestionIndex((value) => value + 1);
+      }}
+    />;
+  }
   if (stage === "onboarding") {
     const onboardingProfile = canonicalLearnerProfileFromAnswers(answers);
     const onboardingQuestion = CANONICAL_PROFILE_QUESTIONS[questionIndex];
@@ -4427,6 +4538,11 @@ export function YovaPrototype({
       />
     );
   }
+  if (stage === "profile" && baselineSessionShapes) return <BaselineProfileSummary answers={readOnboardingAnswers(answers)} onContinue={() => {
+    clearPublicCanonicalProfileDraft(window.localStorage);
+    trackProductEvent({ eventName: "alpha_entered", context: {} }, analyticsEnabled);
+    setStage("app");
+  }} />;
   if (stage === "profile") return <ProfileSummary answers={answers} onContinue={() => {
     clearPublicCanonicalProfileDraft(window.localStorage);
     trackProductEvent({ eventName: "alpha_entered", context: {} }, analyticsEnabled);
@@ -4475,6 +4591,27 @@ export function YovaPrototype({
     setSelectedPlanId(plan.id);
     void startSession(plan.id, plan, null);
   }} />;
+  if (stage === "baseline-session") {
+    const targetPlan = baselineSessionTarget ? activePlans.find((plan) => plan.id === baselineSessionTarget.planId) ?? null : null;
+    const targetSession = targetPlan?.sessions.find((session) => session.id === baselineSessionTarget?.planSessionId) ?? null;
+    if (!baselineSessionTarget || !targetPlan || !targetSession) {
+      return <SessionLoading plan={activePlan} onExit={() => { setBaselineSessionTarget(null); setStage("app"); }} />;
+    }
+    const targetTopic = sessionTopic(targetPlan, targetSession);
+    const baseRoute = routeSession(routingInputForSession({ plan: targetPlan, session: targetSession, topic: targetTopic, answers: readOnboardingAnswers(answers) }));
+    const route = baselineSessionTarget.produceStep ? withProduceStepOverride(baseRoute, baselineSessionTarget.produceStep) : baseRoute;
+    return <BaselineSession
+      key={`${targetSession.id}:${route.produceStep ?? route.shape}`}
+      plan={targetPlan}
+      session={targetSession}
+      topic={targetTopic}
+      route={route}
+      nextSession={nextUnfinishedSessionAfter(targetPlan.sessions, targetSession.sequence)}
+      onChangeProduceStep={(step) => setBaselineSessionTarget({ ...baselineSessionTarget, produceStep: step })}
+      onExit={() => { setBaselineSessionTarget(null); setStage("app"); }}
+      onComplete={(result) => completeBaselineSession(targetPlan, targetSession, route, result)}
+    />;
+  }
   if (stage === "session-setup") return <SessionSetup plan={pendingSessionPlan ?? activePlan} answers={answers} completions={sessionCompletions} interruptions={sessionInterruptions} onChangeMethod={changeReadySessionMethod} onExit={() => {
     setPendingSessionPlan(null);
     setStage("app");
@@ -4694,7 +4831,7 @@ export function YovaPrototype({
         }}
       />}
       {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={availablePlans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
-      {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} passwordAccountsEnabled={passwordAccountsEnabled} turnstileSiteKey={turnstileSiteKey} signingOut={signingOut} onAnswersChange={setAnswers} onDisplayNameChange={saveAccountDisplayName} onSignOut={signOut} onReset={resetYovaData} />}
+      {activeTab === "You" && <YouScreen baselineSessionShapes={baselineSessionShapes} account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} passwordAccountsEnabled={passwordAccountsEnabled} turnstileSiteKey={turnstileSiteKey} signingOut={signingOut} onAnswersChange={setAnswers} onDisplayNameChange={saveAccountDisplayName} onSignOut={signOut} onReset={resetYovaData} />}
     </AppShell>
     {earlySessionPlan && earlySession && <EarlySessionDialog plan={earlySessionPlan} session={earlySession} pending={earlySchedulePending} issue={earlyScheduleIssue} onCancel={() => { setEarlySessionPlanId(null); setEarlySessionPlanSessionId(null); setEarlyScheduleIssue(null); }} onStart={(shiftRemainingPlan) => void startEarlySession(shiftRemainingPlan)} />}
   </>;
@@ -5732,7 +5869,7 @@ function MethodEvidencePanel({ signals }: { signals: MethodSignal[] }) {
   return <section className="section-block method-evidence-card"><div className="section-title"><div><h3>Method evidence</h3><p>YOVA compares similar tasks at similar knowledge stages, not learning-style labels.</p></div><span className="data-badge">{signals.length} observed</span></div>{signals.length === 0 ? <div className="method-evidence-empty"><Target size={18} /><p>Complete sessions with knowledge checks to begin comparing how different methods are working.</p></div> : <div className="method-signal-grid">{signals.slice(0, 4).map((signal) => <article className={`method-signal ${signal.status}`} key={`${signal.family}-${signal.taskType}-${signal.knowledgeStage}`}><div><strong>{signal.label}</strong><span>{statusLabel[signal.status]}</span></div><small className="method-comparison-scope">Compared within {signal.comparisonLabel}</small><p>{signal.summary}</p><small>{signal.sessions} completed {signal.sessions === 1 ? "session" : "sessions"}{signal.averageAccuracy === null ? " · checks still building" : ` · ${signal.averageAccuracy}% check accuracy`}{signal.interruptions > 0 ? ` · ${signal.interruptions} ${signal.interruptions === 1 ? "interruption" : "interruptions"}` : ""}</small></article>)}</div>}<footer>YOVA waits for repeated comparable evidence before changing how it delivers a method.</footer></section>;
 }
 
-function YouScreen({ account, answers, plans, sessionCompletions, sessionInterruptions, passwordAccountsEnabled, turnstileSiteKey, signingOut, onAnswersChange, onDisplayNameChange, onSignOut, onReset }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; passwordAccountsEnabled: boolean; turnstileSiteKey: string | null; signingOut: boolean; onAnswersChange: (answers: string[]) => void; onDisplayNameChange: (displayName: string) => Promise<void>; onSignOut: (options?: { accountAlreadyDeleted?: boolean }) => Promise<void>; onReset: () => Promise<void> }) {
+function YouScreen({ baselineSessionShapes = false, account, answers, plans, sessionCompletions, sessionInterruptions, passwordAccountsEnabled, turnstileSiteKey, signingOut, onAnswersChange, onDisplayNameChange, onSignOut, onReset }: { baselineSessionShapes?: boolean; account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; passwordAccountsEnabled: boolean; turnstileSiteKey: string | null; signingOut: boolean; onAnswersChange: (answers: string[]) => void; onDisplayNameChange: (displayName: string) => Promise<void>; onSignOut: (options?: { accountAlreadyDeleted?: boolean }) => Promise<void>; onReset: () => Promise<void> }) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -5779,6 +5916,10 @@ function YouScreen({ account, answers, plans, sessionCompletions, sessionInterru
         </div>
         <span>Optional and editable</span>
       </section>
+      {baselineSessionShapes && <BaselineProfileEditor
+        answers={readOnboardingAnswers(answers)}
+        onChange={(record) => onAnswersChange(writeOnboardingAnswers(answers, record))}
+      />}
       <CanonicalProfileCenter
         profile={canonicalProfile}
         enabled={canonicalState.controls.selfReport}
