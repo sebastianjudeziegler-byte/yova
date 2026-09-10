@@ -114,7 +114,8 @@ describe("baseline routing — exhaustive input space", () => {
         expect(SHAPE_A_ENTRY_LEVELS).toContain(route.entry);
         if (route.shape === "C") {
           expect(route.produceStep).toBeNull();
-          expect(route.learnPath).toBeNull();
+          // Only Shape C's brief study step reads a source; practice never does.
+          expect(route.learnPath).toBe(route.briefStudyStep ? (context.hasSource ? "source" : "ai_explanation") : null);
           expect(route.methodName).toBe("Active Recall");
         } else {
           expect(route.produceStep).not.toBeNull();
@@ -158,6 +159,14 @@ describe("Layer 1 — task type decides the shape", () => {
   it("memorization keeps a brief study step before practice, but only in its learn block", () => {
     expect(routeSession(input({ taskType: "memorization" })).briefStudyStep).toBe(true);
     expect(routeSession(input({ taskType: "memorization", blockKind: "practice" })).briefStudyStep).toBe(false);
+  });
+
+  it("the brief study step reads the learner's material when there is any, and an AI explanation otherwise", () => {
+    expect(routeSession(input({ taskType: "memorization", hasSource: true })).learnPath).toBe("source");
+    expect(routeSession(input({ taskType: "memorization", hasSource: false })).learnPath).toBe("ai_explanation");
+    // A practice block has no study step to point anywhere.
+    expect(routeSession(input({ taskType: "memorization", blockKind: "practice", hasSource: true })).learnPath).toBeNull();
+    expect(routeSession(input({ blockKind: "practice", hasSource: true })).learnPath).toBeNull();
   });
 
   it.each(LEARNING_TASK_TYPES)("%s practice block is always Shape C", (taskType) => {

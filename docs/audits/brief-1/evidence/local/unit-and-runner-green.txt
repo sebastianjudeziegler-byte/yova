@@ -1,17 +1,12 @@
- RUN  v4.1.10 /private/tmp/yova-baseline-sessions-routing
-
-
  Test Files  465 passed | 21 skipped (486)
-      Tests  4172 passed | 87 skipped (4259)
-   Start at  18:15:43
-   Duration  16.67s (transform 11.79s, setup 0ms, import 47.02s, tests 24.25s, environment 41ms)
+      Tests  4182 passed | 87 skipped (4269)
+   Start at  22:56:28
+   Duration  20.32s (transform 13.33s, setup 0ms, import 59.07s, tests 28.16s, environment 55ms)
 
-== runner checks ==
-ℹ tests 18
-ℹ suites 0
+== runner ==
 ℹ pass 18
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 103.609666
+ℹ duration_ms 106.098375

@@ -141,6 +141,8 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   const ruleIds = (await shell.getAttribute("data-rule-ids"))?.split(" ") ?? [];
   expect(ruleIds).toEqual(expect.arrayContaining(["L1.memorization.learn", "L2.not_assessed.shape_c", "L4.q7.gist_leaning", "L4.q10.forget_during_tests"]));
   await expect(page.getByText("Method: Active Recall")).toBeVisible();
+  // A memorization learn block is a learn block that runs Shape C.
+  await expect(page.getByText(/LEARN BLOCK ·/)).toBeVisible();
   // Brief study step: the explanation and its key points, from one call.
   await expect(page.getByText(/Cellular respiration is how a cell releases/)).toBeVisible();
   await page.getByRole("button", { name: "Start the questions" }).click();

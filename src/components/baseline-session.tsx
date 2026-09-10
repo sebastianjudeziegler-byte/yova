@@ -139,7 +139,11 @@ export function BaselineSession(props: BaselineSessionProps) {
   // Active Recall: Shape A's study step hands off to closed-book questions.
   const handoffToQuestions = route.shape === "A" && route.produceStep === "retrieval_questions";
   const aStep = currentShapeAStep(aState);
-  const inQuestions = route.shape === "C" || (handoffToQuestions && aStep?.kind === "end");
+  // A memorization learn block is Shape C but opens on a brief study step, so
+  // "in questions" cannot simply mean "this route is Shape C".
+  const inQuestions = route.shape === "C"
+    ? cState.phase !== "brief_study"
+    : handoffToQuestions && aStep?.kind === "end";
   const [started, setStarted] = useState(route.visibility !== "chooser");
   const [methodPanelOpen, setMethodPanelOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
@@ -330,7 +334,7 @@ export function BaselineSession(props: BaselineSessionProps) {
   return <div className={styles.shell} data-shape={route.shape} data-method={route.methodId} data-rule-ids={route.ruleIds.join(" ")}>
     <header className={styles.top}>
       <div className={styles.topMeta}>
-        <span className="step-label">{route.shape === "A" ? "LEARN BLOCK" : "PRACTICE BLOCK"} · {plan.title}</span>
+        <span className="step-label">{route.input.blockKind === "learn" ? "LEARN BLOCK" : "PRACTICE BLOCK"} · {plan.title}</span>
         <strong>{topicTitle}</strong>
         <small>Method: {route.methodName}{route.visibility === "silent" ? "" : " · chosen from your profile"}</small>
       </div>
@@ -566,9 +570,15 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
   onExit: () => void;
 }) {
   const round = currentShapeCRound(state);
-  const question: PracticeQuestion | null = currentShapeCQuestion(state);
   const answer = lastShapeCAnswer(state);
+  // While an answer is revealed the card must show the question just
+  // answered. currentShapeCQuestion points at the NEXT one, and on a round's
+  // last question it points past the end, so reading it here skipped the
+  // reveal entirely and blanked the card on the final question.
+  const revealed = state.phase === "revealed";
+  const pendingQuestion: PracticeQuestion | null = currentShapeCQuestion(state);
   const answered = round?.answers.length ?? 0;
+  const shownQuestion = revealed ? round?.questions[answered - 1] ?? null : pendingQuestion;
   if (state.phase === "loading") {
     return <section className={styles.card}><span className="step-label">CLOSED-BOOK PRACTICE</span><p className={styles.loading}><span className="button-spinner dark" /> Writing fresh questions for this attempt…</p></section>;
   }
@@ -583,12 +593,10 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
       <div className={styles.actions}><button type="button" className="button primary" onClick={onStartNextRound}>Start round {(round?.number ?? 0) + 1} <ArrowRight size={16} /></button></div>
     </section>;
   }
-  if (!round || !question) return null;
-  const revealed = state.phase === "revealed" && answer?.questionId === question.id;
-  const shownQuestion = revealed ? round.questions[round.answers.length - 1] : question;
+  if (!round || !shownQuestion) return null;
   const shownAnswer = revealed ? answer : null;
   return <section className={styles.card} data-testid="baseline-question">
-    <span className="step-label">ROUND {round.number} · QUESTION {Math.min(answered + (revealed ? 0 : 1), round.questions.length)} OF {round.questions.length}</span>
+    <span className="step-label">ROUND {round.number} · QUESTION {Math.min(revealed ? answered : answered + 1, round.questions.length)} OF {round.questions.length}</span>
     <p className={styles.progressLine}>{route.weighting === "terms_first" ? "Definitions and terms first." : "Relationships and comparisons first."} No source shown.</p>
     <h2>{shownQuestion.prompt}</h2>
     {restate && !revealed && <p className={styles.restated}>Task: choose one answer.</p>}

@@ -339,6 +339,7 @@ export function routeSession(input: RoutingInput): SessionRoute {
   }
 
   // ---------------------------------------------------------------- Output
+  const briefStudyStepActive = shape === "C" && input.blockKind === "learn" && briefStudyStep;
   const method = resolveMethod({ shape, shapeVariant, produceStep, layer1 });
   decide({ layer: "conflict", ruleId: "C6.rule_ids_recorded", field: "methodId", value: method.id, reason: `Every decision above is recorded; the session runs ${method.name}.` });
 
@@ -347,13 +348,15 @@ export function routeSession(input: RoutingInput): SessionRoute {
     input,
     shape,
     shapeVariant: shape === "A" ? shapeVariant : null,
-    learnPath: shape === "A" ? (input.hasSource ? "source" : "ai_explanation") : null,
+    // Shape C's brief study step reads the learner's material when there is
+    // any, the same A1/A2 split Shape A uses. A practice block has no study step.
+    learnPath: shape === "A" || briefStudyStepActive ? (input.hasSource ? "source" : "ai_explanation") : null,
     explanationFocus: shape === "A" && !input.hasSource ? (shapeVariant === "worked_example_source" ? "worked_example" : "concept") : null,
     entry: SHAPE_A_ENTRY_LEVELS[entryLevel],
     produceStep: shape === "A" ? produceStep : null,
     produceBeforeStudy: shape === "A" && produceStep !== "retrieval_questions" ? produceBeforeStudy : false,
     workedStructureBeforeProduce: shape === "A" ? workedStructureBeforeProduce : false,
-    briefStudyStep: shape === "C" && input.blockKind === "learn" && briefStudyStep,
+    briefStudyStep: briefStudyStepActive,
     methodId: method.id,
     methodName: method.name,
     timerMinutes,

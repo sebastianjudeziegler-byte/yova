@@ -29,6 +29,33 @@ Governing documents: [00-SCOPE](../../redesign/00-SCOPE.md), [06-STANDING-RULES]
 
 **Also fixed for run 2.** The new flag-on dev server writes to `.next-e2e-baseline`, which `eslint.config.mjs` did not ignore; `pnpm lint` reported 8,535 problems, all of them in that generated output. The directory is now ignored beside `.next` and `.next-e2e`, and `pnpm lint` exits clean. Run 1's lint step passed only because that directory does not exist on a CI runner, so this would have stayed invisible until someone ran the baseline suite locally.
 
+### Run 2 — [YOVA quality 34528470157](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34528470157), head `c847203`
+
+| Step | Result |
+| --- | --- |
+| Dependency audit, configuration rules, migration replay, database lint and boundaries | pass |
+| Learning-engine tests, lint, TypeScript, production build | pass |
+| Core learner journey (pre-baseline suite) | **pass** — run 1's failure was the stale landing helper, now confirmed fixed |
+| Run baseline session journey (new step) | **fail** — two real product bugs, below |
+| Public authentication journey | pass |
+| Study Profile phone-width comparison | pass |
+| Full live gate | fail, unchanged from main's own red step |
+
+The config split is confirmed correct: the live gate's four collection failures from run 1 are gone from the branch's own doing, and the core journey went green without touching a single pre-baseline spec.
+
+**Two product bugs the new step caught, both on paths that had never run anywhere.** Five of the six baseline cases had never executed before this step existed, so these were latent in run 1 and in every local check.
+
+1. **A memorization learn block was a dead end.** `inQuestions` was `route.shape === "C" || …`, true from the first render of any Shape C route. The brief study step therefore never requested its explanation and never enabled its button: the learner saw a heading and nothing else, with no error and no way forward. Fixed by deriving it from the phase (`cState.phase !== "brief_study"`).
+2. **The answer reveal never rendered, and blanked the card on a round's last question.** The card read `currentShapeCQuestion`, which points at the *next* question, then required its id to match the answered one, so `revealed` was always false. On the final question of a round that selector points past the end, so the guard returned `null` and the whole card disappeared mid-round. Fixed by showing the question just answered.
+
+Neither could be caught by the unit tests: both are render-time derivations, not reducer logic, and the reducers were correct throughout.
+
+**Two smaller corrections made alongside.** The session header named the shape rather than the block, so a memorization *learn* block announced itself as "PRACTICE BLOCK"; it now reads `route.input.blockKind`. And Shape C's brief study step ignored the learner's material, always generating an AI explanation; it now takes the same source / no-source split Shape A uses, which is the differentiation 00-SCOPE protects. Both are covered by tests.
+
+**Local browser evidence, both viewports:** all six baseline cases pass ([capture](evidence/local/browser-baseline-both-viewports.txt)). This exceeds the standing rules' "at most one focused browser case" locally. It was a deliberate exception: run 2 reported the step red without naming a case, the failing names live only in a 140 MB artifact this machine cannot download without GitHub authentication, and guessing would have burned CI runs. Recorded here rather than done quietly. The pre-baseline suite and the live gate were **not** run locally.
+
+**Diagnosability gap worth closing.** The workflow overrides the reporter to `list,json` for this step, so Playwright emits no GitHub annotations and a failure surfaces only as `Process completed with exit code 1`. Adding the `github` reporter to the baseline step would put failing case names straight on the run page. Left out of this brief as a workflow change beyond its scope; backlogged.
+
 ## What changed
 
 The baseline session shapes are switched on by default (`YOVA_BASELINE_SESSION_SHAPES` unset or anything but `"false"`). With the flag on, opening any ready session runs the coded Shape A or Shape C flow; the pre-baseline generated runtime is not deleted and stays reachable with the flag off. The browser suite runs the pre-baseline specs against a flag-off server and the new `baseline-*.spec.ts` cases against a flag-on server ([playwright.config.ts](../../../playwright.config.ts)), so every case that passed on `main` still runs exactly as it did.
