@@ -56,6 +56,7 @@ jobs:
       - name: Replay database migrations and check block authority
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-db]') }}
         run: |
+          set -o pipefail
           pnpm exec supabase init
           pnpm exec supabase db start
           pnpm exec supabase test db supabase/tests/database/20260910_work_block_authority.test.sql --local | tee artifacts/brief-c/block-database.txt

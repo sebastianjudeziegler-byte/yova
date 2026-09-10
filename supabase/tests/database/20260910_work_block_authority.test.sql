@@ -8,7 +8,7 @@ insert into public.learning_items(id,user_id,title,kind,topic,source_mode,study_
 insert into public.plans(id,user_id,learning_item_id,status,rationale) values
 ('c1000000-0000-4000-8000-000000000003','c1000000-0000-4000-8000-000000000001','c1000000-0000-4000-8000-000000000002','active','Practice ATP energy transfer.');
 insert into public.plan_sessions(id,user_id,plan_id,sequence,title,objective,method,method_rationale,estimated_minutes,status,step_data) values
-('c1000000-0000-4000-8000-000000000004','c1000000-0000-4000-8000-000000000001','c1000000-0000-4000-8000-000000000003',1,'ATP products','Name the products.','Retrieval Practice','Recall then check.',15,'ready','{}');
+('c1000000-0000-4000-8000-000000000004','c1000000-0000-4000-8000-000000000001','c1000000-0000-4000-8000-000000000003',1,'ATP products','Name the products.','Retrieval Practice','Recall then check.',15,'ready','{"generatedSession":{"schemaVersion":19,"block":{"id":"c1000000-0000-4000-8000-000000000005"}}}');
 create function pg_temp.try_cache(resource jsonb) returns text language plpgsql as $$
 begin
  perform public.cache_generated_session(jsonb_build_object('planSessionId','c1000000-0000-4000-8000-000000000004','expectedRouteRevisionId',null,'generatedSession',resource));
@@ -19,11 +19,13 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','c1000000-0000-4000-8000-000000000001',true);
 select extensions.is(pg_temp.try_cache('{"schemaVersion":19,"block":{"id":"c1000000-0000-4000-8000-000000000005","semanticReview":{"status":"passed"}}}'), '42501', 'a browser cannot mint a reviewed practice set or its answer authority');
 reset role;
+-- A trusted setup inserts an unsupported descriptor to isolate completion.
 -- A raw resource descriptor is not a checked result, even if a compromised
 -- browser supplies a complete-looking source checkbox and secure score.
-update public.plan_sessions set step_data='{"generatedSession":{"schemaVersion":19,"block":{"id":"c1000000-0000-4000-8000-000000000005"}}}' where id='c1000000-0000-4000-8000-000000000004';
 set local role authenticated;
-select extensions.is(pg_temp.try_cache('{"schemaVersion":15,"routeRevisionId":null}'), '42501', 'a browser cannot downgrade a prepared block to escape its completion check');
+savepoint downgrade;
+select extensions.is(pg_temp.try_cache('{"schemaVersion":15,"model":"test","generatedAt":"2026-09-10T10:00:00Z","rationale":"Read then check","coverage":{},"methodBriefing":{},"deliveryPolicy":{},"topicIds":["c1000000-0000-4000-8000-000000000007"],"activities":[{},{},{}]}'), '42501', 'a browser cannot downgrade a prepared block to escape its completion check');
+rollback to savepoint downgrade;
 select extensions.throws_ok($test$
  select public.complete_plan_session_with_route(jsonb_build_object(
  'attemptId','c1000000-0000-4000-8000-000000000006','planId','c1000000-0000-4000-8000-000000000003','planSessionId','c1000000-0000-4000-8000-000000000004',
