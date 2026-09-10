@@ -149,6 +149,20 @@ jobs:
         run: |
           if test -d test-results; then cp -R test-results artifacts/quality/core-browser; fi
 
+      # Baseline session shapes (docs/redesign): the flag-on server and its
+      # own cases, kept separate so the pre-baseline suite above runs
+      # unchanged and this step's result is visible on its own.
+      - name: Run baseline session journey
+        if: ${{ !cancelled() }}
+        run: pnpm test:e2e:baseline --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/baseline-browser.json
+
+      - name: Preserve baseline browser evidence
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/quality/baseline-browser; fi
+
       - name: Run public authentication journey
         if: ${{ !cancelled() }}
         run: pnpm test:e2e:auth --reporter=list,json

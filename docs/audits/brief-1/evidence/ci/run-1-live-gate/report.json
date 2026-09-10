@@ -1,0 +1,1178 @@
+{
+  "version": 1,
+  "commit": "a27bf930b8f181b0a45e0017827accc220e1d9c4",
+  "startedAt": "2026-09-10T18:03:05.741Z",
+  "runs": 1,
+  "files": [
+    "src/evals/launch-session-journeys.live.test.ts",
+    "src/evals/launch-lesson-streams.live.test.ts",
+    "src/evals/answer-evaluation-quality.live.test.ts",
+    "src/evals/grader-calibration.live.test.ts",
+    "src/evals/lesson-tutor.live.test.ts",
+    "src/evals/material-osmosis-session.live.test.ts",
+    "src/evals/outside-teaching-reliability.live.test.ts",
+    "src/evals/personalization-delta.live.test.ts",
+    "src/evals/plan-creation-blockers.live.test.ts",
+    "src/evals/plan-quality.live.test.ts",
+    "src/evals/plan-session-journey.live.test.ts",
+    "src/evals/session-quality.live.test.ts",
+    "src/evals/streamed-ap-biology.live.test.ts",
+    "src/evals/streamed-melatonin-skeleton.live.test.ts",
+    "src/evals/streamed-rayleigh.live.test.ts",
+    "src/evals/streamed-world-war-one-lesson.live.test.ts",
+    "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+    "src/evals/teaching-assessment-contract.live.test.ts",
+    "src/lib/diagnostics/map-diagnostic.live.test.ts"
+  ],
+  "environment": {
+    "node": "v24.20.0",
+    "providerConfigured": true,
+    "modelOverrides": {}
+  },
+  "finishedAt": "2026-09-10T18:19:33.910Z",
+  "counts": {
+    "pass": 52,
+    "fail": 9,
+    "flaky": 17,
+    "unavailable": 1
+  },
+  "exitCode": 1,
+  "rows": [
+    {
+      "id": "e2e/plan-launch-live.spec.ts::collection",
+      "file": "e2e/plan-launch-live.spec.ts",
+      "name": "collection",
+      "state": "failed",
+      "run": 0,
+      "errors": [
+        {
+          "message": "Expected the desktop and mobile live browser journeys; see browser-collection.txt"
+        }
+      ],
+      "status": "fail",
+      "detail": "Expected the desktop and mobile live browser journeys; see browser-collection.txt",
+      "classification": null
+    },
+    {
+      "id": "e2e/plan-launch-live.spec.ts::a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (required collection)",
+      "file": "e2e/plan-launch-live.spec.ts",
+      "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (required collection)",
+      "state": "failed",
+      "run": 0,
+      "errors": [
+        {
+          "message": "An audited live case disappeared from collection; restore it or document its deliberate replacement"
+        }
+      ],
+      "status": "fail",
+      "detail": "An audited live case disappeared from collection; restore it or document its deliberate replacement",
+      "classification": null
+    },
+    {
+      "id": "e2e/plan-launch-live.spec.ts::a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (required collection)",
+      "file": "e2e/plan-launch-live.spec.ts",
+      "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (required collection)",
+      "state": "failed",
+      "run": 0,
+      "errors": [
+        {
+          "message": "An audited live case disappeared from collection; restore it or document its deliberate replacement"
+        }
+      ],
+      "status": "fail",
+      "detail": "An audited live case disappeared from collection; restore it or document its deliberate replacement",
+      "classification": null
+    },
+    {
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'calculus'",
+      "file": "src/evals/launch-session-journeys.live.test.ts",
+      "name": "launch session journeys with committed recipes > 'calculus'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 17475.017432,
+      "run": 1,
+      "log": "run-1-launch-session-journeys.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 2/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'osmosis'",
+      "file": "src/evals/launch-session-journeys.live.test.ts",
+      "name": "launch session journeys with committed recipes > 'osmosis'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 22517.855325,
+      "run": 1,
+      "log": "run-1-launch-session-journeys.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 2/3 on fresh main in Brief 0.5; exact main 1/1, Brief B 0/1. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/launch-session-journeys.live.test.ts::launch session journeys with committed recipes > 'recall'",
+      "file": "src/evals/launch-session-journeys.live.test.ts",
+      "name": "launch session journeys with committed recipes > 'recall'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 21393.435178,
+      "run": 1,
+      "log": "run-1-launch-session-journeys.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 2/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/launch-lesson-streams.live.test.ts::launch lesson delivery > streams the validated calculus teaching",
+      "file": "src/evals/launch-lesson-streams.live.test.ts",
+      "name": "launch lesson delivery > streams the validated calculus teaching",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 8344.880428,
+      "run": 1,
+      "log": "run-1-launch-lesson-streams.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "UNAVAILABLE"
+    },
+    {
+      "id": "src/evals/launch-lesson-streams.live.test.ts::launch lesson delivery > streams the validated osmosis teaching",
+      "file": "src/evals/launch-lesson-streams.live.test.ts",
+      "name": "launch lesson delivery > streams the validated osmosis teaching",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 13786.925620999999,
+      "run": 1,
+      "log": "run-1-launch-lesson-streams.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > the requested case exists",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > the requested case exists",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1.1070160000000016,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'accepts a correct biology paraphrase'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1759.5963140000001,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'catches confident biology keyword soup'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'catches confident biology keyword soup'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1986.2294350000002,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'marks a materially incomplete causal …'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'marks a materially incomplete causal …'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 2388.010781,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'accepts equivalent mathematical notat…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1857.6343130000005,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'does not reward a true statement that…'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'does not reward a true statement that…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 2144.8521120000005,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'accepts a concise programming explana…'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'accepts a concise programming explana…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1933.1579290000009,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/answer-evaluation-quality.live.test.ts::live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'",
+      "file": "src/evals/answer-evaluation-quality.live.test.ts",
+      "name": "live OpenAI answer evaluation quality > 'admits uncertainty when the prompt la…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1741.2517669999997,
+      "run": 1,
+      "log": "run-1-answer-evaluation-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > complete: 'accepts a correct biology paraphrase'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 2220.515774,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'accepts a concise programming explana…'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > complete: 'accepts a concise programming explana…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1612.502437,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > complete: 'history: complete-history'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > complete: 'history: complete-history'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1534.054043,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'biology: underspecified-biology'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'biology: underspecified-biology'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1555.029297,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'programming: underspecified-programmi…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 2725.2288019999996,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: underspecified-history'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'history: underspecified-history'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1518.7080810000007,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'biology: missing-context-biology'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'biology: missing-context-biology'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1585.206059,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'programming: missing-context-programm…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 2885.3322210000006,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/grader-calibration.live.test.ts::live grader calibration across subjects > insufficient: 'history: missing-context-history'",
+      "file": "src/evals/grader-calibration.live.test.ts",
+      "name": "live grader calibration across subjects > insufficient: 'history: missing-context-history'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 2179.391152000002,
+      "run": 1,
+      "log": "run-1-grader-calibration.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/lesson-tutor.live.test.ts::live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it",
+      "file": "src/evals/lesson-tutor.live.test.ts",
+      "name": "live in-lesson Ask YOVA safeguards > answers a genuinely off-topic question instead of refusing it",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 4284.969377,
+      "run": 1,
+      "log": "run-1-lesson-tutor.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/lesson-tutor.live.test.ts::live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check",
+      "file": "src/evals/lesson-tutor.live.test.ts",
+      "name": "live in-lesson Ask YOVA safeguards > does not reveal the answer to a later protected knowledge check",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 3675.4540960000004,
+      "run": 1,
+      "log": "run-1-lesson-tutor.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/material-osmosis-session.live.test.ts::live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window",
+      "file": "src/evals/material-osmosis-session.live.test.ts",
+      "name": "live shortened material-backed osmosis session > keeps two current targets and defers the third in a 15-minute window",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 3402.2582039999998,
+      "run": 1,
+      "log": "run-1-material-osmosis-session.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 2/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/outside-teaching-reliability.live.test.ts::live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly",
+      "file": "src/evals/outside-teaching-reliability.live.test.ts",
+      "name": "live outside-YOVA teaching reliability > builds an arbitrary three-target teaching-first session repeatedly",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 41337.314660000004,
+      "run": 1,
+      "log": "run-1-outside-teaching-reliability.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 1/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/personalization-delta.live.test.ts::Brief A real-provider personalization delta > writes two distinct learner plans inside fixed slots using the real provider",
+      "file": "src/evals/personalization-delta.live.test.ts",
+      "name": "Brief A real-provider personalization delta > writes two distinct learner plans inside fixed slots using the real provider",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 39848.080263,
+      "run": 1,
+      "log": "run-1-personalization-delta.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/personalization-delta.live.test.ts::Brief B real-provider covered-topic delta > personalizes the amount and support of revised practice without a model-written session",
+      "file": "src/evals/personalization-delta.live.test.ts",
+      "name": "Brief B real-provider covered-topic delta > personalizes the amount and support of revised practice without a model-written session",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 7579.511655000002,
+      "run": 1,
+      "log": "run-1-personalization-delta.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP",
+      "file": "src/evals/plan-creation-blockers.live.test.ts",
+      "name": "live provider launch canaries > real placement questions and a map-only scope correction preserve demonstrated ATP",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "MapDiagnosticGenerationError",
+          "message": "At least one placement question has an ambiguous or unsupported answer. Skip this optional check or try again.",
+          "failedValidator": "diagnostic_structure"
+        }
+      ],
+      "durationMs": 23438.387504000002,
+      "run": 1,
+      "log": "run-1-plan-creation-blockers.txt",
+      "status": "flaky",
+      "detail": "failed; baseline exact main 1/1, Brief B 0/1; prior corrected full gate P/U/P. At least one placement question has an ambiguous or unsupported answer. Skip this optional check or try again.",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/plan-creation-blockers.live.test.ts::live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic",
+      "file": "src/evals/plan-creation-blockers.live.test.ts",
+      "name": "live provider launch canaries > a ten-minute triage generates a runnable lesson on its saved topic",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 12132.333975999998,
+      "run": 1,
+      "log": "run-1-plan-creation-blockers.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > the requested case exists",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > the requested case exists",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1.1918329999999742,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Biology test with learner notes'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'Biology test with learner notes'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 22605.800209,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus problem-solving plan'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'Calculus problem-solving plan'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 18574.718051,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus unit with mixed placement ev…'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'Calculus unit with mixed placement ev…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 23514.210428,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'One product-rule skill in short sessi…'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'One product-rule skill in short sessi…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 16579.935577000004,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'World War I unit guide in short sessi…'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'World War I unit guide in short sessi…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 25502.75110200001,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 2/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Full beginner calculus pathway'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'Full beginner calculus pathway'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 31351.226892999985,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'General-learning startup funding path…'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'General-learning startup funding path…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 27558.973841,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'History essay using outside sources'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'History essay using outside sources'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 19064.479002000007,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Beginner JavaScript practice'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'Beginner JavaScript practice'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 18402.922371000022,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'General-learning finance pathway'",
+      "file": "src/evals/plan-quality.live.test.ts",
+      "name": "live OpenAI plan quality > 'General-learning finance pathway'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 21882.04251500001,
+      "run": 1,
+      "log": "run-1-plan-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > the requested journey exists",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > the requested journey exists",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1.1863000000000739,
+      "run": 1,
+      "log": "run-1-plan-session-journey.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'One product-rule skill in short sessi…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 24867.04064,
+      "run": 1,
+      "log": "run-1-plan-session-journey.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 2/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'World War I unit guide in short sessi…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "OpenAIPlanGenerationError",
+          "message": "The OpenAI request failed.",
+          "reason": "provider_error",
+          "cause": {
+            "name": "Caused by: Error",
+            "message": "Request timed out."
+          },
+          "providerError": {
+            "category": "timeout"
+          },
+          "generationStats": {
+            "failedValidator": "plan_provider_request"
+          }
+        }
+      ],
+      "durationMs": 40008.512217999996,
+      "run": 1,
+      "log": "run-1-plan-session-journey.txt",
+      "status": "unavailable",
+      "detail": "Provider unavailable: timeout",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'Full beginner calculus pathway'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 38062.45923899999,
+      "run": 1,
+      "log": "run-1-plan-session-journey.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 2/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'History essay using outside sources'",
+      "file": "src/evals/plan-session-journey.live.test.ts",
+      "name": "live plan-to-session journeys > 'History essay using outside sources'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 15246.321662999995,
+      "run": 1,
+      "log": "run-1-plan-session-journey.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > the requested case exists",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > the requested case exists",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 1.142612999999983,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Biology teaching from learner notes'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Biology teaching from learner notes'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "generationStats": {
+            "failedValidator": "session_structure",
+            "repairDetail": "The skeleton could not be finalized because its knowledge-check structure was incomplete (multiple choice: 1, typed response: 3). [\n  {\n    \"origin\": \"array\",\n    \"code\": \"too_small\",\n    \"minimum\": 3,\n    \"inclusive\": true,\n    \"path\": [\n      \"activities\"\n    ],\n    \"message\": \"Too small: expected array to have >=3 items\"\n  }\n]",
+            "cause": {
+              "message": "source_unavailable"
+            }
+          }
+        }
+      ],
+      "durationMs": 14332.298458,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "fail",
+      "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Bioenergetics multi-target retrieval …'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Bioenergetics multi-target retrieval …'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 2895.9417840000006,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute temperature and reacti…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Fifteen-minute temperature and reacti…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 10190.775688000002,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute first product-rule les…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Fifteen-minute first product-rule les…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 8070.114546999997,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 1/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Mapped product-rule and chain-rule fi…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 8977.532361999998,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Production-shaped derivative-foundati…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Production-shaped derivative-foundati…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "OpenAI did not return a complete, safe guided session after the bounded repair attempts. The required knowledge check mapped to “Apply constant, power, constant-multiple, and sum or difference rules” does not visibly assess that essential idea.",
+          "generationStats": {
+            "failedValidator": "session_completion_contract",
+            "repairDetail": "The required knowledge check mapped to “Apply constant, power, constant-multiple, and sum or difference rules.” does not visibly assess that essential idea. Follow-up repair failure: The required knowledge check mapped to “Apply constant, power, constant-multiple, and sum or difference rules” does not visibly assess that essential idea.",
+            "cause": {
+              "message": "semantic_validation"
+            }
+          }
+        }
+      ],
+      "durationMs": 15080.973289000001,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "flaky",
+      "detail": "failed; baseline 2/3. OpenAI did not return a complete, safe guided session after the bounded repair attempts. The required knowledge check mapped to “Apply constant, power, constant-multiple, and sum or difference rules” does not visibly assess that essential idea.",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'World War I teaching for a complete b…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'World War I teaching for a complete b…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "generationStats": {
+            "failedValidator": "session_structure",
+            "repairDetail": "The skeleton could not be finalized because its knowledge-check structure was incomplete (multiple choice: 0, typed response: 3). [\n  {\n    \"origin\": \"array\",\n    \"code\": \"too_small\",\n    \"minimum\": 3,\n    \"inclusive\": true,\n    \"path\": [\n      \"activities\"\n    ],\n    \"message\": \"Too small: expected array to have >=3 items\"\n  }\n]",
+            "cause": {
+              "message": "source_unavailable"
+            }
+          }
+        }
+      ],
+      "durationMs": 14044.793460999994,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "fail",
+      "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped 45-minute World War I baseline…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Mapped 45-minute World War I baseline…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 11995.015026999987,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 2/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Calculus repair after a weak check'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Calculus repair after a weak check'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 4340.239331999997,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 1/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Self-contained delayed calculus review'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Self-contained delayed calculus review'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 5757.155648999993,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History writing outside YOVA'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'History writing outside YOVA'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 7843.392791999999,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Beginner JavaScript with fading suppo…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Beginner JavaScript with fading suppo…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 9739.596563,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 2/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'General-learning finance application'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'General-learning finance application'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 11370.553568999996,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Fifteen-minute vocabulary review'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Fifteen-minute vocabulary review'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 3123.647677000001,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Startup funding foundations for a new…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Startup funding foundations for a new…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 11266.692865999983,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History reasoning from a primary-sour…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'History reasoning from a primary-sour…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "generationStats": {
+            "validationIssueCode": "streamed_check_mapping",
+            "failedValidator": "streamed_lesson_scope",
+            "repairDetail": "The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: none. Later targets that must remain exact entries in deferredContent: none. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material. Every distinct active explanatory claim needs its own mapped required knowledge check.",
+            "cause": {
+              "message": "source_unavailable"
+            }
+          }
+        }
+      ],
+      "durationMs": 24078.543967999984,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "fail",
+      "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Literature close reading from a short…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Literature close reading from a short…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "generationStats": {
+            "failedValidator": "session_structure",
+            "repairDetail": "The skeleton could not be finalized because its knowledge-check structure was incomplete (multiple choice: 1, typed response: 3). [\n  {\n    \"origin\": \"array\",\n    \"code\": \"too_small\",\n    \"minimum\": 3,\n    \"inclusive\": true,\n    \"path\": [\n      \"activities\"\n    ],\n    \"message\": \"Too small: expected array to have >=3 items\"\n  }\n]",
+            "cause": {
+              "message": "source_unavailable"
+            }
+          }
+        }
+      ],
+      "durationMs": 17672.200821999984,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "fail",
+      "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Spanish conversation with supported t…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Spanish conversation with supported t…'",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 27077.27667600001,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Teaching from a thin biology study gu…'",
+      "file": "src/evals/session-quality.live.test.ts",
+      "name": "live OpenAI session quality > 'Teaching from a thin biology study gu…'",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "SessionGenerationFailure",
+          "message": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+          "generationStats": {
+            "failedValidator": "session_structure",
+            "repairDetail": "The skeleton could not be finalized because its knowledge-check structure was incomplete (multiple choice: 1, typed response: 3). [\n  {\n    \"origin\": \"array\",\n    \"code\": \"too_small\",\n    \"minimum\": 3,\n    \"inclusive\": true,\n    \"path\": [\n      \"activities\"\n    ],\n    \"message\": \"Too small: expected array to have >=3 items\"\n  }\n]",
+            "cause": {
+              "message": "source_unavailable"
+            }
+          }
+        }
+      ],
+      "durationMs": 17999.922542999993,
+      "run": 1,
+      "log": "run-1-session-quality.txt",
+      "status": "fail",
+      "detail": "YOVA could not build a trustworthy session because no readable explanatory source is mapped to the active target. Attach or reprocess readable material, or review the session setup and choose a source-independent route.",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/streamed-ap-biology.live.test.ts::live streamed AP Biology session > builds a topic-specific teaching skeleton",
+      "file": "src/evals/streamed-ap-biology.live.test.ts",
+      "name": "live streamed AP Biology session > builds a topic-specific teaching skeleton",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 10932.469427999999,
+      "run": 1,
+      "log": "run-1-streamed-ap-biology.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/streamed-melatonin-skeleton.live.test.ts::live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session",
+      "file": "src/evals/streamed-melatonin-skeleton.live.test.ts",
+      "name": "live streamed Melatonin session skeleton > reliably creates the affected 15-minute teaching-first session",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 26340.498399999997,
+      "run": 1,
+      "log": "run-1-streamed-melatonin-skeleton.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/streamed-rayleigh.live.test.ts::live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton",
+      "file": "src/evals/streamed-rayleigh.live.test.ts",
+      "name": "live streamed Rayleigh-scattering session > builds the production 15-minute two-target teaching skeleton",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 9117.027326,
+      "run": 1,
+      "log": "run-1-streamed-rayleigh.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "STALE"
+    },
+    {
+      "id": "src/evals/streamed-world-war-one-lesson.live.test.ts::live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief",
+      "file": "src/evals/streamed-world-war-one-lesson.live.test.ts",
+      "name": "live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 25512.221755000002,
+      "run": 1,
+      "log": "run-1-streamed-world-war-one-lesson.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/streamed-world-war-one-skeleton.live.test.ts::live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session",
+      "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+      "name": "live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 13427.241408,
+      "run": 1,
+      "log": "run-1-streamed-world-war-one-skeleton.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": "REAL"
+    },
+    {
+      "id": "src/evals/streamed-world-war-one-skeleton.live.test.ts::live streamed World War I session skeleton > reliably creates a valid subject-specific session outline",
+      "file": "src/evals/streamed-world-war-one-skeleton.live.test.ts",
+      "name": "live streamed World War I session skeleton > reliably creates a valid subject-specific session outline",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 32536.112913000004,
+      "run": 1,
+      "log": "run-1-streamed-world-war-one-skeleton.txt",
+      "status": "pass",
+      "detail": "",
+      "classification": null
+    },
+    {
+      "id": "src/evals/teaching-assessment-contract.live.test.ts::live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase",
+      "file": "src/evals/teaching-assessment-contract.live.test.ts",
+      "name": "live teaching and assessment alignment > explains every glycolysis product before accepting a learner's paraphrase",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 6853.647139,
+      "run": 1,
+      "log": "run-1-teaching-assessment-contract.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 2/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/lib/diagnostics/map-diagnostic.live.test.ts::live map diagnostic generation > generates from a material map and reports latency",
+      "file": "src/lib/diagnostics/map-diagnostic.live.test.ts",
+      "name": "live map diagnostic generation > generates from a material map and reports latency",
+      "state": "passed",
+      "errors": [],
+      "durationMs": 16542.219884000002,
+      "run": 1,
+      "log": "run-1-map-diagnostic.txt",
+      "status": "flaky",
+      "detail": "passed; baseline 1/3. ",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "src/lib/diagnostics/map-diagnostic.live.test.ts::live map diagnostic generation > generates from a ai_generated map and reports latency",
+      "file": "src/lib/diagnostics/map-diagnostic.live.test.ts",
+      "name": "live map diagnostic generation > generates from a ai_generated map and reports latency",
+      "state": "failed",
+      "errors": [
+        {
+          "name": "MapDiagnosticGenerationError",
+          "message": "The placement check did not cover its assigned questions safely.",
+          "failedValidator": "diagnostic_structure"
+        }
+      ],
+      "durationMs": 8141.255682999999,
+      "run": 1,
+      "log": "run-1-map-diagnostic.txt",
+      "status": "flaky",
+      "detail": "failed; baseline 2/3. The placement check did not cover its assigned questions safely.",
+      "classification": "FLAKY"
+    },
+    {
+      "id": "playwright::browser runner",
+      "file": "playwright",
+      "name": "browser runner",
+      "state": "failed",
+      "run": 1,
+      "errors": [
+        {
+          "message": "Browser process exited 1; see browser log"
+        }
+      ],
+      "status": "fail",
+      "detail": "Browser process exited 1; see browser log",
+      "classification": null
+    }
+  ]
+}

@@ -6,7 +6,28 @@ Governing documents: [00-SCOPE](../../redesign/00-SCOPE.md), [06-STANDING-RULES]
 
 ## CI
 
-_Filled in after the pull request's `YOVA quality` run. Everything below this heading is local evidence: unit, lint, typecheck, and one focused browser case, per the standing rules._
+### Run 1 — [YOVA quality 34508105077](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34508105077), PR #88 head `f740e97` (after rebase onto `main` `f5b80cb`)
+
+| Step | Result | Main's own run [34506226404](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34506226404) (`f5b80cb`) |
+| --- | --- | --- |
+| Dependency audit, configuration rules, migration replay, database lint and boundaries | pass | pass |
+| Learning-engine tests, lint, TypeScript, production build | pass | pass |
+| Core learner journey (full pre-baseline browser suite plus, in this run, the baseline projects) | **fail** | pass |
+| Public authentication journey | pass | pass |
+| Study Profile phone-width comparison, main vs release | pass | pass |
+| Full live gate | fail: 52 pass / 9 fail / 17 flaky / 1 unavailable | fail |
+
+**Live gate, row by row** ([raw report](evidence/ci/run-1-live-gate/report.md), [json](evidence/ci/run-1-live-gate/report.json)). Of the nine failures:
+
+- Five are the known REAL legacy-material cases (A19, A24, A30, A31, A33: "no readable explanatory source is mapped to the active target"), which fail on `main` and are backlogged. Not a regression.
+- **Four are one regression introduced by this branch**: `e2e/plan-launch-live.spec.ts — collection`, its two "required collection" rows, and `playwright — browser runner: Browser process exited 1`. Cause: [playwright.live.config.ts](../../../playwright.live.config.ts) asserts that the base config's `webServer` is a single server; this branch had made it an array of two (flag-off and flag-on). The live browser journeys therefore never collected. Red capture of the config failing to load: [evidence/red/live-config-collection-before-fix.txt](evidence/red/live-config-collection-before-fix.txt).
+- The seventeen FLAKY rows carry their existing quarantine classifications from the policy file; none is new.
+
+**Fix (run 2).** The base config returns to `main`'s single-server shape plus a `testIgnore` for `baseline-*.spec.ts`, so the live gate and the phone-width comparison spread the same object they did on `main`. The flag-on server and the two baseline projects move to [playwright.baseline.config.ts](../../../playwright.baseline.config.ts), run by `pnpm test:e2e:baseline`, and the quality workflow gains a dedicated **Run baseline session journey** step with its own JSON output. This adds a visible step rather than hiding anything. Green capture: the live config lists its two journeys, the base config lists 316 tests with no baseline spec, the baseline config lists its six ([evidence/local/playwright-configs-after-fix.txt](evidence/local/playwright-configs-after-fix.txt)). While fixing this, the spec patterns were anchored to the filename (`/(^|\/)baseline-[^/]*\.spec\.ts$/`): the unanchored pattern also matched the local worktree path `yova-baseline-sessions-routing/`, which would have excluded every spec on any checkout whose path contains `baseline-`.
+
+**Core learner journey failure in run 1: cause found and fixed.** In run 1 the baseline projects still ran inside the base config, so they executed in that step. Their account-creation helper used the pre-#87 landing copy (`Build my plan`), and the rebase onto `main` `f5b80cb` brought in the landing redesign, where an account is created through `Sign in` then `Create an account`. The helper timed out waiting for a button that no longer exists. Reproduced locally on the rebased tree, then fixed in `e2e/baseline-session.spec.ts`; the focused Shape A case passes through the baseline config ([capture](evidence/local/browser-shape-a-focused.txt)). The pre-baseline specs were never affected: they already used the new path on `main`. From run 2 the baseline cases have their own step, so any future failure is attributable without downloading artifacts.
+
+**Also fixed for run 2.** The new flag-on dev server writes to `.next-e2e-baseline`, which `eslint.config.mjs` did not ignore; `pnpm lint` reported 8,535 problems, all of them in that generated output. The directory is now ignored beside `.next` and `.next-e2e`, and `pnpm lint` exits clean. Run 1's lint step passed only because that directory does not exist on a CI runner, so this would have stayed invisible until someone ran the baseline suite locally.
 
 ## What changed
 

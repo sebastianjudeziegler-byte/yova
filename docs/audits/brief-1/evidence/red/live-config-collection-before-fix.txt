@@ -1,0 +1,7 @@
+# git f740e97 — playwright.live.config.ts --list before the config fix
+Error: The live gate requires its isolated preview server.
+    at Object.<anonymous> (/private/tmp/yova-baseline-sessions-routing/playwright.live.config.ts:8:45)
+    at Module._compile (node:internal/modules/cjs/loader:1872:14)
+    at Object.<anonymous> (node:internal/modules/cjs/loader:2003:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+exit=

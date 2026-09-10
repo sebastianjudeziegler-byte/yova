@@ -1,0 +1,17 @@
+# playwright.live.config.ts --list after the config fix (git f740e97 + working tree)
+Listing tests:
+  [desktop-chromium] › plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload
+  [mobile-chromium] › plan-launch-live.spec.ts:9:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload
+Total: 2 tests in 1 file
+# base config --list: total and baseline-spec count
+Total: 316 tests in 19 files
+0
+# baseline config --list
+Listing tests:
+  [baseline-chromium] › baseline-session.spec.ts:64:5 › a learner is routed through Shape A, produces, compares, and finishes with a personalization note
+  [baseline-chromium] › baseline-session.spec.ts:130:5 › a memorization learn block runs Shape C closed-book after a brief study step, checks answers in code, and finishes clean on round two
+  [baseline-chromium] › baseline-session.spec.ts:187:5 › a profile saved by position survives the question reorder and is editable by ID in You
+  [baseline-mobile-chromium] › baseline-session.spec.ts:64:5 › a learner is routed through Shape A, produces, compares, and finishes with a personalization note
+  [baseline-mobile-chromium] › baseline-session.spec.ts:130:5 › a memorization learn block runs Shape C closed-book after a brief study step, checks answers in code, and finishes clean on round two
+  [baseline-mobile-chromium] › baseline-session.spec.ts:187:5 › a profile saved by position survives the question reorder and is editable by ID in You
+Total: 6 tests in 1 file
