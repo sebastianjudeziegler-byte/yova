@@ -1,0 +1,44 @@
+name: Production public smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Full main commit confirmed Ready in Vercel
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-public-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Bind the check to the confirmed production source
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          mkdir -p artifacts/production-smoke
+          git rev-parse HEAD > artifacts/production-smoke/source-sha.txt
+      - name: Run the ordinary public check once
+        run: |
+          set -o pipefail
+          node scripts/smoke-deployment.mjs https://www.yovaapp.com | tee artifacts/production-smoke/result.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-public-smoke-${{ github.run_id }}
+          path: artifacts/production-smoke
+          retention-days: 30
