@@ -82,7 +82,10 @@ describe.skipIf(!liveEvaluationEnabled)("live plan-to-session journeys", () => {
     expect(generatedSession.draft.coverage.focus).not.toMatch(/learning topic|current objective|relevant concept/i);
     if (evaluationCase.request.learningIntent === "learn") {
       expect(firstSession!.learningMode).toBe("learn");
-      expect(generatedSession.draft.activities.some((activity) => (
+      if (generatedSession.draft.block) {
+        expect(generatedSession.draft.block.activities[0]?.kind).toBe(generatedSession.draft.block.sources.length ? "read_source_section" : "ai_explanation");
+        expect(generatedSession.draft.block.questions.length).toBeGreaterThan(0);
+      } else expect(generatedSession.draft.activities.some((activity) => (
         activity.type === "instruction" && (
           Boolean(activity.teaching)
           || ("lessonBrief" in activity && Boolean(activity.lessonBrief))

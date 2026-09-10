@@ -49,6 +49,27 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared prac
     console.info(JSON.stringify({ subject: subject.label, block, answers: prepared.answerKeys }));
   }, 100_000);
 
+  it("A17 starts broad calculus with the assigned prerequisite-ready function block", async () => {
+    const context = generationContext(1, "learn", false);
+    context.learningGoal.title = "Understand broad calculus"; context.learningGoal.topic = "Calculus";
+    context.planRationale = "Start with function inputs and outputs, then follow the saved calculus pathway.";
+    context.session.title = "Read function notation";
+    context.session.objective = "Interpret the input and output of a function written as f(x).";
+    context.session.contentTargets = ["Function inputs and outputs"];
+    context.session.completionEvidence = [context.session.objective];
+    context.knowledgeTopics[0]!.title = "Function inputs and outputs";
+    context.knowledgeTopics[0]!.description = context.session.objective;
+    const before = structuredClone(context);
+    const { block } = await generateWorkBlock(context, {}, capturedProvider());
+    expect(block.activities[0]!.kind).toBe("ai_explanation");
+    expect(block.instructions).toContain("Function inputs and outputs");
+    expect(block.instructions).toContain("wider calculus pathway continues in later blocks");
+    expect(block.topicIds).toEqual(context.session.topicIds);
+    expect(block.questions.every(question => question.topicId === context.session.topicIds[0])).toBe(true);
+    expect(block.semanticReview.status).toBe("passed");
+    expect(context).toEqual(before);
+  }, 100_000);
+
   it("delivers three practice differences for the same PDF and profile-referencing receipts", async () => {
     const delivered = [];
     for (const profile of [1, 2] as const) {
@@ -80,6 +101,7 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared prac
     const context = generationContext(1);
     const prepared = await generateWorkBlock(context, {}, capturedProvider());
     const review = capturedProvider();
+    const outcomes = [];
     for (const flaw of ["ambiguous", "unsupported", "duplicate"] as const) {
       const block = structuredClone(prepared.block); const answerKeys = structuredClone(prepared.answerKeys);
       if (flaw === "ambiguous") {
@@ -95,7 +117,8 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_BLOCKS !== "1")("Brief C prepared prac
         answerKeys[1] = { ...answerKeys[0]!, questionId: answerKeys[1]!.questionId };
       }
       const result = await review.review({ block, answerKeys, assignedTopics: context.knowledgeTopics, deferredContent: ["Photosynthesis and chlorophyll"] }, { timeoutMs: 25_000 });
-      expect(result.verdict, `${flaw}: ${result.reason}`).toBe("fail");
+      outcomes.push({ flaw, ...result });
     }
+    expect(outcomes.filter(result => result.verdict !== "fail")).toEqual([]);
   }, 170_000);
 });

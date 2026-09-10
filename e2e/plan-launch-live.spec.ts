@@ -7,7 +7,7 @@ import type { LearningPlan, SessionResource } from "../src/lib/domain";
 test.skip(process.env.YOVA_RUN_LIVE_BROWSER_CANARY !== "1", "Explicit live-provider canary only.");
 
 test("a live-generated deadline lesson streams, finishes unrated and preserves completion on reload",async({page})=>{
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   const fixture = JSON.parse(readFileSync(liveFixturePath("deadline", "live-ten-minute.json"),"utf8")) as {plan:LearningPlan;resource:SessionResource};
   await freezePlanClock(page, new Date(fixture.plan.createdAt));
   const apiResults:Array<{path:string;status:number}> = [];
@@ -29,7 +29,7 @@ test("a live-generated deadline lesson streams, finishes unrated and preserves c
   await page.getByRole("button",{name:"Open YOVA"}).click();
   await page.evaluate(({plan,resource})=>{
     const snapshot = JSON.parse(localStorage.getItem("yova.preview.v1")??"{}");
-    snapshot.plans=[{...plan,sessions:plan.sessions.map((session:LearningPlan["sessions"][number],index:number)=>index===0?{...session,status:"ready",resource}:session)}];
+    snapshot.plans=[{...plan,sessions:plan.sessions.map((session:LearningPlan["sessions"][number],index:number)=>index===0?{...session,status:"ready",resource:resource.block ? undefined : resource}:session)}];
     localStorage.setItem("yova.preview.v1",JSON.stringify(snapshot));
   },fixture);
   await page.reload();
@@ -43,6 +43,31 @@ test("a live-generated deadline lesson streams, finishes unrated and preserves c
     await page.getByRole("button",{name:"Continue",exact:true}).click();
     await page.getByRole("button",{name:"Prepare this session"}).click();
   }
+  if (fixture.resource.block) {
+    // Prepare through the real server so answer keys stay private. Seeding a
+    // public V19 resource alone cannot create its trusted progress ledger.
+    const block = page.getByRole("region", { name: "Session work block" });
+    await expect(block).toBeVisible({ timeout: 100_000 });
+    await expect(block.getByRole("button", { name: "Continue to practice", exact: true })).toBeVisible();
+    await block.getByRole("button", { name: "Continue to practice", exact: true }).click();
+    for (let index = 0; index < 12; index += 1) {
+      const finish = block.getByRole("button", { name: "Finish block", exact: true });
+      if (await finish.isEnabled()) break;
+      const written = block.getByRole("textbox", { name: "Your answer", exact: true });
+      if (await written.isVisible()) {
+        await written.fill("ATP hydrolysis forms ADP and inorganic phosphate. Its favorable free-energy change can be coupled to cellular work; ATP regeneration requires energy.");
+      } else {
+        await block.locator('button[aria-pressed]').first().click();
+      }
+      await block.getByRole("button", { name: "Check answer", exact: true }).click();
+      const advance = block.getByRole("button", { name: "Continue", exact: true });
+      await expect(advance).toBeVisible({ timeout: 60_000 });
+      await advance.click();
+    }
+    await block.getByRole("button", { name: "Finish block", exact: true }).click();
+    await expect(block.getByRole("heading", { name: "Block finished", exact: true })).toBeVisible();
+    await expect(block.getByRole("status")).toContainText(/demonstrated|check|practice/i);
+  } else {
   for(let step=0;step<15;step+=1){
     if(await page.getByText("SESSION COMPLETE",{exact:true}).isVisible())break;
     const activityHeading = await page.locator(".session-activity-header h1").innerText({timeout:60_000});
@@ -77,7 +102,8 @@ test("a live-generated deadline lesson streams, finishes unrated and preserves c
     await expect(advance).toBeEnabled({timeout:75_000});
     await advance.click();
   }
-  await expect(page.getByText("SESSION COMPLETE",{exact:true})).toBeVisible();
+    await expect(page.getByText("SESSION COMPLETE",{exact:true})).toBeVisible();
+  }
   await expect(page.locator(".completion-feedback .selected")).toHaveCount(0);
   await page.screenshot({path:test.info().outputPath("lesson-complete.png"),fullPage:true});
   await page.getByRole("button",{name:"Finish and continue",exact:true}).click();
@@ -89,6 +115,6 @@ test("a live-generated deadline lesson streams, finishes unrated and preserves c
   expect(saved.plan.sessions[0].status).toBe("complete");
   expect(saved.completion.feedback).toBeNull();
   expect(saved.completion.totalAnswers).toBeGreaterThan(0);
-  expect(apiResults.some(result=>result.path.includes("/lesson") && result.status===200)).toBe(true);
+  expect(apiResults.some(result=>(result.path.includes("/lesson") || result.path === "/api/sessions/block/explanation") && result.status===200)).toBe(true);
   writeFileSync(test.info().outputPath("completion.json"),JSON.stringify({apiResults,saved},null,2));
 });

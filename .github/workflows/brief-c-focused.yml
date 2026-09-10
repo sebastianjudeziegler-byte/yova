@@ -75,6 +75,16 @@ jobs:
           YOVA_RUN_LIVE_BLOCKS: "1"
           YOVA_BLOCK_CAPTURE: ${{ github.workspace }}/artifacts/brief-c/provider-captures.jsonl
           YOVA_BLOCK_PRINTOUT: ${{ github.workspace }}/artifacts/brief-c/profile-blocks.json
+      - name: Saved explanation stream compatibility
+        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-streams]') }}
+        run: |
+          pnpm exec vitest run src/evals/launch-session-journeys.live.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=artifacts/brief-c/stream-producer.json
+          pnpm exec vitest run src/evals/launch-lesson-streams.live.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=artifacts/brief-c/stream-compatibility.json
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_RUN_LIVE_LAUNCH_EVALS: "1"
+          YOVA_RUN_LIVE_LESSON_EVALS: "1"
+          YOVA_LIVE_FIXTURE_ROOT: ${{ github.workspace }}/artifacts/brief-c/compat-fixtures
       - name: Current-production launch and saved-lesson compatibility
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-compat-live]') }}
         run: |
@@ -105,13 +115,24 @@ jobs:
         if: ${{ always() && contains(github.event.head_commit.message, '[brief-c-db]') }}
         run: pnpm exec supabase stop --no-backup
       - name: Install focused browser
-        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-browser]') }}
+        if: ${{ !cancelled() && (contains(github.event.head_commit.message, '[brief-c-browser]') || contains(github.event.head_commit.message, '[brief-c-live-browser]')) }}
         run: pnpm exec playwright install --with-deps chromium
       - name: Source-first desktop and mobile journey
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-browser]') }}
         run: pnpm exec playwright test e2e/source-first-block.spec.ts --retries=0 --reporter=list,json
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/brief-c/browser.json
+      - name: Existing live browser journeys with the new block contract
+        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-live-browser]') }}
+        run: |
+          pnpm exec vitest run src/evals/plan-creation-blockers.live.test.ts --testNamePattern 'a ten-minute triage' --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=artifacts/brief-c/deadline-producer.json
+          pnpm exec playwright test e2e/plan-launch-live.spec.ts --config playwright.live.config.ts
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_RUN_LIVE_PLAN_BLOCKERS: "1"
+          YOVA_RUN_LIVE_BROWSER_CANARY: "1"
+          YOVA_LIVE_FIXTURE_ROOT: ${{ github.workspace }}/artifacts/brief-c/compat-fixtures
+          YOVA_LIVE_BROWSER_OUTPUT: ${{ github.workspace }}/artifacts/brief-c/live-browser
       - name: Retain focused browser captures
         if: always()
         run: |
