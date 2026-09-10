@@ -1,5 +1,6 @@
 "use client";
 
+import { SavedWorkBlock } from "./saved-work-block";
 import { blockCheckpointCounts, type BlockProgress } from "@/lib/session-blocks/progress";
 import { WorkBlockSession, type CheckedBlockSummary } from "@/components/work-block-session";
 import { coreRecallKnowledgeForLesson, includeCoreRecallKnowledge } from "@/lib/session-generation/lesson-assessment-contract";
@@ -5513,7 +5514,7 @@ function PlanAdaptations({ plan }: { plan: LearningPlan }) {
 }
 
 export function PlanResources({ plan }: { plan: LearningPlan }) {
-  const available = plan.sessions.filter((session) => session.resource && session.resource.activities.some((activity) => activity.type !== "reflection"));
+  const available = plan.sessions.filter((session) => session.resource && (session.resource.block || session.resource.activities.some((activity) => activity.type !== "reflection")));
 
   if (!available.length) {
     return <section className="section-block plan-resources"><div className="section-title"><div><h3>Study resources</h3><p>Reusable explanations and practice, attached to the session that needed them.</p></div><span>Created when relevant</span></div><div className="resource-empty"><Sparkles size={18} /><div><strong>Nothing extra to browse yet</strong><p>YOVA creates the teaching and practice needed for a session when you first start it. Those resources will stay here afterward.</p></div></div></section>;
@@ -5521,9 +5522,9 @@ export function PlanResources({ plan }: { plan: LearningPlan }) {
 
   return <section className="section-block plan-resources"><div className="section-title"><div><h3>Study resources</h3><p>These came from the sessions YOVA selected for this goal, not from a generic tool list.</p></div><span>{available.length} {available.length === 1 ? "pack" : "packs"} ready</span></div><div className="resource-pack-list">{available.map((session) => {
     const resource = session.resource as SessionResource;
-    const teachingCount = resource.activities.filter((activity) => activity.type === "instruction").length;
-    const practiceCount = resource.activities.filter((activity) => activity.type === "multiple_choice" || activity.type === "free_response").length;
-    return <details className="resource-pack" key={session.id}><summary><div><span>{session.method}</span><strong>{session.title}</strong></div><small>{teachingCount ? `${teachingCount} teaching` : ""}{teachingCount && practiceCount ? " · " : ""}{practiceCount ? `${practiceCount} practice` : ""}</small></summary><div className="resource-pack-content"><p className="resource-rationale">{resource.rationale}</p>{resource.activities.flatMap((activity, index) => activity.type === "reflection" ? [] : [<ResourceActivityCard activity={activity} lessonReview={activity.lessonBrief ? { planId: plan.id, planSessionId: session.id, activityIndex: index, generatedAt: resource.generatedAt, routeRevisionId: resource.routeRevisionId } : undefined} key={`${resource.routeRevisionId}:${resource.generatedAt}:${index}`} />])}</div></details>;
+    const teachingCount = resource.block ? resource.block.activities.filter(activity => !activity.questionIds.length).length : resource.activities.filter((activity) => activity.type === "instruction").length;
+    const practiceCount = resource.block?.questions.length ?? resource.activities.filter((activity) => activity.type === "multiple_choice" || activity.type === "free_response").length;
+    return <details className="resource-pack" key={session.id}><summary><div><span>{session.method}</span><strong>{session.title}</strong></div><small>{teachingCount ? `${teachingCount} teaching` : ""}{teachingCount && practiceCount ? " · " : ""}{practiceCount ? `${practiceCount} practice` : ""}</small></summary><div className="resource-pack-content"><p className="resource-rationale">{resource.rationale}</p>{resource.block ? <SavedWorkBlock block={resource.block} /> : resource.activities.flatMap((activity, index) => activity.type === "reflection" ? [] : [<ResourceActivityCard activity={activity} lessonReview={activity.lessonBrief ? { planId: plan.id, planSessionId: session.id, activityIndex: index, generatedAt: resource.generatedAt, routeRevisionId: resource.routeRevisionId } : undefined} key={`${resource.routeRevisionId}:${resource.generatedAt}:${index}`} />])}</div></details>;
   })}</div></section>;
 }
 

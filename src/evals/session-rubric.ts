@@ -1,3 +1,4 @@
+import { evaluateWorkBlockDraft } from "./block-rubric";
 import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 import type {
   GeneratedSessionDraft,
@@ -55,6 +56,7 @@ export function evaluateSessionDraft(
   expectedSourceTerms: string[] = [],
   generatedDeliveryPolicy?: SessionDeliveryPolicy,
 ): SessionQualityResult {
+  if ("block" in draft) return evaluateWorkBlockDraft(draft, context);
   const activityText = draft.activities.map((activity) => [
     activity.label,
     activity.title,

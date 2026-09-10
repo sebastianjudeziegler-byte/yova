@@ -15,7 +15,7 @@ describe("provider fills code-owned block slots", () => {
     question.prompt = "Which process uses or transforms energy?";
     question.choices = ["ATP regeneration", "ATP hydrolysis", "Neither"];
     parse.mockReset();
-    parse.mockResolvedValue({ output_parsed: { verdict: "pass", reason: "The chosen answer is supported.", choiceChecks: { [question.id]: [0, 1] } } });
+    parse.mockResolvedValue({ output_parsed: { verdict: "pass", reason: "The chosen answer is supported.", choiceChecks: { [question.id]: { "0": { reason: "Regeneration uses energy input.", satisfiesQuestion: true }, "1": { reason: "Hydrolysis transforms energy.", satisfiesQuestion: true }, "2": { reason: "Both do, so neither is false.", satisfiesQuestion: false } } } } });
     const { createBlockProvider } = await import("./provider");
     const result = await createBlockProvider().review({ block, answerKeys: [{ questionId: question.id, answer: "ATP hydrolysis", requiredIdeas: ["ATP hydrolysis"], explanation: "ATP hydrolysis transforms energy.", sourceIds: [block.sources[0]!.id], workedSolution: [] }], assignedTopics: generationContext(1).knowledgeTopics, deferredContent: [] }, { timeoutMs: 25_000 });
     expect(result.verdict).toBe("fail");
@@ -26,7 +26,7 @@ describe("provider fills code-owned block slots", () => {
     parse.mockReset();
     const context = generationContext(1);
     parse.mockImplementation(async request => {
-      if (request.text.format.name === "yova_block_semantic_review") return { id: "review", output_parsed: { verdict: "pass", reason: "The two questions are source-supported and distinct.", choiceChecks: { "practice-1": [0] } } };
+      if (request.text.format.name === "yova_block_semantic_review") return { id: "review", output_parsed: { verdict: "pass", reason: "The two questions are source-supported and distinct.", choiceChecks: { "practice-1": { "0": { reason: "Both named products match the source.", satisfiesQuestion: true }, "1": { reason: "Glucose is not a product.", satisfiesQuestion: false }, "2": { reason: "Neither named product matches.", satisfiesQuestion: false } } } } };
       const question = (prompt: string, answer: string, choices: string[], workedExample: string | null) => ({ prompt, answer, choices, workedExample, requiredIdeas: [answer], explanation: "Hydrolysis produces ADP and phosphate and supplies free energy for coupled work.", hints: ["Use the hydrolysis sentence in the assigned section."], workedSolution: [] });
       return { id: "fill", output_parsed: { explanations: {}, questions: {
         "practice-1": question("Which products form when ATP reacts with water?", "ADP and inorganic phosphate", ["ADP and inorganic phosphate", "ADP and glucose", "AMP and oxygen"], "For regeneration, ADP and phosphate are inputs; distinguish inputs from products."),

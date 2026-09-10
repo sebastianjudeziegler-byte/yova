@@ -62,7 +62,8 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_PLAN_BLOCKERS !== "1")("live provider 
     const generated = await generateProductionSessionWithOpenAI(context);
     writeFileSync(liveFixturePath("deadline", "live-ten-minute-provider.json"),JSON.stringify({plan,generated},null,2));
     const resource = toSessionResource(CachedGeneratedSessionSchema.parse({
-      ...generated.draft, schemaVersion:generated.deliveryInstructions?17:15,
+      ...generated.draft, schemaVersion:"block" in generated.draft ? 19 : generated.deliveryInstructions?17:15,
+      ...("block" in generated.draft ? { activities: [] } : {}),
       routeRevisionId:session.studyRoute!.identity.routeRevisionId,
       routingContext:generated.routingContext,supportPlan:generated.supportPlan,
       deliveryPolicy:generated.deliveryPolicy,

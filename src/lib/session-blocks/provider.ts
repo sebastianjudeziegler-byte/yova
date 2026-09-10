@@ -63,25 +63,34 @@ export function createBlockProvider(): BlockProvider {
     async review(input, options) {
       const multipleChoice = input.block.questions.filter(question => question.format === "multiple_choice");
       const choiceShapes = Object.fromEntries(multipleChoice.map(question => [question.id,
-        z.array(z.number().int().min(0).max(question.choices.length - 1)).max(question.choices.length)]));
-      const responseSchema = BlockReviewSchema.extend({ choiceChecks: z.object(choiceShapes).strict() }).strict();
+        z.object(Object.fromEntries(question.choices.map((_choice, index) => [String(index), z.object({
+          reason: z.string().trim().min(1).max(240), satisfiesQuestion: z.boolean(),
+        }).strict()]))).strict()]));
+      const responseSchema = z.object({ choiceChecks: z.object(choiceShapes).strict(),
+        verdict: BlockReviewSchema.shape.verdict, reason: BlockReviewSchema.shape.reason }).strict();
       // Withhold MCQ keys to prevent agreement with the proposed answer from
       // substituting for an independent check of every displayed option.
-      const reviewInput = { ...input,
+      const reviewInput = {
+        independentQuestions: multipleChoice.map(question => ({ id: question.id, literalQuestion: question.prompt, choices: question.choices,
+          sourceSections: input.block.sources.filter(source => source.topicId === question.topicId).map(source => source.text),
+          explanation: input.block.activities.filter(activity => activity.topicId === question.topicId && activity.kind === "ai_explanation").map(activity => activity.content),
+        })),
+        ...input, block: Object.fromEntries(Object.entries(input.block).filter(([key]) => key !== "semanticReview")),
         answerKeys: input.answerKeys.filter(key => !multipleChoice.some(question => question.id === key.questionId)),
         multipleChoiceFeedback: input.answerKeys.filter(key => multipleChoice.some(question => question.id === key.questionId))
           .map(key => ({ questionId: key.questionId, explanation: key.explanation, workedSolution: key.workedSolution })),
       };
       const response = await client.responses.parse({
         model: config.model, store: false, max_output_tokens: 2_000,
-        input: [{ role: "system", content: REVIEW_INSTRUCTIONS + "\nFor each MCQ, independently evaluate EVERY choice against the literal question and assigned section. In choiceChecks return ALL defensible zero-based choice indices, including alternatives that are also correct, or [] if none. Do not pick a best answer when multiple choices satisfy the question. MCQ keys are intentionally withheld; code compares your independent result with the saved key. Still review all displayed hints, examples, question scope and the other answer keys." }, { role: "user", content: JSON.stringify(reviewInput) }],
+        input: [{ role: "system", content: REVIEW_INSTRUCTIONS + "\nFirst solve independentQuestions exactly as written. For EVERY displayed choice, explain whether it satisfies the literal question using its source/explanation, then set satisfiesQuestion. Do not repair the stem, add a restriction, or infer a more convenient meaning from the objective, hints, feedback or intended lesson. A broad question can have several valid answers; a best-looking choice does not invalidate another defensible answer. Only after these judgments, review the whole block including hints, examples, feedback and other answer keys. MCQ keys and any earlier review verdict are withheld. Code requires exactly one defensible choice matching the saved key." }, { role: "user", content: JSON.stringify(reviewInput) }],
         text: { format: zodTextFormat(responseSchema, "yova_block_semantic_review"), verbosity: "low" },
       }, { signal: options.signal, timeout: options.timeoutMs, maxRetries: 0 });
       account(response);
       if (!response.output_parsed) throw new Error("Practice review is unavailable.");
       const review = responseSchema.parse(response.output_parsed);
       for (const question of multipleChoice) {
-        const indices = review.choiceChecks[question.id]!;
+        const judgments = review.choiceChecks[question.id]!;
+        const indices = question.choices.flatMap((_choice, index) => judgments[String(index)]?.satisfiesQuestion ? [index] : []);
         const key = input.answerKeys.find(item => item.questionId === question.id);
         if (indices.length !== 1 || !key || question.choices[indices[0]!] !== key.answer) {
           return { verdict: "fail", reason: `The question must have exactly one defensible answer matching its saved key: ${question.id}. ${review.reason}`.slice(0, 1_200) };
