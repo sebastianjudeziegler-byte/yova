@@ -56,10 +56,12 @@ async function openNext(page: Page) {
   }
 }
 
-test("founder source-first block preserves practice on leave/resume and requires the check before completion", async ({ page }, testInfo) => {
+for (const finalBlock of [false, true]) {
+test(finalBlock ? "finishing the final source-first block persists completion and exits without entering the legacy player" : "founder source-first block preserves practice on leave/resume and requires the check before completion", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await freezePlanClock(page, NOW);
   const plan = preparedPlan();
+  if (finalBlock) plan.sessions = plan.sessions.map((session, index) => index === 0 ? session : { ...session, status: "complete" });
   const snapshot: YovaPreviewSnapshot = { version: 1, account: { id: "c0000000-0000-4000-8000-000000000099", email: "block@example.com", displayName: "Learner", createdAt: NOW.toISOString(), identityMode: "preview" }, signedIn: true, onboardingAnswers: [], onboardingCompleted: true, alphaEntered: true, plans: [plan], sessionCompletions: [], sessionInterruptions: [], updatedAt: NOW.toISOString() };
   await page.addInitScript(value => { if (!localStorage.getItem("yova.preview.v1")) localStorage.setItem("yova.preview.v1", JSON.stringify(value)); }, snapshot);
   let prepared = 0;
@@ -151,6 +153,14 @@ test("founder source-first block preserves practice on leave/resume and requires
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans[0] as LearningPlan);
   expect(saved.sessions[0]!.status).toBe("complete");
   expect(explanationStreams).toBe(0);
+  if (finalBlock) {
+    await expect(page.getByRole("button", { name: "Learning", exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Learning", exact: true })).toBeVisible();
+    const restored = await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans[0] as LearningPlan);
+    expect(restored.sessions.every(session => session.status === "complete")).toBe(true);
+    return;
+  }
   await openNext(page);
   await expect(block.getByRole("heading", { name: "Learn enzyme catalysis" })).toBeVisible();
   await expect(block.getByRole("button", { name: "Mark source done" })).toHaveCount(0);
@@ -162,3 +172,5 @@ test("founder source-first block preserves practice on leave/resume and requires
   await expect(block).toContainText("Enzymes lower the activation energy");
   await page.screenshot({ path: testInfo.outputPath("04-unsourced-explanation.png"), fullPage: true });
 });
+
+}
