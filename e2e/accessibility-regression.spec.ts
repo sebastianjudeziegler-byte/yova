@@ -31,7 +31,7 @@ test("the initial HTML provides useful public content without waiting for JavaSc
   const html = await response.text();
 
   expect(response.ok()).toBe(true);
-  expect(html).toContain("Know what to study next.");
+  expect(html.replace(/<[^>]*>/g, "")).toContain("Studying that adapts to how you actually learn.");
   expect(html).toContain("Try the free Study Profile");
   expect(html).toContain("Checking for your YOVA account");
   expect(html).not.toContain("Opening your YOVA…");
@@ -147,7 +147,8 @@ async function expectAxeClean(page: Page, screen: string) {
 
 async function createPreviewAccount(page: Page) {
   await page.goto("/?qa=preview");
-  await page.getByRole("button", { name: "Build my plan" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Create an account", exact: true }).click();
   await page.getByLabel("First name").fill("Learner");
   await page.getByLabel("Email address").fill(`accessibility-${crypto.randomUUID()}@example.com`);
   await page.getByRole("button", { name: "Continue" }).click();

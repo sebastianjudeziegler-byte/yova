@@ -63,12 +63,13 @@ test.describe("YOVA canonical Study Profile", () => {
     });
 
     await page.getByRole("link", { name: "Use this profile in YOVA" }).click();
-    await expect(page.getByRole("heading", { name: "Know what to study next." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Studying that adapts to how you actually learn." })).toBeVisible();
     // Keep the browser-auth mutation local to the development fixture. The
     // profile handoff itself is the same-origin storage boundary used by
     // the real account flow.
     await page.goto("/?qa=preview");
-    await page.getByRole("button", { name: "Build my plan" }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("button", { name: "Create an account", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Start building your YOVA." })).toBeVisible();
     await page.getByLabel("First name").fill("Profile Tester");
     await page.getByLabel("Email address").fill(email);

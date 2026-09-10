@@ -37,6 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import { Landing } from "@/components/landing/landing";
 import { AccessibleModalDialog } from "@/components/accessible-modal-dialog";
 import {
   CalendarScreen,
@@ -4716,8 +4717,8 @@ export function LoadingAccount({ inviteOnly = false }: { inviteOnly?: boolean })
     <section className="entry-fallback-card" aria-labelledby="entry-fallback-title">
       <div>
         <span className="eyebrow"><Sparkles size={15} aria-hidden="true" /> A study plan built around you</span>
-        <h1 id="entry-fallback-title">Know what to study next.</h1>
-        <p>Bring your notes, or just name the topic. YOVA builds the plan, chooses the learning method, and guides you through the work.</p>
+        <h1 id="entry-fallback-title">Studying that adapts to how you <em>actually</em> learn.</h1>
+        <p>YOVA starts from your habits, your materials and the time you really have. Every session is shaped by what you did in the last one: the method changes, the timing changes, and the plan moves with you.</p>
         <div className="hero-actions">
           <Link className="button primary large" href="/study-profile">Try the free Study Profile <ArrowRight size={18} aria-hidden="true" /></Link>
           <Link className="button secondary large" href="/support">Get support</Link>
@@ -4739,45 +4740,6 @@ export function LoadingAccount({ inviteOnly = false }: { inviteOnly?: boolean })
 
 function CloudAccountLoadError({ issue, signOutIssue, signingOut, onRetry, onSignOut }: { issue: string | null; signOutIssue: string | null; signingOut: boolean; onRetry: () => void; onSignOut: () => Promise<void> }) {
   return <main className="centered-shell"><BrandMark /><section className="setup-card" role="alert"><div className="mail-check" aria-hidden="true"><AlertCircle size={24} /></div><span className="step-label">ACCOUNT CONNECTION INTERRUPTED</span><h1>YOVA could not safely reopen your profile.</h1><p>{issue ?? "Your cloud learning profile is temporarily unavailable."} Your account and saved learning data have not been changed.</p>{signOutIssue && <p className="form-error">{signOutIssue} This screen and its recovery state were left intact.</p>}<button className="button primary large full" disabled={signingOut} onClick={onRetry}>Try opening YOVA again <RotateCcw size={18} /></button><button className="button ghost full" disabled={signingOut} onClick={() => void onSignOut()}>{signingOut ? "Signing out…" : "Sign out on this device"}</button></section></main>;
-}
-
-function Landing({ inviteOnly, authIssue, signedOutStorageIssue, onRetryAuth, onCreate, onSignIn }: { inviteOnly: boolean; authIssue: string | null; signedOutStorageIssue: string | null; onRetryAuth: () => void; onCreate: () => void; onSignIn: () => void }) {
-  return (
-    <main className="entry-shell">
-      <header className="entry-nav"><BrandMark /><button className="button ghost" onClick={onSignIn}>Sign in</button></header>
-      {authIssue && <section className="auth-startup-warning" role="alert"><AlertCircle size={19} /><div><strong>Account connection interrupted</strong><span>{authIssue}</span></div><button className="button secondary" onClick={onRetryAuth}>Try again</button></section>}
-      {signedOutStorageIssue && <section className="auth-startup-warning" role="alert"><AlertCircle size={19} aria-hidden="true" /><div><strong>Signed out with a browser cleanup warning</strong><span>{signedOutStorageIssue}</span></div></section>}
-      <section className="hero-card">
-        <div className="hero-copy">
-          <span className="eyebrow"><Sparkles size={15} /> A study plan built around you</span>
-          <h1>Know what to study next.</h1>
-          <p>Bring your notes, or just name the topic. YOVA builds the plan, chooses the learning method, and guides you through the work.</p>
-          <div className="hero-actions"><button className="button primary large" onClick={onCreate}>{inviteOnly ? "Use my invitation" : "Build my plan"} <ArrowRight size={18} /></button><a className="button secondary large" href="#how-yova-works">See how it works</a></div>
-          <div className="hero-trust"><Check size={16} /><span>No upload required</span><Check size={16} /><span>Methods explained as you study</span></div>
-        </div>
-        <div className="hero-product-preview" aria-label="Example personalized YOVA session">
-          <div className="preview-window-bar"><span /><span /><span /><em>Today in YOVA</em></div>
-          <div className="preview-session-head">
-            <div><small>RECOMMENDED NEXT</small><h2>Cellular respiration</h2><p>25 min · Active recall + targeted repair</p></div>
-            <span className="preview-progress">1 / 4</span>
-          </div>
-          <div className="preview-why"><Sparkles size={16} /><p><strong>Why this fits:</strong> Your test is soon and your last check showed confident recall with one important gap.</p></div>
-          <div className="preview-steps">
-            <div className="complete"><Check size={15} /><span><strong>Attempt from memory</strong><small>5 minutes</small></span></div>
-            <div className="current"><Target size={15} /><span><strong>Repair the weak point</strong><small>12 minutes</small></span></div>
-            <div><RotateCcw size={15} /><span><strong>Verify without support</strong><small>8 minutes</small></span></div>
-          </div>
-          <button className="preview-start" onClick={onCreate}>{inviteOnly ? "Open private alpha" : "Start session"} <ArrowRight size={16} /></button>
-        </div>
-      </section>
-      <section className="how-yova-works" id="how-yova-works">
-        <div><span className="step-label">HOW YOVA WORKS</span><h2>From a goal to a guided session.</h2><p>The setup stays simple. YOVA uses your starting point, schedule, materials, and completed work to decide what happens inside each session.</p></div>
-        <div className="how-steps"><article><span>1</span><h3>Tell YOVA the goal</h3><p>Prepare for a test, understand a topic, or build a longer learning plan.</p></article><article><span>2</span><h3>Add materials, or do not</h3><p>Use notes, slides, PDFs, AI-created lessons, or outside resources you already trust.</p></article><article><span>3</span><h3>Follow one clear next step</h3><p>YOVA chooses and explains the method, guides the work, then updates what comes next.</p></article></div>
-        <button className="button primary large" onClick={onCreate}>{inviteOnly ? "Use my invitation" : "Build my YOVA"} <ArrowRight size={18} /></button>
-      </section>
-      <footer className="entry-trust-links"><span>{inviteOnly ? "YOVA private alpha" : "YOVA public alpha"}</span><nav aria-label="Trust and support"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/support">Support</Link></nav></footer>
-    </main>
-  );
 }
 
 function consumeAuthCallbackIssue() {
