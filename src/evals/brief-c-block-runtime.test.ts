@@ -80,6 +80,24 @@ describe("Brief C checked block progress", () => {
     expect(p1.progress.receipt).not.toBe(p2.progress.receipt);
     expect(checkedBlockEvidence(p1.block, p1.progress, BLOCK_ROUTE_ID)).toHaveLength(2);
   });
+  it.each([
+    ["watch_source_section", "video"],
+    ["read_source_section", "reading"],
+  ] as const)("the %s receipt distinguishes finishing the source from two checked gaps", (kind, label) => {
+    const block = fixture();
+    block.sources[0]!.kind = kind;
+    block.activities[0]!.kind = kind;
+    let progress = advanceBlockProgress(block, initialBlockProgress(block.id), { action: "source_complete", sourceId: block.sources[0]!.id });
+    for (const question of block.questions) progress = advanceBlockProgress(block, progress, { action: "answer", questionId: question.id, answer: "An incorrect answer." }, {
+      questionId: question.id, outcome: "needs_review", assisted: false, feedback: "The answer confuses the inputs and products of ATP hydrolysis.",
+    });
+    progress = advanceBlockProgress(block, progress, { action: "complete" });
+    expect(progress.receipt).toContain(`You finished the ${label}`);
+    expect(progress.receipt).toMatch(/2 ideas still need work/);
+    expect(progress.receipt).toMatch(/short check/);
+    expect(progress.receipt).toMatch(/targeted example or the source section next/);
+    expect(checkedBlockEvidence(block, progress, BLOCK_ROUTE_ID).map(item => item.outcome)).toEqual(["needs_review", "needs_review"]);
+  });
   it("rejects client outcomes, foreign sources, foreign questions and an unscored answer claim", () => {
     const block = fixture(); const progress = initialBlockProgress(block.id);
     expect(BlockActionSchema.safeParse({ action: "answer", questionId: block.questions[0]!.id, answer: "ATP", outcome: "secure" }).success).toBe(false);
