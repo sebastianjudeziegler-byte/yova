@@ -161,3 +161,18 @@ The twelve ordinary browser failures are six cases × desktop/mobile. They passe
 [Failure page captures](evidence/quality/browser-captures/) distinguish setup/obsolete expectations from confirmed learner defects. These are **not** twelve proven product defects, and they are not counted as green. The source correction scope and single-full-run closeout limit are respected: this PR exposes the remaining regression checks for review instead of starting another round of product/validator work.
 
 The final evidence/quarantine commit changes no product source after tested `f7fcfb8`. CI is intentionally not rerun for that closeout commit, preserving the requested single-full-run limit.
+
+## Draft blockers: root causes before correction
+
+The twelve ordinary browser failures are six cases on desktop and mobile. Classification shown to the founder before any fix claim:
+
+| Case | Classification | Cause / correction required |
+| --- | --- | --- |
+| Visibly shortened inside recipe | STALE | The migrated test helper supplies UTC clock text to the local-time preview, moving the requested start seven hours. Correct the timezone; keep the immediate-start and method assertions. |
+| 10-minute outside teaching-first lesson | STALE | Same shared helper timezone error. Preserve the built-in lesson assertions. |
+| Overdue outside session splits | REGRESSION | Explicit Split now launches the generic editor, loses the duration for older Study Now plans, and does not allocate the remaining parts. Restore the action through the shared pipeline. |
+| Overdue inside session splits | REGRESSION | Same split boundary, with method/workpad protections retained. |
+| Scheduled-review setup / exact goal navigation | STALE | Source picker and adjustment heading were deliberately replaced. Keep fixed review content, duration, time and navigation assertions. |
+| Shorter sessions / weekly availability | REGRESSION | Existing affected units are capped at one session, so shorter duration can discard accepted work. Controls are also obsolete; the capacity/weekday/work-preservation assertions stay. |
+
+A18's stack is `generatePlanWithOpenAI → alignGeneratedPlanToAvailability → PlanScheduleCapacityError → OpenAIPlanGenerationError`. It never enters the new revision composer. Both legacy generator and alignment implementation are byte-identical to exact main c7b3ca9. The real provider may choose more work than the three weekly windows hold; that deterministic shortfall is mislabeled as a provider request error. A focused exact-main/branch sample will retain the distinction between the observed regression and its actual call path. No validator changes are planned.

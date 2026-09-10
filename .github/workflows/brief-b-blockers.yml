@@ -1,0 +1,49 @@
+name: Brief B focused blockers
+on:
+  push:
+    branches: [codex/brief-b-living-plan]
+concurrency:
+  group: brief-b-focused-blockers
+  cancel-in-progress: true
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TZ: America/Los_Angeles
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture shortening regression before correction
+        continue-on-error: true
+        run: |
+          mkdir -p artifacts/blockers
+          pnpm exec vitest run src/lib/plan-revision/revision-shortening.test.ts --reporter=default --reporter=json --outputFile=artifacts/blockers/shortening-red.json
+      - name: Confirm A18 on exact main and unchanged branch serially
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_RUN_LIVE_JOURNEY_EVALS: "1"
+          YOVA_JOURNEY_EVAL_CASE: history_writing_outside
+        run: |
+          release=$(git rev-parse HEAD)
+          for label in main branch; do
+            if test "$label" = main; then git checkout --detach c7b3ca99964524cefc04437b7236b37fe8fe2666; else git checkout --detach "$release"; fi
+            pnpm exec vitest run src/evals/plan-session-journey.live.test.ts --reporter=default --reporter=json --outputFile="artifacts/blockers/a18-$label.json" > "artifacts/blockers/a18-$label.log" 2>&1 || true
+            cat "artifacts/blockers/a18-$label.log"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: brief-b-blockers-${{ github.run_id }}
+          path: artifacts/blockers
+          retention-days: 30
