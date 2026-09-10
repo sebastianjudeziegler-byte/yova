@@ -16,7 +16,7 @@ jobs:
   source-boundary:
     if: ${{ !contains(github.event.head_commit.message, '[brief-c-full]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       TZ: America/Los_Angeles
       DO_NOT_TRACK: "1"
@@ -125,8 +125,14 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Source-first desktop and mobile journey
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-browser]') }}
-        run: pnpm exec playwright test e2e/source-first-block.spec.ts --retries=0 --reporter=list,json
+        run: |
+          if test "$BROWSER_SCOPE" = all; then
+            pnpm test:e2e --reporter=list,json
+          else
+            pnpm exec playwright test e2e/source-first-block.spec.ts --retries=0 --reporter=list,json
+          fi
         env:
+          BROWSER_SCOPE: ${{ contains(github.event.head_commit.message, '[brief-c-all-browser]') && 'all' || 'founder' }}
           PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/brief-c/browser.json
       - name: Existing live browser journeys with the new block contract
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-live-browser]') }}

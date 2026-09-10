@@ -12,7 +12,7 @@ if (main.commit !== (brief === "C" ? "80323614fec32563a340528fb558a84657a00773" 
 const after = read("test-results/live-gate/report.json");
 const policy = read("scripts/live-gate/policy.json");
 const live = compareLiveReports(main, after, {
-  scoped: after.rows.filter(row => row.id.includes("History essay using outside sources") && row.file.includes("plan-session-journey") || row.file.includes("personalization-delta") || (brief === "C" && (row.file.includes("brief-c") || row.id.includes("calculus_broad_pathway")))).map(row => row.id),
+  scoped: after.rows.filter(row => row.id.includes("History essay using outside sources") && row.file.includes("plan-session-journey") || row.file.includes("personalization-delta") || (brief === "C" && (row.file.includes("brief-c") || row.id.includes("Full beginner calculus pathway")))).map(row => row.id),
   quarantined: Object.entries(policy.cases).filter(([, value]) => value.classification === "FLAKY").map(([id]) => id),
 });
 const mainBrowser = brief === "C"
