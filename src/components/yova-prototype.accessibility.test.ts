@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { AppShell, LoadingAccount, OnboardingQuestion } from "@/components/yova-prototype";
+import { Landing } from "@/components/landing/landing";
 import { CANONICAL_PROFILE_QUESTIONS } from "@/lib/personalization/canonical-profile-questionnaire";
 
 vi.mock("@/components/brand-mark", () => ({ BrandMark: () => null }));
@@ -74,12 +75,33 @@ describe("learner-facing accessibility contracts", () => {
   it("server-renders useful public content while account restoration runs", () => {
     const html = renderToStaticMarkup(createElement(LoadingAccount, { inviteOnly: true }));
 
-    expect(html).toContain("Know what to study next.");
+    expect(html.replace(/<[^>]*>/g, "")).toContain("Studying that adapts to how you actually learn.");
     expect(html).toContain('href="/study-profile"');
     expect(html).toContain('href="/support"');
     expect(html).toContain('role="status" aria-live="polite"');
     expect(html).toContain("YOVA private alpha");
     expect(html).not.toContain("Opening your YOVA…");
+  });
+
+  it("keeps invitation access available without waitlist forms in invite-only mode", () => {
+    const html = renderToStaticMarkup(createElement(Landing, {
+      inviteOnly: true,
+      authIssue: null,
+      signedOutStorageIssue: null,
+      onRetryAuth: vi.fn(),
+      onCreate: vi.fn(),
+      onSignIn: vi.fn(),
+    }));
+
+    expect(html.replace(/<[^>]*>/g, "")).toContain("Studying that adapts to how you actually learn.");
+    expect(html).toContain("Use my invitation");
+    expect(html).toContain("Sign in");
+    expect(html).not.toContain("<form");
+    expect(html).not.toContain('type="email"');
+    expect(html).toContain('href="/study-profile"');
+    expect(html).toContain('href="/privacy"');
+    expect(html).toContain('href="/terms"');
+    expect(html).toContain('href="/support"');
   });
 
   it("uses one native modal boundary for every app overlay", () => {

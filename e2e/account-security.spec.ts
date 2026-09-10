@@ -68,7 +68,7 @@ test("clears signed-in UI after confirmed sign-out even when preview storage rem
 
   await page.getByRole("button", { name: "Sign out on this device" }).last().click();
 
-  await expect(page.getByRole("heading", { name: "Know what to study next." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Studying that adapts to how you actually learn." })).toBeVisible();
   await expect(page.getByText("Signed out with a browser cleanup warning", { exact: true })).toBeVisible();
   await expect(page.getByText(/could not remove all recovery data saved in this browser/i)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Your YOVA account" })).toHaveCount(0);
@@ -76,7 +76,8 @@ test("clears signed-in UI after confirmed sign-out even when preview storage rem
 
 async function openPreviewYouScreen(page: Page, displayName: string) {
   await page.goto("/?qa=preview");
-  await page.getByRole("button", { name: "Build my plan" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Create an account", exact: true }).click();
   await page.getByLabel("First name").fill(displayName);
   await page.getByLabel("Email address").fill("account-security@example.com");
   await page.getByRole("button", { name: "Continue" }).click();

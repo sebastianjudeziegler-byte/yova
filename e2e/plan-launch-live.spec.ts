@@ -16,7 +16,8 @@ test("a live-generated deadline lesson streams, finishes unrated and preserves c
     if(path.startsWith("/api/"))apiResults.push({path,status:response.status()});
   });
   await page.goto("/?qa=preview");
-  await page.getByRole("button",{name:"Build my plan"}).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Create an account", exact: true }).click();
   await page.getByLabel("First name").fill("Learner");
   await page.getByLabel("Email address").fill("live-launch-local@example.com");
   await page.getByRole("button",{name:"Continue",exact:true}).click();

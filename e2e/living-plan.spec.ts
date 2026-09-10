@@ -33,7 +33,8 @@ async function createAndActivate(page: Page, activate = true) {
     await route.fulfill({ response });
   });
   await page.goto("/?qa=preview");
-  await page.getByRole("button", { name: "Build my plan" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Create an account", exact: true }).click();
   await page.getByLabel("First name").fill("Learner");
   await page.getByLabel("Email address").fill("living-plan@example.com");
   await page.getByRole("button", { name: "Continue", exact: true }).click();

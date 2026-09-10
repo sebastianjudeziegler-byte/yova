@@ -6,11 +6,15 @@ test.beforeEach(async ({ page }) => {
   await installTurnstileStub(page);
 });
 
-test("presents public signup without a private-alpha gate", async ({ page }) => {
+test("presents the founding waitlist and keeps public account creation accessible", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByText("YOVA public alpha", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Studying that adapts to how you actually learn." })).toBeVisible();
+  await expect(page.getByRole("form", { name: "Join the YOVA waitlist", exact: true })).toBeVisible();
   await expect(page.getByText(/private alpha/i)).toHaveCount(0);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Create an account", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Start building your YOVA." })).toBeVisible();
 });
 
 test("creates a public password account with consent and a security token", async ({ page }) => {
@@ -31,7 +35,8 @@ test("creates a public password account with consent and a security token", asyn
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Build my plan" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Create an account", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Start building your YOVA." })).toBeVisible();
 
   await page.getByLabel("First name").fill("New Learner");
@@ -127,7 +132,8 @@ test("fits the public account form on a phone-sized viewport", async ({ page }, 
   test.skip(!testInfo.project.name.includes("mobile"), "Mobile-only layout assertion.");
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Build my plan" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Create an account", exact: true }).click();
   const overflow = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,

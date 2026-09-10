@@ -59,7 +59,8 @@ test("the canonical profile is visible, correctable, persistent, and experiment-
 
 async function createPreviewAccount(page: Page) {
   await page.goto("/?qa=preview");
-  await page.getByRole("button", { name: "Build my plan" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Create an account", exact: true }).click();
   await page.getByLabel("First name").fill("Learner");
   await page.getByLabel("Email address").fill("personalization@example.com");
   await page.getByRole("button", { name: "Continue" }).click();

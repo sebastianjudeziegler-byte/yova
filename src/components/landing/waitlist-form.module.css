@@ -1,0 +1,198 @@
+.form,
+.status {
+  --waitlist-body: #c6cede;
+  --waitlist-text: #dce2ed;
+  --waitlist-accent: #8facff;
+  --waitlist-soft-accent: #b9c8ff;
+  --waitlist-note: #a9bbf4;
+  min-width: 0;
+}
+
+.form {
+  position: relative;
+  display: grid;
+  gap: 10px;
+}
+
+.compact {
+  max-width: 520px;
+  margin-top: 28px;
+  gap: 8px;
+}
+
+.emailLabel {
+  color: var(--waitlist-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.inlineFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.form .emailInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  padding: 0 16px;
+  color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .96);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 15px;
+}
+
+.compact .emailInput {
+  border-radius: 999px;
+}
+
+.emailInput::placeholder {
+  color: var(--muted);
+}
+
+.form .emailInput:focus-visible {
+  border-color: var(--waitlist-accent);
+  outline: 3px solid var(--waitlist-accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(139, 172, 255, .25);
+}
+
+.form .submitButton {
+  min-height: 52px;
+  margin-top: 4px;
+  padding: 0 22px;
+  color: var(--white);
+  border: 0;
+  border-radius: 999px;
+  background: var(--grad-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 10px 24px rgba(36, 80, 199, .45);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.compact .submitButton {
+  margin-top: 0;
+}
+
+.form .submitButton:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.form .submitButton:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  transform: none;
+}
+
+.form .consent {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  color: var(--waitlist-body);
+  font-size: 12.5px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.consent input {
+  width: 17px;
+  height: 17px;
+  margin: 1px 0 0;
+  accent-color: var(--waitlist-accent);
+}
+
+.form .submitButton:focus-visible,
+.consent input:focus-visible,
+.legalNote a:focus-visible {
+  outline: 3px solid var(--waitlist-accent);
+  outline-offset: 3px;
+}
+
+.form .legalNote {
+  margin: 4px 0 0;
+  color: var(--waitlist-note);
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.legalNote a,
+.legalNote a:hover {
+  color: var(--waitlist-body);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px 18px;
+  color: var(--waitlist-text);
+  border: 1px solid rgba(139, 172, 255, .3);
+  border-radius: 14px;
+  background: rgba(36, 80, 199, .22);
+  font-size: 13.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.compactStatus {
+  max-width: 520px;
+  margin-top: 28px;
+  border-radius: 16px;
+}
+
+.status > svg {
+  flex: none;
+  color: var(--waitlist-soft-accent);
+}
+
+.status strong {
+  display: block;
+  color: var(--white);
+}
+
+.form .error {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  color: var(--white);
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 10px;
+  background: rgba(163, 50, 66, .32);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 520px) {
+  .inlineFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form .submitButton {
+    transition: none;
+  }
+
+  .form .submitButton:hover:not(:disabled) {
+    transform: none;
+  }
+}
