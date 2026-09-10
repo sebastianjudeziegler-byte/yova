@@ -75,12 +75,18 @@ jobs:
           YOVA_DB_FIXTURE_PATH="$RUNNER_TEMP/main-living-plan.sql" pnpm exec vitest run src/lib/plan-revision/database-contract.fixture.test.ts --reporter=default --reporter=json --outputFile="$GITHUB_WORKSPACE/artifacts/brief-c/main-b-database-fixture.json"
       - name: Live prepared-practice canaries
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-live]') }}
-        run: pnpm exec vitest run src/evals/brief-c-practice.live.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile=artifacts/brief-c/block-live.json
+        run: |
+          status=0
+          for sample in $(seq 1 "$BLOCK_LIVE_SAMPLES"); do
+            YOVA_BLOCK_CAPTURE="$GITHUB_WORKSPACE/artifacts/brief-c/provider-captures-$sample.jsonl" \
+            YOVA_BLOCK_PRINTOUT="$GITHUB_WORKSPACE/artifacts/brief-c/profile-blocks-$sample.json" \
+            pnpm exec vitest run src/evals/brief-c-practice.live.test.ts --maxWorkers=1 --retry=0 --reporter=default --reporter=json --outputFile="artifacts/brief-c/block-live-$sample.json" || status=$?
+          done
+          exit "$status"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YOVA_RUN_LIVE_BLOCKS: "1"
-          YOVA_BLOCK_CAPTURE: ${{ github.workspace }}/artifacts/brief-c/provider-captures.jsonl
-          YOVA_BLOCK_PRINTOUT: ${{ github.workspace }}/artifacts/brief-c/profile-blocks.json
+          BLOCK_LIVE_SAMPLES: ${{ contains(github.event.head_commit.message, '[brief-c-live-three]') && '3' || '1' }}
       - name: Saved explanation stream compatibility
         if: ${{ !cancelled() && contains(github.event.head_commit.message, '[brief-c-streams]') }}
         run: |

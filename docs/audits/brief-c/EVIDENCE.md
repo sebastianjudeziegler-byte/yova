@@ -1,6 +1,8 @@
 # Brief C — evidence
 
-Status: topic-scoped source binding passes three CI samples, database boundaries pass 244 assertions, and the founder delivery journey passes desktop/mobile. Source-completion receipts and unscored continuation after help now have CI red/green, including desktop/mobile; whole-block review still awaits live verification. Provider checks are paused for the requested CI-key replacement; the full closeout gate and PR are not yet complete.
+Status: topic-scoped source binding passes three CI samples, database boundaries pass 244 assertions, and the founder delivery journey passes desktop/mobile. Source-completion receipts and unscored continuation after help now have CI red/green, including desktop/mobile; whole-block review still awaits live verification. The founder confirmed replacement of the GitHub Actions provider secret, so scoped provider checks are resuming. Revocation of the exposed old key remains unconfirmed. The full closeout gate and PR are not yet complete. The founder has now explicitly authorized merge and deployment after the remaining release checks.
+
+Release verification resumes with three serial samples of the six Brief C provider canaries, each retaining separate outcome, candidate/review and profile-printout artifacts, followed by the actual desktop/mobile live browser journeys. These are independent test samples, not production retry loops. No full gate or local verification accompanies this focused run. The full closeout gate follows after scoped results are assessed.
 
 - Branch: `codex/brief-c-source-first-practice`.
 - Starting source: `971e258c539046276e8d165fdaa4651639831044`, Brief B's current head.
