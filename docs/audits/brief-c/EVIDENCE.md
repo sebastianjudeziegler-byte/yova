@@ -21,6 +21,8 @@ Expanded red run [34473280983](https://github.com/sebastianjudeziegler-byte/yova
 
 Founder approval is limited to topic-scoped source binding. The correction changes only the source requirements and binding provenance committed by the existing normal pipeline, with corresponding runtime source checks. Topic IDs, methods, schedule and revision composition logic remain under their existing owners. Legacy committed routes retain their old source contract; new routes require exactly their assigned topics' sources. Missing, substituted or subsequently changed sources still fail closed. No green claim until CI completes.
 
+First correction run [34473797339](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34473797339), `59f1fc4`: all six source-boundary assertions pass, including byte-identical unrelated sessions; the surrounding Brief B explicit-copy test catches a URL classification regression (**44 pass / 1 fail / 1 skipped**). Learner-attached URLs were incorrectly classified as `trusted_external_source`, whose existing schema requires outside-YOVA execution. Corrected the source classification to learner-provided (`user_materials`) for both topic attachments, retaining opaque URL bindings and the unchanged execution environment. No execution/schema constraint was relaxed. Typecheck, lint and all 101 validator protections passed in this run.
+
 | Behavior | Learner-visible assertion and protected boundary | Red | Green |
 | --- | --- | --- | --- |
 | Block shape | Objective, source, instructions, activities, stopping point, and duration are visible. | Pending | Pending |

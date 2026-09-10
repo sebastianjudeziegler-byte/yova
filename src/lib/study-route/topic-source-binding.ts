@@ -33,7 +33,10 @@ export function topicScopedSourceRequirements(plan: LearningPlan, session: Learn
   if (materialIds.some(id => !plan.materials?.some(material => material.id === id))) {
     throw new Error("A topic's required material is not attached to this plan.");
   }
-  const sourceType = materialIds.length ? "user_materials" : requiredSourceIds.length ? "trusted_external_source" : "yova_generated";
+  // A learner-attached URL is a user-provided source too. The separate
+  // trusted_external_source contract means an outside-YOVA learning route;
+  // attaching a link must not change the session's execution environment.
+  const sourceType = requiredSourceIds.length ? "user_materials" : "yova_generated";
   return StudyRouteSourceRequirementsSchema.parse({
     sourceType, requiredSourceIds, groundingRequired: requiredSourceIds.length > 0,
     instructions: requiredSourceIds.length
