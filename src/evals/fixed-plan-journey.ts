@@ -1,6 +1,8 @@
-import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
-import { generatePlanWithOpenAI } from "@/lib/openai/plan-generator";
-import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
+import { GeneratedPlanDraftSchema, type PlanGenerationRequest } from "@/lib/plan-generation/schema";
+import { composeNormalPlanEnvelopes } from "@/lib/plan-generation/normal-plan-envelopes";
+import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-plan-pipeline";
+import { generateNormalPlanFillWithOpenAI } from "@/lib/openai/normal-plan-fill-generator";
+import { buildAuthorizedNormalDurationProfile } from "@/lib/study-route/duration-signals";
 
 // The accepted map used by the history-writing connected journey. It fixes
 // scope before filling copy, just as the learner's accepted creation map does.
@@ -16,6 +18,19 @@ export function historyEssayJourneyRequest(request: PlanGenerationRequest): Plan
   } };
 }
 export async function generateFixedPlanForJourney(request: PlanGenerationRequest, now = new Date()) {
-  const generated = await generatePlanWithOpenAI(request);
-  return { ...generated, plan: materializePlanDraft(generated.draft, request, now) };
+  // Mirror creation's authority: accepted map -> code-owned capacity/degrade
+  // decision -> prose-only provider -> materialization. Never let the legacy
+  // evaluation generator choose a schedule and discover capacity afterwards.
+  const composition = composeNormalPlanEnvelopes({ request, now,
+    learningIntentRecommendation: { intent: request.learningIntent, basis: "Study the accepted essay skills before independent application." },
+    durationContext: { profileVersion: "live_journey_default_v1", profile: buildAuthorizedNormalDurationProfile([]), recentOutcomes: [] },
+  });
+  const methodContext = { profileVersion: "live_journey_default_v1", observedEvidence: [], personalization: {
+    decisions: [], methodTie: { state: { controls: { experiments: false }, activeExperiment: null, experimentHistory: [] }, signals: [] },
+  } };
+  const fixed = { request, composition, now, methodContext };
+  const generated = await generateNormalPlanFillWithOpenAI(fixed);
+  const plan = buildNormalPlanFromFixedEnvelope({ ...fixed, fill: generated.fill });
+  const draft = GeneratedPlanDraftSchema.parse({ ...plan, deferredTopics: composition.deferrals.map(item => ({ topicId: item.topicId, reason: item.reason })) });
+  return { ...generated, draft, plan };
 }

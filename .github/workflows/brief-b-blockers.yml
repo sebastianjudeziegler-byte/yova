@@ -24,6 +24,19 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Replay A18 and capacity protection on the rejected implementation
+        run: |
+          mkdir -p artifacts/blockers
+          cp src/evals/fixed-plan-journey.ts /tmp/fixed-plan-journey.ts
+          cp src/lib/plan-revision/build-plan-revision.ts /tmp/build-plan-revision.ts
+          trap 'cp /tmp/fixed-plan-journey.ts src/evals/fixed-plan-journey.ts; cp /tmp/build-plan-revision.ts src/lib/plan-revision/build-plan-revision.ts' EXIT
+          git show b96e7bc:src/evals/fixed-plan-journey.ts > src/evals/fixed-plan-journey.ts
+          git show 28a9226:src/lib/plan-revision/build-plan-revision.ts > src/lib/plan-revision/build-plan-revision.ts
+          set +e
+          pnpm exec vitest run src/evals/a18-capacity.test.ts src/lib/plan-revision/revision-shortening.test.ts --reporter=default --reporter=json --outputFile=artifacts/blockers/capacity-red.json
+          result=$?
+          set -e
+          test "$result" != 0
       - name: Verify scoped corrections and static gates
         run: |
           mkdir -p artifacts/blockers
@@ -36,6 +49,19 @@ jobs:
         run: pnpm test:e2e e2e/core-learning-loop.spec.ts e2e/plan-schedule-date.spec.ts --grep 'visibly shortened inside recipe|10-minute outside teaching-first session|overdue outside teaching-first session|overdue arbitrary inside session|scheduled-review setup stays fixed|shorter sessions preserve weekly availability' --retries=0 --reporter=list,json
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/blockers/browser.json
+      - name: A18 real provider three serial samples
+        if: ${{ !cancelled() }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_RUN_LIVE_JOURNEY_EVALS: "1"
+          YOVA_JOURNEY_EVAL_CASE: history_writing_outside
+        run: |
+          result=0
+          for sample in 1 2 3; do
+            pnpm exec vitest run src/evals/plan-session-journey.live.test.ts --reporter=default --reporter=json --outputFile="artifacts/blockers/a18-green-$sample.json" > "artifacts/blockers/a18-green-$sample.log" 2>&1 || result=1
+            cat "artifacts/blockers/a18-green-$sample.log"
+          done
+          exit "$result"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

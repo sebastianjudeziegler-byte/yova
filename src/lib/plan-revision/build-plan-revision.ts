@@ -105,6 +105,7 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
   const addedSessions: LearningPlanSession[] = [];
   const reservations: ReservedTime[] = [...otherReservations, ...plan.sessions.filter(session => pending(session) && !affected.has(session.id)).map(reservationFor)];
   const rebuiltEnd = new Map<string, number>();
+  const partEnds = new Map<string, number>();
   // Prepare and validate every fixed placement before making provider calls.
   const prepared: Array<{ unit: Unit; fixed: NormalPlanProviderFillInputOptions; protection?: RevisionSessionProtection }> = [];
   let capacity: RevisionCapacity = { status: "fits", explanation: "These changes fit alongside your other active plans and fixed events.", choices: [] };
@@ -125,7 +126,7 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     const explicitReorder = delta.operations.some(operation => operation.op === "reorder" && operation.topic_id === unit!.topicId);
     const existingStart = unit!.original && !edit?.scheduledFor && !applied.scheduleChanged && !explicitReorder ? Date.parse(unit!.original.scheduledFor) : now.getTime();
     const prerequisiteEnd = Math.max(now.getTime(), ...scope.dependencies.filter(dependency => dependency.topicId === unit!.topicId).map(dependency => rebuiltEnd.get(dependency.predecessorTopicId) ?? now.getTime()));
-    const earliest = Math.max(now.getTime(), existingStart, prerequisiteEnd, Date.parse(scope.notBeforeByTopic[unit!.topicId] ?? now.toISOString()));
+    const earliest = Math.max(now.getTime(), (unit!.partIndex ?? 1) > 1 ? partEnds.get(unit!.original!.id) ?? now.getTime() : now.getTime(), existingStart, prerequisiteEnd, Date.parse(scope.notBeforeByTopic[unit!.topicId] ?? now.toISOString()));
     const selectedTime = (unit!.partIndex ?? 1) === 1 ? edit?.scheduledFor ?? (protection?.pinnedTime ? unit!.original!.scheduledFor : undefined) : undefined;
     if (selectedTime && Date.parse(selectedTime) < earliest) {
       blockers.push({ topicId: topic.id, message: `The chosen time for ${topic.title} is before its earlier work can finish.` });
@@ -136,7 +137,7 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     const previousParts = prepared.filter(item => item.unit.original?.id === unit!.original?.id && item.unit.topicId === topic.id);
     const revisionContext: NormalPlanRevisionContext = { reservations: [...reservations], earliestStart: selectedTime ?? new Date(earliest).toISOString(),
       priorSessions: [...priorSessions, ...previousParts.map((_, index) => ({ key: `part:${index}`, topicIds: [topic.id] }))] };
-    const chosenMethod = edit?.methodId ?? (unit!.original?.studyRoute && (edit?.durationMinutes || unit!.original.studyRoute.agency.selectedBy === "learner") ? unit!.original.studyRoute.approach.primaryMethodId : undefined);
+    const chosenMethod = (unit!.partIndex ?? 1) > 1 ? undefined : edit?.methodId ?? (unit!.original?.studyRoute && (edit?.durationMinutes || unit!.original.studyRoute.agency.selectedBy === "learner") ? unit!.original.studyRoute.approach.primaryMethodId : undefined);
     const scopedMethodContext = { ...methodContext, ...(chosenMethod ? { methodChoicesBySequence: { 1: { methodId: chosenMethod, evidenceRef: `learner-choice:plan-revision:${plan.id}:${unit!.original?.id ?? unit!.topicId}:${chosenMethod}` } } } : {}) };
     const sourceAdded = delta.operations.some((operation, index) => !controls.excludedOperationIndexes.includes(index) && operation.op === "attach_source" && operation.topic_id === topic.id);
     const sourceBudget = sourceAdded && unit!.original
@@ -150,6 +151,10 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
         durationContext: { ...durationContext, ...(selectedDuration ? { learnerOverrideMinutes: selectedDuration } : sourceBudget ? { sourceStudyBudgetMinutes: sourceBudget as 10 | 15 | 25 | 45 | 60 } : {}) },
         learningIntentRecommendation: { intent: subRequest.learningIntent, basis: "Apply the accepted topic change while keeping all other work unchanged." },
       });
+      if (edit?.durationMinutes && composition.envelopes.some(envelope => envelope.timing.activeMinutes !== edit.durationMinutes)) {
+        blockers.push({ topicId: topic.id, message: `${topic.title} does not fit before the deadline at the chosen session length. Move a block, shorten scope or add time.` });
+        break;
+      }
       if (selectedTime && composition.envelopes[0]?.scheduledFor !== selectedTime) {
         blockers.push({ topicId: topic.id, message: `The chosen time for ${topic.title} does not fit its availability and other reserved work.` });
         break;
@@ -168,7 +173,8 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
         const startsAt = Date.parse(envelope.scheduledFor);
         const endsAt = startsAt + envelope.timing.activeMinutes * 60_000;
         reservations.push({ startsAt: new Date(startsAt - RESET_MS).toISOString(), endsAt: new Date(endsAt + RESET_MS).toISOString() });
-        if (!rebuiltEnd.has(topic.id)) rebuiltEnd.set(topic.id, endsAt + RESET_MS);
+        rebuiltEnd.set(topic.id, Math.max(rebuiltEnd.get(topic.id) ?? 0, endsAt + RESET_MS));
+        if (unit!.partCount) partEnds.set(unit!.original!.id, endsAt + RESET_MS);
       }
     } catch (error) {
       if (error instanceof NormalPlanEnvelopeComposerError && ["no_normal_session_capacity", "scope_minimum_unreachable", "minimum_teaching_unreachable"].includes(error.code)) {
