@@ -53,7 +53,7 @@ vi.mock("@/lib/openai/streamed-teaching-generator", () => ({
   generateStreamedTeachingSkeletonWithOpenAI: generateStreamed,
 }));
 
-describe("production session context preparation", () => {
+describe("legacy streamed generation context preparation", () => {
   beforeEach(() => {
     generateStreamed.mockClear();
   });
@@ -81,10 +81,10 @@ describe("production session context preparation", () => {
     };
     const runtime = { deadlineAt: Date.now() + 90_000 };
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    await generateProductionSessionWithOpenAI(original, runtime);
+    await generateLegacySessionForCompatibilityTest(original, runtime);
 
     expect(generateStreamed).toHaveBeenCalledTimes(1);
     const [prepared, forwardedRuntime] = generateStreamed.mock.calls[0]!;
@@ -129,10 +129,10 @@ describe("production session context preparation", () => {
       },
     } as unknown as NonNullable<SessionGenerationContext["studyRoute"]>;
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    const generated = await generateProductionSessionWithOpenAI(original);
+    const generated = await generateLegacySessionForCompatibilityTest(original);
 
     expect(generateStreamed).toHaveBeenCalledTimes(1);
     expect(generated.draft.topicIds).toEqual([targetIds[0]]);
@@ -183,10 +183,10 @@ describe("production session context preparation", () => {
       },
     } as unknown as NonNullable<SessionGenerationContext["studyRoute"]>;
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    const generated = await generateProductionSessionWithOpenAI(original);
+    const generated = await generateLegacySessionForCompatibilityTest(original);
 
     expect(generateStreamed).toHaveBeenCalledTimes(1);
     const prepared = generateStreamed.mock.calls[0]![0];

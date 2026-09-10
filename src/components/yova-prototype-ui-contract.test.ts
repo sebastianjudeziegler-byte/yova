@@ -471,9 +471,9 @@ describe("YOVA prototype UI contracts", () => {
     expect(completion).toContain("selectSessionTerminalRouteRevisionId(currentSession)");
     expect(interruption).toContain("selectSessionTerminalRouteRevisionId(currentSession)");
     expect(interruption).toContain("methodWorkCheckpointCounts({");
-    expect(interruption).toContain("completedSteps: methodCounts?.completedSteps");
-    expect(interruption).toContain("totalSteps: methodCounts?.totalSteps");
-    expect(interruption).toContain("resumeStep: methodCounts?.resumeStep");
+    expect(interruption).toContain("completedSteps: activeBlockCounts?.completedSteps ?? methodCounts?.completedSteps");
+    expect(interruption).toContain("totalSteps: activeBlockCounts?.totalSteps ?? methodCounts?.totalSteps");
+    expect(interruption).toContain("resumeStep: activeBlockCounts?.resumeStep ?? methodCounts?.resumeStep");
   });
 
   it("reconciles full cloud authority, reflushes unblocked work, and hydrates the final state", () => {

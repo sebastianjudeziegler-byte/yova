@@ -63,6 +63,7 @@ test("founder source-first block preserves practice on leave/resume and requires
   const snapshot: YovaPreviewSnapshot = { version: 1, account: { id: "c0000000-0000-4000-8000-000000000099", email: "block@example.com", displayName: "Learner", createdAt: NOW.toISOString(), identityMode: "preview" }, signedIn: true, onboardingAnswers: [], onboardingCompleted: true, alphaEntered: true, plans: [plan], sessionCompletions: [], sessionInterruptions: [], updatedAt: NOW.toISOString() };
   await page.addInitScript(value => { if (!localStorage.getItem("yova.preview.v1")) localStorage.setItem("yova.preview.v1", JSON.stringify(value)); }, snapshot);
   let prepared = 0;
+  let explanationStreams = 0;
   const newProgress = (blockId: string) => ({ blockId, sourceCompletedIds: [] as string[], attempts: [] as Array<{ questionId: string; outcome: string; feedback: string; assisted: boolean }>, revealedQuestionIds: [] as string[], reportedQuestionIds: [] as string[], hintCounts: {} as Record<string, number>, complete: false, receipt: null as string | null });
   const states = new Map<string, ReturnType<typeof newProgress>>();
   await page.route("**/api/sessions/generate", async route => {
@@ -112,6 +113,10 @@ test("founder source-first block preserves practice on leave/resume and requires
     }
     await route.fulfill({ json: { progress, ...(progress.complete ? { summary: { correctAnswers: 2, totalAnswers: 2, conceptEvidence: [], observedGap: "No checked gap." } } : {}) } });
   });
+  await page.route("**/api/sessions/block/explanation", route => {
+    explanationStreams += 1;
+    return route.fulfill({ contentType: "text/plain", body: "Enzymes lower the activation energy needed for a reaction. They do not change the reaction's free-energy difference." });
+  });
   await page.route("**/api/tutor", route => route.fulfill({ status: 503, json: { error: "Help is temporarily unavailable. Your practice is saved." } }));
   await page.goto("/?qa=preview");
   await openNext(page);
@@ -144,8 +149,11 @@ test("founder source-first block preserves practice on leave/resume and requires
   await page.getByRole("button", { name: "Finish and continue", exact: true }).click();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans[0] as LearningPlan);
   expect(saved.sessions[0]!.status).toBe("complete");
+  expect(explanationStreams).toBe(0);
   await openNext(page);
   await expect(block.getByRole("heading", { name: "Learn enzyme catalysis" })).toBeVisible();
   await expect(block.getByRole("button", { name: "Mark source done" })).toHaveCount(0);
+  await expect.poll(() => explanationStreams).toBe(1);
+  await expect(block).toContainText("Enzymes lower the activation energy");
   await page.screenshot({ path: testInfo.outputPath("04-unsourced-explanation.png"), fullPage: true });
 });

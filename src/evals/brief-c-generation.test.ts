@@ -81,6 +81,34 @@ describe("Brief C production block defaults", () => {
     expect(p2?.personalization.profileReason).toMatch(/own words|reflect/i);
   });
 
+  it("introduces broad calculus through its assigned first topic without expanding or revising the plan", async () => {
+    const context = generationContext(1, "learn", false);
+    context.learningGoal.title = "Understand broad calculus";
+    context.session.title = "Read function notation";
+    context.session.objective = "Interpret the input and output of a function written as f(x).";
+    context.knowledgeTopics[0]!.title = "Function inputs and outputs";
+    context.knowledgeTopics[0]!.description = context.session.objective;
+    const before = structuredClone(context);
+    const port = provider();
+    port.generate.mockImplementation(async input => ({
+      explanations: input.explanationTopicIds.map(topicId => ({ topicId, text: "A function assigns one output to each allowed input. For f(x)=2x+1, f(3)=7. The domain is the allowed inputs and the range is the produced outputs." })),
+      questions: input.slots.map((slot, index) => ({ id: slot.id, topicId: slot.topicId,
+        prompt: index === 0 ? "For f(x)=2x+1, what is f(3)?" : "What does the domain of a function describe?",
+        choices: slot.format === "multiple_choice" ? ["7", "6", "5"] : [], answer: index === 0 ? "7" : "Its allowed input values.",
+        requiredIdeas: [index === 0 ? "Evaluate at input 3" : "Allowed inputs"], explanation: "The rule assigns an output to each allowed input.",
+        hints: ["Substitute the input into the rule."], workedExample: "For g(x)=x+2, g(4)=6 by substitution.", workedSolution: [],
+      })),
+    }));
+    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
+    const generated = await generateProductionSessionWithOpenAI(context, { blockProvider: port });
+    const block = generated.draft.block;
+    expect(block.instructions).toContain(context.knowledgeTopics[0]!.title);
+    expect(block.instructions).toContain("wider calculus pathway continues in later blocks");
+    expect(block.topicIds).toEqual(context.session.topicIds);
+    expect(block.estimatedMinutes).toBe(context.session.estimatedMinutes);
+    expect(context).toEqual(before);
+  });
+
   it("performs one bounded semantic review and saves its judgment with the block", async () => {
     const { block, port } = await generate(1);
     expect(port.review).toHaveBeenCalledTimes(1);

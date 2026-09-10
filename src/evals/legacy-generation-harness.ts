@@ -1,9 +1,18 @@
+// Historical V15/V17 generation harness retained only for regression tests.
+// New runtime resources always use the production work-block entry point.
+// Keeps the existing validator/recovery assertions on their original generators.
 import "server-only";
 import {
   conceptSignalsForSession,
   evidenceSignalsForSession,
 } from "@/lib/learning/concept-review-scheduler";
+import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import {
+  canGenerateReliableSession,
+  generateReliableSessionWithOpenAI,
+} from "@/lib/openai/reliable-session-generator";
+import {
+  generateSessionWithOpenAI,
   generationCauseForStats,
   markSessionGenerationContextPrepared,
   prepareSessionGenerationContext,
@@ -11,17 +20,45 @@ import {
   type SessionGenerationContext,
   type SessionGenerationRuntime,
 } from "@/lib/openai/session-generator";
-import { sessionArchitectureForGeneration } from "@/lib/session-generation/architecture";
-import { generateProductionWorkBlock } from "@/lib/session-blocks/production-result";
+import { generateStreamedTeachingSkeletonWithOpenAI } from "@/lib/openai/streamed-teaching-generator";
+import { sessionArchitectureForGeneration, usesStreamedTeaching } from "@/lib/session-generation/architecture";
+import { supportsStreamedTeachingRouteMethod } from "@/lib/session-generation/method-runtime-capability";
 
-/** Every newly prepared session is a work block. Historical resource readers
- * and lesson streaming remain compatible with already saved V15/V17 content. */
-export function sessionGenerationStrategy(context: SessionGenerationContext) {
-  prepareProductionSessionGenerationContext(context);
-  return "block" as const;
+/** Replays the pre-C choice of legacy generator for permanent legacy-content
+ * tests. This helper is outside src/lib and is never a runtime entry point. */
+export function legacySessionGenerationStrategy(context: SessionGenerationContext) {
+  return sessionGenerationStrategyForPreparedContext(
+    prepareProductionSessionGenerationContext(context),
+  );
 }
 
-export async function generateProductionSessionWithOpenAI(
+function sessionGenerationStrategyForPreparedContext(
+  scopedContext: SessionGenerationContext,
+) {
+  const runtimeArchitecture = sessionArchitectureForGeneration({
+    storedVersion: scopedContext.sessionArchitectureVersion,
+    learningMode: scopedContext.session.learningMode,
+    studyMode: scopedContext.learningGoal.studyMode,
+    reviewType: scopedContext.session.reviewType ?? null,
+    selectedMethodId: scopedContext.studyRoute?.approach.primaryMethodId,
+  });
+  if (
+    usesStreamedTeaching({ sessionArchitectureVersion: runtimeArchitecture })
+    && scopedContext.session.learningMode === "learn"
+    && scopedContext.learningGoal.studyMode === "inside_yova"
+    && !scopedContext.session.reviewType
+    && (
+      !scopedContext.studyRoute
+      || supportsStreamedTeachingRouteMethod(
+        scopedContext.studyRoute.approach.primaryMethodId,
+      )
+    )
+  ) return "streamed" as const;
+  if (isScheduledRetrievalSession(scopedContext.session)) return "full" as const;
+  return canGenerateReliableSession(scopedContext) ? "reliable" as const : "full" as const;
+}
+
+export async function generateLegacySessionForCompatibilityTest(
   context: SessionGenerationContext,
   runtime: SessionGenerationRuntime = {},
 ) {
@@ -38,10 +75,25 @@ export async function generateProductionSessionWithOpenAI(
     }),
   };
   markSessionGenerationContextPrepared(generationContext);
-  const strategy = "block" as const;
+  const strategy = sessionGenerationStrategyForPreparedContext(generationContext);
   try {
-    const generated = await generateProductionWorkBlock(generationContext, runtime);
-    return { ...generated, generationStats: { ...generated.generationStats, strategy } };
+    const generated = await (strategy === "streamed"
+      ? generateStreamedTeachingSkeletonWithOpenAI(generationContext, runtime)
+      : strategy === "reliable"
+        ? generateReliableSessionWithOpenAI(generationContext, runtime)
+        : generateSessionWithOpenAI(generationContext, runtime));
+    return {
+      ...generated,
+      generationStats: {
+        ...generated.generationStats,
+        strategy,
+        stage: generated.generationStats.stage
+          ?? (generated.generationStats.degradedMode ? "fallback" : "complete"),
+        ...(generated.generationStats.degradedMode && !generated.generationStats.cause
+          ? { cause: generationCauseForStats(generated.generationStats) }
+          : {}),
+      },
+    };
   } catch (error) {
     if (error instanceof SessionGenerationFailure) {
       const stats = error.generationStats;

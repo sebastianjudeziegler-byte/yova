@@ -15,7 +15,7 @@ vi.mock("@/lib/openai/config", () => ({
   getOpenAISessionConfig: () => ({ apiKey: "test", model: "gpt-yova-test" }),
 }));
 
-describe("production evidence scoping before safe study recovery", () => {
+describe("legacy generation evidence scoping before safe study recovery", () => {
   beforeEach(() => {
     parseResponse.mockReset();
   });
@@ -43,7 +43,7 @@ describe("production evidence scoping before safe study recovery", () => {
     context.topicCalibrationSignals = [unrelatedCalibration, relevantCalibration];
 
     const { withSessionEvidenceScope } = await import(
-      "@/lib/openai/session-generation-strategy"
+      "@/evals/legacy-generation-harness"
     );
     const scoped = withSessionEvidenceScope(context);
 
@@ -65,10 +65,10 @@ describe("production evidence scoping before safe study recovery", () => {
       .mockResolvedValueOnce(completedResponse("invalid-initial", {}))
       .mockResolvedValueOnce(completedResponse("invalid-repair", {}));
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    await expect(generateProductionSessionWithOpenAI(context)).rejects.toMatchObject({
+    await expect(generateLegacySessionForCompatibilityTest(context)).rejects.toMatchObject({
       name: "SessionGenerationFailure",
       generationStats: {
         attempts: 2,
@@ -97,10 +97,10 @@ describe("production evidence scoping before safe study recovery", () => {
       .mockResolvedValueOnce(completedResponse("invalid-initial", {}))
       .mockResolvedValueOnce(completedResponse("invalid-repair", {}));
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    await expect(generateProductionSessionWithOpenAI(context)).rejects.toMatchObject({
+    await expect(generateLegacySessionForCompatibilityTest(context)).rejects.toMatchObject({
       name: "SessionGenerationFailure",
       generationStats: {
         attempts: 2,
@@ -115,7 +115,7 @@ describe("production evidence scoping before safe study recovery", () => {
   });
 });
 
-describe("bounded primary recovery for ordinary YOVA-generated study sessions", () => {
+describe("legacy bounded primary recovery for YOVA-generated study sessions", () => {
   beforeEach(() => {
     parseResponse.mockReset();
   });
@@ -129,10 +129,10 @@ describe("bounded primary recovery for ordinary YOVA-generated study sessions", 
         boundedBioenergeticsContent(targetCount),
       ));
 
-      const { generateProductionSessionWithOpenAI } = await import(
-        "@/lib/openai/session-generation-strategy"
+      const { generateLegacySessionForCompatibilityTest } = await import(
+        "@/evals/legacy-generation-harness"
       );
-      const generated = await generateProductionSessionWithOpenAI(context);
+      const generated = await generateLegacySessionForCompatibilityTest(context);
 
       expect(parseResponse).toHaveBeenCalledTimes(1);
       expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
@@ -189,10 +189,10 @@ describe("bounded primary recovery for ordinary YOVA-generated study sessions", 
       boundedBioenergeticsContent(3),
     ));
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    const generated = await generateProductionSessionWithOpenAI(context);
+    const generated = await generateLegacySessionForCompatibilityTest(context);
 
     expect(parseResponse).toHaveBeenCalledTimes(1);
     expect(parseResponse.mock.calls[0]?.[0]?.text?.format?.name)
@@ -230,10 +230,10 @@ describe("bounded primary recovery for ordinary YOVA-generated study sessions", 
         .mockResolvedValueOnce(completedResponse("unsupported-retention-initial", {}))
         .mockResolvedValueOnce(completedResponse("unsupported-retention-repair", {}));
 
-      const { generateProductionSessionWithOpenAI } = await import(
-        "@/lib/openai/session-generation-strategy"
+      const { generateLegacySessionForCompatibilityTest } = await import(
+        "@/evals/legacy-generation-harness"
       );
-      await expect(generateProductionSessionWithOpenAI(context)).rejects.toMatchObject({
+      await expect(generateLegacySessionForCompatibilityTest(context)).rejects.toMatchObject({
         name: "SessionGenerationFailure",
         generationStats: { attempts: 2 },
       });
@@ -254,10 +254,10 @@ describe("bounded primary recovery for ordinary YOVA-generated study sessions", 
         boundedBioenergeticsContent(2),
       ));
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    const generated = await generateProductionSessionWithOpenAI(context);
+    const generated = await generateLegacySessionForCompatibilityTest(context);
 
     expect(parseResponse).toHaveBeenCalledTimes(2);
     expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
@@ -295,10 +295,10 @@ describe("bounded primary recovery for ordinary YOVA-generated study sessions", 
         boundedBioenergeticsContent(2),
       ));
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    const generated = await generateProductionSessionWithOpenAI(context);
+    const generated = await generateLegacySessionForCompatibilityTest(context);
 
     expect(parseResponse).toHaveBeenCalledTimes(2);
     expect(generated.generationStats).toMatchObject({
@@ -322,10 +322,10 @@ describe("bounded primary recovery for ordinary YOVA-generated study sessions", 
     });
 
     try {
-      const { generateProductionSessionWithOpenAI } = await import(
-        "@/lib/openai/session-generation-strategy"
+      const { generateLegacySessionForCompatibilityTest } = await import(
+        "@/evals/legacy-generation-harness"
       );
-      await expect(generateProductionSessionWithOpenAI(context, {
+      await expect(generateLegacySessionForCompatibilityTest(context, {
         deadlineAt: startedAt.getTime() + 90_000,
         settlementReserveMs: 12_000,
       })).rejects.toMatchObject({
@@ -358,10 +358,10 @@ describe("bounded primary recovery for ordinary YOVA-generated study sessions", 
         boundedBioenergeticsContent(2),
       ));
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    const generated = await generateProductionSessionWithOpenAI(context);
+    const generated = await generateLegacySessionForCompatibilityTest(context);
 
     expect(parseResponse).toHaveBeenCalledTimes(2);
     expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
@@ -391,10 +391,10 @@ describe("bounded primary recovery for ordinary YOVA-generated study sessions", 
       Object.assign(new Error("authentication rejected"), { status: 401 }),
     );
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    const failure = await generateProductionSessionWithOpenAI(context)
+    const failure = await generateLegacySessionForCompatibilityTest(context)
       .catch((error: unknown) => error);
 
     expect(failure).toMatchObject({
@@ -424,10 +424,10 @@ describe("bounded primary recovery for ordinary YOVA-generated study sessions", 
       .mockResolvedValueOnce(completedResponse("invalid-bounded-study-1", {}))
       .mockResolvedValueOnce(completedResponse("invalid-bounded-study-2", {}));
 
-    const { generateProductionSessionWithOpenAI } = await import(
-      "@/lib/openai/session-generation-strategy"
+    const { generateLegacySessionForCompatibilityTest } = await import(
+      "@/evals/legacy-generation-harness"
     );
-    const failure = await generateProductionSessionWithOpenAI(context)
+    const failure = await generateLegacySessionForCompatibilityTest(context)
       .catch((error: unknown) => error);
 
     expect(failure).toMatchObject({

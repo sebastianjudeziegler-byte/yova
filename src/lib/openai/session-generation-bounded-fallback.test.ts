@@ -140,7 +140,7 @@ function context({
   };
 }
 
-describe("bounded production session generation", () => {
+describe("legacy V15/V17 generation bounds (block recovery is covered by Brief C)", () => {
   beforeEach(() => {
     parseResponse.mockReset();
     parseResponse
@@ -260,8 +260,8 @@ describe("bounded production session generation", () => {
   });
 
   it("caps the full generator at two calls before source-grounded degradation", async () => {
-    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
-    const result = await generateProductionSessionWithOpenAI(context({
+    const { generateLegacySessionForCompatibilityTest } = await import("@/evals/legacy-generation-harness");
+    const result = await generateLegacySessionForCompatibilityTest(context({
       architecture: "filled_teaching_v1",
       targetCount: 2,
       learningMode: "study",
@@ -285,8 +285,8 @@ describe("bounded production session generation", () => {
   });
 
   it("keeps three authoritative material targets distinct in the bounded fallback", async () => {
-    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
-    const result = await generateProductionSessionWithOpenAI(context({
+    const { generateLegacySessionForCompatibilityTest } = await import("@/evals/legacy-generation-harness");
+    const result = await generateLegacySessionForCompatibilityTest(context({
       architecture: "filled_teaching_v1",
       targetCount: 3,
       learningMode: "study",
@@ -319,8 +319,8 @@ describe("bounded production session generation", () => {
     parseResponse
       .mockRejectedValueOnce(Object.assign(new Error("upstream unavailable"), { status: 503 }))
       .mockRejectedValueOnce(Object.assign(new Error("upstream still unavailable"), { status: 503 }));
-    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
-    const result = await generateProductionSessionWithOpenAI(context({
+    const { generateLegacySessionForCompatibilityTest } = await import("@/evals/legacy-generation-harness");
+    const result = await generateLegacySessionForCompatibilityTest(context({
       architecture: "filled_teaching_v1",
       targetCount: 1,
       learningMode: "study",
@@ -354,9 +354,9 @@ describe("bounded production session generation", () => {
       forceFullGeneration: true,
     });
     missingSource.materials = [];
-    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
+    const { generateLegacySessionForCompatibilityTest } = await import("@/evals/legacy-generation-harness");
 
-    await expect(generateProductionSessionWithOpenAI(missingSource)).rejects.toMatchObject({
+    await expect(generateLegacySessionForCompatibilityTest(missingSource)).rejects.toMatchObject({
       name: "SessionGenerationFailure",
       message: expect.stringMatching(/attach or reprocess readable material|source-independent route/i),
       generationStats: {
@@ -374,8 +374,8 @@ describe("bounded production session generation", () => {
   });
 
   it("caps streamed skeleton generation at two calls and embeds only mapped chunks", async () => {
-    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
-    const result = await generateProductionSessionWithOpenAI(context({
+    const { generateLegacySessionForCompatibilityTest } = await import("@/evals/legacy-generation-harness");
+    const result = await generateLegacySessionForCompatibilityTest(context({
       architecture: "streamed_teaching_v1",
       targetCount: 2,
     }));
@@ -405,9 +405,9 @@ describe("bounded production session generation", () => {
       origin: "ai_generated",
       sourceReferences: [],
     }));
-    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
+    const { generateLegacySessionForCompatibilityTest } = await import("@/evals/legacy-generation-harness");
 
-    await expect(generateProductionSessionWithOpenAI(ungrounded)).rejects.toMatchObject({
+    await expect(generateLegacySessionForCompatibilityTest(ungrounded)).rejects.toMatchObject({
       name: "SessionGenerationFailure",
       generationStats: {
         attempts: 2,
@@ -427,9 +427,9 @@ describe("bounded production session generation", () => {
       forceFullGeneration: true,
     });
     missingSource.materials = [];
-    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
+    const { generateLegacySessionForCompatibilityTest } = await import("@/evals/legacy-generation-harness");
 
-    const failure = await generateProductionSessionWithOpenAI(missingSource).catch((error: unknown) => error);
+    const failure = await generateLegacySessionForCompatibilityTest(missingSource).catch((error: unknown) => error);
 
     expect(failure).toMatchObject({
       name: "SessionGenerationFailure",
