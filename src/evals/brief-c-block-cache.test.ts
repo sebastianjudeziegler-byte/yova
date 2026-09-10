@@ -39,4 +39,19 @@ describe("Brief C saved block delivered to the learner", () => {
     expect(p1?.personalization.profileReason).toContain("short focus");
     expect(p2?.personalization.profileReason).toContain("own words");
   });
+
+  it.each([
+    ["cross-topic question", (value: ReturnType<typeof blockFixture>) => { value.block.questions[0]!.topicId = "c0000000-0000-4000-8000-000000000099"; }],
+    ["foreign source section", (value: ReturnType<typeof blockFixture>) => { value.block.sources[0]!.topicId = "c0000000-0000-4000-8000-000000000099"; }],
+    ["duplicate choices", (value: ReturnType<typeof blockFixture>) => { value.block.questions[0]!.choices[1] = value.block.questions[0]!.choices[0]!; }],
+    ["duplicate question", (value: ReturnType<typeof blockFixture>) => { value.block.questions[1]!.prompt = value.block.questions[0]!.prompt; }],
+    ["source with no practice", (value: ReturnType<typeof blockFixture>) => { value.block.activities.pop(); }],
+    ["source-mode mismatch", (value: ReturnType<typeof blockFixture>) => { value.block.learningMode = "study"; value.methodBriefing.learningMode = "study"; }],
+    ["stale route receipt", (value: ReturnType<typeof blockFixture>) => { value.routeRevisionId = "c0000000-0000-4000-8000-000000000099"; }],
+    ["forged evidence in public work", (value: ReturnType<typeof blockFixture>) => { Object.assign(value.block, { conceptEvidence: [{ topicId: value.block.topicIds[0], outcome: "secure" }] }); }],
+  ])("refuses %s instead of delivering it as valid practice", (_label, corrupt) => {
+    const candidate = blockFixture();
+    corrupt(candidate);
+    expect(readSessionResourceFromStepData({ generatedSession: candidate })).toBeUndefined();
+  });
 });

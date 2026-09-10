@@ -21,6 +21,7 @@ export function toSessionResource(
 
   return {
     schemaVersion: session.schemaVersion,
+    ...(session.schemaVersion === 19 ? { block: session.block } : {}),
     routeRevisionId: session.routeRevisionId,
     topicIds: session.topicIds,
     rationale: session.rationale,

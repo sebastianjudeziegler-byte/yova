@@ -1,6 +1,6 @@
 # Brief C — evidence
 
-Status: source-binding red evidence captured on main's unchanged product code; narrowly approved correction awaiting CI. The rest of Brief C is in progress.
+Status: narrowly approved source-binding correction passes three CI runs. Brief C block-runtime implementation and its remaining gates are in progress.
 
 - Branch: `codex/brief-c-source-first-practice`.
 - Starting source: `971e258c539046276e8d165fdaa4651639831044`, Brief B's current head.
@@ -22,6 +22,12 @@ Expanded red run [34473280983](https://github.com/sebastianjudeziegler-byte/yova
 Founder approval is limited to topic-scoped source binding. The correction changes only the source requirements and binding provenance committed by the existing normal pipeline, with corresponding runtime source checks. Topic IDs, methods, schedule and revision composition logic remain under their existing owners. Legacy committed routes retain their old source contract; new routes require exactly their assigned topics' sources. Missing, substituted or subsequently changed sources still fail closed. No green claim until CI completes.
 
 First correction run [34473797339](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34473797339), `59f1fc4`: all six source-boundary assertions pass, including byte-identical unrelated sessions; the surrounding Brief B explicit-copy test catches a URL classification regression (**44 pass / 1 fail / 1 skipped**). Learner-attached URLs were incorrectly classified as `trusted_external_source`, whose existing schema requires outside-YOVA execution. Corrected the source classification to learner-provided (`user_materials`) for both topic attachments, retaining opaque URL bindings and the unchanged execution environment. No execution/schema constraint was relaxed. Typecheck, lint and all 101 validator protections passed in this run.
+
+Green [34474037490](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34474037490), `6b1bedc6eaac2dabd3a34bb174b740c6f9c205a8`: **45 pass / 0 fail / 1 skipped, in each of three consecutive runs**. Both original main failures now pass, the source-revision byte-identical test stays green, and Brief B's existing URL/explicit-copy protection passes unchanged. Typecheck and lint pass; validator protections **101/101 pass**. The skipped database fixture needs its dedicated database gate and is not counted as a pass. [Raw three-run evidence](evidence/source-boundary-green/). This completes the approved source-binding correction; it does not constitute the full Brief C gate.
+
+### Saved block content boundary
+
+Red [34474179366](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34474179366), `ab93975c0ec8dc7851998d27541c364d1044a472`: three learner-visible cache assertions fail because the existing resource reader drops the proposed block entirely: no objective/source instructions, no source-first sequence or saved prompts, and no preserved P1/P2 support delta. These are deterministic prepared-content fixtures, not provider quality evidence. The source-boundary tests continue passing all three samples; typecheck, lint and 101 validator protections pass. The implementation adds a separately versioned public block resource (V19; reserved V18 remains untouched), validates its structural bindings, and retains the saved content on reopening. Provider generation, server-owned scoring and the UI journey are separate outstanding gates; the cached semantic-review descriptor is not scoring authority.
 
 | Behavior | Learner-visible assertion and protected boundary | Red | Green |
 | --- | --- | --- | --- |

@@ -22,6 +22,7 @@ import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architec
 import { PRACTICE_INTENTS } from "@/lib/learning/practice-variation";
 import { MAX_RUNTIME_PLAN_SESSIONS } from "@/lib/plan-generation/schema";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
+import { WorkBlockSchema } from "@/lib/session-blocks/schema";
 
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
@@ -847,10 +848,33 @@ function requireMatchingCachedRouteRevisionReceipts(
   }
 }
 
+// V18 remains reserved for the retired Blurting candidate. V19 stores the
+// public block; its private answer key and checked results have server owners.
+export const CachedGeneratedSessionV19Schema = z.object({
+  schemaVersion: z.literal(19), routeRevisionId: z.string().uuid(),
+  model: z.string().min(1), generatedAt: z.string().datetime({ offset: true }),
+  topicIds: z.array(z.string().uuid()).min(1).max(6),
+  rationale: z.string().trim().min(1).max(800), coverage: SessionCoverageSchema,
+  methodBriefing: SessionMethodBriefingSchema,
+  sourceGrounding: SessionSourceGroundingSchema.nullable(),
+  routingContext: CachedGeneratedSessionV15Schema.shape.routingContext,
+  supportPlan: SessionSupportPlanSchema.optional(), deliveryPolicy: SessionDeliveryPolicySchema,
+  cacheContext: CachedGeneratedSessionV17Schema.shape.cacheContext,
+  activities: z.array(GeneratedSessionActivitySchema).max(20),
+  block: WorkBlockSchema,
+}).superRefine((session, context) => {
+  requireMatchingCachedRouteRevisionReceipts(session, context);
+  if (JSON.stringify(session.topicIds) !== JSON.stringify(session.block.topicIds)
+    || session.methodBriefing.learningMode !== session.block.learningMode) {
+    context.addIssue({ code: "custom", path: ["block"], message: "The saved block must preserve the session's assigned topics and learning mode." });
+  }
+});
+
 export const CachedGeneratedSessionSchema = z.discriminatedUnion("schemaVersion", [
   CachedGeneratedSessionV15Schema,
   CachedGeneratedSessionV16Schema,
   CachedGeneratedSessionV17Schema,
+  CachedGeneratedSessionV19Schema,
 ]);
 
 export const SessionGenerationResponseSchema = z.object({

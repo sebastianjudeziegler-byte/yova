@@ -83,7 +83,8 @@ export type SessionSourceGrounding = {
 };
 
 export type SessionResource = {
-  schemaVersion?: 15 | 16 | 17;
+  schemaVersion?: 15 | 16 | 17 | 19;
+  block?: import("@/lib/session-blocks/schema").WorkBlock;
   /** Exact StudyRoute revision that authorized this generated or fallback resource. */
   routeRevisionId?: string;
   topicIds?: string[];
