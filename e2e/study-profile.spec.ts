@@ -21,6 +21,13 @@ test.describe("YOVA Study Profile", () => {
     await expect(page.getByText(
       "Free · about 3 minutes · email confirmation required",
     ).first()).toBeVisible();
+    await expect(page.getByRole("heading", {
+      name: 'A task says "review this topic" with no steps. What usually happens?',
+    })).toBeVisible();
+    await expect(page.getByText("Inside your report", { exact: true })).toBeVisible();
+    await expect(page.getByText("Highest-leverage change", { exact: true })).toBeVisible();
+    await expect(page.getByText("Top methods matched", { exact: true })).toBeVisible();
+    await expect(page.getByText(/example result/i)).toHaveCount(0);
     await page.getByRole("button", { name: "Get my free study profile" }).first().click();
 
     await expectOnlyQuestion(page, 1);
@@ -290,7 +297,8 @@ test.describe("YOVA Study Profile", () => {
     await page.goto("/study-profile");
     await expect(page.getByRole("link", { name: "Email support" }))
       .toHaveAttribute("href", STUDY_PROFILE_SUPPORT_MAILTO);
-    await expect(page.getByRole("link", { name: "Privacy Notice" })).toHaveCount(2);
+    await expect(page.getByRole("link", { name: "Privacy", exact: true }))
+      .toHaveAttribute("href", "/privacy");
 
     await page.goto("/privacy");
     const privacyContact = page.getByRole("link", { name: "hello@yovaapp.com" });
@@ -319,6 +327,16 @@ test.describe("YOVA Study Profile", () => {
         });
         await expect(landingHeading).toBeVisible();
         await expect(landingHeading).toHaveCSS("text-align", "center");
+        const questionPreview = viewportPage.getByRole("heading", {
+          name: 'A task says "review this topic" with no steps. What usually happens?',
+        });
+        await questionPreview.scrollIntoViewIfNeeded();
+        await expect(questionPreview).toHaveCSS("text-align", "center");
+        const proofHeading = viewportPage.getByRole("heading", {
+          name: "See what your answers turn into.",
+        });
+        await proofHeading.scrollIntoViewIfNeeded();
+        await expect(proofHeading).toHaveCSS("text-align", "center");
         await expectNoHorizontalOverflow(viewportPage);
 
         const startButton = viewportPage
@@ -465,7 +483,7 @@ test.describe("YOVA Study Profile", () => {
     await expect(progress).toHaveAttribute("aria-valuemax", "14");
     await expect(progress).toHaveAttribute("aria-valuenow", "1");
     await expect(progress).toHaveAttribute("aria-valuetext", "Question 1 of 14");
-    await expect(page.getByText("Choose what is usually true for you, even if it is not ideal.")).toBeVisible();
+    await expect(page.getByText("Choose what happens most often.")).toBeVisible();
     await expect(page.getByText("Keyboard: press 1 to 4, A to D, or use arrow keys"))
       .toHaveText("Keyboard: press 1 to 4, A to D, or use arrow keys");
     await expectNoPercentOrContextSwitch(page);
@@ -558,7 +576,7 @@ async function expectLockedReveal(page: Page) {
   await expect(page.getByLabel("Your six study habits")).toHaveCount(0);
   await expect(page.getByText("One thing your answers show", { exact: true })).toHaveCount(0);
   await expect(page.getByText("The report is yours either way.", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Your named study pattern", { exact: true })).toBeVisible();
+  await expect(page.getByText("Your named study pattern and supporting signals", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Email for your confirmation link")).toHaveValue("");
   await expect(page.getByRole("checkbox", {
     name: /Confirm my place on the YOVA waitlist/,

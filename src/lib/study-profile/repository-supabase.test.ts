@@ -224,6 +224,41 @@ describe("Supabase Study Profile report reloads", () => {
     ));
   });
 
+  it("rebuilds a persisted v3 report as v4 with its current subtype", async () => {
+    const subtypeAnswers = {
+      ...answers,
+      q1: "d",
+      q2: "d",
+      q3: "d",
+      q4: "d",
+    } as StudyProfileAnswers;
+    const snapshot = scoreStudyProfile(subtypeAnswers);
+    const currentReport = buildStudyProfileReport(snapshot, {
+      ...metadata,
+      studyGoal: "better_habits",
+    }, subtypeAnswers);
+    const legacyReport: Record<string, unknown> = { ...currentReport };
+    delete legacyReport.subtype;
+    legacyReport.contentVersion = "study_profile_report_v3";
+    mockReportLookup({
+      raw_answers: subtypeAnswers,
+      profile_snapshot: snapshot,
+      report_state: {
+        report: legacyReport,
+        metadata: { studyGoal: "better_habits" },
+      },
+    });
+
+    const loaded = await new SupabaseStudyProfileRepository()
+      .getReportByToken("v3-report-token-that-is-long-enough");
+
+    expect(loaded?.report.contentVersion).toBe("study_profile_report_v4");
+    expect(loaded?.report.subtype).toMatchObject({
+      pairedPattern: { dimension: snapshot.secondaryPattern.dimension },
+      highestLeverageMove: expect.any(String),
+    });
+  });
+
   it("preserves a legacy snapshot and never quotes current question copy for legacy answer IDs", async () => {
     const legacyAnswers = { ...answers, q6: "d" } as StudyProfileAnswers;
     const legacySnapshot = JSON.parse(JSON.stringify(

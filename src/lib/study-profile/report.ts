@@ -21,6 +21,7 @@ import {
   buildStudyProfileFreeInsight,
   buildStudyProfileWhySection,
   resolveStudyProfileNamedPattern,
+  resolveStudyProfileSubtype,
 } from "@/lib/study-profile/patterns";
 import {
   StudyProfileAnswersSchema,
@@ -57,6 +58,7 @@ export function buildStudyProfileReport(
   const featuredInteraction = interactions[0] ?? null;
   const recommendations = buildRecommendations(profile, metadata);
   const pattern = resolveStudyProfileNamedPattern(profile);
+  const subtype = resolveStudyProfileSubtype(profile);
   const protocolSteps = featuredInteraction
     ? STUDY_PROFILE_PROTOCOLS_BY_INTERACTION[featuredInteraction.id]
     : STUDY_PROFILE_FALLBACK_PROTOCOLS[profile.primaryPattern.dimension];
@@ -67,13 +69,14 @@ export function buildStudyProfileReport(
     contentVersion: STUDY_PROFILE_REPORT_CONTENT_VERSION,
     isBalanced: profile.isBalanced,
     pattern,
+    subtype,
     freeInsight: buildStudyProfileFreeInsight(profile, answers),
     whyThisIsHappening: buildStudyProfileWhySection(
       profile,
       answers,
       metadata.studyGoal,
     ),
-    profileNarrative: buildProfileNarrative(pattern),
+    profileNarrative: buildProfileNarrative(pattern, subtype),
     sectionHeadings: STUDY_PROFILE_REPORT_SECTION_HEADINGS,
     overview,
     playbook: buildStudyProfilePlaybook(profile, metadata, answers),
@@ -106,10 +109,15 @@ export function buildStudyProfileReportFromStoredResponse(
   return buildStudyProfileReport(stored.snapshot, stored.metadata, currentAnswers);
 }
 
-function buildProfileNarrative(pattern: StudyProfileReport["pattern"]) {
+function buildProfileNarrative(
+  pattern: StudyProfileReport["pattern"],
+  subtype: StudyProfileReport["subtype"],
+) {
   return {
-    heading: pattern.name,
-    body: `${pattern.tell} ${pattern.twist}`,
+    heading: subtype?.heading ?? pattern.name,
+    body: subtype
+      ? `${pattern.tell} ${subtype.body}`
+      : `${pattern.tell} ${pattern.twist}`,
   };
 }
 

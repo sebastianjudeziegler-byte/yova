@@ -37,6 +37,7 @@ export {
   buildStudyProfileFreeInsight,
   buildStudyProfileWhySection,
   resolveStudyProfileNamedPattern,
+  resolveStudyProfileSubtype,
   studyProfilePatternCopy,
 } from "@/lib/study-profile/patterns";
 export {

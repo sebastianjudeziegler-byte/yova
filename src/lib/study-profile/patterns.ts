@@ -1,15 +1,143 @@
 import { STUDY_PROFILE_STUDY_GOAL_LABELS } from "@/lib/study-profile/config";
 import { STUDY_PROFILE_QUESTION_BY_ID } from "@/lib/study-profile/questions";
-import type {
-  StudyProfileAnswers,
-  StudyProfileDimension,
-  StudyProfileNamedPattern,
-  StudyProfileNamedPatternId,
-  StudyProfileSnapshot,
-  StudyProfileStudyGoal,
+import {
+  STUDY_PROFILE_DIMENSIONS,
+  type StudyProfileAnswers,
+  type StudyProfileDimension,
+  type StudyProfileNamedPattern,
+  type StudyProfileNamedPatternId,
+  type StudyProfileOpportunityPatternId,
+  type StudyProfileSnapshot,
+  type StudyProfileStudyGoal,
+  type StudyProfileSubtype,
 } from "@/lib/study-profile/types";
 
 type PatternCopy = Omit<StudyProfileNamedPattern, "modifier">;
+
+type StudyProfilePairKey =
+  | "starting_friction|structure_need"
+  | "starting_friction|attention_variability"
+  | "starting_friction|calibration_risk"
+  | "starting_friction|mistake_sensitivity"
+  | "starting_friction|cognitive_stamina"
+  | "structure_need|attention_variability"
+  | "structure_need|calibration_risk"
+  | "structure_need|mistake_sensitivity"
+  | "structure_need|cognitive_stamina"
+  | "attention_variability|calibration_risk"
+  | "attention_variability|mistake_sensitivity"
+  | "attention_variability|cognitive_stamina"
+  | "calibration_risk|mistake_sensitivity"
+  | "calibration_risk|cognitive_stamina"
+  | "mistake_sensitivity|cognitive_stamina";
+
+type SubtypeCopy = Pick<StudyProfileSubtype, "heading" | "body" | "highestLeverageMove">;
+
+const SUBTYPE_COPY: Record<StudyProfilePairKey, SubtypeCopy> = {
+  "starting_friction|structure_need": {
+    heading: "A clear first move makes starting easier.",
+    body: "Delay grows when the first task also requires planning. A short sequence removes that decision and gives momentum somewhere to begin.",
+    highestLeverageMove: "Write the first three actions before you sit down.",
+  },
+  "starting_friction|attention_variability": {
+    heading: "Short setup protects your attention.",
+    body: "A long setup creates more time for delay and distraction. Moving straight into a small active task gives the session traction.",
+    highestLeverageMove: "Open with one question and a 10-minute timer.",
+  },
+  "starting_friction|calibration_risk": {
+    heading: "Start with a quick knowledge check.",
+    body: "The first useful action can also show what needs work. A brief closed-note check creates direction without a long warmup.",
+    highestLeverageMove: "Answer three questions before opening your notes.",
+  },
+  "starting_friction|mistake_sensitivity": {
+    heading: "Make the first attempt easier to commit to.",
+    body: "Starting gets harder when the opening attempt also feels like it has to be correct. A rough first pass creates something useful to improve.",
+    highestLeverageMove: "Set a five-minute first attempt with no editing.",
+  },
+  "starting_friction|cognitive_stamina": {
+    heading: "Use your best energy on the first real task.",
+    body: "Delay can push demanding work into the part of the session where energy is already falling. Prepare early and keep the first block focused.",
+    highestLeverageMove: "Prepare the materials early, then start with one 15-minute block.",
+  },
+  "structure_need|attention_variability": {
+    heading: "Give variety a clear sequence.",
+    body: "Changing activity can help attention, but unplanned switching adds more decisions. A short sequence keeps each change tied to the same goal.",
+    highestLeverageMove: "Choose three short activities and their order before you begin.",
+  },
+  "structure_need|calibration_risk": {
+    heading: "Let a quick check choose the next step.",
+    body: "A plan becomes more useful when real performance decides what comes next. One short check can narrow the review and remove guesswork.",
+    highestLeverageMove: "Use one test, review, and retest sequence.",
+  },
+  "structure_need|mistake_sensitivity": {
+    heading: "Give revision a clear stopping point.",
+    body: "Detailed planning and repeated checking can stretch the same task. A finish rule keeps standards useful without letting revision take over.",
+    highestLeverageMove: "Write the finish rule before you start.",
+  },
+  "structure_need|cognitive_stamina": {
+    heading: "Build the plan in visible chunks.",
+    body: "A clear plan helps, but seeing the whole sequence at once can make the session feel longer. Small checkpoints keep the next action manageable.",
+    highestLeverageMove: "Plan two short blocks and show yourself only the next block.",
+  },
+  "attention_variability|calibration_risk": {
+    heading: "Use quick checks to bring focus back.",
+    body: "Active checks reveal what needs work while changing the task enough to re-engage attention. The result gives the next activity a clear target.",
+    highestLeverageMove: "Recall for five minutes, check the gaps, then change format.",
+  },
+  "attention_variability|mistake_sensitivity": {
+    heading: "Finish a short attempt before checking.",
+    body: "Switching or checking early can interrupt the evidence you need from an independent attempt. Keep the attempt short enough to complete first.",
+    highestLeverageMove: "Finish one answer before checking or switching.",
+  },
+  "attention_variability|cognitive_stamina": {
+    heading: "Short active rounds protect the quality of your work.",
+    body: "Focus and accuracy are more likely to hold when each round has a clear task and a planned reset. More time is useful only while the work stays productive.",
+    highestLeverageMove: "Use two 12-minute rounds with a three-minute reset.",
+  },
+  "calibration_risk|mistake_sensitivity": {
+    heading: "Commit first, then use the result.",
+    body: "Checking before committing can hide the difference between recognition and recall. A low-stakes answer gives you evidence and a precise correction target.",
+    highestLeverageMove: "Answer before checking, then write one correction.",
+  },
+  "calibration_risk|cognitive_stamina": {
+    heading: "Check your learning before your energy drops.",
+    body: "A closed-note check is most useful while attention and accuracy are still strong. Put it early enough that the result reflects your knowledge clearly.",
+    highestLeverageMove: "Do a closed-note check in the first half of the session.",
+  },
+  "mistake_sensitivity|cognitive_stamina": {
+    heading: "Use review time on the work that needs it.",
+    body: "Long review can drain energy without improving every answer equally. Use the remaining time on missed and uncertain work, then stop.",
+    highestLeverageMove: "Review only missed and uncertain items before stopping.",
+  },
+};
+
+const UNDERCONFIDENCE_SUBTYPE_COPY: Partial<Record<StudyProfilePairKey, SubtypeCopy>> = {
+  "starting_friction|calibration_risk": {
+    heading: "Let a quick start build confidence.",
+    body: "Starting is the clearest friction, and your confidence may lag behind your actual performance. A small closed-note attempt gives you visible evidence straight away.",
+    highestLeverageMove: "Complete three questions, then record what you answered correctly.",
+  },
+  "structure_need|calibration_risk": {
+    heading: "Use results to choose the next step.",
+    body: "A clear sequence helps most when correct work can update your confidence. Let each short check decide what to review and what to leave alone.",
+    highestLeverageMove: "Mark correct answers first, then plan only the gaps.",
+  },
+  "attention_variability|calibration_risk": {
+    heading: "Short checks can steady focus and confidence.",
+    body: "Brief recall changes the activity and records what you can already do. That evidence makes the next task easier to choose.",
+    highestLeverageMove: "Run a five-minute recall check and keep the correct answers visible.",
+  },
+  "calibration_risk|mistake_sensitivity": {
+    heading: "Let correct answers count.",
+    body: "Doubt can remain even after good work, especially when each mistake receives more attention than each success. Keep both kinds of evidence visible.",
+    highestLeverageMove: "Record correct answers beside the gaps you still need to review.",
+  },
+  "calibration_risk|cognitive_stamina": {
+    heading: "Capture evidence while your energy is strongest.",
+    body: "Confidence is easier to update when the result comes from your strongest part of the session. Check early and keep the correct work visible.",
+    highestLeverageMove: "Do one early recall check and record every correct answer.",
+  },
+};
 
 const PATTERN_COPY: Record<StudyProfileNamedPatternId, PatternCopy> = {
   stalled_starter: {
@@ -70,7 +198,7 @@ const PATTERN_COPY: Record<StudyProfileNamedPatternId, PatternCopy> = {
   },
 };
 
-const DIMENSION_PATTERN: Record<StudyProfileDimension, StudyProfileNamedPatternId> = {
+const DIMENSION_PATTERN: Record<StudyProfileDimension, StudyProfileOpportunityPatternId> = {
   starting_friction: "stalled_starter",
   structure_need: "scattershot",
   attention_variability: "drifter",
@@ -100,7 +228,7 @@ export function resolveStudyProfileNamedPattern(
     profile.primaryPattern.dimension,
     profile,
   );
-  const secondaryEligible = profile.secondaryPattern.rawScore >= 3;
+  const secondaryEligible = profile.secondaryPattern.classification !== "low";
   const secondaryId = secondaryEligible
     ? patternIdForDimension(profile.secondaryPattern.dimension, profile)
     : null;
@@ -108,8 +236,33 @@ export function resolveStudyProfileNamedPattern(
   return {
     ...PATTERN_COPY[primaryId],
     modifier: secondaryId
-      ? `Also showing: ${PATTERN_COPY[secondaryId].name}`
+      ? `Paired with ${PATTERN_COPY[secondaryId].name}`
       : null,
+  };
+}
+
+export function resolveStudyProfileSubtype(
+  profile: StudyProfileSnapshot,
+): StudyProfileSubtype | null {
+  if (profile.isBalanced || profile.secondaryPattern.classification === "low") return null;
+
+  const primaryDimension = profile.primaryPattern.dimension;
+  const secondaryDimension = profile.secondaryPattern.dimension;
+  if (primaryDimension === secondaryDimension) return null;
+
+  const pairedPatternId = patternIdForDimension(secondaryDimension, profile);
+  const pairKey = studyProfilePairKey(primaryDimension, secondaryDimension);
+  const copy = profile.calibrationDirection === "underconfidence_risk"
+    ? UNDERCONFIDENCE_SUBTYPE_COPY[pairKey] ?? SUBTYPE_COPY[pairKey]
+    : SUBTYPE_COPY[pairKey];
+
+  return {
+    pairedPattern: {
+      id: pairedPatternId,
+      name: PATTERN_COPY[pairedPatternId].name,
+      dimension: secondaryDimension,
+    },
+    ...copy,
   };
 }
 
@@ -173,7 +326,7 @@ export function buildStudyProfileWhySection(
 function patternIdForDimension(
   dimension: StudyProfileDimension,
   profile: StudyProfileSnapshot,
-) {
+): StudyProfileOpportunityPatternId {
   if (
     dimension === "calibration_risk"
     && profile.calibrationDirection === "underconfidence_risk"
@@ -181,6 +334,17 @@ function patternIdForDimension(
     return "evidence_doubter" as const;
   }
   return DIMENSION_PATTERN[dimension];
+}
+
+function studyProfilePairKey(
+  first: StudyProfileDimension,
+  second: StudyProfileDimension,
+): StudyProfilePairKey {
+  const ordered = [first, second].sort(
+    (left, right) => STUDY_PROFILE_DIMENSIONS.indexOf(left)
+      - STUDY_PROFILE_DIMENSIONS.indexOf(right),
+  );
+  return `${ordered[0]}|${ordered[1]}` as StudyProfilePairKey;
 }
 
 function quoteAnswerPair(

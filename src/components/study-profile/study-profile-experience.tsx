@@ -18,6 +18,8 @@ import {
   ChevronRight,
   Clock3,
   LockKeyhole,
+  Layers3,
+  ListChecks,
   Mail,
   MailCheck,
   RefreshCw,
@@ -25,7 +27,6 @@ import {
   ShieldCheck,
   Target,
   TimerReset,
-  Zap,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import {
@@ -353,8 +354,8 @@ export function StudyProfileExperience() {
                 <h1 id="pattern-reveal-heading" ref={headingRef} tabIndex={-1}>Check your email to unlock your report.</h1>
                 <p>Open the message from YOVA and select <strong>Confirm and view my results</strong>. Your report stays locked until you confirm.</p>
                 <div className={styles.unlockList} aria-label="Your locked report includes">
-                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your named study pattern</span>
-                  <span><CheckCircle2 size={17} aria-hidden="true" /> The study habit to focus on first</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your named study pattern and supporting signals</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your highest-leverage change</span>
                   <span><CheckCircle2 size={17} aria-hidden="true" /> Three suggested methods to try</span>
                   <span><CheckCircle2 size={17} aria-hidden="true" /> A plan for tonight</span>
                 </div>
@@ -372,8 +373,8 @@ export function StudyProfileExperience() {
                 <label htmlFor="study-profile-email">Email for your confirmation link</label>
                 <div className={styles.emailInputWrap}><Mail size={18} aria-hidden="true" /><input id="study-profile-email" name="email" type="email" inputMode="email" autoComplete="email" required maxLength={254} placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} aria-describedby="email-consent-note" /></div>
                 <div className={styles.unlockList} aria-label="Full report includes">
-                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your named study pattern</span>
-                  <span><CheckCircle2 size={17} aria-hidden="true" /> The study habit to focus on first</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your named study pattern and supporting signals</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your highest-leverage change</span>
                   <span><CheckCircle2 size={17} aria-hidden="true" /> Three suggested methods to try</span>
                   <span><CheckCircle2 size={17} aria-hidden="true" /> A plan for tonight</span>
                 </div>
@@ -404,38 +405,83 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
       <main id="study-profile-landing" tabIndex={-1}>
         <section className={styles.landingHero}>
           <div className={styles.heroCopy}>
-            <span className={styles.heroEyebrow}>Free Study Profile · about 3 minutes</span>
+            <span className={styles.heroEyebrow}>Free Study Profile · 14 questions · about 3 minutes</span>
             <h1>Find out how you actually study.</h1>
-            <p>14 quick questions. Get your study pattern, the habit most worth changing, and practical methods selected from your answers. Join the free YOVA waitlist and confirm your email to unlock the full report.</p>
+            <p>Answer 14 questions. See the habit costing you the most time, three study methods matched to your answers, and a plan you can use tonight. Join the YOVA waitlist and confirm your email to open the report.</p>
             <div className={styles.heroActions}><button type="button" className={styles.primaryButton} onClick={onStart}>Get my free study profile <ArrowRight size={18} aria-hidden="true" /></button><span><Clock3 size={16} aria-hidden="true" /> Free · about 3 minutes · email confirmation required</span></div>
-            <div className={styles.heroTrust}><span><Check size={14} aria-hidden="true" /> Full report after confirmation</span><span><Check size={14} aria-hidden="true" /> Practical steps for tonight</span><span><ShieldCheck size={14} aria-hidden="true" /> Private report link</span></div>
+            <div className={styles.heroTrust}><span><Check size={14} aria-hidden="true" /> Six study habits scored</span><span><Check size={14} aria-hidden="true" /> Practical steps for tonight</span><span><ShieldCheck size={14} aria-hidden="true" /> Private report link</span></div>
           </div>
-          <SamplePatternCard />
+          <QuizQuestionPreview />
         </section>
-        <section className={styles.valueSection} aria-labelledby="value-heading">
-          <header className={styles.landingSectionHeading}><span className={styles.sectionEyebrow}>What you get</span><h2 id="value-heading">A report that gives you something to do next.</h2></header>
-          <div className={styles.proofGrid}>
-            <article><span><SearchCheck size={20} aria-hidden="true" /></span><h3>See what may be getting in the way.</h3><p>Your answers are scored across six study habits and highlight the area most worth trying first.</p></article>
-            <article><span><BookOpenCheck size={20} aria-hidden="true" /></span><h3>Get practical methods with clear steps.</h3><p>The report turns broad advice, such as retrieval practice, into a concrete way to try it.</p></article>
-            <article><span><TimerReset size={20} aria-hidden="true" /></span><h3>Walk away with tonight&apos;s session.</h3><p>A suggested block length, break timing, first step, and stopping point.</p></article>
+        <section className={styles.landingFacts} aria-label="Study Profile details">
+          <div><strong>14</strong><span>quick questions</span></div>
+          <div><strong>6</strong><span>study habits scored</span></div>
+          <div><strong>3</strong><span>methods matched</span></div>
+          <div><strong>1</strong><span>plan for tonight</span></div>
+        </section>
+        <section className={styles.reportProofSection} aria-labelledby="report-proof-heading">
+          <header className={styles.reportProofHeading}>
+            <div><span className={styles.lightEyebrow}>Inside your report</span><h2 id="report-proof-heading">See what your answers turn into.</h2></div>
+            <p>Your final matches depend on your answers. Every report gives you a clear place to start, methods to try, and a ready-to-use study block.</p>
+          </header>
+          <div className={styles.reportProofGrid}>
+            <article className={styles.reportProofCard}>
+              <div className={styles.reportProofCardHeader}><span><Layers3 size={19} aria-hidden="true" /></span><small>Your pattern and supporting signals</small></div>
+              <h3>Your clearest habit, with context from the rest of your answers.</h3>
+              <p>When a second habit is strong enough, the report explains how the two work together and gives that combination a practical focus.</p>
+              <div className={styles.reportProofDetail}><strong>What this changes</strong><span>The first action in your plan</span></div>
+            </article>
+            <article className={styles.reportProofCard}>
+              <div className={styles.reportProofCardHeader}><span><Target size={19} aria-hidden="true" /></span><small>Highest-leverage change</small></div>
+              <h3>Work on the point where useful study time is leaking.</h3>
+              <p>Your strongest signal sets the first habit to improve, so the report stays focused and usable.</p>
+              <div className={styles.reportProofDetail}><strong>First move</strong><span>One change you can try in your next session</span></div>
+            </article>
+            <article className={`${styles.reportProofCard} ${styles.methodProofCard}`}>
+              <div className={styles.reportProofCardHeader}><span><BookOpenCheck size={19} aria-hidden="true" /></span><small>Top methods matched</small></div>
+              <ol><li><b>01</b><span>Active recall</span></li><li><b>02</b><span>Spaced practice</span></li><li><b>03</b><span>Five-minute start</span></li></ol>
+              <p>The order and explanation change with your profile and current study goal.</p>
+            </article>
+            <article className={`${styles.reportProofCard} ${styles.sessionProofCard}`}>
+              <div className={styles.reportProofCardHeader}><span><TimerReset size={19} aria-hidden="true" /></span><small>A plan for tonight</small></div>
+              <div className={styles.sessionProofStats}><span><strong>20</strong> min work</span><span><strong>5</strong> min break</span><span><strong>2</strong> rounds</span></div>
+              <p>You also get a first step, focus rule, learning check, and a clear stopping point.</p>
+            </article>
           </div>
+          <button type="button" className={styles.secondaryCta} onClick={onStart}>Build my profile <ArrowRight size={17} aria-hidden="true" /></button>
         </section>
         <section className={styles.howItWorks} aria-labelledby="how-heading">
           <header className={styles.landingSectionHeading}><span className={styles.sectionEyebrow}>How it works</span><h2 id="how-heading">About three minutes. A plan you can use tonight.</h2></header>
-          <ol><li><span>01</span><div><strong>Answer honestly.</strong><p>14 quick questions about how you actually study, not how you wish you studied.</p></div></li><li><span>02</span><div><strong>Finish your profile.</strong><p>Your answers form a named pattern across six study habits.</p></div></li><li><span>03</span><div><strong>Join and confirm.</strong><p>Enter your email, join the free YOVA waitlist, and confirm from your inbox to open your private report.</p></div></li></ol>
-        </section>
-        <section className={styles.sampleResultSection} aria-labelledby="sample-heading">
-          <div className={styles.sampleResultCopy}><span className={styles.lightEyebrow}>An example result</span><h2 id="sample-heading">Example: The Familiarity Trap.</h2><p>This learner rereads until the material feels easy, then rarely checks without notes. The first suggested step takes ten minutes to set up.</p><button type="button" className={styles.secondaryCta} onClick={onStart}>Find my pattern <ArrowRight size={17} aria-hidden="true" /></button></div>
-          <div className={styles.sampleReportCard} aria-label="Example Familiarity Trap report"><span>YOVA Study Profile</span><h3>The Familiarity Trap</h3><p>Feels easy is not the same as known.</p><div><strong>Best first method</strong><span>Brain dump, then check the gaps</span></div></div>
+          <ol><li><span>01</span><div><strong>Answer 14 questions.</strong><p>Choose the answer that matches what happens most often.</p></div></li><li><span>02</span><div><strong>Join and confirm.</strong><p>Use your email to join the YOVA waitlist and open your private report.</p></div></li><li><span>03</span><div><strong>Try the plan.</strong><p>Start with the highest-leverage change and one matched method.</p></div></li></ol>
         </section>
         <section id="what-is-yova" className={styles.yovaIntroSection} aria-labelledby="yova-heading">
-          <div><span className={styles.sectionEyebrow}>What is YOVA?</span><h2 id="yova-heading">This profile is chapter one.</h2><p>YOVA builds your plan and runs your study sessions around your goal, materials, schedule, and this profile. The quiz asks how you work. The app finds out from what you actually do and keeps the plan current.</p><p>YOVA is coming soon. The profile is free, and so is the waitlist.</p></div>
-          <LandingWaitlistForm idPrefix="yova-intro" />
+          <div className={styles.yovaIntroCopy}>
+            <span className={styles.sectionEyebrow}>What is YOVA?</span>
+            <h2 id="yova-heading">Your profile becomes the starting point for YOVA.</h2>
+            <p>YOVA builds a study plan around your goal, deadlines, materials, schedule, and study habits. It guides each session and updates what comes next from the work you finish.</p>
+            <div className={styles.yovaProductSteps}>
+              <div><span><Target size={18} aria-hidden="true" /></span><p><strong>Plan the week</strong>Put the right work into the time you have.</p></div>
+              <div><span><ListChecks size={18} aria-hidden="true" /></span><p><strong>Run the session</strong>Open a clear task, method, and stopping point.</p></div>
+              <div><span><SearchCheck size={18} aria-hidden="true" /></span><p><strong>Keep it current</strong>Use completed work to shape the next plan.</p></div>
+            </div>
+          </div>
+          <aside className={styles.waitlistPitch} aria-label="YOVA waitlist">
+            <span className={styles.heroEyebrow}>YOVA is coming soon</span>
+            <h3>Get your report now and reserve your place.</h3>
+            <p>Complete the profile and confirm your email. You will open the full report and join the list for YOVA launch updates.</p>
+            <ul><li><CheckCircle2 size={16} aria-hidden="true" /> Free Study Profile</li><li><CheckCircle2 size={16} aria-hidden="true" /> Private report link</li><li><CheckCircle2 size={16} aria-hidden="true" /> Launch updates by email</li></ul>
+            <button type="button" className={styles.primaryButton} onClick={onStart}>Start the free profile <ArrowRight size={17} aria-hidden="true" /></button>
+            <small>No account is created. You can unsubscribe at any time.</small>
+          </aside>
         </section>
-        <section className={styles.researchStrip} aria-label="Study Profile methodology summary"><Target size={23} aria-hidden="true" /><div><strong>Draws on established study techniques.</strong><p>Retrieval practice, spaced practice, and interleaving inform the suggestions. The match is a starting point based on your answers, not a diagnosis or personality test.</p></div></section>
+        <section className={styles.researchStrip} aria-label="Study Profile methodology summary"><Target size={23} aria-hidden="true" /><div><strong>Draws on established study techniques.</strong><p>Retrieval practice, spaced practice, and interleaving inform the suggestions. The report is educational and does not provide a medical, psychological, or learning-disability diagnosis.</p></div></section>
+        <section className={styles.faqSection} aria-labelledby="faq-heading">
+          <header className={styles.landingSectionHeading}><span className={styles.sectionEyebrow}>Before you start</span><h2 id="faq-heading">A few useful details.</h2></header>
+          <div className={styles.faqGrid}><article><h3>Is the Study Profile free?</h3><p>Yes. The quiz, report, and YOVA waitlist are free.</p></article><article><h3>Why do I need to confirm my email?</h3><p>The confirmation unlocks your private report link and confirms your place on the waitlist.</p></article><article><h3>What happens after I join?</h3><p>You can use the report straight away. We will email you when YOVA is ready to try.</p></article></div>
+        </section>
         <section className={styles.finalCtaSection} aria-labelledby="final-cta-heading">
-          <div><span className={styles.heroEyebrow}>Free · about 3 minutes · email confirmation required</span><h2 id="final-cta-heading">Ready to see what your answers suggest?</h2><button type="button" className={styles.primaryButton} onClick={onStart}>Get my free study profile <ArrowRight size={18} aria-hidden="true" /></button></div>
-          <div><p>Not ready for the quiz? Join the YOVA waitlist instead.</p><LandingWaitlistForm idPrefix="final-waitlist" compact /></div>
+          <div><span className={styles.heroEyebrow}>Free · about 3 minutes</span><h2 id="final-cta-heading">Ready to see what your answers suggest?</h2><p>Complete the profile, join the waitlist, and open a practical report built from your answers.</p></div>
+          <div className={styles.finalCtaAction}><button type="button" className={styles.primaryButton} onClick={onStart}>Get my free study profile <ArrowRight size={18} aria-hidden="true" /></button><span><Clock3 size={15} aria-hidden="true" /> Email confirmation required</span></div>
         </section>
       </main>
       <footer className={styles.publicFooter}><BrandMark compact /><p>© {new Date().getFullYear()} YOVA. Your study system should adapt to you.</p><nav aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href={STUDY_PROFILE_SUPPORT_MAILTO}>Email support</a></nav></footer>
@@ -443,48 +489,21 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
   );
 }
 
-function SamplePatternCard() {
-  const rows = [["Starting", 1], ["Planning", 1], ["Focus", 2], ["Self-testing", 3], ["Mistakes", 1], ["Energy", 2]] as const;
-  return <div className={styles.reportPreview} aria-label="Example YOVA Study Profile result"><span className={styles.previewLabel}>Example result</span><h2>The Familiarity Trap</h2><p>Feels easy is not the same as known.</p><div className={styles.previewChart}>{rows.map(([label, active]) => <div key={label}><span>{label}</span><i>{[1, 2, 3].map((value) => <b key={value} data-active={value <= active} />)}</i></div>)}</div><div className={styles.previewFooter}><Zap size={17} aria-hidden="true" /><span><strong>Tonight</strong> Start with a 10-minute brain dump.</span></div></div>;
-}
-
-function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; compact?: boolean }) {
-  const [email, setEmail] = useState("");
-  const [consent, setConsent] = useState(false);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [status, setStatus] = useState<"idle" | "submitting" | "pending" | "joined" | "limited">("idle");
-  const [error, setError] = useState<string | null>(null);
-  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(null);
-    const visitorId = getStudyProfileVisitorId();
-    if (!visitorId) { setError("Your browser could not create a private waitlist session. Refresh and try again."); return; }
-    setStatus("submitting");
-    try {
-      const response = await fetch("/api/study-profile/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, visitorId, consent, ageConfirmed, under18: false, attribution: captureStudyProfileAttribution() }) });
-      const payload = await response.json().catch(() => ({})) as { error?: unknown; waitlistJoined?: unknown; confirmationPending?: unknown; dailyCapReached?: unknown };
-      if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "YOVA could not send the confirmation email. Try again.");
-      if (payload.dailyCapReached === true) setStatus("limited");
-      else if (payload.waitlistJoined === true) setStatus("joined");
-      else if (payload.confirmationPending === true) setStatus("pending");
-      else throw new Error("YOVA could not confirm the email request. Try again.");
-    } catch (submitError) { setStatus("idle"); setError(submitError instanceof Error ? submitError.message : "YOVA could not send the confirmation email. Try again."); }
-  }
-  if (status === "joined") return <div className={styles.waitlistInlineSuccess} role="status"><CheckCircle2 size={20} aria-hidden="true" /><span><strong>You are on the list.</strong> We will email you when YOVA is ready. You can unsubscribe at any time.</span></div>;
-  if (status === "limited") return <div className={styles.waitlistInlinePending} role="status"><Clock3 size={20} aria-hidden="true" /><span><strong>Try again later.</strong> To protect this inbox, YOVA cannot send another email today.</span></div>;
-  if (status === "pending") return <div className={styles.waitlistInlinePending} role="status"><Mail size={20} aria-hidden="true" /><span><strong>Request received.</strong> If this address still needs confirmation, check the inbox for an email about YOVA launch updates. Already confirmed addresses stay on the list.</span></div>;
-  return <form className={`${styles.landingWaitlistForm} ${compact ? styles.landingWaitlistCompact : ""}`} onSubmit={submit}>
-    <label htmlFor={`${idPrefix}-email`}>Email address</label><div><input id={`${idPrefix}-email`} type="email" inputMode="email" autoComplete="email" maxLength={254} required value={email} placeholder="you@example.com" onChange={(event) => setEmail(event.target.value)} /><button type="submit" disabled={!valid || !consent || !ageConfirmed || status === "submitting"}>{status === "submitting" ? "Sending..." : "Join the waitlist"}</button></div>
-    <label className={styles.waitlistConsent}><input type="checkbox" required checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>I confirm I am 13 or older.</span></label>
-    <label className={styles.waitlistConsent}><input type="checkbox" required checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>Email me when YOVA launches. I can unsubscribe at any time.</span></label>
-    <p className={styles.legalNote}>See how YOVA uses your email in the <a href="/privacy">Privacy Notice</a>.</p>{error && <p className={styles.formError} role="alert">{error}</p>}
-  </form>;
+function QuizQuestionPreview() {
+  const question = STUDY_PROFILE_QUESTIONS[2];
+  return <aside className={styles.questionPreview} aria-label="A question from the YOVA Study Profile">
+    <div className={styles.questionPreviewMeta}><span>A question from the profile</span><small>Question {question.number} of 14</small></div>
+    <div className={styles.questionPreviewProgress} aria-hidden="true"><span /></div>
+    <h2>{question.prompt}</h2>
+    <ol>{question.options.map((option, index) => <li key={option.id}><span>{String.fromCharCode(65 + index)}</span><p>{option.label}</p><i aria-hidden="true" /></li>)}</ol>
+    <p className={styles.questionPreviewNote}>Choose the answer that happens most often.</p>
+  </aside>;
 }
 
 function QuestionScreen({ index, selected, onSelect, headingRef }: { index: number; selected?: StudyProfileAnswerId; onSelect: (answerId: StudyProfileAnswerId) => void; headingRef: RefObject<HTMLHeadingElement | null> }) {
   const question = STUDY_PROFILE_QUESTIONS[index];
   const lastKey = String.fromCharCode(64 + question.options.length);
-  return <section className={styles.questionScreen} aria-labelledby="current-question"><h1 id="current-question" ref={headingRef} tabIndex={-1}>{question.prompt}</h1><p className={styles.questionHint}>Choose what is usually true for you, even if it is not ideal.</p><div className={styles.answerList} role="radiogroup" aria-label={`Answers for question ${question.number}`}>{question.options.map((option, optionIndex) => <button type="button" key={option.id} role="radio" data-option-index={optionIndex} className={selected === option.id ? styles.answerSelected : undefined} aria-checked={selected === option.id} tabIndex={selected === option.id || (!selected && optionIndex === 0) ? 0 : -1} onClick={() => onSelect(option.id)}><span className={styles.answerKey}>{String.fromCharCode(65 + optionIndex)}</span><span>{option.label}</span><span className={styles.answerCheck} aria-hidden="true"><Check size={14} /></span></button>)}</div><p className={styles.keyboardHint}>Keyboard: press 1 to {question.options.length}, A to {lastKey}, or use arrow keys</p></section>;
+  return <section className={styles.questionScreen} aria-labelledby="current-question"><h1 id="current-question" ref={headingRef} tabIndex={-1}>{question.prompt}</h1><p className={styles.questionHint}>Choose what happens most often.</p><div className={styles.answerList} role="radiogroup" aria-label={`Answers for question ${question.number}`}>{question.options.map((option, optionIndex) => <button type="button" key={option.id} role="radio" data-option-index={optionIndex} className={selected === option.id ? styles.answerSelected : undefined} aria-checked={selected === option.id} tabIndex={selected === option.id || (!selected && optionIndex === 0) ? 0 : -1} onClick={() => onSelect(option.id)}><span className={styles.answerKey}>{String.fromCharCode(65 + optionIndex)}</span><span>{option.label}</span><span className={styles.answerCheck} aria-hidden="true"><Check size={14} /></span></button>)}</div><p className={styles.keyboardHint}>Keyboard: press 1 to {question.options.length}, A to {lastKey}, or use arrow keys</p></section>;
 }
 
 function MetadataScreen({ headingRef, title, supporting, children }: { headingRef: RefObject<HTMLHeadingElement | null>; title: string; supporting: string; children: ReactNode }) {
