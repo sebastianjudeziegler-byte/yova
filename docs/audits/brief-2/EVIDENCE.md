@@ -15,23 +15,30 @@ proves a code path that no production learner can reach.
 functions, one table and one column. Probed the production project directly
 (read-only PostgREST calls, publishable key, correct named parameters):
 
-| Object | Production result |
-|---|---|
-| `read_plan_revision_context(target_plan_id)` | **404 PGRST202 — absent** |
-| `apply_plan_revision(actor_user_id, payload)` | **404 PGRST202 — absent** |
-| `plan_revision_session_fingerprint(s)` | **404 PGRST202 — absent** |
-| `initialize_plan_revision_id()` | **404 PGRST202 — absent** |
-| `signed_in_generation_readiness_v4()` *(control, earlier migration)* | 401 `42501` permission denied — **present** |
+| Object | Production result | Usable as evidence? |
+|---|---|---|
+| `plan_revisions` **table** | **404 PGRST205 — absent** | **yes — decisive** |
+| `read_plan_revision_context(target_plan_id)` | **404 PGRST202 — absent** | **yes** |
+| `apply_plan_revision(actor_user_id, payload)` | **404 PGRST202 — absent** | **yes** |
+| `plans` table *(control)* | 200 — **present** | yes |
+| `signed_in_generation_readiness_v4()` *(control, earlier migration)* | 401 `42501` permission denied — **present** | yes |
+| `plan_revision_session_fingerprint(s)` | 404 | no — composite-typed argument |
+| `initialize_plan_revision_id()` | 404 | **no — returns `trigger`** |
 
-The control matters: a function that exists but is not granted to `anon`
-answers `42501`, not `404`. The four Brief B functions answer `404`, so they
-are genuinely not in the schema — not merely ungranted.
+Two caveats, so the method is not over-read. PostgREST never exposes trigger
+functions, so `initialize_plan_revision_id` answers 404 whether or not it
+exists; the composite-argument function is unreliable for the same class of
+reason. Neither row is evidence, and neither is needed.
+
+The remaining rows are decisive. The `plan_revisions` table answers
+`PGRST205 Could not find the table` while the `plans` control answers 200 —
+a clean schema-level absence. The control *function* calibrates the function
+probes: one that exists but is revoked from `anon` answers `42501`, not
+`404`. So the `404` on `read_plan_revision_context` — which *is* granted to
+`authenticated` — means genuinely absent, not merely ungranted.
 
 The probed project is the one production serves: `www.yovaapp.com` ships
-`https://sbntgjvrvazcnlppnbzs.supabase.co` in its client chunks, which is the
-project probed above. The same migration also adds
-`plans.current_revision_id` and the `plan_revisions` table, so those are
-absent too.
+`https://sbntgjvrvazcnlppnbzs.supabase.co` in its client chunks.
 
 ### Finding 2 — what a learner hits, step by step
 
@@ -100,6 +107,89 @@ revision support.
 
 **This is the reusable lesson: a migration that adds a capability without
 bumping a readiness contract can be deployed-around silently.**
+
+### Finding 5 — full migration audit: only 202609090001 is missing
+
+Swept every object created by every merged migration against production, same
+probe method.
+
+**Tables — 36 probed, 1 absent.**
+
+| Result | Count | Detail |
+|---|---|---|
+| present | 35 | 200 or RLS-empty |
+| **absent** | **1** | `plan_revisions` — `PGRST205` — from `202609090001` |
+
+**Functions — 146 probed (deduplicated; 46 trigger functions and 1
+composite-argument function excluded as unprobeable), 3 reported absent, 2
+genuine.**
+
+| Function | Migration | Verdict |
+|---|---|---|
+| `read_plan_revision_context` | 202609090001 | **genuinely absent** |
+| `apply_plan_revision` | 202609090001 | **genuinely absent** |
+| `adjust_learning_plan` | 202608210001 | **false positive — see below** |
+
+`adjust_learning_plan` is *correctly* absent. Migration
+`202608230007_route_aware_plan_adjustment.sql` renames it to
+`adjust_learning_plan_without_study_routes` and adds
+`adjust_learning_plan_with_routes`. Both successors were probed and both are
+present (`42501`). The parser keys functions by their name at creation time
+and does not follow later `alter function ... rename to`, so this is a
+limitation of the audit method, not a production gap.
+
+**Conclusion: `202609090001_living_plan_revisions.sql` is the only merged
+migration missing from production.** Every other migration is applied.
+
+### The guardrails
+
+**1. The checklist.** `docs/VERCEL-CHECKLIST.md` gains a *Living-plan revision
+release order* section naming both `202609090001` and the new
+`202609110001`, with the incident recorded so the reason survives.
+
+**2. A readiness contract that can go red.** New migration
+`202609110001_living_plan_revision_readiness.sql` adds
+`signed_in_generation_readiness_v5()`, layering `livingPlanRevision` onto the
+v4 contract: both RPCs, the history table, `plans.current_revision_id`, the
+`plans_initial_revision` trigger, and the write boundary (the learner reads
+revision history and never writes it; only the signing server applies one).
+`scripts/readiness-capability-probe.mjs` and
+`src/lib/supabase/signed-in-generation-readiness.ts` both move to v5 and
+contract `202609110001`, so **`readiness:production` now fails closed** — and
+so does the deployed app's own status route — against a database in
+production's current state.
+
+One design note worth keeping: existence is resolved *before* any privilege
+lookup. `has_table_privilege` and `has_function_privilege` raise when their
+object is absent, and PostgreSQL does not promise to short-circuit an `and`
+chain. A readiness probe must return false, never throw — otherwise the probe
+fails in exactly the case it exists to report.
+
+**3. Seam coverage.**
+`supabase/tests/database/202609110001_living_plan_revision_readiness.test.sql`
+runs under `supabase test db --local`, which CI executes against a database
+built by replaying every migration — not the in-memory preview path. Nine
+cases: the service-role boundary, the contract version, the capability true on
+a migrated database, v4's placement boundary carried through unchanged, and
+five absence cases that each drop one object inside a savepoint and assert the
+capability flips to **false**. That last group is the point — a contract that
+cannot go red is not a contract.
+
+### Red/green evidence
+
+| Test | Before | After |
+|---|---|---|
+| `readiness-capability-probe.test.ts` — "fails closed when the database has no living-plan revision support" | **FAIL** — returned `{passed: true, detail: "...contract 20260907160001 is available"}` against `livingPlanRevision: false` | **PASS** |
+| `signed-in-generation-readiness.test.ts` — "is unavailable when the database has no living-plan revision support" | **FAIL** — resolved `"ready"` | **PASS** |
+
+Scoped run after the change: **84 passed, 1 skipped** across the readiness,
+status-route, plan-revision and adjust-route suites. `tsc --noEmit` clean,
+`pnpm lint` clean.
+
+**Not verified locally: the pgtap test.** Docker is unavailable on this
+machine, so `supabase db start` cannot run, and per the standing rules
+database verification belongs in GitHub Actions. The nine cases are written
+but have not been executed — CI is their first run.
 
 ### What this means for Brief 2
 

@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   adminConfigured: true,
   invitationTableError: null as { code: string } | null,
   generationReadiness: {
-    contractVersion: "20260907160001",
+    contractVersion: "202609110001",
     ready: true,
     studyRoutesSchema: true,
     planSessionsRoutePointer: true,
@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     methodEligibilityV3Boundary: true,
       placementEvidenceBoundary: true,
       unansweredCompletionFeedback: true,
+      livingPlanRevision: true,
   } as Record<string, unknown> | null,
   generationReadinessError: null as { code: string } | null,
   studyProfileReadiness: {
@@ -92,7 +93,7 @@ describe("system status tester-access readiness", () => {
     mocks.adminConfigured = true;
     mocks.invitationTableError = null;
     mocks.generationReadiness = {
-      contractVersion: "20260907160001",
+      contractVersion: "202609110001",
       ready: true,
       studyRoutesSchema: true,
       planSessionsRoutePointer: true,
@@ -101,6 +102,7 @@ describe("system status tester-access readiness", () => {
       methodEligibilityV3Boundary: true,
       placementEvidenceBoundary: true,
       unansweredCompletionFeedback: true,
+      livingPlanRevision: true,
     };
     mocks.generationReadinessError = null;
     mocks.studyProfileReadiness = {
@@ -250,7 +252,7 @@ describe("system status tester-access readiness", () => {
 
     mocks.generationReadinessError = null;
     mocks.generationReadiness = {
-      contractVersion: "20260907160001",
+      contractVersion: "202609110001",
       ready: true,
       studyRoutesSchema: true,
       planSessionsRoutePointer: true,

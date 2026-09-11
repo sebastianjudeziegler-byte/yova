@@ -65,13 +65,35 @@ that probe confirms durable reservations for every OpenAI path, material
 upload quotas, protected material chunks, bounded untrusted inserts, and the
 tutor write boundary.
 
+### Living-plan revision release order
+
+Apply `202609090001_living_plan_revisions.sql` and then
+`202609110001_living_plan_revision_readiness.sql` to Production **before**
+deploying any build that offers **Adjust** on a saved plan. The first
+migration adds `plans.current_revision_id`, the `plan_revisions` history
+table, and the `read_plan_revision_context` / `apply_plan_revision` RPCs that
+every saved-plan change goes through. The second exposes
+`signed_in_generation_readiness_v5`, which folds those objects into the
+signed-in generation contract.
+
+This pairing exists because of a real incident. `202609090001` shipped on
+2026-09-09 without a readiness contract and was never applied to Production.
+`readiness:production` stayed green, the browser journey stayed green — it
+runs only the development-preview path, which never touches the database —
+and every learner who opened Adjust got a 503 from a missing RPC. See
+`docs/audits/brief-2/EVIDENCE.md`.
+
+**Any migration that adds a capability the application calls must also extend
+a readiness contract the production probe checks.** A capability the probe
+cannot see is a capability that can be deployed around silently.
+
 Then configure `SUPABASE_SECRET_KEY`, `YOVA_DRAFT_RECEIPT_SECRET`, and an explicit `YOVA_PERSONALIZATION_ROLLOUT_PERCENT` decision, and run:
 
 ```bash
 pnpm readiness:production
 ```
 
-This command contacts the configured Supabase project and fails unless the live database returns the current capability contract. It does not create an account, plan, session, or activation permit. `pnpm readiness:configuration` checks only non-secret configuration shapes for CI and is explicitly not release approval. Vercel Production builds run the same strict live gate automatically. Vercel Preview and ordinary local/CI builds remain compile checks, state that they make no production-readiness claim, and do not require Production secrets.
+This command contacts the configured Supabase project and fails unless the live database returns the current capability contract (`202609110001`). It does not create an account, plan, session, or activation permit. `pnpm readiness:configuration` checks only non-secret configuration shapes for CI and is explicitly not release approval. Vercel Production builds run the same strict live gate automatically. Vercel Preview and ordinary local/CI builds remain compile checks, state that they make no production-readiness claim, and do not require Production secrets.
 
 ### Account-data export release order
 

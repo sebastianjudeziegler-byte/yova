@@ -22,6 +22,7 @@ describe("signed-in generation release capability probe", () => {
       methodEligibilityV3Boundary: true,
       placementEvidenceBoundary: true,
       unansweredCompletionFeedback: true,
+      livingPlanRevision: true,
     }));
 
     await expect(probeSignedInGenerationDatabase({
@@ -34,7 +35,7 @@ describe("signed-in generation release capability probe", () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://project.supabase.co/rest/v1/rpc/signed_in_generation_readiness_v4",
+      "https://project.supabase.co/rest/v1/rpc/signed_in_generation_readiness_v5",
       expect.objectContaining({
         method: "POST",
         body: "{}",
@@ -64,6 +65,33 @@ describe("signed-in generation release capability probe", () => {
     });
   });
 
+  // Brief 2 precondition: migration 202609090001 shipped without a readiness
+  // contract, so `readiness:production` stayed green against a database with
+  // no plan-revision support and learners hit a 503 instead.
+  it("fails closed when the database has no living-plan revision support", async () => {
+    const result = await probeSignedInGenerationDatabase({
+      supabaseUrl: "https://project.supabase.co",
+      supabaseSecretKey: "server-secret-value",
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+        contractVersion: SIGNED_IN_GENERATION_CONTRACT_VERSION,
+        ready: true,
+        studyRoutesSchema: true,
+        planSessionsRoutePointer: true,
+        requiredRouteRpcs: true,
+        expandedMethodAgencyBoundary: true,
+        methodEligibilityV3Boundary: true,
+        placementEvidenceBoundary: true,
+        unansweredCompletionFeedback: true,
+        livingPlanRevision: false,
+      })),
+    });
+
+    expect(result).toEqual({
+      passed: false,
+      detail: expect.stringContaining("living-plan revision"),
+    });
+  });
+
   it("uses a Bearer header only for a legacy service-role JWT", async () => {
     const legacyKey = "header.payload.signature";
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
@@ -76,6 +104,7 @@ describe("signed-in generation release capability probe", () => {
       methodEligibilityV3Boundary: true,
       placementEvidenceBoundary: true,
       unansweredCompletionFeedback: true,
+      livingPlanRevision: true,
     }));
 
     await probeSignedInGenerationDatabase({
