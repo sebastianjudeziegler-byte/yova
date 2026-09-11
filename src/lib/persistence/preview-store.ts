@@ -9,7 +9,7 @@ import {
   readSessionEvidenceSnapshot,
   readSessionPendingRepair,
 } from "@/lib/learning/session-resume";
-import { LEARNER_ANSWER_COUNT } from "@/lib/personalization/learner-profile";
+import { LEARNER_ANSWER_COUNT, restoreOnboardingAnswers } from "@/lib/personalization/learner-profile";
 import {
   PERSONALIZATION_STATE_ANSWER_INDEX,
   readPersonalizationStateValue,
@@ -146,5 +146,6 @@ function normalizePreviewAnswers(answers: readonly unknown[]) {
   normalized[PERSONALIZATION_STATE_ANSWER_INDEX] = rawState?.trim()
     ? serializePersonalizationState(readPersonalizationStateValue(rawState))
     : "";
-  return normalized;
+  // One-time migration: a snapshot saved by position gains the ID-keyed record.
+  return restoreOnboardingAnswers(normalized);
 }

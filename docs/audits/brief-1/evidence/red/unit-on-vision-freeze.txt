@@ -1,0 +1,150 @@
+
+ RUN  v4.1.10 /private/tmp/yova-brief1-red
+
+ ❯ src/lib/routing/route-for-session.test.ts (0 test)
+ ❯ src/lib/openai/shape-slot-generator.test.ts (0 test)
+ ❯ src/lib/server/shape-slot-handler.test.ts (0 test)
+ ❯ src/lib/session-shapes/shape-c.test.ts (0 test)
+ ❯ src/lib/session-shapes/source-context.test.ts (0 test)
+ ❯ src/lib/routing/session-route.test.ts (0 test)
+ ❯ src/lib/practice/compose-practice.test.ts (0 test)
+ ❯ src/lib/session-shapes/shape-a.test.ts (0 test)
+ ❯ src/lib/routing/personalization-note.test.ts (0 test)
+ ❯ src/lib/routing/personalization-delta.test.ts (0 test)
+ ❯ src/lib/onboarding/answers.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 11 ⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/onboarding/answers.test.ts [ src/lib/onboarding/answers.test.ts ]
+Error: Cannot find module './answers' imported from /private/tmp/yova-brief1-red/src/lib/onboarding/answers.test.ts
+ ❯ src/lib/onboarding/answers.test.ts:4:1
+      2| import { onboardingQuestions as legacyQuestions } from "@/lib/sample-d…
+      3| import { PERSONALIZATION_STATE_ANSWER_INDEX } from "@/lib/personalizat…
+      4| import {
+       | ^
+      5|   emptyOnboardingAnswers,
+      6|   hasStoredOnboardingAnswers,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  src/lib/openai/shape-slot-generator.test.ts [ src/lib/openai/shape-slot-generator.test.ts ]
+Error: Cannot find package '@/lib/session-shapes/slots-schema' imported from /private/tmp/yova-brief1-red/src/lib/openai/shape-slot-generator.test.ts
+ ❯ src/lib/openai/shape-slot-generator.test.ts:3:1
+      1| import { describe, expect, it, vi } from "vitest";
+      2| import type { PracticeQuestion } from "@/lib/practice/compose-practice…
+      3| import { SHAPE_SLOT_HONEST_ERROR, type CompareRequest, type DirectionR…
+       | ^
+      4|
+      5| vi.mock("server-only", () => ({}));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  src/lib/practice/compose-practice.test.ts [ src/lib/practice/compose-practice.test.ts ]
+Error: Cannot find module './compose-practice' imported from /private/tmp/yova-brief1-red/src/lib/practice/compose-practice.test.ts
+ ❯ src/lib/practice/compose-practice.test.ts:2:1
+      1| import { describe, expect, it } from "vitest";
+      2| import {
+       | ^
+      3|   composePracticeRound,
+      4|   keyPointsForRound,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  src/lib/routing/personalization-delta.test.ts [ src/lib/routing/personalization-delta.test.ts ]
+Error: Cannot find package '@/lib/onboarding/answers' imported from /private/tmp/yova-brief1-red/src/lib/routing/personalization-delta.test.ts
+ ❯ src/lib/routing/personalization-delta.test.ts:3:1
+      1| import { writeFileSync } from "node:fs";
+      2| import { describe, expect, it } from "vitest";
+      3| import { emptyOnboardingAnswers, withOnboardingAnswer, type Onboarding…
+       | ^
+      4| import type { OnboardingQuestionId } from "@/lib/onboarding/questions";
+      5| import { shapeASteps } from "@/lib/session-shapes/shape-a";
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  src/lib/routing/personalization-note.test.ts [ src/lib/routing/personalization-note.test.ts ]
+Error: Cannot find package '@/lib/onboarding/answers' imported from /private/tmp/yova-brief1-red/src/lib/routing/personalization-note.test.ts
+ ❯ src/lib/routing/personalization-note.test.ts:2:1
+      1| import { describe, expect, it } from "vitest";
+      2| import { emptyOnboardingAnswers, withOnboardingAnswer } from "@/lib/on…
+       | ^
+      3| import { personalizationNote } from "./personalization-note";
+      4| import { routeSession, type RoutingInput } from "./session-route";
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  src/lib/routing/route-for-session.test.ts [ src/lib/routing/route-for-session.test.ts ]
+Error: Cannot find package '@/lib/onboarding/answers' imported from /private/tmp/yova-brief1-red/src/lib/routing/route-for-session.test.ts
+ ❯ src/lib/routing/route-for-session.test.ts:4:1
+      2| import type { LearningMaterial, LearningPlanSession } from "@/lib/doma…
+      3| import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
+      4| import { emptyOnboardingAnswers } from "@/lib/onboarding/answers";
+       | ^
+      5| import { routingEvidenceForTopic, routingInputForSession, sessionTopic…
+      6|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  src/lib/routing/session-route.test.ts [ src/lib/routing/session-route.test.ts ]
+Error: Cannot find package '@/lib/onboarding/answers' imported from /private/tmp/yova-brief1-red/src/lib/routing/session-route.test.ts
+ ❯ src/lib/routing/session-route.test.ts:3:1
+      1| import { describe, expect, it } from "vitest";
+      2| import { CORE_METHOD_CATALOG, LEARNING_TASK_TYPES, type LearningTaskTy…
+      3| import { emptyOnboardingAnswers, withOnboardingAnswer, type Onboarding…
+       | ^
+      4| import { ONBOARDING_QUESTIONS, type OnboardingQuestionId } from "@/lib…
+      5| import {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  src/lib/server/shape-slot-handler.test.ts [ src/lib/server/shape-slot-handler.test.ts ]
+Error: Cannot find package '@/lib/openai/shape-slot-generator' imported from /private/tmp/yova-brief1-red/src/lib/server/shape-slot-handler.test.ts
+ ❯ src/lib/server/shape-slot-handler.test.ts:2:1
+      1| import { describe, expect, it, vi } from "vitest";
+      2| import { ShapeSlotGenerationError } from "@/lib/openai/shape-slot-gene…
+       | ^
+      3| import { SHAPE_SLOT_HONEST_ERROR } from "@/lib/session-shapes/slots-sc…
+      4|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  src/lib/session-shapes/shape-a.test.ts [ src/lib/session-shapes/shape-a.test.ts ]
+Error: Cannot find package '@/lib/onboarding/answers' imported from /private/tmp/yova-brief1-red/src/lib/session-shapes/shape-a.test.ts
+ ❯ src/lib/session-shapes/shape-a.test.ts:2:1
+      1| import { describe, expect, it } from "vitest";
+      2| import { emptyOnboardingAnswers, withOnboardingAnswer } from "@/lib/on…
+       | ^
+      3| import { routeSession, type RoutingInput } from "@/lib/routing/session…
+      4| import {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  src/lib/session-shapes/shape-c.test.ts [ src/lib/session-shapes/shape-c.test.ts ]
+Error: Cannot find package '@/lib/onboarding/answers' imported from /private/tmp/yova-brief1-red/src/lib/session-shapes/shape-c.test.ts
+ ❯ src/lib/session-shapes/shape-c.test.ts:2:1
+      1| import { describe, expect, it } from "vitest";
+      2| import { emptyOnboardingAnswers, withOnboardingAnswer } from "@/lib/on…
+       | ^
+      3| import type { PracticeQuestion } from "@/lib/practice/compose-practice…
+      4| import { routeSession, type RoutingInput } from "@/lib/routing/session…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+ FAIL  src/lib/session-shapes/source-context.test.ts [ src/lib/session-shapes/source-context.test.ts ]
+Error: Cannot find module './source-context' imported from /private/tmp/yova-brief1-red/src/lib/session-shapes/source-context.test.ts
+ ❯ src/lib/session-shapes/source-context.test.ts:4:1
+      2| import type { LearningMaterial, LearningPlan } from "@/lib/domain";
+      3| import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
+      4| import { baselineSourceForTopic } from "./source-context";
+       | ^
+      5|
+      6| const materialId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯
+
+
+ Test Files  11 failed (11)
+      Tests  no tests
+   Start at  18:07:57
+   Duration  243ms (transform 321ms, setup 0ms, import 0ms, tests 0ms, environment 1ms)
+

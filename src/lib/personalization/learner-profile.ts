@@ -3,6 +3,14 @@ import {
   onboardingAnswerLabel,
 } from "@/lib/sample-data";
 import {
+  ONBOARDING_ANSWERS_ANSWER_INDEX,
+  onboardingAnswersFromLegacyArray,
+  parseOnboardingAnswers,
+  readOnboardingAnswers,
+  serializeOnboardingAnswers,
+  writeOnboardingAnswers,
+} from "@/lib/onboarding/answers";
+import {
   completedStudyProfileSnapshot,
   PERSONALIZATION_STATE_ANSWER_INDEX,
   readPersonalizationStateFromAnswers,
@@ -77,7 +85,8 @@ export const DEEP_PROFILE_QUESTIONS = [
 
 export const FREEFORM_LEARNING_CONTEXT_INDEX = 14;
 export const OBSERVATION_CORRECTION_INDEX = 15;
-export const LEARNER_ANSWER_COUNT = PERSONALIZATION_STATE_ANSWER_INDEX + 1;
+/** Deep profile (10–15), personalization state (16) and the ID-keyed onboarding record (17). */
+export const LEARNER_ANSWER_COUNT = Math.max(PERSONALIZATION_STATE_ANSWER_INDEX, ONBOARDING_ANSWERS_ANSWER_INDEX) + 1;
 
 export type DeepProfileAnswerId =
   (typeof DEEP_PROFILE_QUESTIONS)[number]["options"][number]["id"];
@@ -136,6 +145,8 @@ export type ExpandedLearnerContext = {
 
 type StoredAdditionalContext = {
   schemaVersion: 3;
+  /** ID-keyed onboarding answers; absent on profiles saved before Brief 1 and migrated on read. */
+  onboarding?: string;
   functionalSupportNeed: string;
   initialContext: string;
   processingPreference: string;
@@ -208,6 +219,7 @@ export function encodeAdditionalLearnerContext(answers: string[]) {
     generationContext: personalizationGenerationContext(
       readPersonalizationStateFromAnswers(answers),
     ),
+    onboarding: serializeOnboardingAnswers(readOnboardingAnswers(answers)),
   };
   return JSON.stringify(stored);
 }
@@ -277,19 +289,19 @@ export function personalizationGenerationContext(state: PersonalizationState) {
 
 export function mergeStoredAdditionalContext(answers: string[], value: string | null) {
   const merged = Array.from({ length: LEARNER_ANSWER_COUNT }, (_, index) => answers[index] ?? "");
-  if (!value) return merged;
+  if (!value) return restoreOnboardingAnswers(merged, null);
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(value);
   } catch {
     merged[9] = value.slice(0, 300);
-    return merged;
+    return restoreOnboardingAnswers(merged, null);
   }
 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     merged[9] = value.slice(0, 300);
-    return merged;
+    return restoreOnboardingAnswers(merged, null);
   }
 
   const stored = parsed as Record<string, unknown>;
@@ -304,7 +316,18 @@ export function mergeStoredAdditionalContext(answers: string[], value: string | 
   merged[PERSONALIZATION_STATE_ANSWER_INDEX] = normalizedPersonalizationStateValue(
     readStoredText(stored, "personalizationState"),
   );
-  return merged;
+  return restoreOnboardingAnswers(merged, stored.onboarding);
+}
+
+/**
+ * The ID-keyed onboarding record is the authority for the ten baseline
+ * questions. A stored record is restored as-is; a profile saved before the
+ * record existed is migrated from its legacy positions exactly once here, so
+ * no later reader has to know the positions.
+ */
+export function restoreOnboardingAnswers(answers: string[], storedRecord: unknown = answers[ONBOARDING_ANSWERS_ANSWER_INDEX]) {
+  const record = parseOnboardingAnswers(storedRecord) ?? onboardingAnswersFromLegacyArray(answers);
+  return writeOnboardingAnswers(answers, record);
 }
 
 export function functionalSupportNeedFromAnswer(value: string | undefined) {

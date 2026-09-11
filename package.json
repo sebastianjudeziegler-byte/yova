@@ -15,6 +15,7 @@
     "test": "vitest run && node --test --test-concurrency=1 scripts/live-gate/*.test.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:baseline": "playwright test --config playwright.baseline.config.ts",
     "test:e2e:auth": "YOVA_E2E_PASSWORD_AUTH=1 playwright test e2e/public-auth.spec.ts e2e/cloud-sync-recovery.spec.ts",
     "test:e2e:headed": "playwright test --headed",
     "eval:plans": "node scripts/run-plan-evaluations.mjs",

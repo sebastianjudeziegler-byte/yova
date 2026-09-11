@@ -149,6 +149,20 @@ jobs:
         run: |
           if test -d test-results; then cp -R test-results artifacts/quality/core-browser; fi
 
+      # Baseline session shapes (docs/redesign): the flag-on server and its
+      # own cases, kept separate so the pre-baseline suite above runs
+      # unchanged and this step's result is visible on its own.
+      - name: Run baseline session journey
+        if: ${{ !cancelled() }}
+        run: pnpm test:e2e:baseline --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/baseline-browser.json
+
+      - name: Preserve baseline browser evidence
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/quality/baseline-browser; fi
+
       - name: Run public authentication journey
         if: ${{ !cancelled() }}
         run: pnpm test:e2e:auth --reporter=list,json
@@ -197,11 +211,27 @@ jobs:
           # Three serial release samples; ordinary main/PR gates retain one.
           LIVE_GATE_RUNS: ${{ github.head_ref == 'codex/brief-0-5-grader-and-validators' && '3' || '1' }}
 
-      - name: Gate Brief B on regressions versus retained main
-        if: ${{ !cancelled() && github.head_ref == 'codex/brief-b-living-plan' }}
+      # The standing rules make a regression versus main the only live-gate
+      # condition that blocks a merge. This step was pinned to one brief's
+      # branch name, so it was skipped on every other branch and the rule was
+      # never actually enforced by CI. It now runs for every ref.
+      - name: Gate on regressions versus retained main
+        if: ${{ !cancelled() }}
         run: |
+          # The comparison table must reach the run page whether or not the
+          # gate passes. The step runs under `bash -e`, so a non-zero exit
+          # from the comparator used to abort before the table was published,
+          # hiding it in exactly the case that needs reading.
+          set +e
           node scripts/compare-release-ci.mjs
-          cat artifacts/quality/regression-comparison.md >> "$GITHUB_STEP_SUMMARY"
+          status=$?
+          set -e
+          if test -f artifacts/quality/regression-comparison.md; then
+            cat artifacts/quality/regression-comparison.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The comparator produced no table; see the step log." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $status
 
       - name: Publish full live gate evidence
         if: always()

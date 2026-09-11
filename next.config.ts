@@ -64,7 +64,9 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const nextConfig: NextConfig = {
-  distDir: process.env.YOVA_E2E === "1" ? ".next-e2e" : ".next",
+  // Two browser-test servers (flag off / flag on) run from one checkout and
+  // each needs its own build directory; see playwright.config.ts.
+  distDir: process.env.YOVA_NEXT_DIST_DIR?.trim() || (process.env.YOVA_E2E === "1" ? ".next-e2e" : ".next"),
   reactStrictMode: true,
   poweredByHeader: false,
   allowedDevOrigins: ["localhost", "127.0.0.1", ...localNetworkOrigins],

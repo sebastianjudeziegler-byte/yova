@@ -3456,3 +3456,18 @@ h1, h2, h3, p { margin-top: 0; }
 .plan-revision-preview fieldset { padding: 14px; border: 1px solid #c7ced7; border-radius: 10px; margin-top: 16px; min-width: 0; }
 .knowledge-topic-list a { overflow-wrap: anywhere; }
 @media (max-width: 640px) { .plan-revision-preview, .plan-revision-receipt { padding: 16px; } .plan-revision-comparison, .plan-revision-session-controls { grid-template-columns: minmax(0, 1fr); gap: 8px; } .plan-topic-actions .button { min-height: 44px; } }
+
+/* Baseline onboarding and profile editor (docs/redesign/03-ONBOARDING.md). */
+.onboarding-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; }
+.option.selected { border-color: var(--blue); background: #e9f0ff; }
+.baseline-profile-editor { background: white; border: 1px solid var(--border); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px; }
+.baseline-profile-editor header h2 { margin: 6px 0 4px; font-size: 20px; }
+.baseline-profile-editor header p { margin: 0; color: var(--muted); }
+.baseline-profile-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.baseline-profile-field { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 0; min-width: 0; }
+.baseline-profile-field > span, .baseline-profile-field legend { font-weight: 600; color: var(--navy); font-size: 14px; }
+.baseline-profile-field select { border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; font: inherit; background: white; }
+.baseline-profile-field small { color: var(--muted); }
+.baseline-profile-checks { display: flex; flex-direction: column; gap: 6px; }
+.baseline-profile-checks label { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+.baseline-profile-note { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 12px 14px; border-radius: 12px; background: #f3f0ff; border: 1px solid #e2dbff; }

@@ -1,0 +1,12 @@
+ Test Files  465 passed | 21 skipped (486)
+      Tests  4182 passed | 87 skipped (4269)
+   Start at  22:56:28
+   Duration  20.32s (transform 13.33s, setup 0ms, import 59.07s, tests 28.16s, environment 55ms)
+
+== runner ==
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 106.098375

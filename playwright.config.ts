@@ -19,13 +19,17 @@ export default defineConfig({
     video: "retain-on-failure",
   },
   projects: [
+    // baseline-*.spec.ts run against the flag-on server via
+    // playwright.baseline.config.ts (pnpm test:e2e:baseline).
     {
       name: "desktop-chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: /(^|\/)baseline-[^/]*\.spec\.ts$/,
     },
     {
       name: "mobile-chromium",
       use: { ...devices["Pixel 7"] },
+      testIgnore: /(^|\/)baseline-[^/]*\.spec\.ts$/,
     },
   ],
   webServer: externalBaseURL ? undefined : {
@@ -49,6 +53,8 @@ export default defineConfig({
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: passwordAuthMode ? "1x00000000000000000000AA" : "",
       SITE_URL: baseURL,
       YOVA_E2E: "1",
+      // The baseline session shapes have their own server and config.
+      YOVA_BASELINE_SESSION_SHAPES: "false",
     },
   },
 });

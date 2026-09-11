@@ -1,4 +1,5 @@
 import { onboardingQuestions } from "@/lib/sample-data";
+import { onboardingQuestion } from "@/lib/onboarding/questions";
 import {
   DEEP_PROFILE_QUESTIONS,
   expandedLearnerContextFromAnswers,
@@ -17,7 +18,7 @@ export function buildPlanProfileSummary(answers: string[]) {
     return [`${onboardingQuestions[index].prompt} ${answer}`];
   }) : [];
   if (expanded.functionalSupportNeed) {
-    facts.push(`${onboardingQuestions[8].prompt} ${expanded.functionalSupportNeed}`);
+    facts.push(`${onboardingQuestion("support_needs").prompt} ${expanded.functionalSupportNeed}`);
   }
   const deepAnswers = [
     expanded.processingPreference,

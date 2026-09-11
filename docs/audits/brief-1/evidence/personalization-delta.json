@@ -1,0 +1,103 @@
+{
+  "topic": {
+    "taskType": "conceptual_learning",
+    "blockKind": "learn",
+    "evidence": "not_assessed",
+    "hasSource": true,
+    "topicHasProblems": false
+  },
+  "P1": {
+    "shape": "A",
+    "variant": "standard",
+    "method": "Concept Mapping",
+    "entry": "study_full",
+    "produceBeforeStudy": false,
+    "workedStructureBeforeProduce": true,
+    "produceStep": "concept_map",
+    "steps": [
+      "direct",
+      "away",
+      "worked_structure",
+      "produce",
+      "compare",
+      "repair",
+      "end"
+    ],
+    "timerMinutes": 11,
+    "questionCap": 5,
+    "weighting": "terms_first",
+    "practiceRoundCeiling": 4,
+    "instructionStyle": "plain_restated",
+    "stoppingPoints": "after_each_step",
+    "visibility": "silent",
+    "personalizationNote": {
+      "ruleId": "L3.q5.concrete_example",
+      "sentence": "Because you said a concrete example helps most, YOVA showed the structure before asking you to produce."
+    },
+    "ruleIds": [
+      "L1.conceptual_learning.learn",
+      "L2.not_assessed",
+      "L3.q5.concrete_example",
+      "L3.q6.map_it",
+      "L4.q2.minutes_10_15",
+      "L4.q2.short_band_question_cap",
+      "L4.q3.very_often",
+      "L4.q7.gist_leaning",
+      "L4.q9.shorter_sections",
+      "L4.q9.simpler_repeated_instructions",
+      "L4.q1.evening",
+      "L4.q10.forget_during_tests",
+      "L4.timer_resolved",
+      "L5.q4.exact_guidance",
+      "C6.rule_ids_recorded"
+    ]
+  },
+  "P2": {
+    "shape": "A",
+    "variant": "standard",
+    "method": "Feynman Technique",
+    "entry": "study_full",
+    "produceBeforeStudy": true,
+    "workedStructureBeforeProduce": false,
+    "produceStep": "typed_explanation",
+    "steps": [
+      "produce",
+      "direct",
+      "away",
+      "compare",
+      "repair",
+      "end"
+    ],
+    "timerMinutes": 55,
+    "questionCap": 8,
+    "weighting": "relationships_first",
+    "practiceRoundCeiling": 3,
+    "instructionStyle": "standard",
+    "stoppingPoints": "standard",
+    "visibility": "chooser",
+    "personalizationNote": {
+      "ruleId": "L3.q5.try_then_feedback",
+      "sentence": "Because you said trying first helps most, you produced before studying and then compared."
+    },
+    "ruleIds": [
+      "L1.conceptual_learning.learn",
+      "L2.not_assessed",
+      "L3.q5.try_then_feedback",
+      "L3.q6.explain_back",
+      "L4.q2.minutes_45_60",
+      "L4.q3.rarely",
+      "L4.q7.detail_leaning",
+      "L4.q1.morning",
+      "L4.timer_resolved",
+      "L5.q4.learner_choice",
+      "C6.rule_ids_recorded"
+    ]
+  },
+  "differingFields": [
+    "entry",
+    "produceStep",
+    "timerMinutes",
+    "questionCountOrWeighting",
+    "instructionStyle"
+  ]
+}
