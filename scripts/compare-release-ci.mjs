@@ -3,7 +3,7 @@
 // that blocks a merge. Runs for every ref; the scoped lists below remain the
 // stricter per-case rules recorded during Brief B.
 import { readFileSync, writeFileSync } from "node:fs";
-import { canonicalBrowserCaseName, compareLiveReports } from "./live-gate/regression.mjs";
+import { canonicalBrowserCaseName, classifyComparisonOutcome, compareLiveReports } from "./live-gate/regression.mjs";
 import { normalizeBrowserReport } from "./live-gate/core.mjs";
 if (!process.env.GITHUB_ACTIONS) throw new Error("Release comparison runs only in GitHub Actions.");
 const read = path => JSON.parse(readFileSync(path, "utf8"));
@@ -42,15 +42,27 @@ const browser = compareLiveReports({ rows: mainBrowser.rows.map(row => ({ ...row
 });
 if (normalized.errors.length) browser.regressions.push({ id: "browser-runner", reason: JSON.stringify(normalized.errors) });
 const rows = [...live.rows.map(row => ({ ...row, suite: "live" })), ...browser.rows.map(row => ({ ...row, suite: "browser" }))];
-const failures = [...live.regressions, ...browser.regressions];
-const output = { mainCommit: main.commit, branchCommit: after.commit, liveCounts: after.counts, browserFlakes, regressions: failures, rows };
+// Carry each live regression's own failure text so the outcome can tell a
+// provider outage apart from a branch defect.
+const liveDetail = new Map((after.rows ?? []).map(row => [row.id, row.detail ?? ""]));
+const failures = [
+  ...live.regressions.map(row => ({ ...row, suite: "live", detail: liveDetail.get(row.id) ?? "" })),
+  ...browser.regressions.map(row => ({ ...row, suite: "browser", detail: row.reason ?? "" })),
+];
+const verdict = classifyComparisonOutcome({ counts: after.counts, regressions: failures });
+const output = { mainCommit: main.commit, branchCommit: after.commit, liveCounts: after.counts, browserFlakes, outcome: verdict.outcome, outcomeReason: verdict.reason, regressions: failures, rows };
 writeFileSync("artifacts/quality/regression-comparison.json", JSON.stringify(output, null, 2));
 const rate = row => `${row.passes} pass / ${row.failures} fail / ${row.unavailable} unavailable`;
 const escape = text => String(text).replaceAll("|", "\\|").replaceAll("\n", " ");
+const heading = { passed: "No regressions versus main", blocked: "BLOCKED — regression versus main", inconclusive: "INCONCLUSIVE — re-run the gate" }[verdict.outcome];
 writeFileSync("artifacts/quality/regression-comparison.md", [
-  `# Release comparison: ${failures.length ? "BLOCKED" : "No regressions versus main"}`, "",
+  `# Release comparison: ${heading}`, "",
+  verdict.reason, "",
   `Main ${main.commit}; branch ${after.commit}. Raw live counts: ${JSON.stringify(after.counts)}.`, "",
+  ...(verdict.outcome === "inconclusive" ? ["Inconclusive blocks the merge exactly as a regression does. It reports that this sample cannot answer the question, not that the branch is clean.", ""] : []),
+  ...(verdict.providerBlocked.length ? [`Blocking cases whose own failure text shows a provider error: ${verdict.providerBlocked.length}.`, ""] : []),
   "| Case | Main | Branch | Disposition |", "| --- | --- | --- | --- |",
   ...rows.filter(row => row.blocks || row.main.failures || row.branch.failures || row.branch.unavailable).map(row => `| ${escape(row.id)} | ${rate(row.main)} | ${rate(row.branch)} | ${escape(row.reason)} |`), "",
 ].join("\n"));
-process.exitCode = failures.length ? 1 : 0;
+// passed 0, blocked 1, inconclusive 2. Only passed is green.
+process.exitCode = verdict.exitCode;
