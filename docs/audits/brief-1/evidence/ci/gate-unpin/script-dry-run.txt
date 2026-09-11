@@ -1,0 +1,9 @@
+Dry run of scripts/compare-release-ci.mjs with run 34534969409 live evidence and a stub browser.json.
+
+live rows: 77
+live blocking regressions: 0
+mainCommit: c7b3ca99964524cefc04437b7236b37fe8fe2666
+branchCommit: f430b6165e33c2f2073c76472b737dc51df60108
+
+The browser half is not meaningful here: browser.json is produced by the
+core journey step in CI and was stubbed empty for this mechanical check.

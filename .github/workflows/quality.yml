@@ -211,8 +211,12 @@ jobs:
           # Three serial release samples; ordinary main/PR gates retain one.
           LIVE_GATE_RUNS: ${{ github.head_ref == 'codex/brief-0-5-grader-and-validators' && '3' || '1' }}
 
-      - name: Gate Brief B on regressions versus retained main
-        if: ${{ !cancelled() && github.head_ref == 'codex/brief-b-living-plan' }}
+      # The standing rules make a regression versus main the only live-gate
+      # condition that blocks a merge. This step was pinned to one brief's
+      # branch name, so it was skipped on every other branch and the rule was
+      # never actually enforced by CI. It now runs for every ref.
+      - name: Gate on regressions versus retained main
+        if: ${{ !cancelled() }}
         run: |
           node scripts/compare-release-ci.mjs
           cat artifacts/quality/regression-comparison.md >> "$GITHUB_STEP_SUMMARY"

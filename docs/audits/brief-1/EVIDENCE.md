@@ -95,6 +95,23 @@ The five REAL failures are the known legacy-material cases A19, A24, A30, A31 an
 
 **Three limits on this comparison, stated rather than hidden.** The retained baseline is `main` at `c7b3ca9`, two merges behind current `main` `f5b80cb`, so this is a comparison against the baseline the repository treats as authoritative and not a measurement against today's `main`. The gate ran one sample per case, which cannot separate flaky from broken, and the standing rules forbid chasing 3 of 3 on unscoped cases. And in runs 1 to 3 the comparison ran only by hand: the CI step was gated to Brief B's branch name and skipped every time. That gate is removed in the following commit, so run 4 onward enforces it in CI.
 
+### The regression gate now runs for every ref
+
+`compare-release-ci.mjs` implements the one live-gate condition the standing rules say blocks a merge: a regression versus main. Its workflow step was conditioned on `github.head_ref == 'codex/brief-b-living-plan'`, so it was skipped on every other branch and on every push to `main`. It was skipped in all three runs of this pull request, which means no CI run has ever enforced that rule here. The condition is now `!cancelled()`.
+
+Checked before enabling it, because a stale baseline could have made it block for reasons unrelated to any branch:
+
+| Check | Result |
+| --- | --- |
+| Retained browser baseline cases still present in the suite | 265 of 265 ([capture](evidence/ci/gate-unpin/baseline-coverage.txt)) |
+| Baseline cases that would block as "Required case was not executed" | 0 |
+| New cases absent from the baseline (landing, living-plan, cloud-sync-recovery) | 51, none blocking while they pass |
+| Script runs end to end on real live evidence | yes, 77 live rows, 0 blocking ([capture](evidence/ci/gate-unpin/script-dry-run.txt)) |
+
+`main` has changed browser specs since the retained baseline, including a new `landing.spec.ts` and two renames, so this mattered: a first pass of the coverage check reported 33 missing cases, which turned out to be a fault in the check itself rather than the repository. Rebuilding case ids with the repository's own `normalizeBrowserReport`, as `compare-release-ci.mjs` does, gives zero. The scripts used for both checks are retained beside their output.
+
+Two things this does not fix. The baseline is still pinned to `main` `c7b3ca9`, and the script still throws if that file's revision changes, so refreshing the baseline stays a deliberate act. And the per-case `scoped` lists inside the script are the stricter rules recorded during Brief B; they are left exactly as they were rather than reinterpreted for this brief.
+
 ## What changed
 
 The baseline session shapes are switched on by default (`YOVA_BASELINE_SESSION_SHAPES` unset or anything but `"false"`). With the flag on, opening any ready session runs the coded Shape A or Shape C flow; the pre-baseline generated runtime is not deleted and stays reachable with the flag off. The browser suite runs the pre-baseline specs against a flag-off server and the new `baseline-*.spec.ts` cases against a flag-on server ([playwright.config.ts](../../../playwright.config.ts)), so every case that passed on `main` still runs exactly as it did.

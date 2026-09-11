@@ -1,0 +1,17 @@
+retained baseline cases: 265
+cases the current config runs: 316
+
+In baseline but NOT run now — these BLOCK as "Required case was not executed": 0
+
+Run now but absent from the baseline — do not block while they pass: 51
+  + cloud-sync-recovery.spec.ts::desktop-chromium::Retry retires two permanently rejected terminal events without losing their recovery export
+  + cloud-sync-recovery.spec.ts::desktop-chromium::startup retires a stale routed completion from a ready session using cloud route authority
+  + cloud-sync-recovery.spec.ts::desktop-chromium::cloud-only private-export metadata keeps AA text contrast
+  + cloud-sync-recovery.spec.ts::mobile-chromium::Retry retires two permanently rejected terminal events without losing their recovery export
+  + cloud-sync-recovery.spec.ts::mobile-chromium::startup retires a stale routed completion from a ready session using cloud route authority
+  + cloud-sync-recovery.spec.ts::mobile-chromium::cloud-only private-export metadata keeps AA text contrast
+  + landing.spec.ts::desktop-chromium::Join the waitlist requires a valid email and every affirmation before requesting confirmation
+  + landing.spec.ts::desktop-chromium::Hold my founding place requires a valid email and every affirmation before requesting confirmation
+  + landing.spec.ts::desktop-chromium::shows the already confirmed receipt without leaving a resubmittable form
+  + landing.spec.ts::desktop-chromium::shows the daily email cap receipt without leaving a resubmittable form
+  … 41 more

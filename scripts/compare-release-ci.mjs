@@ -1,4 +1,7 @@
-// Brief B closeout: compare the one full run with retained exact-main evidence.
+// Compares one full run against the retained exact-main evidence and blocks
+// on a regression, which the standing rules make the only live-gate condition
+// that blocks a merge. Runs for every ref; the scoped lists below remain the
+// stricter per-case rules recorded during Brief B.
 import { readFileSync, writeFileSync } from "node:fs";
 import { canonicalBrowserCaseName, compareLiveReports } from "./live-gate/regression.mjs";
 import { normalizeBrowserReport } from "./live-gate/core.mjs";
