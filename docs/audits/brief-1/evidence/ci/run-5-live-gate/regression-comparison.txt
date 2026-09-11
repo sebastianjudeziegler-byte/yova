@@ -1,0 +1,29 @@
+main    c7b3ca99964524cefc04437b7236b37fe8fe2666 counts={"pass":48,"fail":6,"flaky":18,"unavailable":4}
+branch  24d58065f1dd6f84097529f66cee7df003783cf3 counts={"pass":49,"fail":5,"flaky":18,"unavailable":5}
+quarantined (FLAKY in policy): 20
+
+BLOCKING REGRESSIONS: 0
+
+Non-blocking failures on the branch: 8
+  [Established flaky quarantine; raw outcomes retained] src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'World War I unit guide in short 
+      main 0P/1F/0U -> branch 0P/1F/0U
+  [Pre-existing or improved failure; no product fix claimed] src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Biology teaching from learner notes'
+      main 0P/1F/0U -> branch 0P/1F/0U
+  [Pre-existing or improved failure; no product fix claimed] src/evals/session-quality.live.test.ts::live OpenAI session quality > 'World War I teaching for a complete b…'
+      main 0P/1F/0U -> branch 0P/1F/0U
+  [Established flaky quarantine; raw outcomes retained] src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Mapped 45-minute World War I baseline…'
+      main 1P/0F/0U -> branch 0P/1F/0U
+  [Established flaky quarantine; raw outcomes retained] src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Calculus repair after a weak check'
+      main 1P/0F/0U -> branch 0P/1F/0U
+  [Pre-existing or improved failure; no product fix claimed] src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History reasoning from a primary-sour…'
+      main 0P/1F/0U -> branch 0P/1F/0U
+  [Pre-existing or improved failure; no product fix claimed] src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Literature close reading from a short…'
+      main 0P/1F/0U -> branch 0P/1F/0U
+  [Pre-existing or improved failure; no product fix claimed] src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Teaching from a thin biology study gu…'
+      main 0P/1F/0U -> branch 0P/1F/0U
+
+Required-but-not-executed: 0
+
+Only on branch: 1
+  + src/evals/personalization-delta.live.test.ts::Brief B real-provider covered-topic delta > personalizes the amo
+Only on main: 0

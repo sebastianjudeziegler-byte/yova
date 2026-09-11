@@ -112,6 +112,42 @@ Checked before enabling it, because a stale baseline could have made it block fo
 
 Two things this does not fix. The baseline is still pinned to `main` `c7b3ca9`, and the script still throws if that file's revision changes, so refreshing the baseline stays a deliberate act. And the per-case `scoped` lists inside the script are the stricter rules recorded during Brief B; they are left exactly as they were rather than reinterpreted for this brief.
 
+### Run 4 — the gate's first real outing, INCONCLUSIVE in hindsight
+
+[Run 34573759685](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34573759685) is the first run in which the regression step executed instead of being skipped. It reported BLOCKED with four regressions. None of them was real.
+
+| Case | Failure text |
+| --- | --- |
+| Osmosis teaching stream | stream was empty, 0 where over 100 expected |
+| Startup funding session | OpenAI did not return a complete skeleton after the repair attempt |
+| Melatonin 15-minute skeleton | OpenAI did not return a complete skeleton after the repair attempt |
+| World War I lesson | the lesson stream could not be completed |
+
+The provider was degraded throughout: 14 of 77 live cases unavailable against 1 the run before, of which 9 were `provider_server_error`, 3 HTTP 503 and 1 a timeout. All four cases had passed on this same branch in run 3, and none of them is in a code path this branch touches: the diff against `main` for the streamed generation pipeline, the session generator, `src/lib/session-generation` and both existing session API routes is empty. [Blocked verdict as the gate wrote it](evidence/ci/run-4-live-gate/regression-comparison.md).
+
+That run exposed two defects in the gate itself, both fixed in their own commits rather than worked around:
+
+- The step ran under `bash -e` and the comparator exits non-zero on regressions, so the table was published only when there was nothing to report. Run 4's page showed an exit code and nothing else.
+- The comparison had two outcomes, so it could not tell a provider outage from a branch defect. `classifyComparisonOutcome` now returns `passed` (exit 0), `blocked` (exit 1) or `inconclusive` (exit 2). Inconclusive fires when unavailable cases exceed a tenth of the live set, or when a blocking case's own text carries an explicit provider error, and it fires on a degraded run even with no regressions. It blocks exactly as a regression does; a test asserts no blocking outcome can report exit 0. The provider patterns are deliberately narrow, and "OpenAI did not return a complete …" is excluded because that prefix also fronts validator rejections, where the provider answered and the content failed a check. [Both sample verdicts](evidence/ci/gate-outcomes/).
+
+Applied to run 4's numbers the classifier returns inconclusive, which is the honest reading: re-run, do not investigate.
+
+### Run 5 — clean sample, gate passed
+
+[Run 34586015267](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34586015267), head `65efb67`, merge revision `24d5806`. Every step green except the full live gate, which is red on `main` as well. **The regression step passed**, which is reachable only from the `passed` outcome and therefore means both zero blocking regressions and a sample inside the degradation ceiling.
+
+| | Main `c7b3ca9` (retained) | This branch `24d5806` |
+| --- | --- | --- |
+| Counts | 48 pass / 6 fail / 18 flaky / 4 unavailable | 49 pass / 5 fail / 18 flaky / 5 unavailable |
+| Unavailable share of the live set | — | 6.5%, under the 10% ceiling |
+| Blocking regressions | — | **0** |
+
+The five hard failures are exactly the known legacy-material cases A19, A24, A30, A31 and A33, all REAL in the policy and all failing on both sides. Two quarantined flaky cases flip from a pass on main to a fail here, "Mapped 45-minute World War I baseline" and "Calculus repair after a weak check" — different cases from the two that flipped in run 3, which is itself evidence that these are intermittent rather than branch-caused. [Report](evidence/ci/run-5-live-gate/report.md), [comparison](evidence/ci/run-5-live-gate/regression-comparison.txt).
+
+**The answer to the question the gate exists to ask: no case passes on main and fails here.**
+
+Two limits that remain, unchanged by this brief. The retained baseline is `main` at `c7b3ca9`, two merges behind current `main`, and refreshing it is a deliberate act the script guards. And the gate reads one sample per case: run 4 against run 5 is a live demonstration that one sample can mislead in either direction, which the inconclusive outcome narrows but does not remove.
+
 ## What changed
 
 The baseline session shapes are switched on by default (`YOVA_BASELINE_SESSION_SHAPES` unset or anything but `"false"`). With the flag on, opening any ready session runs the coded Shape A or Shape C flow; the pre-baseline generated runtime is not deleted and stays reachable with the flag off. The browser suite runs the pre-baseline specs against a flag-off server and the new `baseline-*.spec.ts` cases against a flag-on server ([playwright.config.ts](../../../playwright.config.ts)), so every case that passed on `main` still runs exactly as it did.
