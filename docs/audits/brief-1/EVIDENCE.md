@@ -56,6 +56,45 @@ Neither could be caught by the unit tests: both are render-time derivations, not
 
 **Diagnosability gap worth closing.** The workflow overrides the reporter to `list,json` for this step, so Playwright emits no GitHub annotations and a failure surfaces only as `Process completed with exit code 1`. Adding the `github` reporter to the baseline step would put failing case names straight on the run page. Left out of this brief as a workflow change beyond its scope; backlogged.
 
+### Run 3 — [YOVA quality 34534969409](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/34534969409), head `fd9d825`
+
+Every step passes except the full live gate, which is red on `main` as well.
+
+| Step | Result |
+| --- | --- |
+| Dependency audit, configuration rules, migration replay, database lint and boundaries | pass |
+| Learning-engine tests, lint, TypeScript, production build | pass |
+| Core learner journey (pre-baseline suite) | pass |
+| Run baseline session journey | **pass** — all six cases, desktop and mobile |
+| Public authentication journey | pass |
+| Study Profile phone-width comparison | pass |
+| Full live gate | fail, no regression versus main (below) |
+
+Both bugs from run 2 are confirmed fixed in CI on both viewports.
+
+### Live gate: row-by-row against main
+
+Run with the repository's own comparator, `compareLiveReports` from `scripts/live-gate/regression.mjs`, so the verdict matches what the release gate produces rather than a fresh reading. Main's side is the retained baseline committed at `docs/audits/brief-b/evidence/main-live/report.json`. Inputs, script and full output: [evidence/ci/run-3-live-gate/](evidence/ci/run-3-live-gate/).
+
+| | Main `c7b3ca9` (retained) | This branch, merge revision `f430b61` |
+| --- | --- | --- |
+| Counts | 48 pass / 6 fail / 18 flaky / 4 unavailable | 51 pass / 5 fail / 20 flaky / 1 unavailable |
+
+**Blocking regressions: 0.**
+
+Two cases do flip from a pass on main to a fail here. Both are pre-classified FLAKY in `scripts/live-gate/policy.json`, both were already in the backlog before this brief, and both are single-sample comparisons:
+
+| Case | Main | Here | Record |
+| --- | --- | --- | --- |
+| A05 placement canary | 1 pass | 1 fail | Its own row reads "exact main 1/1, Brief B 0/1, prior corrected full gate P/U/P": it has flipped before |
+| A09 World War I plan quality | 1 pass | 1 fail | Policy baseline is 2 of 3 on main; the single retained main sample happened to pass |
+
+Neither is attributable to this brief, and that was checked rather than assumed: both sit in the plan-creation path, and the only change here touching any plan-generation input is one prompt lookup in `profile-summary.ts` whose text is byte-identical to the positional read it replaced (asserted in a throwaway check against `onboardingQuestions[8].prompt`). Nothing in `src/lib/plan-generation` or the plan generators changed.
+
+The five REAL failures are the known legacy-material cases A19, A24, A30, A31 and A33, failing on both sides. One row exists only on the branch, Brief B's real-provider covered-topic delta; it is on current `main` too and simply postdates the retained baseline.
+
+**Three limits on this comparison, stated rather than hidden.** The retained baseline is `main` at `c7b3ca9`, two merges behind current `main` `f5b80cb`, so this is a comparison against the baseline the repository treats as authoritative and not a measurement against today's `main`. The gate ran one sample per case, which cannot separate flaky from broken, and the standing rules forbid chasing 3 of 3 on unscoped cases. And in runs 1 to 3 the comparison ran only by hand: the CI step was gated to Brief B's branch name and skipped every time. That gate is removed in the following commit, so run 4 onward enforces it in CI.
+
 ## What changed
 
 The baseline session shapes are switched on by default (`YOVA_BASELINE_SESSION_SHAPES` unset or anything but `"false"`). With the flag on, opening any ready session runs the coded Shape A or Shape C flow; the pre-baseline generated runtime is not deleted and stays reachable with the flag off. The browser suite runs the pre-baseline specs against a flag-off server and the new `baseline-*.spec.ts` cases against a flag-on server ([playwright.config.ts](../../../playwright.config.ts)), so every case that passed on `main` still runs exactly as it did.
