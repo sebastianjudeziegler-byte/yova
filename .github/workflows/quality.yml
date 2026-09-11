@@ -218,8 +218,20 @@ jobs:
       - name: Gate on regressions versus retained main
         if: ${{ !cancelled() }}
         run: |
+          # The comparison table must reach the run page whether or not the
+          # gate passes. The step runs under `bash -e`, so a non-zero exit
+          # from the comparator used to abort before the table was published,
+          # hiding it in exactly the case that needs reading.
+          set +e
           node scripts/compare-release-ci.mjs
-          cat artifacts/quality/regression-comparison.md >> "$GITHUB_STEP_SUMMARY"
+          status=$?
+          set -e
+          if test -f artifacts/quality/regression-comparison.md; then
+            cat artifacts/quality/regression-comparison.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The comparator produced no table; see the step log." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $status
 
       - name: Publish full live gate evidence
         if: always()
