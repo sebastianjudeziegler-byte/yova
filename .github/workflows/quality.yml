@@ -94,6 +94,8 @@ jobs:
                 echo "$output" | grep -E "ERROR|DETAIL|HINT|CONTEXT" || echo "$output" | tail -20
               fi
             done
+            echo "::error::A database test ran fewer assertions than it planned."
+            echo "If no suite above reports a SQL error, its assertions were most likely rolled back: pgTAP records results inside the test transaction, so ROLLBACK TO SAVEPOINT erases the assertions made after the savepoint."
             exit 1
           fi
 
