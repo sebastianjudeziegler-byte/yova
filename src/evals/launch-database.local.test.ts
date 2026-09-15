@@ -86,12 +86,12 @@ describe.skipIf(!process.env.YOVA_LOCAL_PG_MODULE)("launch database regression o
       if (operation === "release-readiness") {
         await client.query("select set_config('request.jwt.claim.role','service_role',true)");
         await client.query("set local role service_role");
-        const value = (await client.query("select public.signed_in_generation_readiness_v4() as value")).rows[0].value;
-        expect(value).toMatchObject({contractVersion:"20260907160001",ready:true,placementEvidenceBoundary:true,unansweredCompletionFeedback:true});
+        const value = (await client.query("select public.signed_in_generation_readiness_v5() as value")).rows[0].value;
+        expect(value).toMatchObject({contractVersion:"202609110001",ready:true,placementEvidenceBoundary:true,unansweredCompletionFeedback:true,livingPlanRevision:true});
         const abuse = (await client.query("select public.public_launch_abuse_readiness_v1() as value")).rows[0].value;
         expect(abuse.untrustedInsertQuotas).toBe(true);
         await client.query("set local role authenticated");
-        await expect(client.query("select public.signed_in_generation_readiness_v4()")).rejects.toMatchObject({code:"42501"});
+        await expect(client.query("select public.signed_in_generation_readiness_v5()")).rejects.toMatchObject({code:"42501"});
         return;
       }
       if (operation === "placement-replay") {

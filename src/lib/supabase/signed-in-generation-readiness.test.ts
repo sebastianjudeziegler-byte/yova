@@ -33,7 +33,17 @@ describe("deployed signed-in generation readiness", () => {
 
   it("reports ready only after the service-only database contract passes", async () => {
     await expect(signedInGenerationReadinessStatus()).resolves.toBe("ready");
-    expect(mocks.rpc).toHaveBeenCalledWith("signed_in_generation_readiness_v4");
+    expect(mocks.rpc).toHaveBeenCalledWith("signed_in_generation_readiness_v5");
+  });
+
+  // The deployed app must not advertise readiness against a database that
+  // cannot revise a plan. See docs/audits/brief-2/EVIDENCE.md.
+  it("is unavailable when the database has no living-plan revision support", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { ...completeReadinessPayload(), livingPlanRevision: false },
+      error: null,
+    });
+    await expect(signedInGenerationReadinessStatus()).resolves.toBe("unavailable");
   });
 
   it("fails before probing when either server-only prerequisite is absent", async () => {
@@ -96,5 +106,6 @@ function completeReadinessPayload() {
     methodEligibilityV3Boundary: true,
       placementEvidenceBoundary: true,
       unansweredCompletionFeedback: true,
+      livingPlanRevision: true,
   };
 }

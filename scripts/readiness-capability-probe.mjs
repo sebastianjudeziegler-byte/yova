@@ -1,6 +1,6 @@
-export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "20260907160001";
+export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "202609110001";
 
-const PROBE_RPC = "signed_in_generation_readiness_v4";
+const PROBE_RPC = "signed_in_generation_readiness_v5";
 export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202609080001";
 export const PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION = "202609040002";
 
@@ -72,7 +72,8 @@ export async function probeSignedInGenerationDatabase({
     && payload.expandedMethodAgencyBoundary === true
     && payload.methodEligibilityV3Boundary === true
     && payload.placementEvidenceBoundary === true
-    && payload.unansweredCompletionFeedback === true;
+    && payload.unansweredCompletionFeedback === true
+    && payload.livingPlanRevision === true;
   if (!completeContract) {
     const missing = [
       ["studyRoutesSchema", "StudyRoute table/columns"],
@@ -82,6 +83,7 @@ export async function probeSignedInGenerationDatabase({
       ["methodEligibilityV3Boundary", "method-eligibility v3 boundary"],
       ["placementEvidenceBoundary", "server-scored placement and revision boundary"],
       ["unansweredCompletionFeedback", "unanswered completion feedback"],
+      ["livingPlanRevision", "living-plan revision RPCs, history table and write boundary"],
     ]
       .filter(([key]) => payload[key] !== true)
       .map(([, label]) => label);
