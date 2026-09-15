@@ -87,6 +87,14 @@ and every learner who opened Adjust got a 503 from a missing RPC. See
 a readiness contract the production probe checks.** A capability the probe
 cannot see is a capability that can be deployed around silently.
 
+Then apply `202609150001_revision_edited_fields_never_null.sql`. Between
+2026-09-14 and this fix, `save_generated_plan` stored
+`"revisionEditedFields": null` for every session without reviewed edits, and
+`read_plan_revision_context` passed that null through, so every plan activated
+in that window failed its preview with a `ZodError` on
+`protections[n].editedFields`. The fix is idempotent; re-applying it is a
+no-op. Plans activated before 2026-09-14 were never affected.
+
 Then configure `SUPABASE_SECRET_KEY`, `YOVA_DRAFT_RECEIPT_SECRET`, and an explicit `YOVA_PERSONALIZATION_ROLLOUT_PERCENT` decision, and run:
 
 ```bash

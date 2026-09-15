@@ -9,7 +9,8 @@ const ActiveRevisionContextSchema = z.object({
   generationRequest: z.record(z.string(), z.unknown()),
   sessionFingerprints: z.record(z.string(), z.string()),
   protections: z.array(z.object({ sessionId: z.string().uuid(), savedWork: z.boolean(), pinnedTime: z.boolean(),
-    editedFields: z.array(z.enum(["title", "objective", "method", "methodReason", "scheduledFor", "estimatedMinutes"])),
+    // Plans activated between 202609090001 and 202609150001 store null for "no reviewed edits".
+    editedFields: z.array(z.enum(["title", "objective", "method", "methodReason", "scheduledFor", "estimatedMinutes"])).nullable().transform(fields => fields ?? []),
   })),
 });
 
