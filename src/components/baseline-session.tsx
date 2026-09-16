@@ -8,7 +8,7 @@ import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import type { KeyPoint, PracticeQuestion } from "@/lib/practice/compose-practice";
 import { personalizationNote } from "@/lib/routing/personalization-note";
-import { chosenBecause } from "@/lib/routing/rule-evidence";
+import { chosenBecause, receiptEvidence } from "@/lib/routing/rule-evidence";
 import { hubRail, timerView } from "@/lib/session-shapes/session-hub";
 import { tipRequest, visibleTip, type SessionTip, type TipStep } from "@/lib/session-shapes/session-tips";
 import {
@@ -194,6 +194,8 @@ export function BaselineSession(props: BaselineSessionProps) {
   const exampleShown = route.workedStructureBeforeProduce ? shownExample !== null : undefined;
   const note = useMemo(() => personalizationNote(route, { exampleShown }), [route, exampleShown]);
   const pills = useMemo(() => chosenBecause(route, { exampleShown }), [route, exampleShown]);
+  // Brief 1.5 item 7: every fired rule is named on the end receipt (the difficulty band only by its effect).
+  const receipt = useMemo(() => receiptEvidence(route, { exampleShown }), [route, exampleShown]);
   // Brief 1.5 item 6: each slot call writes the tips for the steps it covers.
   const [tips, setTips] = useState<Partial<Record<TipStep, SessionTip>>>({});
   const mergeTips = useCallback((written: SessionTip[]) => {
@@ -494,6 +496,10 @@ export function BaselineSession(props: BaselineSessionProps) {
                 <div><span>What&apos;s next</span><strong>{nextSession ? nextSession.title : "Nothing else queued in this plan"}</strong><small>{nextSession ? `${nextSession.learningMode === "learn" ? "Learn block" : "Practice block"} · ${nextSession.estimatedMinutes} min` : "Add a topic or open another plan"}</small></div>
               </div>
               <p className={styles.note} data-rule-id={note.ruleId}><Sparkles size={16} /> <span>{note.sentence}</span></p>
+              <details className={styles.receipt} data-testid="session-receipt">
+                <summary>Why this session ran this way</summary>
+                <ul>{receipt.map((entry) => <li key={entry.ruleId} data-receipt-rule-id={entry.ruleId}>{entry.sentence}</li>)}</ul>
+              </details>
               {finishIssue && <div className={styles.issue}><AlertCircle size={16} /><span>{finishIssue}</span></div>}
               <div className={styles.actions}>
                 <button type="button" className="button primary large" disabled={finishing} onClick={() => void finish()}>{finishing ? "Saving…" : "Finish"} {!finishing && <ArrowRight size={16} />}</button>

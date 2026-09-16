@@ -142,6 +142,11 @@ receipt all read from `route.ruleIds` and `personalizationNote(route)`. Rule:
 **if a routing rule fired, the learner can see it somewhere.** Plan-screen
 display of reasoning is Brief 2.
 
+Founder decision (16 Sept 2026), reconciling item 4: the topic difficulty band
+(`L4.difficulty.low|medium|high`) stays hidden. Its effect is what the learner
+sees: the question count ("QUESTION 1 OF 8", and on the end receipt, that the
+topic asks eight questions per round). The band itself is never named.
+
 ## Out of scope
 
 Plan model, block sizing, hints-first branching, mid-round adaptation, a third

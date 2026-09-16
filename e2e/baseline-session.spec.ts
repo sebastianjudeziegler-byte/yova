@@ -152,6 +152,7 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await expect(page.getByRole("heading", { name: "You studied, produced and compared." })).toBeVisible();
   await expect(page.getByText("Nothing else queued in this plan")).toBeVisible();
   await expect(tip).toHaveAttribute("data-tip-step", "end");
+  await expectReceiptNamesEveryRule(page, ruleIds);
   // Development StrictMode mounts twice, so an aborted duplicate of the first
   // request can reach the mock; assert the slots used and their order, not a count.
   expect([...new Set(calls)]).toEqual(["learn_block", "compare"]);
@@ -232,6 +233,7 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   await page.getByRole("button", { name: "Finish round" }).click();
   await expect(page.getByRole("heading", { name: "A full round passed clean." })).toBeVisible();
   await expect(page.getByText("3 of 4 correct")).toBeVisible();
+  await expectReceiptNamesEveryRule(page, ruleIds);
   expect([...new Set(calls)]).toEqual(["learn_block", "practice"]);
   expect(calls.indexOf("practice")).toBeGreaterThan(calls.lastIndexOf("learn_block"));
   await page.getByRole("button", { name: "Finish" }).click();
@@ -341,6 +343,15 @@ async function createPreviewAccount(page: Page) {
   await page.getByLabel("Email address").fill("baseline@example.com");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Make YOVA fit how you actually study." })).toBeVisible();
+}
+
+/** Brief 1.5 item 7: every fired rule is named on the end receipt, except the hidden difficulty band. */
+async function expectReceiptNamesEveryRule(page: Page, ruleIds: string[]) {
+  const receipt = page.getByTestId("session-receipt");
+  await receipt.getByText("Why this session ran this way").click();
+  const named = await receipt.locator("[data-receipt-rule-id]").evaluateAll((items) => items.map((item) => item.getAttribute("data-receipt-rule-id")));
+  expect(ruleIds.filter((ruleId) => !named.includes(ruleId) && !/^L4\.difficulty\.(low|medium|high)$/.test(ruleId))).toEqual([]);
+  await expect(receipt).not.toContainText(/difficult/i);
 }
 
 async function completeOnboarding(page: Page, answers: ReadonlyArray<string | null>) {

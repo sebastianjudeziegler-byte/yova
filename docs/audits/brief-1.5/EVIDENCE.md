@@ -461,7 +461,7 @@ Personalization delta gate: profile 1's tips sit on rules `L3.q5.concrete_exampl
 - **Per-step minutes:** the handoff's proportions (Shape A 10/8/3/4, Shape C 4/12/5) scaled to the route's timer so the rows add up to it. This is pacing guidance, not tracked time.
 - **Active Recall hand-off (Shape A study, then questions):** the rail reads "Shape A · Study → closed-book questions", with rows Study, Closed-book round N, Round review, Session complete.
 - **No tip before any slot call has run:** for example, the first produce step of a try-then-feedback learner. No tip is invented.
-- **"Chosen because" pills:** every fired rule with evidence, except topic difficulty, which item 4 keeps hidden. This is pending the founder's answer on item 7.
+- **"Chosen because" pills:** the profile, practice-round and question-mix reasons that fired. Topic difficulty is never a pill (founder decision on item 7; see below).
 - **Timer status pill:** RUNNING / PAUSED / OVER. The handoff names only the OVER state.
 - **Global `showTimer: false` setting:** none exists in the codebase, so none was added.
 - **Source card actions:** the handoff says the no-material version drops them; the codebase has none for either case, so none are shipped.
@@ -490,4 +490,52 @@ Its screenshot is `hub-mobile-fallback-undesigned.png`.
 | `e2e/baseline-session.spec.ts`, "a try-it-first learner produces before studying and still gets the comparison" | Failed locally at the comparison: `expect(locator).toContainText("you didn't mention the proton gradient")`, element not found | Passed locally, desktop and mobile |
 
 The live two-profile hub run now takes profile 2 through the full session as well.
+
+## Item 7: reasoning visible everywhere it was decided
+
+### Founder decision (16 Sept 2026)
+
+The topic difficulty band stays hidden, and its effect (the question count) is visible. The brief's item 7 is amended to say so.
+
+### What changed
+
+- **One source for every reason:** `src/lib/routing/rule-evidence.ts`, feeding three places:
+  - the hub's "chosen because" pills;
+  - the reason half of each tip;
+  - a new end receipt, "Why this session ran this way" (a collapsible list on the Session complete card).
+- **Receipt coverage:** it names every rule in `route.ruleIds`, one sentence each, except `L4.difficulty.low|medium|high`.
+  - For a high-difficulty topic it says "Practice on this topic asks eight questions per round." That is the effect, without the band.
+  - The question card's "QUESTION 1 OF 8" shows the same effect during the session.
+- **Sentences added for every rule that previously had none:**
+  - task-type shapes (Layer 1);
+  - placement entry (Layer 2);
+  - default and conflict rules (C1, C3, C4, C5, C6, C8);
+  - session-length and focus bands;
+  - energy window;
+  - long-plan shutdown;
+  - the resolved timer;
+  - guidance defaults;
+  - a learner's own method change.
+
+  These appear on the receipt only, so the hub strip stays readable.
+- **Examples-first learner shown no example:** the receipt keeps the rule visible with an honest sentence ("YOVA looked for a worked example, but there was none to show this time"). The end note and tips still never claim an example (item 5).
+
+### Red, then green
+
+| Test | Red (before implementation) | Green |
+|---|---|---|
+| `src/lib/routing/rule-visibility.test.ts` (5) | 4 failed (no receipt, no hidden-rule list) | 5 pass |
+| `e2e/baseline-session.spec.ts` Shape A and Shape C: the receipt names every fired rule except the hidden band, and never says "difficult" | no receipt on 83d0411 | runs in CI |
+
+The route sample in `rule-visibility.test.ts` covers:
+- every single onboarding answer, three stacked profiles and the empty profile;
+- every task type, both block kinds, all four placement states, with and without a source;
+- deadline, interleaving and difficulty contexts;
+- every learner method change.
+
+That is more than 20,000 routes, each checked with an example shown, not shown and not yet known. No fired rule is left unnamed.
+
+### Decision taken
+
+- **Receipt starts collapsed:** it can hold fifteen or more sentences, and the end card's job is the note and what's next. The personalization note stays open above it.
 
