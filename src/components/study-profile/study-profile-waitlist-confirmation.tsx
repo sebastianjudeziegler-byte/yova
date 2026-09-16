@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, MailCheck, TriangleAlert } from "lucide-react";
+import { ArrowRight, CheckCircle2, MailCheck, TriangleAlert } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { getStudyProfileVisitorId } from "@/lib/study-profile/analytics-client";
 import { storeStudyProfileReportTransition } from "@/lib/study-profile/report-transition";
@@ -133,41 +133,48 @@ export function StudyProfileWaitlistConfirmation() {
 
   return (
     <main className={styles.confirmationPage}>
-      <section className={styles.confirmationCard} aria-labelledby="confirmation-heading">
+      <section className={styles.confirmationCard} aria-labelledby="confirmation-heading" data-state={state}>
         <Link href="/" aria-label="YOVA home" className={styles.brandLink}>
           <BrandMark />
         </Link>
         {state === "confirmed" ? (
           <>
-            <CheckCircle2 size={34} aria-hidden="true" />
+            <div className={`${styles.confirmationIcon} ${styles.confirmationIconSuccess}`}>
+              <CheckCircle2 size={26} aria-hidden="true" />
+            </div>
             <span className={styles.sectionEyebrow}>Email confirmed</span>
             <h1 id="confirmation-heading">{reportHref ? "Your report is unlocked." : "You are on the YOVA waitlist."}</h1>
             {reportHref ? (
               <>
-                <p>Your waitlist place is confirmed. Your private Study Profile is ready to open.</p>
-                <a className={styles.primaryButton} href={reportHref}>Open my Study Profile</a>
+                <p className={styles.confirmationIntro}>Your waitlist place is confirmed. Your private Study Profile is ready to open.</p>
+                <a className={styles.primaryButton} href={reportHref}>Open my Study Profile <ArrowRight size={18} aria-hidden="true" /></a>
               </>
             ) : (
               <>
-                <p>We will email you about YOVA&apos;s launch. You can unsubscribe at any time. See our <a href="/privacy">Privacy Notice</a>.</p>
-                <Link className={styles.primaryButton} href="/study-profile">Back to Study Profile</Link>
+                <p className={styles.confirmationIntro}>We will email you when YOVA is ready to try.</p>
+                <Link className={styles.primaryButton} href="/study-profile">Back to Study Profile <ArrowRight size={18} aria-hidden="true" /></Link>
+                <p className={styles.confirmationNote}>You can unsubscribe at any time. See our <a href="/privacy">Privacy Notice</a>.</p>
               </>
             )}
           </>
         ) : state === "invalid" ? (
           <>
-            <TriangleAlert size={34} aria-hidden="true" />
+            <div className={`${styles.confirmationIcon} ${styles.confirmationIconWarning}`}>
+              <TriangleAlert size={26} aria-hidden="true" />
+            </div>
             <span className={styles.sectionEyebrow}>Confirmation link</span>
             <h1 id="confirmation-heading">This link is incomplete.</h1>
-            <p>Return to Study Profile to request a new confirmation email.</p>
-            <Link className={styles.primaryButton} href="/study-profile">Go to Study Profile</Link>
+            <p className={styles.confirmationIntro}>Return to Study Profile to request a new confirmation email.</p>
+            <Link className={styles.primaryButton} href="/study-profile">Go to Study Profile <ArrowRight size={18} aria-hidden="true" /></Link>
           </>
         ) : (
           <>
-            <MailCheck size={34} aria-hidden="true" />
+            <div className={styles.confirmationIcon}>
+              <MailCheck size={26} aria-hidden="true" />
+            </div>
             <span className={styles.sectionEyebrow}>One final step</span>
             <h1 id="confirmation-heading">{reportToken ? "Confirm your place and unlock your report." : "Confirm your place on the YOVA waitlist."}</h1>
-            <p>Select the button below to confirm that you want to join the YOVA waitlist and receive YOVA launch emails. You can unsubscribe at any time. Opening this page alone does not confirm your place. See our <a href="/privacy">Privacy Notice</a>.</p>
+            <p className={styles.confirmationIntro}>Confirm your email to join the YOVA waitlist{reportToken ? " and open your private Study Profile." : "."}</p>
             <button
               type="button"
               className={styles.primaryButton}
@@ -180,8 +187,10 @@ export function StudyProfileWaitlistConfirmation() {
                 : reportToken
                   ? "Confirm and view my results"
                   : "Confirm my waitlist place"}
+              {state !== "submitting" && <ArrowRight size={18} aria-hidden="true" />}
             </button>
             {error && <p className={styles.formError} role="alert">{error}</p>}
+            <p className={styles.confirmationNote}>Confirming adds you to the YOVA waitlist for launch emails. You can unsubscribe at any time. Opening this page alone does not confirm your place. See our <a href="/privacy">Privacy Notice</a>.</p>
           </>
         )}
       </section>
