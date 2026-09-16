@@ -681,3 +681,12 @@ Recorded after CI:
 - **Suggested time:** the route's timer.
 - **The hub's in-session method chooser:** no longer opens before the work, because the card already offered the choice. The hub's Change control stays for the first step.
 
+## CI run 35141671600 (711435d: item 7)
+
+- **Baseline session journey:** 8 passed and 2 failed, the same case on both viewports: "a memorization learn block runs Shape C closed-book…".
+  - Cause: strict mode violation on `getByText("No source shown.")`. The hub rail's Closed-book round blurb repeated the question card's "No source shown.", so the text appeared twice.
+  - A real item 6 defect. Fixed: the rail now reads "Closed-book: answer from memory."
+- **Live baseline practice:** all 8 retry and label cases passed.
+  - The live two-profile hub run failed for P1: no session appeared within 120 seconds through the old Study Now flow, so P2 and the comparison did not run.
+  - Item 8 replaces that Study Now flow; the run repeats on the item 8 commit.
+

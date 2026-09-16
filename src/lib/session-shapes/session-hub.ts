@@ -70,7 +70,7 @@ export function hubRail({ route, aState, cState, atEnd, inQuestions }: HubRailIn
     const roundNumber = cState.phase === "loading" ? cState.rounds.length + 1 : Math.max(1, cState.rounds.length);
     rows = [
       ...(handoff ? [studyRow(route)] : route.briefStudyStep ? [{ key: "brief" as const, label: "Brief study", blurb: "Read once, then answer without it." }] : []),
-      { key: "questions", label: `Closed-book round ${roundNumber}`, blurb: "No source shown." },
+      { key: "questions", label: `Closed-book round ${roundNumber}`, blurb: "Closed-book: answer from memory." },
       { key: "round", label: "Round review", blurb: "Only what you missed comes back." },
       END_ROW,
     ];
