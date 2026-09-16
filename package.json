@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:baseline": "playwright test --config playwright.baseline.config.ts",
+    "test:e2e:baseline:live": "YOVA_RUN_LIVE_BASELINE_PRACTICE=1 playwright test --config playwright.baseline-live.config.ts",
     "test:e2e:auth": "YOVA_E2E_PASSWORD_AUTH=1 playwright test e2e/public-auth.spec.ts e2e/cloud-sync-recovery.spec.ts",
     "test:e2e:headed": "playwright test --headed",
     "eval:plans": "node scripts/run-plan-evaluations.mjs",

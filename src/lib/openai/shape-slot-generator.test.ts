@@ -138,6 +138,19 @@ describe("Slot 4 — fresh practice checked in code", () => {
     expect(result.action === "practice" && result.questions.every((item) => item.keyPointId === "k2")).toBe(true);
   });
 
+  // Brief 1.5 item 1: the ordinary retry. The model follows "one question per
+  // key point" and must not be rejected for it.
+  it.each([
+    { missed: ["k2"], label: "one-point" },
+    { missed: ["k1", "k3"], label: "two-point" },
+  ])("a $label retry succeeds on the first call with one question per missed point", async ({ missed }) => {
+    const { provider, calls } = providerReturning({ keyPoints: keyPoints.filter((item) => missed.includes(item.id)), questions: missed.map((id, index) => question(`r${index}`, id)) });
+    const result = await fillShapeSlot({ ...request, round: 2, outstandingKeyPointIds: missed }, provider as never);
+    expect(result.action === "practice" && result.questions.map((item) => item.keyPointId).sort()).toEqual([...missed].sort());
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect((calls[0] as { instructions: string }).instructions).toContain(`exactly ${missed.length} question`);
+  });
+
   it("derives key points from the topic when none are supplied", async () => {
     const derived = [{ id: "k1", text: "Glycolysis splits glucose into two pyruvate." }, { id: "k2", text: "Net gain is two ATP." }, { id: "k3", text: "NADH is produced." }];
     const { provider } = providerReturning({ keyPoints: derived, questions: [question("p1", "k1"), question("p2", "k2"), question("p3", "k3")] });

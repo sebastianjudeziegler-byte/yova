@@ -18,6 +18,10 @@ the work. They are the reason the 2026-09-07/08 releases shipped cleanly.
 - Every behaviour change ships with a test that **FAILS before and PASSES
   after**. Record both in `docs/audits/<brief>/EVIDENCE.md`.
 - Tests assert on what the learner sees, not only internal structure.
+- A browser fixture that hand-supplies what the prompt should have generated
+  is not a test of that path. Fixtures mock transport, not the shape of the
+  model's answer. (Brief 1.5: a fixture supplying three round-two questions hid
+  a 502 on every one- or two-point retry.)
 - **All verification runs in GitHub Actions.** Locally: unit, lint, typecheck,
   and at most one focused browser case. Never the full browser suite or the
   live gate on the founder's machine.

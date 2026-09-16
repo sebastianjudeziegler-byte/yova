@@ -35,8 +35,15 @@ export type PracticeQuestion = z.infer<typeof PracticeQuestionSchema>;
 const TERM_KINDS: readonly PracticeQuestionKind[] = ["definition", "term"];
 const RELATIONSHIP_KINDS: readonly PracticeQuestionKind[] = ["compare_contrast", "relationship", "structure"];
 
-/** One question per key point, clamped 3–8, then the route's cap (Q9 shorter sections, short timer band). */
-export function practiceQuestionCount(keyPointCount: number, route: Pick<SessionRoute, "questionCap" | "questionMinimum">) {
+/**
+ * Round 1: one question per key point, clamped 3–8, then the route's cap (Q9
+ * shorter sections, short timer band). Later rounds: exactly one question per
+ * missed key point, capped. A retry checks each missed point to the round-1
+ * standard; it must not demand three questions from one or two points
+ * (Brief 1.5 item 1: that mismatch returned 502 on the ordinary retry).
+ */
+export function practiceQuestionCount(keyPointCount: number, route: Pick<SessionRoute, "questionCap" | "questionMinimum">, round = 1) {
+  if (round > 1) return Math.max(1, Math.min(route.questionCap, keyPointCount));
   const clamped = Math.min(PRACTICE_QUESTION_MAXIMUM, Math.max(PRACTICE_QUESTION_MINIMUM, keyPointCount));
   return Math.max(route.questionMinimum, Math.min(route.questionCap, clamped));
 }
@@ -86,15 +93,18 @@ export function composePracticeRound({ keyPoints, questions, route, round = 1, o
     seenIds.add(parsed.data.id);
     usable.push(parsed.data);
   }
-  const target = practiceQuestionCount(roundKeyPoints.length, route);
+  const target = practiceQuestionCount(roundKeyPoints.length, route, round);
+  const required = round > 1 ? target : Math.min(target, route.questionMinimum);
   // Prefer one question per key point before any second question on the same point.
   const perKeyPoint = new Map<string, PracticeQuestion[]>();
   for (const question of usable) perKeyPoint.set(question.keyPointId, [...(perKeyPoint.get(question.keyPointId) ?? []), question]);
   const firstPass = roundKeyPoints.flatMap((keyPoint) => perKeyPoint.get(keyPoint.id)?.slice(0, 1) ?? []);
   const secondPass = roundKeyPoints.flatMap((keyPoint) => perKeyPoint.get(keyPoint.id)?.slice(1) ?? []);
-  const selected = [...firstPass, ...secondPass].slice(0, target);
-  if (selected.length < Math.min(target, route.questionMinimum)) {
-    return { ok: false, reason: `Only ${selected.length} usable questions were produced; at least ${Math.min(target, route.questionMinimum)} are needed.` };
+  // A retry checks each missed point once; a second question on one point must
+  // never stand in for a missed point the model skipped.
+  const selected = (round > 1 ? firstPass : [...firstPass, ...secondPass]).slice(0, target);
+  if (selected.length < required) {
+    return { ok: false, reason: `Only ${selected.length} usable questions were produced; at least ${required} are needed.` };
   }
   return { ok: true, questions: orderQuestionsByWeighting(selected, route.weighting) };
 }

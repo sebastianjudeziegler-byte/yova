@@ -5,6 +5,12 @@ import { expect, test, type Page, type Route } from "./helpers/frozen-clock";
  * (see playwright.config.ts). The four AI slots are mocked at the network
  * boundary with fixed content; everything else — routing, the step order,
  * answer checking, the end screen — is the product's own code.
+ *
+ * Standing rule (Brief 1.5): these mocks replace the slot route's response,
+ * so they are NOT a test of generation or practice composition. Each mocked
+ * round has the shape the server really returns — a retry has one question
+ * per missed point. Composition is proven by compose-practice.test.ts and
+ * shape-slot-generator.test.ts, and live by e2e/baseline-practice-retry.live.spec.ts.
  */
 const BASELINE_ONBOARDING = [
   "Evening",
@@ -46,7 +52,9 @@ const COMPARISON = { action: "compare", feedback: "You covered glycolysis and AT
 function practiceResponse(round: number) {
   return { action: "practice", keyPoints: KEY_POINTS, questions: round === 1
     ? [question("p1", "k1", 0, "Round one: which product ends glycolysis?", "definition"), question("p2", "k2", 0, "Round one: where does glycolysis take place, and what leaves it?"), question("p3", "k3", 0, "Round one: what does the proton gradient power?")]
-    : [question("p4", "k2", 0, "Round two: what leaves glycolysis?"), question("p5", "k2", 0, "Round two: how many pyruvate per glucose?"), question("p6", "k2", 0, "Round two: glycolysis ends with which molecule?")] };
+    // One missed point, so one question: the round-two contract. This fixture
+    // used to hand-supply three, which hid the 502 on the ordinary retry.
+    : [question("p4", "k2", 0, "Round two: what leaves glycolysis?")] };
 }
 
 async function mockShapeSlots(page: Page, calls: string[]) {
@@ -166,13 +174,11 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   await expect(page.getByRole("heading", { name: "1 point still to pass." })).toBeVisible();
   await page.getByRole("button", { name: "Start round 2" }).click();
   // Round 2 covers only the missed key point, with fresh questions from Slot 4.
-  await expect(page.getByTestId("baseline-question")).toContainText("ROUND 2 · QUESTION 1 OF 3");
-  for (let index = 0; index < 3; index += 1) {
-    await page.getByRole("button", { name: "Two pyruvate" }).click();
-    await page.getByRole("button", { name: index < 2 ? "Next question" : "Finish round" }).click();
-  }
+  await expect(page.getByTestId("baseline-question")).toContainText("ROUND 2 · QUESTION 1 OF 1");
+  await page.getByRole("button", { name: "Two pyruvate" }).click();
+  await page.getByRole("button", { name: "Finish round" }).click();
   await expect(page.getByRole("heading", { name: "A full round passed clean." })).toBeVisible();
-  await expect(page.getByText("5 of 6 correct")).toBeVisible();
+  await expect(page.getByText("3 of 4 correct")).toBeVisible();
   expect([...new Set(calls)]).toEqual(["learn_block", "practice"]);
   expect(calls.indexOf("practice")).toBeGreaterThan(calls.lastIndexOf("learn_block"));
   await page.getByRole("button", { name: "Finish" }).click();
@@ -183,7 +189,7 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
     return snapshot?.sessionCompletions ?? [];
   });
   expect(recorded).toHaveLength(1);
-  expect(recorded[0]).toMatchObject({ correctAnswers: 5, totalAnswers: 6 });
+  expect(recorded[0]).toMatchObject({ correctAnswers: 3, totalAnswers: 4 });
 });
 
 test("a profile saved by position survives the question reorder and is editable by ID in You", async ({ page }) => {
