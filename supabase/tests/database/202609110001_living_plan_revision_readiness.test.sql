@@ -7,10 +7,33 @@
 --   2. a database missing the revision objects reports it FALSE.
 -- Case 2 is the one that matters: a contract that cannot go red is not a
 -- contract. See docs/audits/brief-2/EVIDENCE.md.
+--
+-- pgTAP records each assertion inside the test transaction, so ROLLBACK TO
+-- SAVEPOINT also erases the assertions made after that savepoint. The first
+-- version of this suite undid each absence case that way: the cases ran, their
+-- results were rolled back, and pg_prove reported "planned 9 tests but ran 4"
+-- as ok. Each absence case now makes its change inside a PL/pgSQL exception
+-- block, which undoes the change without touching pgTAP's record.
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
-select extensions.plan(9);
+select extensions.plan(10);
+
+-- Applies one change, reads the contract, then raises to undo the change.
+-- Local variables survive the exception block's rollback; the change does not.
+create function pg_temp.readiness_without(change text) returns jsonb language plpgsql as $$
+declare
+  observed jsonb;
+begin
+  begin
+    execute change;
+    observed := public.signed_in_generation_readiness_v5();
+    raise exception using errcode = 'U0001', message = 'undo_readiness_change';
+  exception when sqlstate 'U0001' then
+    null;
+  end;
+  return observed;
+end $$;
 
 -- The probe is service-role only, like every other readiness RPC.
 select set_config('request.jwt.claim.role','authenticated',true);
@@ -40,44 +63,35 @@ select extensions.is(
   'the v5 contract carries the v4 placement boundary through unchanged');
 
 -- 2. Each missing object must independently flip the capability to false.
--- Every check runs inside its own savepoint and is rolled back.
-savepoint drop_read_rpc;
-drop function public.read_plan_revision_context(uuid);
 select extensions.is(
-  (public.signed_in_generation_readiness_v5()->>'livingPlanRevision')::boolean,
+  (pg_temp.readiness_without('drop function public.read_plan_revision_context(uuid)')->>'livingPlanRevision')::boolean,
   false,
   'a database without read_plan_revision_context reports NOT ready');
 select extensions.is(
-  (public.signed_in_generation_readiness_v5()->>'ready')::boolean,
+  (pg_temp.readiness_without('drop function public.read_plan_revision_context(uuid)')->>'ready')::boolean,
   false,
   'the overall contract fails closed when revision support is missing');
-rollback to savepoint drop_read_rpc;
-
-savepoint drop_apply_rpc;
-drop function public.apply_plan_revision(uuid,jsonb);
 select extensions.is(
-  (public.signed_in_generation_readiness_v5()->>'livingPlanRevision')::boolean,
+  (pg_temp.readiness_without('drop function public.apply_plan_revision(uuid,jsonb)')->>'livingPlanRevision')::boolean,
   false,
   'a database without apply_plan_revision reports NOT ready');
-rollback to savepoint drop_apply_rpc;
-
-savepoint drop_history_table;
-drop table public.plan_revisions;
 select extensions.is(
-  (public.signed_in_generation_readiness_v5()->>'livingPlanRevision')::boolean,
+  (pg_temp.readiness_without('drop table public.plan_revisions')->>'livingPlanRevision')::boolean,
   false,
   'a database without the plan_revisions history table reports NOT ready');
-rollback to savepoint drop_history_table;
 
 -- The browser reads its own revision history and never writes one. A database
 -- that hands the learner a write path is not ready either.
-savepoint grant_learner_write;
-grant insert on public.plan_revisions to authenticated;
 select extensions.is(
-  (public.signed_in_generation_readiness_v5()->>'livingPlanRevision')::boolean,
+  (pg_temp.readiness_without('grant insert on public.plan_revisions to authenticated')->>'livingPlanRevision')::boolean,
   false,
   'a database that lets the learner write revision history reports NOT ready');
-rollback to savepoint grant_learner_write;
+
+-- Every absence case above was undone, so later suites see the real database.
+select extensions.is(
+  (public.signed_in_generation_readiness_v5()->>'livingPlanRevision')::boolean,
+  true,
+  'each absence check is undone and the migrated database still reports revision support');
 
 select * from extensions.finish();
 rollback;

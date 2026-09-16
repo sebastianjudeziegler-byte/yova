@@ -70,14 +70,60 @@ jobs:
       - name: Initialize isolated database configuration
         run: pnpm exec supabase init
 
+      # Replays every migration and brings up sign-in and PostgREST, which the
+      # migrated route test needs. Everything else stays off to keep CI quick.
       - name: Replay every database migration
-        run: pnpm exec supabase db start
+        run: pnpm exec supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
       - name: Lint the migrated database
         run: pnpm exec supabase db lint --local --level warning --fail-on error
 
       - name: Test migrated database boundaries
-        run: pnpm exec supabase test db --local
+        run: |
+          set -o pipefail
+          log="$RUNNER_TEMP/database-tests.log"
+          pnpm exec supabase test db --local 2>&1 | tee "$log"
+          # pg_prove reports a suite that errors partway through as "ok" with
+          # "Looks like you planned N tests but ran M". A database test that
+          # cannot finish has failed: name it and print the error it hit.
+          if grep -Eq "Looks like you (planned|failed)|Dubious|Failed [0-9]+/[0-9]+ subtests" "$log"; then
+            db="$(docker ps --filter name=supabase_db --format '{{.Names}}' | head -1)"
+            docker exec -i "$db" psql -U postgres -d postgres -X -At -c "select 'diagnostic role: ' || current_user"
+            docker exec -i "$db" psql -U postgres -d postgres -X -At -c "select 'owner of ' || p.oid::regprocedure || ': ' || pg_get_userbyid(p.proowner) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('read_plan_revision_context','apply_plan_revision') union all select 'owner of public.plan_revisions: ' || pg_get_userbyid(relowner) from pg_class where oid = to_regclass('public.plan_revisions')"
+            for file in supabase/tests/database/*.sql; do
+              if ! output="$(docker exec -i "$db" psql -U postgres -d postgres -X -q -v ON_ERROR_STOP=1 < "$file" 2>&1)"; then
+                echo "::error file=$file::This database test stopped before finishing"
+                echo "$output" | grep -E "ERROR|DETAIL|HINT|CONTEXT" || echo "$output" | tail -20
+              fi
+            done
+            echo "::error::A database test ran fewer assertions than it planned."
+            echo "If no suite above reports a SQL error, its assertions were most likely rolled back: pgTAP records results inside the test transaction, so ROLLBACK TO SAVEPOINT erases the assertions made after the savepoint."
+            exit 1
+          fi
+
+      # The browser journey runs the development-preview path, which never
+      # touches the database. This sends a real preview request through the
+      # adjust route while the migrated database is still running.
+      - name: Test the plan adjustment route against the migrated database
+        run: |
+          set -o pipefail
+          eval "$(pnpm exec supabase status -o env | sed 's/^/export /')"
+          test -n "$API_URL" && test -n "$ANON_KEY" && test -n "$SERVICE_ROLE_KEY"
+          YOVA_REQUIRE_MIGRATED_ROUTE_TEST=1 \
+          YOVA_MIGRATED_SUPABASE_URL="$API_URL" \
+          YOVA_MIGRATED_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY" \
+          YOVA_MIGRATED_SUPABASE_SECRET_KEY="$SERVICE_ROLE_KEY" \
+          YOVA_MIGRATED_DB_CONTAINER="$(docker ps --filter name=supabase_db --format '{{.Names}}' | head -1)" \
+          pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.migrated.test.ts \
+            2>&1 | tee "$RUNNER_TEMP/migrated-route.log" || {
+              {
+                echo '### Migrated route test failed'
+                echo '```'
+                tail -80 "$RUNNER_TEMP/migrated-route.log"
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            }
 
       - name: Stop isolated database
         if: always()

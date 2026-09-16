@@ -12,16 +12,20 @@ const databaseTest = readFileSync(resolve(
 ), "utf8");
 
 describe("real PostgreSQL compatibility boundary gate", () => {
-  it("runs pgTAP after the full migration replay and lint but before teardown", () => {
-    const replay = workflow.indexOf("pnpm exec supabase db start");
+  it("runs pgTAP and the migrated route test after the replay and lint, before teardown", () => {
+    // The replay also starts sign-in and PostgREST: the migrated route test
+    // signs a learner in and calls the database through them.
+    const replay = workflow.indexOf("pnpm exec supabase start");
     const lint = workflow.indexOf("pnpm exec supabase db lint --local");
     const test = workflow.indexOf("pnpm exec supabase test db --local");
+    const route = workflow.indexOf("living-plan-route.migrated.test.ts");
     const stop = workflow.indexOf("pnpm exec supabase stop --no-backup");
 
     expect(replay).toBeGreaterThanOrEqual(0);
     expect(lint).toBeGreaterThan(replay);
     expect(test).toBeGreaterThan(lint);
-    expect(stop).toBeGreaterThan(test);
+    expect(route).toBeGreaterThan(test);
+    expect(stop).toBeGreaterThan(route);
     expect(workflow).not.toContain("supabase test db --linked");
   });
 
