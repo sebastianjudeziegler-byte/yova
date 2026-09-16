@@ -1,0 +1,2468 @@
+{
+ "plans": [
+  {
+   "id": "ccb50a1b-3c8d-4b9d-baeb-4a717ef063df",
+   "learningItemId": "8ed0ba6e-980f-4245-bb9e-75fda5bd13f3",
+   "title": "Core Vocabulary and Relationships in Photosynthesis\u2026",
+   "topic": "The core vocabulary and relationships in Photosynthesis and cellular respiration, The current starting gaps revealed without notes, A clear mental model of the weakest idea in",
+   "kind": "test",
+   "deadline": "2026-10-07T22:59:59.999Z",
+   "status": "active",
+   "sourceMode": "yova_generated",
+   "studyMode": "inside_yova",
+   "learningIntent": "learn",
+   "creationIntent": "plan",
+   "schedulePreferences": {
+    "timeZone": "Europe/London",
+    "availability": [
+     {
+      "day": "Wednesday",
+      "window": "Evening",
+      "minutes": 45
+     },
+     {
+      "day": "Thursday",
+      "window": "Evening",
+      "minutes": 45
+     },
+     {
+      "day": "Friday",
+      "window": "Evening",
+      "minutes": 45
+     },
+     {
+      "day": "Sunday",
+      "window": "Evening",
+      "minutes": 45
+     },
+     {
+      "day": "Monday",
+      "window": "Evening",
+      "minutes": 45
+     }
+    ]
+   },
+   "sessionArchitectureVersion": "streamed_teaching_v1",
+   "rationale": "YOVA fixed this sequence from the accepted topic map, current evidence, available time, and session limits. Topics that do not fit are shown explicitly as deferred instead of being silently dropped.",
+   "createdAt": "2026-09-16T08:48:07.672Z",
+   "knowledgeMap": {
+    "version": 1,
+    "scopeJudgment": {
+     "band": "unit_or_exam",
+     "label": "Unclassified learning plan",
+     "minimumSessions": 2,
+     "recommendedSessions": 4,
+     "maximumSessions": 8,
+     "minimumTeachingSessions": 1,
+     "explanation": "Live scope judgment is not available yet, so YOVA is using a conservative temporary range."
+    },
+    "topics": [
+     {
+      "id": "15f807bc-408b-456b-9eea-0893b4978723",
+      "title": "The core vocabulary and relationships in Photosynthesis and cellular respiration",
+      "description": "The knowledge and performance needed for The core vocabulary and relationships in Photosynthesis and cellular respiration.",
+      "subtopics": [],
+      "prerequisiteTopicIds": [],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": null
+     },
+     {
+      "id": "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+      "title": "The current starting gaps revealed without notes",
+      "description": "The knowledge and performance needed for The current starting gaps revealed without notes.",
+      "subtopics": [],
+      "prerequisiteTopicIds": [
+       "15f807bc-408b-456b-9eea-0893b4978723"
+      ],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": null
+     },
+     {
+      "id": "087a73eb-4191-40f7-845e-59346737e6af",
+      "title": "A clear mental model of the weakest idea in Photosynthesis and cellular respiration",
+      "description": "The knowledge and performance needed for A clear mental model of the weakest idea in Photosynthesis and cellular respiration.",
+      "subtopics": [],
+      "prerequisiteTopicIds": [
+       "3d9246a0-3c31-4ece-abe7-31b598e6cde1"
+      ],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": null
+     },
+     {
+      "id": "da5f37a3-ed03-4b20-9277-a15739937e6e",
+      "title": "One concrete example that shows how the idea works",
+      "description": "The knowledge and performance needed for One concrete example that shows how the idea works.",
+      "subtopics": [],
+      "prerequisiteTopicIds": [
+       "087a73eb-4191-40f7-845e-59346737e6af"
+      ],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": null
+     },
+     {
+      "id": "f7df127a-41fd-4886-9bdb-a25353a1286e",
+      "title": "Choosing the correct idea in mixed situations",
+      "description": "The knowledge and performance needed for Choosing the correct idea in mixed situations.",
+      "subtopics": [],
+      "prerequisiteTopicIds": [
+       "da5f37a3-ed03-4b20-9277-a15739937e6e"
+      ],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": null
+     },
+     {
+      "id": "553b0f50-84b4-4528-beef-f5fa6cd2e1ea",
+      "title": "Explaining why tempting alternatives do not fit",
+      "description": "The knowledge and performance needed for Explaining why tempting alternatives do not fit.",
+      "subtopics": [],
+      "prerequisiteTopicIds": [
+       "f7df127a-41fd-4886-9bdb-a25353a1286e"
+      ],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": null
+     },
+     {
+      "id": "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+      "title": "Representative unsupported questions",
+      "description": "The knowledge and performance needed for Representative unsupported questions.",
+      "subtopics": [],
+      "prerequisiteTopicIds": [
+       "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+      ],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": null
+     },
+     {
+      "id": "82f02cb1-6760-4606-a7ac-ae0291d6ca2c",
+      "title": "Errors repaired with a different follow-up prompt",
+      "description": "The knowledge and performance needed for Errors repaired with a different follow-up prompt.",
+      "subtopics": [],
+      "prerequisiteTopicIds": [
+       "ab2075cf-6ff3-4e95-87c3-0915a55b61cb"
+      ],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": null
+     },
+     {
+      "id": "7fd7d84b-b50d-40f5-9379-48dc59e54f85",
+      "title": "One independent transfer attempt",
+      "description": "The knowledge and performance needed for One independent transfer attempt.",
+      "subtopics": [],
+      "prerequisiteTopicIds": [
+       "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+      ],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": {
+       "reason": "The accepted session maximum was reserved for coherent coverage and required later Practice, so this tail topic is deferred."
+      }
+     },
+     {
+      "id": "ed6460d7-8fe7-4efc-b820-6ed4a3e2e655",
+      "title": "The highest-priority ideas still due for retrieval",
+      "description": "The knowledge and performance needed for The highest-priority ideas still due for retrieval.",
+      "subtopics": [],
+      "prerequisiteTopicIds": [
+       "7fd7d84b-b50d-40f5-9379-48dc59e54f85"
+      ],
+      "status": "not_started",
+      "initialEvidence": null,
+      "sourceReferences": [],
+      "origin": "ai_generated",
+      "deferred": {
+       "reason": "A prerequisite could not be scheduled in this plan, so the dependent topic is deferred instead of being taught out of order."
+      }
+     }
+    ],
+    "placementCheck": {
+     "status": "available",
+     "completedAt": null,
+     "demonstratedTopicIds": [],
+     "gapTopicIds": []
+    }
+   },
+   "materials": [],
+   "sessions": [
+    {
+     "id": "67763385-5835-47d1-8ce9-70a0a8333529",
+     "sequence": 1,
+     "title": "Build The core vocabulary and relationships in Photosynthesis and cellular respiration",
+     "objective": "Recall the key facts about The core vocabulary and relationships in Photosynthesis and cellular respiration after working through a concrete example.",
+     "method": "Active Recall",
+     "methodReason": "Code supplies the topic-specific reason after choosing the method.",
+     "scheduledFor": "2026-09-16T18:00:00.000Z",
+     "estimatedMinutes": 25,
+     "amountLabel": "1 topic + 1 practice check + about 25 min",
+     "learningMode": "learn",
+     "topicIds": [
+      "15f807bc-408b-456b-9eea-0893b4978723"
+     ],
+     "contentTargets": [
+      "The core vocabulary and relationships in Photosynthesis and cellular respiration"
+     ],
+     "completionEvidence": [
+      "Recall The core vocabulary and relationships in Photosynthesis and cellular respiration without notes and correct every exposed gap"
+     ],
+     "status": "ready",
+     "studyRoute": {
+      "identity": {
+       "routeLineageId": "26ce5b83-6053-5567-8386-063e86dfc842",
+       "routeRevisionId": "25a579fe-bcb0-50d2-8944-171bf56adb3f",
+       "revisionNumber": 1,
+       "schemaVersion": 1,
+       "lifecycleStatus": "committed",
+       "planId": "ccb50a1b-3c8d-4b9d-baeb-4a717ef063df",
+       "sessionId": "67763385-5835-47d1-8ce9-70a0a8333529",
+       "createdAt": "2026-09-16T08:48:07.672Z",
+       "committedAt": "2026-09-16T08:48:07.672Z"
+      },
+      "target": {
+       "taskFamily": "memorization",
+       "desiredOutcome": "Recall the key facts about The core vocabulary and relationships in Photosynthesis and cellular respiration after working through a concrete example.",
+       "targetStates": [
+        {
+         "targetId": "15f807bc-408b-456b-9eea-0893b4978723",
+         "stage": "novice",
+         "uncertainty": "high",
+         "evidenceRefs": []
+        }
+       ],
+       "sourceRequirements": {
+        "sourceType": "yova_generated",
+        "requiredSourceIds": [],
+        "groundingRequired": false,
+        "instructions": []
+       }
+      },
+      "approach": {
+       "mode": "learn",
+       "executionEnvironment": "inside_yova",
+       "primaryMethodId": "retrieval_practice",
+       "visibleMethodName": "Active Recall",
+       "confidenceLevel": "unknown"
+      },
+      "timing": {
+       "activeMinutes": 25,
+       "elapsedMinutes": 25,
+       "durationSource": "router_default",
+       "hardMaximumMinutes": 45
+      },
+      "execution": {
+       "orderedPhases": [
+        {
+         "phaseId": "method-1-model",
+         "methodPhase": "model",
+         "activeMinutes": 9,
+         "targetIds": [
+          "15f807bc-408b-456b-9eea-0893b4978723"
+         ]
+        },
+        {
+         "phaseId": "method-2-retrieve",
+         "methodPhase": "retrieve",
+         "activeMinutes": 8,
+         "targetIds": [
+          "15f807bc-408b-456b-9eea-0893b4978723"
+         ]
+        },
+        {
+         "phaseId": "method-3-repair",
+         "methodPhase": "repair",
+         "activeMinutes": 8,
+         "targetIds": [
+          "15f807bc-408b-456b-9eea-0893b4978723"
+         ]
+        }
+       ],
+       "difficultyTier": "unknown",
+       "initialSupport": "supported_start",
+       "activityLimit": 4,
+       "completionEvidence": [
+        {
+         "evidenceId": "legacy-evidence-1",
+         "targetIds": [
+          "15f807bc-408b-456b-9eea-0893b4978723"
+         ],
+         "kind": "explanation",
+         "description": "Recall The core vocabulary and relationships in Photosynthesis and cellular respiration without notes and correct every exposed gap",
+         "requiresIndependentAttempt": true
+        }
+       ],
+       "deferredTargets": []
+      },
+      "agency": {
+       "controlMode": "yova_decides",
+       "selectedBy": "yova",
+       "alternatives": []
+      },
+      "explanation": {
+       "shortReason": "Code supplies the topic-specific reason after choosing the method.",
+       "taskRequirements": [
+        "Active Recall is eligible for this memorization Learn route at the novice stage.",
+        "Recall the key facts about The core vocabulary and relationships in Photosynthesis and cellular respiration after working through a concrete example.",
+        "Recall The core vocabulary and relationships in Photosynthesis and cellular respiration without notes and correct every exposed gap"
+       ],
+       "learnerDeclarations": [],
+       "observations": [],
+       "uncertainties": [
+        "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
+        "This starting point uses the available topic information; it has not been confirmed by an attempt in this session."
+       ]
+      },
+      "provenance": {
+       "routerVersion": "study_route_method_plan_integration_v1+method_decision_evidence_adapter_v2+method_evidence_v1+method_compare_v1+method_runtime_capability_v1+method_presentation_v2+study_route_agency_mode_controller_v1+personalization_rollout_v1+task_mastery_v1",
+       "profileVersion": "authorized_profile_context_v1+empty",
+       "evidenceRefs": [
+        "canonical-profile:control_mode:onboarding:q2"
+       ],
+       "ruleTrace": [
+        {
+         "ruleId": "study_route.legacy_plan_adapter",
+         "result": "canonicalized_planned_promise",
+         "reason": "Preserved the legacy plan-session promise without inventing historical agency or confidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "normal_plan_envelope_composer_v1",
+         "result": "partial:initial_coverage:normal-plan-envelope-001",
+         "reason": "The deterministic normal-plan composer fixed this session's sequence, targets, mode, schedule, and duration before learner-facing copy was generated.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_mode_routing_v1",
+         "result": "learn:instruction_required",
+         "reason": "Every active target requires instruction because 1 unobserved target follows the explicit Learn starting recommendation (You said this is new or not yet clear, so YOVA should build understanding before expecting recall.). No provider mode label entered this decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.recommendation.router_baseline",
+         "result": "baseline_25_minutes",
+         "reason": "No authorized sustainable-duration answer is available, so YOVA uses the conservative 25-minute learn memorization baseline.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.availability_cap",
+         "result": "recommended_duration_fits",
+         "reason": "The selected 25-minute session fits within the learner's 45-minute maximum.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_method_routing_v1",
+         "result": "memorization:normal_plan_envelope",
+         "reason": "Task family was preserved from the deterministic normal-plan envelope. Provider plan, session, evidence, and method prose were excluded from the decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "personalization_rollout_v1",
+         "result": "task_mastery_v1",
+         "reason": "The server-owned staged rollout selected the version for new route issuance; it did not alternate methods or create method evidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route.router_history_compaction_v1",
+         "result": "prior_router_chain_compacted",
+         "reason": "The bounded routerVersion keeps the complete current method and rollout policy set. The exact ordered predecessor router components remain in this trace for audit and rollback.",
+         "evidenceRefs": [
+          "router-component:legacy_adapter_v1",
+          "router-component:normal_plan_envelope_route_integration_v1",
+          "router-component:normal_plan_envelope_composer_v1",
+          "router-component:normal_duration_recommender_v1"
+         ]
+        },
+        {
+         "ruleId": "method_decision_evidence_adapter_v2",
+         "result": "authorized_context_applied",
+         "reason": "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_evidence_v1",
+         "result": "thresholded_outcome_evidence",
+         "reason": "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_compare_v1",
+         "result": "comparison_context_required",
+         "reason": "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_eligibility_v3",
+         "result": "retrieval_practice",
+         "reason": "Task, knowledge stage, and Learn mode limited selection to Active Recall.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "canonical_method_selection_v1",
+         "result": "task_baseline:retrieval_practice",
+         "reason": "Active Recall fits this task and your starting point. It helps you build understanding before you try it yourself.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_runtime_capability_v1",
+         "result": "streamed:dedicated_runtime:recovery_candidate",
+         "reason": "YOVA can deliver this route through streamed generation and the dedicated retrieval round interaction. A bounded model recovery is possible only when its additional source, target, pacing, and evidence checks also pass.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_presentation_v2",
+         "result": "recognizable_method_names",
+         "reason": "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route_agency_mode_controller_v1",
+         "result": "yova_decides:canonical_profile:alternatives:none",
+         "reason": "The authorized canonical control-mode answer selected yova_decides; the shared agency controller kept at most two eligible, deliverable alternatives.",
+         "evidenceRefs": [
+          "canonical-profile:control_mode:onboarding:q2"
+         ]
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "b49ab8c3-a655-4772-b749-0ca115021310",
+     "sequence": 2,
+     "title": "Build The current starting gaps revealed without notes, A clear mental model of the",
+     "objective": "Explain The current starting gaps revealed without notes, A clear mental model of the weakest idea in Photosynthesis and cellular respiration after working through a concrete example.",
+     "method": "Feynman Technique",
+     "methodReason": "You asked for an example first; Feynman Technique lets you explain the connections for The current starting gaps revealed without notes, A clear mental model of the weakest idea in Photosynthesis to build understanding in session 2.",
+     "scheduledFor": "2026-09-16T18:30:00.000Z",
+     "estimatedMinutes": 15,
+     "amountLabel": "2 topics + 2 practice checks + about 15 min",
+     "learningMode": "learn",
+     "topicIds": [
+      "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+      "087a73eb-4191-40f7-845e-59346737e6af"
+     ],
+     "contentTargets": [
+      "The current starting gaps revealed without notes",
+      "A clear mental model of the weakest idea in Photosynthesis and cellular respiration"
+     ],
+     "completionEvidence": [
+      "Explain The current starting gaps revealed without notes in your own words with your notes closed",
+      "Explain A clear mental model of the weakest idea in Photosynthesis and cellular respiration in your own words with your notes closed"
+     ],
+     "status": "upcoming",
+     "studyRoute": {
+      "identity": {
+       "routeLineageId": "b2ed1501-2626-5bfd-8c25-2e7c6c4ebc68",
+       "routeRevisionId": "986ed488-2b63-5ef4-89a7-b625b6b83091",
+       "revisionNumber": 1,
+       "schemaVersion": 1,
+       "lifecycleStatus": "committed",
+       "planId": "ccb50a1b-3c8d-4b9d-baeb-4a717ef063df",
+       "sessionId": "b49ab8c3-a655-4772-b749-0ca115021310",
+       "createdAt": "2026-09-16T08:48:07.672Z",
+       "committedAt": "2026-09-16T08:48:07.672Z"
+      },
+      "target": {
+       "taskFamily": "conceptual_learning",
+       "desiredOutcome": "Explain The current starting gaps revealed without notes, A clear mental model of the weakest idea in Photosynthesis and cellular respiration after working through a concrete example.",
+       "targetStates": [
+        {
+         "targetId": "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+         "stage": "novice",
+         "uncertainty": "high",
+         "evidenceRefs": []
+        },
+        {
+         "targetId": "087a73eb-4191-40f7-845e-59346737e6af",
+         "stage": "novice",
+         "uncertainty": "high",
+         "evidenceRefs": []
+        }
+       ],
+       "sourceRequirements": {
+        "sourceType": "yova_generated",
+        "requiredSourceIds": [],
+        "groundingRequired": false,
+        "instructions": []
+       }
+      },
+      "approach": {
+       "mode": "learn",
+       "executionEnvironment": "inside_yova",
+       "primaryMethodId": "self_explanation",
+       "visibleMethodName": "Feynman Technique",
+       "confidenceLevel": "unknown"
+      },
+      "timing": {
+       "activeMinutes": 15,
+       "elapsedMinutes": 15,
+       "durationSource": "availability_cap",
+       "hardMaximumMinutes": 15
+      },
+      "execution": {
+       "orderedPhases": [
+        {
+         "phaseId": "method-1-model",
+         "methodPhase": "model",
+         "activeMinutes": 4,
+         "targetIds": [
+          "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+          "087a73eb-4191-40f7-845e-59346737e6af"
+         ]
+        },
+        {
+         "phaseId": "method-2-explain",
+         "methodPhase": "explain",
+         "activeMinutes": 4,
+         "targetIds": [
+          "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+          "087a73eb-4191-40f7-845e-59346737e6af"
+         ]
+        },
+        {
+         "phaseId": "method-3-repair",
+         "methodPhase": "repair",
+         "activeMinutes": 4,
+         "targetIds": [
+          "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+          "087a73eb-4191-40f7-845e-59346737e6af"
+         ]
+        },
+        {
+         "phaseId": "method-4-reexplain",
+         "methodPhase": "reexplain",
+         "activeMinutes": 3,
+         "targetIds": [
+          "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+          "087a73eb-4191-40f7-845e-59346737e6af"
+         ]
+        }
+       ],
+       "difficultyTier": "unknown",
+       "initialSupport": "supported_start",
+       "activityLimit": 4,
+       "completionEvidence": [
+        {
+         "evidenceId": "legacy-evidence-1",
+         "targetIds": [
+          "3d9246a0-3c31-4ece-abe7-31b598e6cde1"
+         ],
+         "kind": "explanation",
+         "description": "Explain The current starting gaps revealed without notes in your own words with your notes closed",
+         "requiresIndependentAttempt": true
+        },
+        {
+         "evidenceId": "legacy-evidence-2",
+         "targetIds": [
+          "087a73eb-4191-40f7-845e-59346737e6af"
+         ],
+         "kind": "explanation",
+         "description": "Explain A clear mental model of the weakest idea in Photosynthesis and cellular respiration in your own words with your notes closed",
+         "requiresIndependentAttempt": true
+        }
+       ],
+       "deferredTargets": []
+      },
+      "agency": {
+       "controlMode": "yova_decides",
+       "selectedBy": "yova",
+       "alternatives": [
+        {
+         "alternativeId": "method-alternative:concept_mapping",
+         "mode": "learn",
+         "executionEnvironment": "inside_yova",
+         "primaryMethodId": "concept_mapping",
+         "visibleMethodName": "Concept Mapping",
+         "activeMinutes": 15,
+         "tradeoff": "Concept Mapping also fits this conceptual learning Learn session. Retrieve the important concepts, state labeled relationships between them, verify those links, and repair the map."
+        },
+        {
+         "alternativeId": "method-alternative:pretesting",
+         "mode": "learn",
+         "executionEnvironment": "inside_yova",
+         "primaryMethodId": "pretesting",
+         "visibleMethodName": "Pretesting",
+         "activeMinutes": 15,
+         "tradeoff": "Pretesting also fits this conceptual learning Learn session. Make a brief prediction or attempt before instruction, then learn from the gap and answer a changed follow-up."
+        }
+       ]
+      },
+      "explanation": {
+       "shortReason": "You asked for an example first; Feynman Technique lets you explain the connections for The current starting gaps revealed without notes, A clear mental model of the weakest idea in Photosynthesis to build understanding in session 2.",
+       "taskRequirements": [
+        "Feynman Technique is eligible for this conceptual learning Learn route at the novice stage.",
+        "Explain The current starting gaps revealed without notes, A clear mental model of the weakest idea in Photosynthesis and cellular respiration after working through a concrete example.",
+        "Explain The current starting gaps revealed without notes in your own words with your notes closed",
+        "Explain A clear mental model of the weakest idea in Photosynthesis and cellular respiration in your own words with your notes closed"
+       ],
+       "learnerDeclarations": [],
+       "observations": [],
+       "uncertainties": [
+        "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
+        "This starting point uses the available topic information; it has not been confirmed by an attempt in this session."
+       ]
+      },
+      "provenance": {
+       "routerVersion": "study_route_method_plan_integration_v1+method_decision_evidence_adapter_v2+method_evidence_v1+method_compare_v1+method_runtime_capability_v1+method_presentation_v2+study_route_agency_mode_controller_v1+personalization_rollout_v1+task_mastery_v1",
+       "profileVersion": "authorized_profile_context_v1+empty",
+       "evidenceRefs": [
+        "canonical-profile:control_mode:onboarding:q2"
+       ],
+       "ruleTrace": [
+        {
+         "ruleId": "study_route.legacy_plan_adapter",
+         "result": "canonicalized_planned_promise",
+         "reason": "Preserved the legacy plan-session promise without inventing historical agency or confidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "normal_plan_envelope_composer_v1",
+         "result": "partial:initial_coverage:normal-plan-envelope-002",
+         "reason": "The deterministic normal-plan composer fixed this session's sequence, targets, mode, schedule, and duration before learner-facing copy was generated.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_mode_routing_v1",
+         "result": "learn:instruction_required",
+         "reason": "Every active target requires instruction because 2 unobserved targets follow the explicit Learn starting recommendation (You said this is new or not yet clear, so YOVA should build understanding before expecting recall.). No provider mode label entered this decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.recommendation.router_baseline",
+         "result": "baseline_25_minutes",
+         "reason": "No authorized sustainable-duration answer is available, so YOVA uses the conservative 25-minute learn conceptual learning baseline.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.availability_cap",
+         "result": "capped_to_15_minutes",
+         "reason": "The learner has 15 minutes available, so YOVA reduced the session to the largest normal duration that fits.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_method_routing_v1",
+         "result": "conceptual_learning:normal_plan_envelope",
+         "reason": "Task family was preserved from the deterministic normal-plan envelope. Provider plan, session, evidence, and method prose were excluded from the decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "personalization_rollout_v1",
+         "result": "task_mastery_v1",
+         "reason": "The server-owned staged rollout selected the version for new route issuance; it did not alternate methods or create method evidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route.router_history_compaction_v1",
+         "result": "prior_router_chain_compacted",
+         "reason": "The bounded routerVersion keeps the complete current method and rollout policy set. The exact ordered predecessor router components remain in this trace for audit and rollback.",
+         "evidenceRefs": [
+          "router-component:legacy_adapter_v1",
+          "router-component:normal_plan_envelope_route_integration_v1",
+          "router-component:normal_plan_envelope_composer_v1",
+          "router-component:normal_duration_recommender_v1"
+         ]
+        },
+        {
+         "ruleId": "method_decision_evidence_adapter_v2",
+         "result": "authorized_context_applied",
+         "reason": "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_evidence_v1",
+         "result": "thresholded_outcome_evidence",
+         "reason": "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_compare_v1",
+         "result": "comparison_context_required",
+         "reason": "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_eligibility_v3",
+         "result": "self_explanation,concept_mapping,pretesting,read_recall_review",
+         "reason": "Task, knowledge stage, and Learn mode limited selection to Feynman Technique, Concept Mapping, Pretesting, SQ3R.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "canonical_method_selection_v1",
+         "result": "task_baseline:self_explanation",
+         "reason": "Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_runtime_capability_v1",
+         "result": "streamed:validated_phase_contract:recovery_candidate",
+         "reason": "YOVA can deliver this route through streamed generation and the generic activity renderer under the method's validated phase contract. A bounded model recovery is possible only when its additional source, target, pacing, and evidence checks also pass.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_presentation_v2",
+         "result": "recognizable_method_names",
+         "reason": "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route_agency_mode_controller_v1",
+         "result": "yova_decides:canonical_profile:alternatives:concept_mapping,pretesting",
+         "reason": "The authorized canonical control-mode answer selected yova_decides; the shared agency controller kept at most two eligible, deliverable alternatives.",
+         "evidenceRefs": [
+          "canonical-profile:control_mode:onboarding:q2"
+         ]
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "52e0a34c-2fac-4855-82f5-b21422d9b51c",
+     "sequence": 3,
+     "title": "Build One concrete example that shows how the idea works, Choosing the correct idea in",
+     "objective": "Explain One concrete example that shows how the idea works, Choosing the correct idea in mixed situations, Explaining why tempting alternatives do after working through a concrete example.",
+     "method": "Feynman Technique",
+     "methodReason": "You asked for an example first; Feynman Technique lets you explain the connections for One concrete example that shows how the idea works, Choosing the correct idea in mixed situations, Explaining to build understanding in session 3.",
+     "scheduledFor": "2026-09-17T18:00:00.000Z",
+     "estimatedMinutes": 25,
+     "amountLabel": "3 topics + 3 practice checks + about 25 min",
+     "learningMode": "learn",
+     "topicIds": [
+      "da5f37a3-ed03-4b20-9277-a15739937e6e",
+      "f7df127a-41fd-4886-9bdb-a25353a1286e",
+      "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+     ],
+     "contentTargets": [
+      "One concrete example that shows how the idea works",
+      "Choosing the correct idea in mixed situations",
+      "Explaining why tempting alternatives do not fit"
+     ],
+     "completionEvidence": [
+      "Explain One concrete example that shows how the idea works in your own words with your notes closed",
+      "Explain Choosing the correct idea in mixed situations in your own words with your notes closed",
+      "Explain Explaining why tempting alternatives do not fit in your own words with your notes closed"
+     ],
+     "status": "upcoming",
+     "studyRoute": {
+      "identity": {
+       "routeLineageId": "ca34a3cb-81e9-5a57-8716-c966a3bcc032",
+       "routeRevisionId": "3efe3cc6-6157-5c62-85fe-e183d687a79f",
+       "revisionNumber": 1,
+       "schemaVersion": 1,
+       "lifecycleStatus": "committed",
+       "planId": "ccb50a1b-3c8d-4b9d-baeb-4a717ef063df",
+       "sessionId": "52e0a34c-2fac-4855-82f5-b21422d9b51c",
+       "createdAt": "2026-09-16T08:48:07.672Z",
+       "committedAt": "2026-09-16T08:48:07.672Z"
+      },
+      "target": {
+       "taskFamily": "conceptual_learning",
+       "desiredOutcome": "Explain One concrete example that shows how the idea works, Choosing the correct idea in mixed situations, Explaining why tempting alternatives do after working through a concrete example.",
+       "targetStates": [
+        {
+         "targetId": "da5f37a3-ed03-4b20-9277-a15739937e6e",
+         "stage": "novice",
+         "uncertainty": "high",
+         "evidenceRefs": []
+        },
+        {
+         "targetId": "f7df127a-41fd-4886-9bdb-a25353a1286e",
+         "stage": "novice",
+         "uncertainty": "high",
+         "evidenceRefs": []
+        },
+        {
+         "targetId": "553b0f50-84b4-4528-beef-f5fa6cd2e1ea",
+         "stage": "novice",
+         "uncertainty": "high",
+         "evidenceRefs": []
+        }
+       ],
+       "sourceRequirements": {
+        "sourceType": "yova_generated",
+        "requiredSourceIds": [],
+        "groundingRequired": false,
+        "instructions": []
+       }
+      },
+      "approach": {
+       "mode": "learn",
+       "executionEnvironment": "inside_yova",
+       "primaryMethodId": "self_explanation",
+       "visibleMethodName": "Feynman Technique",
+       "confidenceLevel": "unknown"
+      },
+      "timing": {
+       "activeMinutes": 25,
+       "elapsedMinutes": 25,
+       "durationSource": "router_default",
+       "hardMaximumMinutes": 45
+      },
+      "execution": {
+       "orderedPhases": [
+        {
+         "phaseId": "method-1-model",
+         "methodPhase": "model",
+         "activeMinutes": 7,
+         "targetIds": [
+          "da5f37a3-ed03-4b20-9277-a15739937e6e",
+          "f7df127a-41fd-4886-9bdb-a25353a1286e",
+          "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+         ]
+        },
+        {
+         "phaseId": "method-2-explain",
+         "methodPhase": "explain",
+         "activeMinutes": 6,
+         "targetIds": [
+          "da5f37a3-ed03-4b20-9277-a15739937e6e",
+          "f7df127a-41fd-4886-9bdb-a25353a1286e",
+          "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+         ]
+        },
+        {
+         "phaseId": "method-3-repair",
+         "methodPhase": "repair",
+         "activeMinutes": 6,
+         "targetIds": [
+          "da5f37a3-ed03-4b20-9277-a15739937e6e",
+          "f7df127a-41fd-4886-9bdb-a25353a1286e",
+          "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+         ]
+        },
+        {
+         "phaseId": "method-4-reexplain",
+         "methodPhase": "reexplain",
+         "activeMinutes": 6,
+         "targetIds": [
+          "da5f37a3-ed03-4b20-9277-a15739937e6e",
+          "f7df127a-41fd-4886-9bdb-a25353a1286e",
+          "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+         ]
+        }
+       ],
+       "difficultyTier": "unknown",
+       "initialSupport": "supported_start",
+       "activityLimit": 4,
+       "completionEvidence": [
+        {
+         "evidenceId": "legacy-evidence-1",
+         "targetIds": [
+          "da5f37a3-ed03-4b20-9277-a15739937e6e"
+         ],
+         "kind": "explanation",
+         "description": "Explain One concrete example that shows how the idea works in your own words with your notes closed",
+         "requiresIndependentAttempt": true
+        },
+        {
+         "evidenceId": "legacy-evidence-2",
+         "targetIds": [
+          "f7df127a-41fd-4886-9bdb-a25353a1286e"
+         ],
+         "kind": "explanation",
+         "description": "Explain Choosing the correct idea in mixed situations in your own words with your notes closed",
+         "requiresIndependentAttempt": true
+        },
+        {
+         "evidenceId": "legacy-evidence-3",
+         "targetIds": [
+          "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+         ],
+         "kind": "explanation",
+         "description": "Explain Explaining why tempting alternatives do not fit in your own words with your notes closed",
+         "requiresIndependentAttempt": true
+        }
+       ],
+       "deferredTargets": []
+      },
+      "agency": {
+       "controlMode": "yova_decides",
+       "selectedBy": "yova",
+       "alternatives": [
+        {
+         "alternativeId": "method-alternative:concept_mapping",
+         "mode": "learn",
+         "executionEnvironment": "inside_yova",
+         "primaryMethodId": "concept_mapping",
+         "visibleMethodName": "Concept Mapping",
+         "activeMinutes": 25,
+         "tradeoff": "Concept Mapping also fits this conceptual learning Learn session. Retrieve the important concepts, state labeled relationships between them, verify those links, and repair the map."
+        },
+        {
+         "alternativeId": "method-alternative:pretesting",
+         "mode": "learn",
+         "executionEnvironment": "inside_yova",
+         "primaryMethodId": "pretesting",
+         "visibleMethodName": "Pretesting",
+         "activeMinutes": 25,
+         "tradeoff": "Pretesting also fits this conceptual learning Learn session. Make a brief prediction or attempt before instruction, then learn from the gap and answer a changed follow-up."
+        }
+       ]
+      },
+      "explanation": {
+       "shortReason": "You asked for an example first; Feynman Technique lets you explain the connections for One concrete example that shows how the idea works, Choosing the correct idea in mixed situations, Explaining to build understanding in session 3.",
+       "taskRequirements": [
+        "Feynman Technique is eligible for this conceptual learning Learn route at the novice stage.",
+        "Explain One concrete example that shows how the idea works, Choosing the correct idea in mixed situations, Explaining why tempting alternatives do after working through a concrete example.",
+        "Explain One concrete example that shows how the idea works in your own words with your notes closed",
+        "Explain Choosing the correct idea in mixed situations in your own words with your notes closed",
+        "Explain Explaining why tempting alternatives do not fit in your own words with your notes closed"
+       ],
+       "learnerDeclarations": [],
+       "observations": [],
+       "uncertainties": [
+        "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
+        "This starting point uses the available topic information; it has not been confirmed by an attempt in this session."
+       ]
+      },
+      "provenance": {
+       "routerVersion": "study_route_method_plan_integration_v1+method_decision_evidence_adapter_v2+method_evidence_v1+method_compare_v1+method_runtime_capability_v1+method_presentation_v2+study_route_agency_mode_controller_v1+personalization_rollout_v1+task_mastery_v1",
+       "profileVersion": "authorized_profile_context_v1+empty",
+       "evidenceRefs": [
+        "canonical-profile:control_mode:onboarding:q2"
+       ],
+       "ruleTrace": [
+        {
+         "ruleId": "study_route.legacy_plan_adapter",
+         "result": "canonicalized_planned_promise",
+         "reason": "Preserved the legacy plan-session promise without inventing historical agency or confidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "normal_plan_envelope_composer_v1",
+         "result": "partial:initial_coverage:normal-plan-envelope-003",
+         "reason": "The deterministic normal-plan composer fixed this session's sequence, targets, mode, schedule, and duration before learner-facing copy was generated.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_mode_routing_v1",
+         "result": "learn:instruction_required",
+         "reason": "Every active target requires instruction because 3 unobserved targets follow the explicit Learn starting recommendation (You said this is new or not yet clear, so YOVA should build understanding before expecting recall.). No provider mode label entered this decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.recommendation.router_baseline",
+         "result": "baseline_25_minutes",
+         "reason": "No authorized sustainable-duration answer is available, so YOVA uses the conservative 25-minute learn conceptual learning baseline.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.availability_cap",
+         "result": "recommended_duration_fits",
+         "reason": "The selected 25-minute session fits within the learner's 45-minute maximum.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_method_routing_v1",
+         "result": "conceptual_learning:normal_plan_envelope",
+         "reason": "Task family was preserved from the deterministic normal-plan envelope. Provider plan, session, evidence, and method prose were excluded from the decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "personalization_rollout_v1",
+         "result": "task_mastery_v1",
+         "reason": "The server-owned staged rollout selected the version for new route issuance; it did not alternate methods or create method evidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route.router_history_compaction_v1",
+         "result": "prior_router_chain_compacted",
+         "reason": "The bounded routerVersion keeps the complete current method and rollout policy set. The exact ordered predecessor router components remain in this trace for audit and rollback.",
+         "evidenceRefs": [
+          "router-component:legacy_adapter_v1",
+          "router-component:normal_plan_envelope_route_integration_v1",
+          "router-component:normal_plan_envelope_composer_v1",
+          "router-component:normal_duration_recommender_v1"
+         ]
+        },
+        {
+         "ruleId": "method_decision_evidence_adapter_v2",
+         "result": "authorized_context_applied",
+         "reason": "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_evidence_v1",
+         "result": "thresholded_outcome_evidence",
+         "reason": "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_compare_v1",
+         "result": "comparison_context_required",
+         "reason": "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_eligibility_v3",
+         "result": "self_explanation,concept_mapping,pretesting,read_recall_review",
+         "reason": "Task, knowledge stage, and Learn mode limited selection to Feynman Technique, Concept Mapping, Pretesting, SQ3R.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "canonical_method_selection_v1",
+         "result": "task_baseline:self_explanation",
+         "reason": "Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_runtime_capability_v1",
+         "result": "streamed:validated_phase_contract:recovery_candidate",
+         "reason": "YOVA can deliver this route through streamed generation and the generic activity renderer under the method's validated phase contract. A bounded model recovery is possible only when its additional source, target, pacing, and evidence checks also pass.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_presentation_v2",
+         "result": "recognizable_method_names",
+         "reason": "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route_agency_mode_controller_v1",
+         "result": "yova_decides:canonical_profile:alternatives:concept_mapping,pretesting",
+         "reason": "The authorized canonical control-mode answer selected yova_decides; the shared agency controller kept at most two eligible, deliverable alternatives.",
+         "evidenceRefs": [
+          "canonical-profile:control_mode:onboarding:q2"
+         ]
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "dfe5bd81-6cb5-425b-80c3-34cd46b5fe4c",
+     "sequence": 4,
+     "title": "Build Representative unsupported questions, Errors repaired with a different follow-up",
+     "objective": "Explain Representative unsupported questions, Errors repaired with a different follow-up prompt after working through a concrete example.",
+     "method": "Feynman Technique",
+     "methodReason": "You asked for an example first; Feynman Technique lets you explain the connections for Representative unsupported questions, Errors repaired with a different follow-up prompt to build understanding in session 4.",
+     "scheduledFor": "2026-09-17T18:30:00.000Z",
+     "estimatedMinutes": 15,
+     "amountLabel": "2 topics + 2 practice checks + about 15 min",
+     "learningMode": "learn",
+     "topicIds": [
+      "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+      "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+     ],
+     "contentTargets": [
+      "Representative unsupported questions",
+      "Errors repaired with a different follow-up prompt"
+     ],
+     "completionEvidence": [
+      "Explain Representative unsupported questions in your own words with your notes closed",
+      "Explain Errors repaired with a different follow-up prompt in your own words with your notes closed"
+     ],
+     "status": "upcoming",
+     "studyRoute": {
+      "identity": {
+       "routeLineageId": "5fe6dfbf-9b95-59e3-82c7-c8724f35a646",
+       "routeRevisionId": "b22a15de-6833-5ac2-8c8d-444b7179f8af",
+       "revisionNumber": 1,
+       "schemaVersion": 1,
+       "lifecycleStatus": "committed",
+       "planId": "ccb50a1b-3c8d-4b9d-baeb-4a717ef063df",
+       "sessionId": "dfe5bd81-6cb5-425b-80c3-34cd46b5fe4c",
+       "createdAt": "2026-09-16T08:48:07.672Z",
+       "committedAt": "2026-09-16T08:48:07.672Z"
+      },
+      "target": {
+       "taskFamily": "conceptual_learning",
+       "desiredOutcome": "Explain Representative unsupported questions, Errors repaired with a different follow-up prompt after working through a concrete example.",
+       "targetStates": [
+        {
+         "targetId": "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+         "stage": "novice",
+         "uncertainty": "high",
+         "evidenceRefs": []
+        },
+        {
+         "targetId": "82f02cb1-6760-4606-a7ac-ae0291d6ca2c",
+         "stage": "novice",
+         "uncertainty": "high",
+         "evidenceRefs": []
+        }
+       ],
+       "sourceRequirements": {
+        "sourceType": "yova_generated",
+        "requiredSourceIds": [],
+        "groundingRequired": false,
+        "instructions": []
+       }
+      },
+      "approach": {
+       "mode": "learn",
+       "executionEnvironment": "inside_yova",
+       "primaryMethodId": "self_explanation",
+       "visibleMethodName": "Feynman Technique",
+       "confidenceLevel": "unknown"
+      },
+      "timing": {
+       "activeMinutes": 15,
+       "elapsedMinutes": 15,
+       "durationSource": "availability_cap",
+       "hardMaximumMinutes": 15
+      },
+      "execution": {
+       "orderedPhases": [
+        {
+         "phaseId": "method-1-model",
+         "methodPhase": "model",
+         "activeMinutes": 4,
+         "targetIds": [
+          "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+          "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+         ]
+        },
+        {
+         "phaseId": "method-2-explain",
+         "methodPhase": "explain",
+         "activeMinutes": 4,
+         "targetIds": [
+          "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+          "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+         ]
+        },
+        {
+         "phaseId": "method-3-repair",
+         "methodPhase": "repair",
+         "activeMinutes": 4,
+         "targetIds": [
+          "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+          "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+         ]
+        },
+        {
+         "phaseId": "method-4-reexplain",
+         "methodPhase": "reexplain",
+         "activeMinutes": 3,
+         "targetIds": [
+          "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+          "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+         ]
+        }
+       ],
+       "difficultyTier": "unknown",
+       "initialSupport": "supported_start",
+       "activityLimit": 4,
+       "completionEvidence": [
+        {
+         "evidenceId": "legacy-evidence-1",
+         "targetIds": [
+          "ab2075cf-6ff3-4e95-87c3-0915a55b61cb"
+         ],
+         "kind": "explanation",
+         "description": "Explain Representative unsupported questions in your own words with your notes closed",
+         "requiresIndependentAttempt": true
+        },
+        {
+         "evidenceId": "legacy-evidence-2",
+         "targetIds": [
+          "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+         ],
+         "kind": "explanation",
+         "description": "Explain Errors repaired with a different follow-up prompt in your own words with your notes closed",
+         "requiresIndependentAttempt": true
+        }
+       ],
+       "deferredTargets": []
+      },
+      "agency": {
+       "controlMode": "yova_decides",
+       "selectedBy": "yova",
+       "alternatives": [
+        {
+         "alternativeId": "method-alternative:concept_mapping",
+         "mode": "learn",
+         "executionEnvironment": "inside_yova",
+         "primaryMethodId": "concept_mapping",
+         "visibleMethodName": "Concept Mapping",
+         "activeMinutes": 15,
+         "tradeoff": "Concept Mapping also fits this conceptual learning Learn session. Retrieve the important concepts, state labeled relationships between them, verify those links, and repair the map."
+        },
+        {
+         "alternativeId": "method-alternative:pretesting",
+         "mode": "learn",
+         "executionEnvironment": "inside_yova",
+         "primaryMethodId": "pretesting",
+         "visibleMethodName": "Pretesting",
+         "activeMinutes": 15,
+         "tradeoff": "Pretesting also fits this conceptual learning Learn session. Make a brief prediction or attempt before instruction, then learn from the gap and answer a changed follow-up."
+        }
+       ]
+      },
+      "explanation": {
+       "shortReason": "You asked for an example first; Feynman Technique lets you explain the connections for Representative unsupported questions, Errors repaired with a different follow-up prompt to build understanding in session 4.",
+       "taskRequirements": [
+        "Feynman Technique is eligible for this conceptual learning Learn route at the novice stage.",
+        "Explain Representative unsupported questions, Errors repaired with a different follow-up prompt after working through a concrete example.",
+        "Explain Representative unsupported questions in your own words with your notes closed",
+        "Explain Errors repaired with a different follow-up prompt in your own words with your notes closed"
+       ],
+       "learnerDeclarations": [],
+       "observations": [],
+       "uncertainties": [
+        "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
+        "This starting point uses the available topic information; it has not been confirmed by an attempt in this session."
+       ]
+      },
+      "provenance": {
+       "routerVersion": "study_route_method_plan_integration_v1+method_decision_evidence_adapter_v2+method_evidence_v1+method_compare_v1+method_runtime_capability_v1+method_presentation_v2+study_route_agency_mode_controller_v1+personalization_rollout_v1+task_mastery_v1",
+       "profileVersion": "authorized_profile_context_v1+empty",
+       "evidenceRefs": [
+        "canonical-profile:control_mode:onboarding:q2"
+       ],
+       "ruleTrace": [
+        {
+         "ruleId": "study_route.legacy_plan_adapter",
+         "result": "canonicalized_planned_promise",
+         "reason": "Preserved the legacy plan-session promise without inventing historical agency or confidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "normal_plan_envelope_composer_v1",
+         "result": "partial:initial_coverage:normal-plan-envelope-004",
+         "reason": "The deterministic normal-plan composer fixed this session's sequence, targets, mode, schedule, and duration before learner-facing copy was generated.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_mode_routing_v1",
+         "result": "learn:instruction_required",
+         "reason": "Every active target requires instruction because 2 unobserved targets follow the explicit Learn starting recommendation (You said this is new or not yet clear, so YOVA should build understanding before expecting recall.). No provider mode label entered this decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.recommendation.router_baseline",
+         "result": "baseline_25_minutes",
+         "reason": "No authorized sustainable-duration answer is available, so YOVA uses the conservative 25-minute learn conceptual learning baseline.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.availability_cap",
+         "result": "capped_to_15_minutes",
+         "reason": "The learner has 15 minutes available, so YOVA reduced the session to the largest normal duration that fits.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_method_routing_v1",
+         "result": "conceptual_learning:normal_plan_envelope",
+         "reason": "Task family was preserved from the deterministic normal-plan envelope. Provider plan, session, evidence, and method prose were excluded from the decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "personalization_rollout_v1",
+         "result": "task_mastery_v1",
+         "reason": "The server-owned staged rollout selected the version for new route issuance; it did not alternate methods or create method evidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route.router_history_compaction_v1",
+         "result": "prior_router_chain_compacted",
+         "reason": "The bounded routerVersion keeps the complete current method and rollout policy set. The exact ordered predecessor router components remain in this trace for audit and rollback.",
+         "evidenceRefs": [
+          "router-component:legacy_adapter_v1",
+          "router-component:normal_plan_envelope_route_integration_v1",
+          "router-component:normal_plan_envelope_composer_v1",
+          "router-component:normal_duration_recommender_v1"
+         ]
+        },
+        {
+         "ruleId": "method_decision_evidence_adapter_v2",
+         "result": "authorized_context_applied",
+         "reason": "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_evidence_v1",
+         "result": "thresholded_outcome_evidence",
+         "reason": "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_compare_v1",
+         "result": "comparison_context_required",
+         "reason": "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_eligibility_v3",
+         "result": "self_explanation,concept_mapping,pretesting,read_recall_review",
+         "reason": "Task, knowledge stage, and Learn mode limited selection to Feynman Technique, Concept Mapping, Pretesting, SQ3R.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "canonical_method_selection_v1",
+         "result": "task_baseline:self_explanation",
+         "reason": "Feynman Technique fits this task and your starting point. It helps you build understanding before you try it yourself.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_runtime_capability_v1",
+         "result": "streamed:validated_phase_contract:recovery_candidate",
+         "reason": "YOVA can deliver this route through streamed generation and the generic activity renderer under the method's validated phase contract. A bounded model recovery is possible only when its additional source, target, pacing, and evidence checks also pass.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_presentation_v2",
+         "result": "recognizable_method_names",
+         "reason": "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route_agency_mode_controller_v1",
+         "result": "yova_decides:canonical_profile:alternatives:concept_mapping,pretesting",
+         "reason": "The authorized canonical control-mode answer selected yova_decides; the shared agency controller kept at most two eligible, deliverable alternatives.",
+         "evidenceRefs": [
+          "canonical-profile:control_mode:onboarding:q2"
+         ]
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "30f44b31-5575-4f5b-82ec-52b80b973149",
+     "sequence": 5,
+     "title": "Retrieve The core vocabulary and relationships in Photosynthesis and cellular respiration",
+     "objective": "Recall the key facts about The core vocabulary and relationships in Photosynthesis and cellular respiration without notes, then correct any mistakes.",
+     "method": "Active Recall",
+     "methodReason": "You asked for an example first; Active Recall lets you recall the essentials and check what is missing for The core vocabulary and relationships in Photosynthesis and cellular respiration to check what you can do independently in session 5.",
+     "scheduledFor": "2026-09-18T18:00:00.000Z",
+     "estimatedMinutes": 25,
+     "amountLabel": "1 topic + 1 practice check + about 25 min",
+     "learningMode": "study",
+     "topicIds": [
+      "15f807bc-408b-456b-9eea-0893b4978723"
+     ],
+     "contentTargets": [
+      "The core vocabulary and relationships in Photosynthesis and cellular respiration"
+     ],
+     "completionEvidence": [
+      "Recall The core vocabulary and relationships in Photosynthesis and cellular respiration without notes and correct every exposed gap"
+     ],
+     "status": "upcoming",
+     "studyRoute": {
+      "identity": {
+       "routeLineageId": "7f776858-dc0c-5ef4-82ff-ded5f71b0431",
+       "routeRevisionId": "2858fa0d-a15f-5459-8841-aeb8fc2a1754",
+       "revisionNumber": 1,
+       "schemaVersion": 1,
+       "lifecycleStatus": "committed",
+       "planId": "ccb50a1b-3c8d-4b9d-baeb-4a717ef063df",
+       "sessionId": "30f44b31-5575-4f5b-82ec-52b80b973149",
+       "createdAt": "2026-09-16T08:48:07.672Z",
+       "committedAt": "2026-09-16T08:48:07.672Z"
+      },
+      "target": {
+       "taskFamily": "memorization",
+       "desiredOutcome": "Recall the key facts about The core vocabulary and relationships in Photosynthesis and cellular respiration without notes, then correct any mistakes.",
+       "targetStates": [
+        {
+         "targetId": "15f807bc-408b-456b-9eea-0893b4978723",
+         "stage": "novice",
+         "uncertainty": "unknown",
+         "evidenceRefs": []
+        }
+       ],
+       "sourceRequirements": {
+        "sourceType": "yova_generated",
+        "requiredSourceIds": [],
+        "groundingRequired": false,
+        "instructions": []
+       }
+      },
+      "approach": {
+       "mode": "practice",
+       "executionEnvironment": "inside_yova",
+       "primaryMethodId": "retrieval_practice",
+       "visibleMethodName": "Active Recall",
+       "confidenceLevel": "unknown"
+      },
+      "timing": {
+       "activeMinutes": 25,
+       "elapsedMinutes": 25,
+       "durationSource": "router_default",
+       "hardMaximumMinutes": 45
+      },
+      "execution": {
+       "orderedPhases": [
+        {
+         "phaseId": "method-1-retrieve",
+         "methodPhase": "retrieve",
+         "activeMinutes": 13,
+         "targetIds": [
+          "15f807bc-408b-456b-9eea-0893b4978723"
+         ]
+        },
+        {
+         "phaseId": "method-2-repair",
+         "methodPhase": "repair",
+         "activeMinutes": 12,
+         "targetIds": [
+          "15f807bc-408b-456b-9eea-0893b4978723"
+         ]
+        }
+       ],
+       "difficultyTier": "unknown",
+       "initialSupport": "independent_start",
+       "activityLimit": 4,
+       "completionEvidence": [
+        {
+         "evidenceId": "legacy-evidence-1",
+         "targetIds": [
+          "15f807bc-408b-456b-9eea-0893b4978723"
+         ],
+         "kind": "retrieval",
+         "description": "Recall The core vocabulary and relationships in Photosynthesis and cellular respiration without notes and correct every exposed gap",
+         "requiresIndependentAttempt": true
+        }
+       ],
+       "deferredTargets": []
+      },
+      "agency": {
+       "controlMode": "yova_decides",
+       "selectedBy": "yova",
+       "alternatives": [
+        {
+         "alternativeId": "method-alternative:spaced_retrieval",
+         "mode": "practice",
+         "executionEnvironment": "inside_yova",
+         "primaryMethodId": "spaced_retrieval",
+         "visibleMethodName": "Spaced Repetition",
+         "activeMinutes": 25,
+         "tradeoff": "Spaced Repetition also fits this memorization Practice session. Return to important material across separated sessions and retrieve it before reviewing."
+        }
+       ]
+      },
+      "explanation": {
+       "shortReason": "You asked for an example first; Active Recall lets you recall the essentials and check what is missing for The core vocabulary and relationships in Photosynthesis and cellular respiration to check what you can do independently in session 5.",
+       "taskRequirements": [
+        "Active Recall is eligible for this memorization Practice route at the novice stage.",
+        "Recall the key facts about The core vocabulary and relationships in Photosynthesis and cellular respiration without notes, then correct any mistakes.",
+        "Recall The core vocabulary and relationships in Photosynthesis and cellular respiration without notes and correct every exposed gap"
+       ],
+       "learnerDeclarations": [],
+       "observations": [],
+       "uncertainties": [
+        "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
+        "This starting point uses the available topic information; it has not been confirmed by an attempt in this session."
+       ]
+      },
+      "provenance": {
+       "routerVersion": "study_route_method_plan_integration_v1+method_decision_evidence_adapter_v2+method_evidence_v1+method_compare_v1+method_runtime_capability_v1+method_presentation_v2+study_route_agency_mode_controller_v1+personalization_rollout_v1+task_mastery_v1",
+       "profileVersion": "authorized_profile_context_v1+empty",
+       "evidenceRefs": [
+        "planned-session:string:normal-plan-envelope-001",
+        "canonical-profile:control_mode:onboarding:q2"
+       ],
+       "ruleTrace": [
+        {
+         "ruleId": "study_route.legacy_plan_adapter",
+         "result": "canonicalized_planned_promise",
+         "reason": "Preserved the legacy plan-session promise without inventing historical agency or confidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "normal_plan_envelope_composer_v1",
+         "result": "partial:required_practice:normal-plan-envelope-005",
+         "reason": "The deterministic normal-plan composer fixed this session's sequence, targets, mode, schedule, and duration before learner-facing copy was generated.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_mode_routing_v1",
+         "result": "study:independent_attempt",
+         "reason": "Every active target receives an independent attempt because 1 target follows an earlier planned encounter. This is a route decision, not a mastery claim.",
+         "evidenceRefs": [
+          "planned-session:string:normal-plan-envelope-001"
+         ]
+        },
+        {
+         "ruleId": "duration.recommendation.router_baseline",
+         "result": "baseline_25_minutes",
+         "reason": "No authorized sustainable-duration answer is available, so YOVA uses the conservative 25-minute practice memorization baseline.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.availability_cap",
+         "result": "recommended_duration_fits",
+         "reason": "The selected 25-minute session fits within the learner's 45-minute maximum.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_method_routing_v1",
+         "result": "memorization:normal_plan_envelope",
+         "reason": "Task family was preserved from the deterministic normal-plan envelope. Provider plan, session, evidence, and method prose were excluded from the decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "personalization_rollout_v1",
+         "result": "task_mastery_v1",
+         "reason": "The server-owned staged rollout selected the version for new route issuance; it did not alternate methods or create method evidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route.router_history_compaction_v1",
+         "result": "prior_router_chain_compacted",
+         "reason": "The bounded routerVersion keeps the complete current method and rollout policy set. The exact ordered predecessor router components remain in this trace for audit and rollback.",
+         "evidenceRefs": [
+          "router-component:legacy_adapter_v1",
+          "router-component:normal_plan_envelope_route_integration_v1",
+          "router-component:normal_plan_envelope_composer_v1",
+          "router-component:normal_duration_recommender_v1"
+         ]
+        },
+        {
+         "ruleId": "method_decision_evidence_adapter_v2",
+         "result": "authorized_context_applied",
+         "reason": "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_evidence_v1",
+         "result": "thresholded_outcome_evidence",
+         "reason": "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_compare_v1",
+         "result": "comparison_context_required",
+         "reason": "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_eligibility_v3",
+         "result": "retrieval_practice,spaced_retrieval",
+         "reason": "Task, knowledge stage, and Practice mode limited selection to Active Recall, Spaced Repetition.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "canonical_method_selection_v1",
+         "result": "task_baseline:retrieval_practice",
+         "reason": "Active Recall fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_runtime_capability_v1",
+         "result": "reliable_or_full:dedicated_runtime:recovery_candidate",
+         "reason": "YOVA can deliver this route through reliable or full generation and the dedicated retrieval round interaction. A bounded model recovery is possible only when its additional source, target, pacing, and evidence checks also pass.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_presentation_v2",
+         "result": "recognizable_method_names",
+         "reason": "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route_agency_mode_controller_v1",
+         "result": "yova_decides:canonical_profile:alternatives:spaced_retrieval",
+         "reason": "The authorized canonical control-mode answer selected yova_decides; the shared agency controller kept at most two eligible, deliverable alternatives.",
+         "evidenceRefs": [
+          "canonical-profile:control_mode:onboarding:q2"
+         ]
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "f3e00628-b4b5-4557-b65e-13246d1d40d1",
+     "sequence": 6,
+     "title": "Retrieve The current starting gaps revealed without notes, A clear mental model of the",
+     "objective": "Explain The current starting gaps revealed without notes, A clear mental model of the weakest idea in Photosynthesis and cellular respiration without notes, then correct any mistakes.",
+     "method": "Concept Mapping",
+     "methodReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for The current starting gaps revealed without notes, A clear mental model of the weakest idea in Photosynthesis to check what you can do independently in session 6.",
+     "scheduledFor": "2026-09-18T18:30:00.000Z",
+     "estimatedMinutes": 15,
+     "amountLabel": "2 topics + 2 practice checks + about 15 min",
+     "learningMode": "study",
+     "topicIds": [
+      "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+      "087a73eb-4191-40f7-845e-59346737e6af"
+     ],
+     "contentTargets": [
+      "The current starting gaps revealed without notes",
+      "A clear mental model of the weakest idea in Photosynthesis and cellular respiration"
+     ],
+     "completionEvidence": [
+      "Apply The current starting gaps revealed without notes in one new example without initial support and correct any exposed error",
+      "Apply A clear mental model of the weakest idea in Photosynthesis and cellular respiration in one new example without initial support and correct any exposed error"
+     ],
+     "status": "upcoming",
+     "studyRoute": {
+      "identity": {
+       "routeLineageId": "fe4f8a0a-b61d-5256-888f-23db12d3e377",
+       "routeRevisionId": "d5f74923-0677-5d2f-81d5-ab7a679ed936",
+       "revisionNumber": 1,
+       "schemaVersion": 1,
+       "lifecycleStatus": "committed",
+       "planId": "ccb50a1b-3c8d-4b9d-baeb-4a717ef063df",
+       "sessionId": "f3e00628-b4b5-4557-b65e-13246d1d40d1",
+       "createdAt": "2026-09-16T08:48:07.672Z",
+       "committedAt": "2026-09-16T08:48:07.672Z"
+      },
+      "target": {
+       "taskFamily": "conceptual_learning",
+       "desiredOutcome": "Explain The current starting gaps revealed without notes, A clear mental model of the weakest idea in Photosynthesis and cellular respiration without notes, then correct any mistakes.",
+       "targetStates": [
+        {
+         "targetId": "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+         "stage": "novice",
+         "uncertainty": "unknown",
+         "evidenceRefs": []
+        },
+        {
+         "targetId": "087a73eb-4191-40f7-845e-59346737e6af",
+         "stage": "novice",
+         "uncertainty": "unknown",
+         "evidenceRefs": []
+        }
+       ],
+       "sourceRequirements": {
+        "sourceType": "yova_generated",
+        "requiredSourceIds": [],
+        "groundingRequired": false,
+        "instructions": []
+       }
+      },
+      "approach": {
+       "mode": "practice",
+       "executionEnvironment": "inside_yova",
+       "primaryMethodId": "concept_mapping",
+       "visibleMethodName": "Concept Mapping",
+       "confidenceLevel": "unknown"
+      },
+      "timing": {
+       "activeMinutes": 15,
+       "elapsedMinutes": 15,
+       "durationSource": "availability_cap",
+       "hardMaximumMinutes": 15
+      },
+      "execution": {
+       "orderedPhases": [
+        {
+         "phaseId": "method-1-retrieve",
+         "methodPhase": "retrieve",
+         "activeMinutes": 4,
+         "targetIds": [
+          "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+          "087a73eb-4191-40f7-845e-59346737e6af"
+         ]
+        },
+        {
+         "phaseId": "method-2-connect",
+         "methodPhase": "connect",
+         "activeMinutes": 4,
+         "targetIds": [
+          "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+          "087a73eb-4191-40f7-845e-59346737e6af"
+         ]
+        },
+        {
+         "phaseId": "method-3-evidence_match",
+         "methodPhase": "evidence_match",
+         "activeMinutes": 4,
+         "targetIds": [
+          "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+          "087a73eb-4191-40f7-845e-59346737e6af"
+         ]
+        },
+        {
+         "phaseId": "method-4-repair",
+         "methodPhase": "repair",
+         "activeMinutes": 3,
+         "targetIds": [
+          "3d9246a0-3c31-4ece-abe7-31b598e6cde1",
+          "087a73eb-4191-40f7-845e-59346737e6af"
+         ]
+        }
+       ],
+       "difficultyTier": "unknown",
+       "initialSupport": "independent_start",
+       "activityLimit": 4,
+       "completionEvidence": [
+        {
+         "evidenceId": "legacy-evidence-1",
+         "targetIds": [
+          "3d9246a0-3c31-4ece-abe7-31b598e6cde1"
+         ],
+         "kind": "retrieval",
+         "description": "Apply The current starting gaps revealed without notes in one new example without initial support and correct any exposed error",
+         "requiresIndependentAttempt": true
+        },
+        {
+         "evidenceId": "legacy-evidence-2",
+         "targetIds": [
+          "087a73eb-4191-40f7-845e-59346737e6af"
+         ],
+         "kind": "retrieval",
+         "description": "Apply A clear mental model of the weakest idea in Photosynthesis and cellular respiration in one new example without initial support and correct any exposed error",
+         "requiresIndependentAttempt": true
+        }
+       ],
+       "deferredTargets": []
+      },
+      "agency": {
+       "controlMode": "yova_decides",
+       "selectedBy": "yova",
+       "alternatives": [
+        {
+         "alternativeId": "method-alternative:retrieval_practice",
+         "mode": "practice",
+         "executionEnvironment": "inside_yova",
+         "primaryMethodId": "retrieval_practice",
+         "visibleMethodName": "Active Recall",
+         "activeMinutes": 15,
+         "tradeoff": "Active Recall also fits this conceptual learning Practice session. Produce an answer from memory before looking at the source."
+        }
+       ]
+      },
+      "explanation": {
+       "shortReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for The current starting gaps revealed without notes, A clear mental model of the weakest idea in Photosynthesis to check what you can do independently in session 6.",
+       "taskRequirements": [
+        "Concept Mapping is eligible for this conceptual learning Practice route at the novice stage.",
+        "Explain The current starting gaps revealed without notes, A clear mental model of the weakest idea in Photosynthesis and cellular respiration without notes, then correct any mistakes.",
+        "Apply The current starting gaps revealed without notes in one new example without initial support and correct any exposed error",
+        "Apply A clear mental model of the weakest idea in Photosynthesis and cellular respiration in one new example without initial support and correct any exposed error"
+       ],
+       "learnerDeclarations": [],
+       "observations": [],
+       "uncertainties": [
+        "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
+        "This starting point uses the available topic information; it has not been confirmed by an attempt in this session."
+       ]
+      },
+      "provenance": {
+       "routerVersion": "study_route_method_plan_integration_v1+method_decision_evidence_adapter_v2+method_evidence_v1+method_compare_v1+method_runtime_capability_v1+method_presentation_v2+study_route_agency_mode_controller_v1+personalization_rollout_v1+task_mastery_v1",
+       "profileVersion": "authorized_profile_context_v1+empty",
+       "evidenceRefs": [
+        "planned-session:string:normal-plan-envelope-002",
+        "canonical-profile:control_mode:onboarding:q2"
+       ],
+       "ruleTrace": [
+        {
+         "ruleId": "study_route.legacy_plan_adapter",
+         "result": "canonicalized_planned_promise",
+         "reason": "Preserved the legacy plan-session promise without inventing historical agency or confidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "normal_plan_envelope_composer_v1",
+         "result": "partial:required_practice:normal-plan-envelope-006",
+         "reason": "The deterministic normal-plan composer fixed this session's sequence, targets, mode, schedule, and duration before learner-facing copy was generated.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_mode_routing_v1",
+         "result": "study:independent_attempt",
+         "reason": "Every active target receives an independent attempt because 2 targets follow an earlier planned encounter. This is a route decision, not a mastery claim.",
+         "evidenceRefs": [
+          "planned-session:string:normal-plan-envelope-002"
+         ]
+        },
+        {
+         "ruleId": "duration.recommendation.router_baseline",
+         "result": "baseline_25_minutes",
+         "reason": "No authorized sustainable-duration answer is available, so YOVA uses the conservative 25-minute practice conceptual learning baseline.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.availability_cap",
+         "result": "capped_to_15_minutes",
+         "reason": "The learner has 15 minutes available, so YOVA reduced the session to the largest normal duration that fits.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_method_routing_v1",
+         "result": "conceptual_learning:normal_plan_envelope",
+         "reason": "Task family was preserved from the deterministic normal-plan envelope. Provider plan, session, evidence, and method prose were excluded from the decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "personalization_rollout_v1",
+         "result": "task_mastery_v1",
+         "reason": "The server-owned staged rollout selected the version for new route issuance; it did not alternate methods or create method evidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route.router_history_compaction_v1",
+         "result": "prior_router_chain_compacted",
+         "reason": "The bounded routerVersion keeps the complete current method and rollout policy set. The exact ordered predecessor router components remain in this trace for audit and rollback.",
+         "evidenceRefs": [
+          "router-component:legacy_adapter_v1",
+          "router-component:normal_plan_envelope_route_integration_v1",
+          "router-component:normal_plan_envelope_composer_v1",
+          "router-component:normal_duration_recommender_v1"
+         ]
+        },
+        {
+         "ruleId": "method_decision_evidence_adapter_v2",
+         "result": "authorized_context_applied",
+         "reason": "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_evidence_v1",
+         "result": "thresholded_outcome_evidence",
+         "reason": "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_compare_v1",
+         "result": "comparison_context_required",
+         "reason": "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_eligibility_v3",
+         "result": "concept_mapping,retrieval_practice",
+         "reason": "Task, knowledge stage, and Practice mode limited selection to Concept Mapping, Active Recall.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "canonical_method_selection_v1",
+         "result": "task_baseline:concept_mapping",
+         "reason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_runtime_capability_v1",
+         "result": "full:dedicated_runtime:recovery_none",
+         "reason": "YOVA can deliver this route through full generation and the dedicated concept map interaction. If primary generation fails, YOVA must retry or show recovery instead of relabeling a generic fallback as this method.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_presentation_v2",
+         "result": "recognizable_method_names",
+         "reason": "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route_agency_mode_controller_v1",
+         "result": "yova_decides:canonical_profile:alternatives:retrieval_practice",
+         "reason": "The authorized canonical control-mode answer selected yova_decides; the shared agency controller kept at most two eligible, deliverable alternatives.",
+         "evidenceRefs": [
+          "canonical-profile:control_mode:onboarding:q2"
+         ]
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "2f599392-2b06-4472-b4c3-3c7f3adceed9",
+     "sequence": 7,
+     "title": "Retrieve One concrete example that shows how the idea works, Choosing the correct idea in",
+     "objective": "Explain One concrete example that shows how the idea works, Choosing the correct idea in mixed situations, Explaining why tempting alternatives do without notes, then correct any mistakes.",
+     "method": "Concept Mapping",
+     "methodReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for One concrete example that shows how the idea works, Choosing the correct idea in mixed situations, Explaining to check what you can do independently in session 7.",
+     "scheduledFor": "2026-09-20T18:00:00.000Z",
+     "estimatedMinutes": 25,
+     "amountLabel": "3 topics + 3 practice checks + about 25 min",
+     "learningMode": "study",
+     "topicIds": [
+      "da5f37a3-ed03-4b20-9277-a15739937e6e",
+      "f7df127a-41fd-4886-9bdb-a25353a1286e",
+      "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+     ],
+     "contentTargets": [
+      "One concrete example that shows how the idea works",
+      "Choosing the correct idea in mixed situations",
+      "Explaining why tempting alternatives do not fit"
+     ],
+     "completionEvidence": [
+      "Apply One concrete example that shows how the idea works in one new example without initial support and correct any exposed error",
+      "Apply Choosing the correct idea in mixed situations in one new example without initial support and correct any exposed error",
+      "Apply Explaining why tempting alternatives do not fit in one new example without initial support and correct any exposed error"
+     ],
+     "status": "upcoming",
+     "studyRoute": {
+      "identity": {
+       "routeLineageId": "f3f40a35-7e68-5e79-8ecd-a0443ce41f18",
+       "routeRevisionId": "263ec334-909c-54f8-8339-8f2d9a723361",
+       "revisionNumber": 1,
+       "schemaVersion": 1,
+       "lifecycleStatus": "committed",
+       "planId": "ccb50a1b-3c8d-4b9d-baeb-4a717ef063df",
+       "sessionId": "2f599392-2b06-4472-b4c3-3c7f3adceed9",
+       "createdAt": "2026-09-16T08:48:07.672Z",
+       "committedAt": "2026-09-16T08:48:07.672Z"
+      },
+      "target": {
+       "taskFamily": "conceptual_learning",
+       "desiredOutcome": "Explain One concrete example that shows how the idea works, Choosing the correct idea in mixed situations, Explaining why tempting alternatives do without notes, then correct any mistakes.",
+       "targetStates": [
+        {
+         "targetId": "da5f37a3-ed03-4b20-9277-a15739937e6e",
+         "stage": "novice",
+         "uncertainty": "unknown",
+         "evidenceRefs": []
+        },
+        {
+         "targetId": "f7df127a-41fd-4886-9bdb-a25353a1286e",
+         "stage": "novice",
+         "uncertainty": "unknown",
+         "evidenceRefs": []
+        },
+        {
+         "targetId": "553b0f50-84b4-4528-beef-f5fa6cd2e1ea",
+         "stage": "novice",
+         "uncertainty": "unknown",
+         "evidenceRefs": []
+        }
+       ],
+       "sourceRequirements": {
+        "sourceType": "yova_generated",
+        "requiredSourceIds": [],
+        "groundingRequired": false,
+        "instructions": []
+       }
+      },
+      "approach": {
+       "mode": "practice",
+       "executionEnvironment": "inside_yova",
+       "primaryMethodId": "concept_mapping",
+       "visibleMethodName": "Concept Mapping",
+       "confidenceLevel": "unknown"
+      },
+      "timing": {
+       "activeMinutes": 25,
+       "elapsedMinutes": 25,
+       "durationSource": "router_default",
+       "hardMaximumMinutes": 45
+      },
+      "execution": {
+       "orderedPhases": [
+        {
+         "phaseId": "method-1-retrieve",
+         "methodPhase": "retrieve",
+         "activeMinutes": 7,
+         "targetIds": [
+          "da5f37a3-ed03-4b20-9277-a15739937e6e",
+          "f7df127a-41fd-4886-9bdb-a25353a1286e",
+          "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+         ]
+        },
+        {
+         "phaseId": "method-2-connect",
+         "methodPhase": "connect",
+         "activeMinutes": 6,
+         "targetIds": [
+          "da5f37a3-ed03-4b20-9277-a15739937e6e",
+          "f7df127a-41fd-4886-9bdb-a25353a1286e",
+          "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+         ]
+        },
+        {
+         "phaseId": "method-3-evidence_match",
+         "methodPhase": "evidence_match",
+         "activeMinutes": 6,
+         "targetIds": [
+          "da5f37a3-ed03-4b20-9277-a15739937e6e",
+          "f7df127a-41fd-4886-9bdb-a25353a1286e",
+          "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+         ]
+        },
+        {
+         "phaseId": "method-4-repair",
+         "methodPhase": "repair",
+         "activeMinutes": 6,
+         "targetIds": [
+          "da5f37a3-ed03-4b20-9277-a15739937e6e",
+          "f7df127a-41fd-4886-9bdb-a25353a1286e",
+          "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+         ]
+        }
+       ],
+       "difficultyTier": "unknown",
+       "initialSupport": "independent_start",
+       "activityLimit": 4,
+       "completionEvidence": [
+        {
+         "evidenceId": "legacy-evidence-1",
+         "targetIds": [
+          "da5f37a3-ed03-4b20-9277-a15739937e6e"
+         ],
+         "kind": "retrieval",
+         "description": "Apply One concrete example that shows how the idea works in one new example without initial support and correct any exposed error",
+         "requiresIndependentAttempt": true
+        },
+        {
+         "evidenceId": "legacy-evidence-2",
+         "targetIds": [
+          "f7df127a-41fd-4886-9bdb-a25353a1286e"
+         ],
+         "kind": "retrieval",
+         "description": "Apply Choosing the correct idea in mixed situations in one new example without initial support and correct any exposed error",
+         "requiresIndependentAttempt": true
+        },
+        {
+         "evidenceId": "legacy-evidence-3",
+         "targetIds": [
+          "553b0f50-84b4-4528-beef-f5fa6cd2e1ea"
+         ],
+         "kind": "retrieval",
+         "description": "Apply Explaining why tempting alternatives do not fit in one new example without initial support and correct any exposed error",
+         "requiresIndependentAttempt": true
+        }
+       ],
+       "deferredTargets": []
+      },
+      "agency": {
+       "controlMode": "yova_decides",
+       "selectedBy": "yova",
+       "alternatives": [
+        {
+         "alternativeId": "method-alternative:retrieval_practice",
+         "mode": "practice",
+         "executionEnvironment": "inside_yova",
+         "primaryMethodId": "retrieval_practice",
+         "visibleMethodName": "Active Recall",
+         "activeMinutes": 25,
+         "tradeoff": "Active Recall also fits this conceptual learning Practice session. Produce an answer from memory before looking at the source."
+        }
+       ]
+      },
+      "explanation": {
+       "shortReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for One concrete example that shows how the idea works, Choosing the correct idea in mixed situations, Explaining to check what you can do independently in session 7.",
+       "taskRequirements": [
+        "Concept Mapping is eligible for this conceptual learning Practice route at the novice stage.",
+        "Explain One concrete example that shows how the idea works, Choosing the correct idea in mixed situations, Explaining why tempting alternatives do without notes, then correct any mistakes.",
+        "Apply One concrete example that shows how the idea works in one new example without initial support and correct any exposed error",
+        "Apply Choosing the correct idea in mixed situations in one new example without initial support and correct any exposed error",
+        "Apply Explaining why tempting alternatives do not fit in one new example without initial support and correct any exposed error"
+       ],
+       "learnerDeclarations": [],
+       "observations": [],
+       "uncertainties": [
+        "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
+        "This starting point uses the available topic information; it has not been confirmed by an attempt in this session."
+       ]
+      },
+      "provenance": {
+       "routerVersion": "study_route_method_plan_integration_v1+method_decision_evidence_adapter_v2+method_evidence_v1+method_compare_v1+method_runtime_capability_v1+method_presentation_v2+study_route_agency_mode_controller_v1+personalization_rollout_v1+task_mastery_v1",
+       "profileVersion": "authorized_profile_context_v1+empty",
+       "evidenceRefs": [
+        "planned-session:string:normal-plan-envelope-003",
+        "canonical-profile:control_mode:onboarding:q2"
+       ],
+       "ruleTrace": [
+        {
+         "ruleId": "study_route.legacy_plan_adapter",
+         "result": "canonicalized_planned_promise",
+         "reason": "Preserved the legacy plan-session promise without inventing historical agency or confidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "normal_plan_envelope_composer_v1",
+         "result": "partial:required_practice:normal-plan-envelope-007",
+         "reason": "The deterministic normal-plan composer fixed this session's sequence, targets, mode, schedule, and duration before learner-facing copy was generated.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_mode_routing_v1",
+         "result": "study:independent_attempt",
+         "reason": "Every active target receives an independent attempt because 3 targets follow an earlier planned encounter. This is a route decision, not a mastery claim.",
+         "evidenceRefs": [
+          "planned-session:string:normal-plan-envelope-003"
+         ]
+        },
+        {
+         "ruleId": "duration.recommendation.router_baseline",
+         "result": "baseline_25_minutes",
+         "reason": "No authorized sustainable-duration answer is available, so YOVA uses the conservative 25-minute practice conceptual learning baseline.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.availability_cap",
+         "result": "recommended_duration_fits",
+         "reason": "The selected 25-minute session fits within the learner's 45-minute maximum.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_method_routing_v1",
+         "result": "conceptual_learning:normal_plan_envelope",
+         "reason": "Task family was preserved from the deterministic normal-plan envelope. Provider plan, session, evidence, and method prose were excluded from the decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "personalization_rollout_v1",
+         "result": "task_mastery_v1",
+         "reason": "The server-owned staged rollout selected the version for new route issuance; it did not alternate methods or create method evidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route.router_history_compaction_v1",
+         "result": "prior_router_chain_compacted",
+         "reason": "The bounded routerVersion keeps the complete current method and rollout policy set. The exact ordered predecessor router components remain in this trace for audit and rollback.",
+         "evidenceRefs": [
+          "router-component:legacy_adapter_v1",
+          "router-component:normal_plan_envelope_route_integration_v1",
+          "router-component:normal_plan_envelope_composer_v1",
+          "router-component:normal_duration_recommender_v1"
+         ]
+        },
+        {
+         "ruleId": "method_decision_evidence_adapter_v2",
+         "result": "authorized_context_applied",
+         "reason": "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_evidence_v1",
+         "result": "thresholded_outcome_evidence",
+         "reason": "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_compare_v1",
+         "result": "comparison_context_required",
+         "reason": "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_eligibility_v3",
+         "result": "concept_mapping,retrieval_practice",
+         "reason": "Task, knowledge stage, and Practice mode limited selection to Concept Mapping, Active Recall.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "canonical_method_selection_v1",
+         "result": "task_baseline:concept_mapping",
+         "reason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_runtime_capability_v1",
+         "result": "full:dedicated_runtime:recovery_none",
+         "reason": "YOVA can deliver this route through full generation and the dedicated concept map interaction. If primary generation fails, YOVA must retry or show recovery instead of relabeling a generic fallback as this method.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_presentation_v2",
+         "result": "recognizable_method_names",
+         "reason": "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route_agency_mode_controller_v1",
+         "result": "yova_decides:canonical_profile:alternatives:retrieval_practice",
+         "reason": "The authorized canonical control-mode answer selected yova_decides; the shared agency controller kept at most two eligible, deliverable alternatives.",
+         "evidenceRefs": [
+          "canonical-profile:control_mode:onboarding:q2"
+         ]
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "bef97a18-b1d3-4102-b7c4-26fe4268a045",
+     "sequence": 8,
+     "title": "Retrieve Representative unsupported questions, Errors repaired with a different follow-up",
+     "objective": "Explain Representative unsupported questions, Errors repaired with a different follow-up prompt without notes, then correct any mistakes.",
+     "method": "Concept Mapping",
+     "methodReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for Representative unsupported questions, Errors repaired with a different follow-up prompt to check what you can do independently in session 8.",
+     "scheduledFor": "2026-09-20T18:30:00.000Z",
+     "estimatedMinutes": 15,
+     "amountLabel": "2 topics + 2 practice checks + about 15 min",
+     "learningMode": "study",
+     "topicIds": [
+      "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+      "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+     ],
+     "contentTargets": [
+      "Representative unsupported questions",
+      "Errors repaired with a different follow-up prompt"
+     ],
+     "completionEvidence": [
+      "Apply Representative unsupported questions in one new example without initial support and correct any exposed error",
+      "Apply Errors repaired with a different follow-up prompt in one new example without initial support and correct any exposed error"
+     ],
+     "status": "upcoming",
+     "studyRoute": {
+      "identity": {
+       "routeLineageId": "4e9d2eff-3d93-5f4b-8fa0-7fb257de7a6e",
+       "routeRevisionId": "b507bd22-8b77-5a3e-8c93-e17fc13b28fb",
+       "revisionNumber": 1,
+       "schemaVersion": 1,
+       "lifecycleStatus": "committed",
+       "planId": "ccb50a1b-3c8d-4b9d-baeb-4a717ef063df",
+       "sessionId": "bef97a18-b1d3-4102-b7c4-26fe4268a045",
+       "createdAt": "2026-09-16T08:48:07.672Z",
+       "committedAt": "2026-09-16T08:48:07.672Z"
+      },
+      "target": {
+       "taskFamily": "conceptual_learning",
+       "desiredOutcome": "Explain Representative unsupported questions, Errors repaired with a different follow-up prompt without notes, then correct any mistakes.",
+       "targetStates": [
+        {
+         "targetId": "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+         "stage": "novice",
+         "uncertainty": "unknown",
+         "evidenceRefs": []
+        },
+        {
+         "targetId": "82f02cb1-6760-4606-a7ac-ae0291d6ca2c",
+         "stage": "novice",
+         "uncertainty": "unknown",
+         "evidenceRefs": []
+        }
+       ],
+       "sourceRequirements": {
+        "sourceType": "yova_generated",
+        "requiredSourceIds": [],
+        "groundingRequired": false,
+        "instructions": []
+       }
+      },
+      "approach": {
+       "mode": "practice",
+       "executionEnvironment": "inside_yova",
+       "primaryMethodId": "concept_mapping",
+       "visibleMethodName": "Concept Mapping",
+       "confidenceLevel": "unknown"
+      },
+      "timing": {
+       "activeMinutes": 15,
+       "elapsedMinutes": 15,
+       "durationSource": "availability_cap",
+       "hardMaximumMinutes": 15
+      },
+      "execution": {
+       "orderedPhases": [
+        {
+         "phaseId": "method-1-retrieve",
+         "methodPhase": "retrieve",
+         "activeMinutes": 4,
+         "targetIds": [
+          "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+          "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+         ]
+        },
+        {
+         "phaseId": "method-2-connect",
+         "methodPhase": "connect",
+         "activeMinutes": 4,
+         "targetIds": [
+          "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+          "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+         ]
+        },
+        {
+         "phaseId": "method-3-evidence_match",
+         "methodPhase": "evidence_match",
+         "activeMinutes": 4,
+         "targetIds": [
+          "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+          "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+         ]
+        },
+        {
+         "phaseId": "method-4-repair",
+         "methodPhase": "repair",
+         "activeMinutes": 3,
+         "targetIds": [
+          "ab2075cf-6ff3-4e95-87c3-0915a55b61cb",
+          "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+         ]
+        }
+       ],
+       "difficultyTier": "unknown",
+       "initialSupport": "independent_start",
+       "activityLimit": 4,
+       "completionEvidence": [
+        {
+         "evidenceId": "legacy-evidence-1",
+         "targetIds": [
+          "ab2075cf-6ff3-4e95-87c3-0915a55b61cb"
+         ],
+         "kind": "retrieval",
+         "description": "Apply Representative unsupported questions in one new example without initial support and correct any exposed error",
+         "requiresIndependentAttempt": true
+        },
+        {
+         "evidenceId": "legacy-evidence-2",
+         "targetIds": [
+          "82f02cb1-6760-4606-a7ac-ae0291d6ca2c"
+         ],
+         "kind": "retrieval",
+         "description": "Apply Errors repaired with a different follow-up prompt in one new example without initial support and correct any exposed error",
+         "requiresIndependentAttempt": true
+        }
+       ],
+       "deferredTargets": []
+      },
+      "agency": {
+       "controlMode": "yova_decides",
+       "selectedBy": "yova",
+       "alternatives": [
+        {
+         "alternativeId": "method-alternative:retrieval_practice",
+         "mode": "practice",
+         "executionEnvironment": "inside_yova",
+         "primaryMethodId": "retrieval_practice",
+         "visibleMethodName": "Active Recall",
+         "activeMinutes": 15,
+         "tradeoff": "Active Recall also fits this conceptual learning Practice session. Produce an answer from memory before looking at the source."
+        }
+       ]
+      },
+      "explanation": {
+       "shortReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for Representative unsupported questions, Errors repaired with a different follow-up prompt to check what you can do independently in session 8.",
+       "taskRequirements": [
+        "Concept Mapping is eligible for this conceptual learning Practice route at the novice stage.",
+        "Explain Representative unsupported questions, Errors repaired with a different follow-up prompt without notes, then correct any mistakes.",
+        "Apply Representative unsupported questions in one new example without initial support and correct any exposed error",
+        "Apply Errors repaired with a different follow-up prompt in one new example without initial support and correct any exposed error"
+       ],
+       "learnerDeclarations": [],
+       "observations": [],
+       "uncertainties": [
+        "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
+        "This starting point uses the available topic information; it has not been confirmed by an attempt in this session."
+       ]
+      },
+      "provenance": {
+       "routerVersion": "study_route_method_plan_integration_v1+method_decision_evidence_adapter_v2+method_evidence_v1+method_compare_v1+method_runtime_capability_v1+method_presentation_v2+study_route_agency_mode_controller_v1+personalization_rollout_v1+task_mastery_v1",
+       "profileVersion": "authorized_profile_context_v1+empty",
+       "evidenceRefs": [
+        "planned-session:string:normal-plan-envelope-004",
+        "canonical-profile:control_mode:onboarding:q2"
+       ],
+       "ruleTrace": [
+        {
+         "ruleId": "study_route.legacy_plan_adapter",
+         "result": "canonicalized_planned_promise",
+         "reason": "Preserved the legacy plan-session promise without inventing historical agency or confidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "normal_plan_envelope_composer_v1",
+         "result": "partial:required_practice:normal-plan-envelope-008",
+         "reason": "The deterministic normal-plan composer fixed this session's sequence, targets, mode, schedule, and duration before learner-facing copy was generated.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_mode_routing_v1",
+         "result": "study:independent_attempt",
+         "reason": "Every active target receives an independent attempt because 2 targets follow an earlier planned encounter. This is a route decision, not a mastery claim.",
+         "evidenceRefs": [
+          "planned-session:string:normal-plan-envelope-004"
+         ]
+        },
+        {
+         "ruleId": "duration.recommendation.router_baseline",
+         "result": "baseline_25_minutes",
+         "reason": "No authorized sustainable-duration answer is available, so YOVA uses the conservative 25-minute practice conceptual learning baseline.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "duration.availability_cap",
+         "result": "capped_to_15_minutes",
+         "reason": "The learner has 15 minutes available, so YOVA reduced the session to the largest normal duration that fits.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "initial_plan_method_routing_v1",
+         "result": "conceptual_learning:normal_plan_envelope",
+         "reason": "Task family was preserved from the deterministic normal-plan envelope. Provider plan, session, evidence, and method prose were excluded from the decision.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "personalization_rollout_v1",
+         "result": "task_mastery_v1",
+         "reason": "The server-owned staged rollout selected the version for new route issuance; it did not alternate methods or create method evidence.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route.router_history_compaction_v1",
+         "result": "prior_router_chain_compacted",
+         "reason": "The bounded routerVersion keeps the complete current method and rollout policy set. The exact ordered predecessor router components remain in this trace for audit and rollback.",
+         "evidenceRefs": [
+          "router-component:legacy_adapter_v1",
+          "router-component:normal_plan_envelope_route_integration_v1",
+          "router-component:normal_plan_envelope_composer_v1",
+          "router-component:normal_duration_recommender_v1"
+         ]
+        },
+        {
+         "ruleId": "method_decision_evidence_adapter_v2",
+         "result": "authorized_context_applied",
+         "reason": "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_evidence_v1",
+         "result": "thresholded_outcome_evidence",
+         "reason": "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_compare_v1",
+         "result": "comparison_context_required",
+         "reason": "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_eligibility_v3",
+         "result": "concept_mapping,retrieval_practice",
+         "reason": "Task, knowledge stage, and Practice mode limited selection to Concept Mapping, Active Recall.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "canonical_method_selection_v1",
+         "result": "task_baseline:concept_mapping",
+         "reason": "Concept Mapping fits this task and your starting point. It helps you practise using what you know and find gaps to work on.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_runtime_capability_v1",
+         "result": "full:dedicated_runtime:recovery_none",
+         "reason": "YOVA can deliver this route through full generation and the dedicated concept map interaction. If primary generation fails, YOVA must retry or show recovery instead of relabeling a generic fallback as this method.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "method_presentation_v2",
+         "result": "recognizable_method_names",
+         "reason": "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
+         "evidenceRefs": []
+        },
+        {
+         "ruleId": "study_route_agency_mode_controller_v1",
+         "result": "yova_decides:canonical_profile:alternatives:retrieval_practice",
+         "reason": "The authorized canonical control-mode answer selected yova_decides; the shared agency controller kept at most two eligible, deliverable alternatives.",
+         "evidenceRefs": [
+          "canonical-profile:control_mode:onboarding:q2"
+         ]
+        }
+       ]
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

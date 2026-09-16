@@ -209,6 +209,23 @@ jobs:
         run: |
           if test -d test-results; then cp -R test-results artifacts/quality/baseline-browser; fi
 
+      # Brief 1.5 item 1: live, unmocked practice retries (one and two missed
+      # points) to completion on desktop and mobile. Same-repository runs only,
+      # where the model key exists; a missing key fails instead of skipping.
+      - name: Run live baseline practice retries
+        if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        run: |
+          test -n "$OPENAI_API_KEY" || { echo "::error::OPENAI_API_KEY is missing; the live retry cases cannot run."; exit 1; }
+          pnpm test:e2e:baseline:live --reporter=list,json
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/baseline-live-practice.json
+
+      - name: Preserve live practice evidence
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/quality/baseline-live-practice; fi
+
       - name: Run public authentication journey
         if: ${{ !cancelled() }}
         run: pnpm test:e2e:auth --reporter=list,json
