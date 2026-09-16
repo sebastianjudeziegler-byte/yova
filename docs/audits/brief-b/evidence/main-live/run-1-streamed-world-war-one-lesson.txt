@@ -3,22 +3,22 @@
 
 [90mstdout[2m | src/evals/streamed-world-war-one-lesson.live.test.ts[2m > [22m[2mlive streamed World War I lesson[2m > [22m[2mdelivers substantive teaching from the first generated lesson brief
 [22m[39mWWI streamed lesson metrics {
-  skeletonElapsedMs: [33m10667[39m,
-  skeletonAttempts: [33m2[39m,
-  lessonElapsedMs: [33m9885[39m,
-  latencyToFirstTokenMs: [33m3794[39m,
-  wordCount: [33m223[39m,
-  inputTokens: [33m1004[39m,
-  outputTokens: [33m402[39m
+  skeletonElapsedMs: [33m11026[39m,
+  skeletonAttempts: [33m1[39m,
+  lessonElapsedMs: [33m14054[39m,
+  latencyToFirstTokenMs: [33m2711[39m,
+  wordCount: [33m351[39m,
+  inputTokens: [33m1008[39m,
+  outputTokens: [33m507[39m
 }
 
- [32m✓[39m src/evals/streamed-world-war-one-lesson.live.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 20849[2mms[22m[39m
-     [33m[2m✓[22m[39m delivers substantive teaching from the first generated lesson brief [33m 20847[2mms[22m[39m
+ [32m✓[39m src/evals/streamed-world-war-one-lesson.live.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 25476[2mms[22m[39m
+     [33m[2m✓[22m[39m delivers substantive teaching from the first generated lesson brief [33m 25475[2mms[22m[39m
 
 [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
 [2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
-[2m   Start at [22m 12:46:21
-[2m   Duration [22m 21.34s[2m (transform 482ms, setup 0ms, import 392ms, tests 20.85s, environment 0ms)[22m
+[2m   Start at [22m 06:53:42
+[2m   Duration [22m 26.16s[2m (transform 676ms, setup 0ms, import 551ms, tests 25.48s, environment 0ms)[22m
 
 
 Exit code: 0

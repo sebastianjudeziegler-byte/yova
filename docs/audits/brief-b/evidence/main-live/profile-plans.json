@@ -1,0 +1,374 @@
+{
+  "P1": {
+    "title": "AP Biology Cellular Energetics",
+    "rationale": "The sequence establishes ATP before addressing the confusing electron transport chain, then connects the remaining energetic processes. A second pass provides independent practice with each concept. You said Electron transport chain was difficult, so it comes earlier after its prerequisites, with extra study time where capacity allows.",
+    "sessions": [
+      {
+        "title": "Learn ATP and Energy Transfer",
+        "method": "Concept Mapping",
+        "methodReason": "An example-led concept map makes ATP relationships visible while keeping the session within the 20-minute focus window you described.",
+        "objective": "Explain how ATP stores, releases, and transfers energy in cells.",
+        "estimatedMinutes": 15,
+        "amountLabel": "1 topic + 1 practice check + about 15 min",
+        "completionEvidence": [
+          "Explain ATP and energy transfer in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001"
+        ]
+      },
+      {
+        "title": "Learn the Electron Transport Chain",
+        "method": "Concept Mapping",
+        "methodReason": "Because the electron transport chain currently confuses you, a concept map can make its linked steps visible after an example and build on ATP.",
+        "objective": "Explain how electron transfer, proton pumping, and ATP production are connected in the electron transport chain.",
+        "estimatedMinutes": 25,
+        "amountLabel": "1 topic + 1 practice check + about 25 min",
+        "completionEvidence": [
+          "Explain Electron transport chain in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005"
+        ]
+      },
+      {
+        "title": "Learn Enzymes and Activation Energy",
+        "method": "Concept Mapping",
+        "methodReason": "A concept map connects enzymes, activation energy, and reaction rate after the example-first introduction you requested.",
+        "objective": "Explain how enzymes lower activation energy and affect reaction rates without being consumed.",
+        "estimatedMinutes": 15,
+        "amountLabel": "1 topic + 1 practice check + about 15 min",
+        "completionEvidence": [
+          "Explain Enzymes and activation energy in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000002"
+        ]
+      },
+      {
+        "title": "Learn Glycolysis",
+        "method": "Concept Mapping",
+        "methodReason": "A compact concept map keeps glycolysis relationships visible within the short focus period noted in your profile.",
+        "objective": "Explain glycolysis by connecting its location, major inputs, and energy-carrying outputs.",
+        "estimatedMinutes": 15,
+        "amountLabel": "1 topic + 1 practice check + about 15 min",
+        "completionEvidence": [
+          "Explain Glycolysis in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000003"
+        ]
+      },
+      {
+        "title": "Learn the Krebs Cycle",
+        "method": "Concept Mapping",
+        "methodReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for Krebs cycle to build understanding in session 5.",
+        "objective": "Explain how the Krebs cycle processes carbon compounds and produces electron carriers and ATP.",
+        "estimatedMinutes": 15,
+        "amountLabel": "1 topic + 1 practice check + about 15 min",
+        "completionEvidence": [
+          "Explain Krebs cycle in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Learn Photosynthesis",
+        "method": "Concept Mapping",
+        "methodReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for Photosynthesis to build understanding in session 6.",
+        "objective": "Explain how photosynthesis captures light energy and stores it in organic molecules.",
+        "estimatedMinutes": 10,
+        "amountLabel": "1 topic + 1 practice check + about 10 min",
+        "completionEvidence": [
+          "Explain Photosynthesis in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      },
+      {
+        "title": "Practice ATP and Energy Transfer",
+        "method": "Concept Mapping",
+        "methodReason": "Rebuilding the map checks your independent understanding while preserving the visible relationships and hint-first support you requested.",
+        "objective": "Construct and explain a concept map showing how ATP couples energy-releasing and energy-requiring processes.",
+        "estimatedMinutes": 15,
+        "amountLabel": "1 topic + 1 practice check + about 15 min",
+        "completionEvidence": [
+          "Apply ATP and energy transfer in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001"
+        ]
+      },
+      {
+        "title": "Practice the Electron Transport Chain",
+        "method": "Concept Mapping",
+        "methodReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for Electron transport chain to check what you can do independently in session 8.",
+        "objective": "Construct and explain an electron transport chain map linking electrons, a proton gradient, ATP synthase, and ATP.",
+        "estimatedMinutes": 25,
+        "amountLabel": "1 topic + 1 practice check + about 25 min",
+        "completionEvidence": [
+          "Apply Electron transport chain in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005"
+        ]
+      },
+      {
+        "title": "Practice Enzymes and Activation Energy",
+        "method": "Concept Mapping",
+        "methodReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for Enzymes and activation energy to check what you can do independently in session 9.",
+        "objective": "Apply enzyme and activation-energy relationships to explain a change in reaction rate.",
+        "estimatedMinutes": 15,
+        "amountLabel": "1 topic + 1 practice check + about 15 min",
+        "completionEvidence": [
+          "Apply Enzymes and activation energy in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000002"
+        ]
+      },
+      {
+        "title": "Practice Glycolysis",
+        "method": "Concept Mapping",
+        "methodReason": "A self-built map turns the earlier example into a brief, visible account of glycolysis that fits your stated focus limit.",
+        "objective": "Construct and explain a glycolysis map that tracks glucose, ATP use and gain, and electron carriers.",
+        "estimatedMinutes": 15,
+        "amountLabel": "1 topic + 1 practice check + about 15 min",
+        "completionEvidence": [
+          "Apply Glycolysis in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000003"
+        ]
+      },
+      {
+        "title": "Practice the Krebs Cycle",
+        "method": "Concept Mapping",
+        "methodReason": "Mapping the cycle independently helps you trace its repeating relationships without a long explanation, supporting the focus concern you noted.",
+        "objective": "Construct and explain a Krebs cycle map connecting carbon release, electron carriers, and ATP production.",
+        "estimatedMinutes": 15,
+        "amountLabel": "1 topic + 1 practice check + about 15 min",
+        "completionEvidence": [
+          "Apply Krebs cycle in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Practice Photosynthesis",
+        "method": "Concept Mapping",
+        "methodReason": "You asked for an example first; Concept Mapping lets you make the relationships visible for Photosynthesis to check what you can do independently in session 12.",
+        "objective": "Explain Photosynthesis without notes, then correct any mistakes.",
+        "estimatedMinutes": 10,
+        "amountLabel": "1 topic + 1 practice check + about 10 min",
+        "completionEvidence": [
+          "Apply Photosynthesis in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      }
+    ]
+  },
+  "P2": {
+    "title": "AP Biology Cellular Energetics",
+    "rationale": "Begin with direct explanations of each core concept, then connect and revisit them through concept maps. This sequence builds a foundation before practicing how energy-transfer processes relate.",
+    "sessions": [
+      {
+        "title": "Learn ATP and Energy Transfer",
+        "method": "Feynman Technique",
+        "methodReason": "Because you are beginning the unit and like to explain ideas in your own words before checking them, the Feynman Technique helps you build a clear account of ATP's role.",
+        "objective": "Explain how ATP stores, releases, and transfers energy in cells.",
+        "estimatedMinutes": 60,
+        "amountLabel": "1 topic + 1 practice check + about 60 min",
+        "completionEvidence": [
+          "Explain ATP and energy transfer in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001"
+        ]
+      },
+      {
+        "title": "Learn Enzymes and Activation Energy",
+        "method": "Feynman Technique",
+        "methodReason": "You prefer explaining in your own words; Feynman Technique lets you explain the connections for Enzymes and activation energy to build understanding in session 2.",
+        "objective": "Explain how enzymes lower activation energy and affect cellular reactions.",
+        "estimatedMinutes": 45,
+        "amountLabel": "1 topic + 1 practice check + about 45 min",
+        "completionEvidence": [
+          "Explain Enzymes and activation energy in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000002"
+        ]
+      },
+      {
+        "title": "Learn Glycolysis",
+        "method": "Feynman Technique",
+        "methodReason": "Since you are new to this unit, the Feynman Technique lets you turn the stages and outputs of glycolysis into one clear explanation, then check for gaps.",
+        "objective": "Explain glycolysis as a sequence that transforms glucose and transfers energy to ATP and electron carriers.",
+        "estimatedMinutes": 60,
+        "amountLabel": "1 topic + 1 practice check + about 60 min",
+        "completionEvidence": [
+          "Explain Glycolysis in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000003"
+        ]
+      },
+      {
+        "title": "Learn the Krebs Cycle",
+        "method": "Feynman Technique",
+        "methodReason": "You like to explain concepts in your own words first, so the Feynman Technique helps you organize the cycle's inputs, outputs, and energetic purpose without relying on memorized labels alone.",
+        "objective": "Explain how the Krebs cycle processes carbon compounds and captures energy in electron carriers and ATP.",
+        "estimatedMinutes": 45,
+        "amountLabel": "1 topic + 1 practice check + about 45 min",
+        "completionEvidence": [
+          "Explain Krebs cycle in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Learn the Electron Transport Chain",
+        "method": "Feynman Technique",
+        "methodReason": "You prefer explaining in your own words; Feynman Technique lets you explain the connections for Electron transport chain to build understanding in session 5.",
+        "objective": "Explain how electron transfer, a proton gradient, and ATP synthase produce ATP.",
+        "estimatedMinutes": 60,
+        "amountLabel": "1 topic + 1 practice check + about 60 min",
+        "completionEvidence": [
+          "Explain Electron transport chain in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005"
+        ]
+      },
+      {
+        "title": "Learn Photosynthesis",
+        "method": "Feynman Technique",
+        "methodReason": "You prefer explaining in your own words; Feynman Technique lets you explain the connections for Photosynthesis to build understanding in session 6.",
+        "objective": "Explain how photosynthesis captures light energy and stores it in organic molecules.",
+        "estimatedMinutes": 45,
+        "amountLabel": "1 topic + 1 practice check + about 45 min",
+        "completionEvidence": [
+          "Explain Photosynthesis in your own words with your notes closed"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      },
+      {
+        "title": "Retrieve ATP and energy transfer, Enzymes and activation energy, Glycolysis",
+        "method": "Concept Mapping",
+        "methodReason": "You like to explain first and then check, so concept mapping makes your explanations and the links among these respiration foundations visible for review.",
+        "objective": "Construct connections among ATP transfer, enzyme action, glycolysis, and the Krebs cycle.",
+        "estimatedMinutes": 60,
+        "amountLabel": "4 topics + 4 practice checks + about 60 min",
+        "completionEvidence": [
+          "Apply ATP and energy transfer in one new example without initial support and correct any exposed error",
+          "Apply Enzymes and activation energy in one new example without initial support and correct any exposed error",
+          "Apply Glycolysis in one new example without initial support and correct any exposed error",
+          "Apply Krebs cycle in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001",
+          "a0000000-0000-4000-8000-000000000002",
+          "a0000000-0000-4000-8000-000000000003",
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Practice Electron Transport and Photosynthesis",
+        "method": "Concept Mapping",
+        "methodReason": "You prefer explaining in your own words; Concept Mapping lets you make the relationships visible for Electron transport chain, Photosynthesis to check what you can do independently in session 8.",
+        "objective": "Compare how electron transport and photosynthesis use electron flow and gradients in cellular energetics.",
+        "estimatedMinutes": 45,
+        "amountLabel": "2 topics + 2 practice checks + about 45 min",
+        "completionEvidence": [
+          "Apply Electron transport chain in one new example without initial support and correct any exposed error",
+          "Apply Photosynthesis in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005",
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      },
+      {
+        "title": "Apply ATP and energy transfer, Enzymes and activation energy, Glycolysis",
+        "method": "Concept Mapping",
+        "methodReason": "Because you can sustain an hour of study, concept mapping gives you space to rebuild these relationships and check whether each connection can be explained independently.",
+        "objective": "Explain ATP and energy transfer, Enzymes and activation energy, Glycolysis in a fresh situation for practice round 9, then explain what changed.",
+        "estimatedMinutes": 60,
+        "amountLabel": "4 topics + 4 practice checks + about 60 min",
+        "completionEvidence": [
+          "Apply ATP and energy transfer in one new example without initial support and correct any exposed error",
+          "Apply Enzymes and activation energy in one new example without initial support and correct any exposed error",
+          "Apply Glycolysis in one new example without initial support and correct any exposed error",
+          "Apply Krebs cycle in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001",
+          "a0000000-0000-4000-8000-000000000002",
+          "a0000000-0000-4000-8000-000000000003",
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Apply Electron transport chain, Photosynthesis",
+        "method": "Concept Mapping",
+        "methodReason": "You prefer explaining in your own words; Concept Mapping lets you make the relationships visible for Electron transport chain, Photosynthesis to check what you can do independently in session 10.",
+        "objective": "Explain Electron transport chain, Photosynthesis in a fresh situation for practice round 10, then explain what changed.",
+        "estimatedMinutes": 45,
+        "amountLabel": "2 topics + 2 practice checks + about 45 min",
+        "completionEvidence": [
+          "Apply Electron transport chain in one new example without initial support and correct any exposed error",
+          "Apply Photosynthesis in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005",
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      },
+      {
+        "title": "Apply ATP and energy transfer, Enzymes and activation energy, Glycolysis",
+        "method": "Concept Mapping",
+        "methodReason": "Since you began this unit without prior placement evidence, another concept map gives you a structured way to consolidate these foundational relationships and verify your explanation.",
+        "objective": "Construct a coherent account linking ATP transfer and enzymes to glycolysis and the Krebs cycle.",
+        "estimatedMinutes": 60,
+        "amountLabel": "4 topics + 4 practice checks + about 60 min",
+        "completionEvidence": [
+          "Apply ATP and energy transfer in one new example without initial support and correct any exposed error",
+          "Apply Enzymes and activation energy in one new example without initial support and correct any exposed error",
+          "Apply Glycolysis in one new example without initial support and correct any exposed error",
+          "Apply Krebs cycle in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000001",
+          "a0000000-0000-4000-8000-000000000002",
+          "a0000000-0000-4000-8000-000000000003",
+          "a0000000-0000-4000-8000-000000000004"
+        ]
+      },
+      {
+        "title": "Consolidate Electron Flow and Photosynthesis",
+        "method": "Concept Mapping",
+        "methodReason": "Your habit of explaining in your own words and then checking fits a final concept map that brings electron flow, gradients, ATP formation, and energy storage into one view.",
+        "objective": "Construct a clear comparison of the electron transport chain and photosynthesis within cellular energetics.",
+        "estimatedMinutes": 45,
+        "amountLabel": "2 topics + 2 practice checks + about 45 min",
+        "completionEvidence": [
+          "Apply Electron transport chain in one new example without initial support and correct any exposed error",
+          "Apply Photosynthesis in one new example without initial support and correct any exposed error"
+        ],
+        "topicIds": [
+          "a0000000-0000-4000-8000-000000000005",
+          "a0000000-0000-4000-8000-000000000006"
+        ]
+      }
+    ]
+  }
+}

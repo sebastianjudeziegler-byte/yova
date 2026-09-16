@@ -7,9 +7,12 @@ import { canonicalBrowserCaseName, classifyComparisonOutcome, compareLiveReports
 import { normalizeBrowserReport } from "./live-gate/core.mjs";
 if (!process.env.GITHUB_ACTIONS) throw new Error("Release comparison runs only in GitHub Actions.");
 const read = path => JSON.parse(readFileSync(path, "utf8"));
+// Retained main: run 35098660639 on 00995f1 (2026-09-16), refreshed from its
+// full-live-gate and yova-quality-evidence artifacts. Refresh it when main has
+// moved far enough that the sample no longer reflects main's current tests.
 const baseline = "docs/audits/brief-b/evidence";
 const main = read(`${baseline}/main-live/report.json`);
-if (main.commit !== "c7b3ca99964524cefc04437b7236b37fe8fe2666") throw new Error("Unexpected main baseline revision.");
+if (main.commit !== "00995f11bd33415137ca6015d5f8ca27eaaf588d") throw new Error("Unexpected main baseline revision.");
 const after = read("test-results/live-gate/report.json");
 const policy = read("scripts/live-gate/policy.json");
 const live = compareLiveReports(main, after, {

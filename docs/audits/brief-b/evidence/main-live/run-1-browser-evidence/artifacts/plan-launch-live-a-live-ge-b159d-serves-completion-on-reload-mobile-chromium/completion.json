@@ -35,8 +35,8 @@
   ],
   "saved": {
     "plan": {
-      "id": "859e029e-38f1-4adb-af82-48659fc8e6d1",
-      "learningItemId": "2ec14b6c-8470-41cc-a57e-d87c13142190",
+      "id": "9b34f4f9-fea4-422b-aada-dd6dd1f78973",
+      "learningItemId": "4a2a01a5-295e-49d2-b21b-9b813d4bcad1",
       "title": "Teach Me Cellular Respiration From Scratch for My Test, Including ATP…",
       "topic": "ATP and energy transfer",
       "kind": "test",
@@ -174,7 +174,7 @@
       "materials": [],
       "sessions": [
         {
-          "id": "367c85a4-ecbf-4929-bb5b-35f9384b6157",
+          "id": "8ce0d93b-64bf-49ad-99a2-3868832f8061",
           "sequence": 1,
           "title": "Build ATP and energy transfer",
           "objective": "Explain ATP and energy transfer after working through a concrete example.",
@@ -196,7 +196,7 @@
           "status": "complete",
           "resource": {
             "schemaVersion": 17,
-            "routeRevisionId": "52d065fa-4cf2-528e-8b21-8ce79e8bd1cb",
+            "routeRevisionId": "08c41b32-5eaa-558e-8f52-c27ba6de9b57",
             "topicIds": [
               "90000000-0000-4000-8000-000000000001"
             ],
@@ -204,15 +204,15 @@
             "coverage": {
               "focus": "Explain ATP and energy transfer after working through a concrete example.",
               "essentialIdeas": [
-                "ATP transfers energy by losing a terminal phosphate to power cellular work."
+                "ATP stores usable energy in phosphate bonds for cellular work."
               ],
               "completionEvidence": [
-                "Explain ATP and energy transfer in your own words with your notes closed"
+                "Demonstrate ATP stores usable energy in phosphate bonds for cellular work."
               ],
               "evidenceMap": [
                 {
-                  "essentialIdea": "ATP transfers energy by losing a terminal phosphate to power cellular work.",
-                  "activityConcept": "ATP transfers energy by losing a terminal phosphate to power cellular work."
+                  "essentialIdea": "ATP stores usable energy in phosphate bonds for cellular work.",
+                  "activityConcept": "ATP stores usable energy in phosphate bonds for cellular work."
                 }
               ],
               "deferredContent": []
@@ -320,8 +320,8 @@
             "cacheContext": {
               "effectiveMinutes": 10,
               "adjustmentFingerprint": "5f3bfc36a26b7edca65234cce632aec0003e12b583705e3584be7a14074bfa15",
-              "scopeFingerprint": "sc1:1769983b1b55a307",
-              "routeRevisionId": "52d065fa-4cf2-528e-8b21-8ce79e8bd1cb"
+              "scopeFingerprint": "sc1:93aad6653b8f8059",
+              "routeRevisionId": "08c41b32-5eaa-558e-8f52-c27ba6de9b57"
             },
             "activities": [
               {
@@ -332,7 +332,7 @@
                 "type": "instruction",
                 "concept": null,
                 "label": "Learn",
-                "title": "Your lesson model",
+                "title": "ATP energy storage",
                 "body": "Read the explanation, then answer the next question from memory.",
                 "teaching": null,
                 "lessonBrief": {
@@ -341,7 +341,7 @@
                     "90000000-0000-4000-8000-000000000001"
                   ],
                   "essentialIdeas": [
-                    "ATP transfers energy by losing a terminal phosphate to power cellular work."
+                    "ATP stores usable energy in phosphate bonds for cellular work."
                   ],
                   "sourceChunks": [],
                   "knowledgeSource": "model_knowledge",
@@ -370,15 +370,15 @@
                 "estimatedMinutes": 2,
                 "requiredForCompletion": true,
                 "type": "free_response",
-                "concept": "ATP transfers energy by losing a terminal phosphate to power cellular work.",
+                "concept": "ATP stores usable energy in phosphate bonds for cellular work.",
                 "label": "Explain",
-                "title": "ATP energy release",
-                "body": "How does ATP transfer energy to cellular processes?",
+                "title": "ATP energy storage",
+                "body": "How does ATP store energy for cellular work?",
                 "teaching": null,
                 "lessonBrief": null,
                 "choices": [],
-                "correctAnswer": "ATP transfers energy when its terminal phosphate is removed, releasing usable energy for cellular work.",
-                "feedback": "ATP’s phosphate bond change is what couples energy release to work.",
+                "correctAnswer": "ATP stores usable energy in its phosphate bonds, especially the bond to the terminal phosphate.",
+                "feedback": "ATP's phosphate bonds, not the whole molecule, are the main energy source.",
                 "practiceIntent": "baseline",
                 "misconceptionSummary": null,
                 "methodRuntime": null
@@ -389,15 +389,15 @@
                 "estimatedMinutes": 2,
                 "requiredForCompletion": false,
                 "type": "free_response",
-                "concept": "ATP transfers energy by losing a terminal phosphate to power cellular work.",
+                "concept": "ATP stores usable energy in phosphate bonds for cellular work.",
                 "label": "Repair",
                 "title": "Repair the first explanation",
-                "body": "Compare the first explanation with this verified reference: ATP transfers energy when its terminal phosphate is removed, releasing usable energy for cellular work. Correct the exposed relationship in your own words without copying the reference.",
+                "body": "Compare the first explanation with this verified reference: ATP stores usable energy in its phosphate bonds, especially the bond to the terminal phosphate. Correct the exposed relationship in your own words without copying the reference.",
                 "teaching": null,
                 "lessonBrief": null,
                 "choices": [],
-                "correctAnswer": "ATP transfers energy when its terminal phosphate is removed, releasing usable energy for cellular work.",
-                "feedback": "ATP’s phosphate bond change is what couples energy release to work.",
+                "correctAnswer": "ATP stores usable energy in its phosphate bonds, especially the bond to the terminal phosphate.",
+                "feedback": "ATP's phosphate bonds, not the whole molecule, are the main energy source.",
                 "practiceIntent": "baseline",
                 "misconceptionSummary": null,
                 "methodRuntime": null
@@ -408,15 +408,15 @@
                 "estimatedMinutes": 2,
                 "requiredForCompletion": false,
                 "type": "free_response",
-                "concept": "ATP transfers energy by losing a terminal phosphate to power cellular work.",
+                "concept": "ATP stores usable energy in phosphate bonds for cellular work.",
                 "label": "Explain again",
                 "title": "Explain the corrected relationship again",
-                "body": "How does ATP transfer energy to cellular processes? Explain it again after the repair without copying the model or reference answer.",
+                "body": "How does ATP store energy for cellular work? Explain it again after the repair without copying the model or reference answer.",
                 "teaching": null,
                 "lessonBrief": null,
                 "choices": [],
-                "correctAnswer": "ATP transfers energy when its terminal phosphate is removed, releasing usable energy for cellular work.",
-                "feedback": "ATP’s phosphate bond change is what couples energy release to work.",
+                "correctAnswer": "ATP stores usable energy in its phosphate bonds, especially the bond to the terminal phosphate.",
+                "feedback": "ATP's phosphate bonds, not the whole molecule, are the main energy source.",
                 "practiceIntent": "baseline",
                 "misconceptionSummary": null,
                 "methodRuntime": null
@@ -427,37 +427,37 @@
                 "estimatedMinutes": 1,
                 "requiredForCompletion": true,
                 "type": "multiple_choice",
-                "concept": "Recognition transfer: ATP transfers energy by losing a terminal phosphate to power cellular work.",
+                "concept": "Recognition transfer: ATP stores usable energy in phosphate bonds for cellular work.",
                 "label": "Recall check",
-                "title": "ATP role in energy transfer",
-                "body": "Which statement best describes ATP and energy transfer?",
+                "title": "ATP energy role",
+                "body": "Which statement best describes ATP in cells?",
                 "teaching": null,
                 "lessonBrief": null,
                 "choices": [
-                  "ATP releases usable energy when its terminal phosphate is removed.",
-                  "ATP stores energy only in its nucleus.",
-                  "ATP transfers energy by adding oxygen to glucose.",
-                  "ATP is the final waste product of cellular respiration."
+                  "ATP stores usable energy in phosphate bonds for cellular work.",
+                  "ATP is the main long-term energy storage molecule in cells.",
+                  "ATP is a protein that speeds up cellular reactions.",
+                  "ATP moves oxygen through the bloodstream."
                 ],
-                "correctAnswer": "ATP releases usable energy when its terminal phosphate is removed.",
-                "feedback": "ATP transfers energy through phosphate removal, not through the other processes.",
+                "correctAnswer": "ATP stores usable energy in phosphate bonds for cellular work.",
+                "feedback": "ATP is the immediate energy carrier, not long-term storage or a protein.",
                 "practiceIntent": "baseline",
                 "misconceptionSummary": null,
                 "methodRuntime": null
               }
             ],
-            "generatedAt": "2026-09-09T19:35:34.022Z",
+            "generatedAt": "2026-09-16T13:42:20.489Z",
             "origin": "generated"
           },
           "studyRoute": {
             "identity": {
-              "routeLineageId": "849dc91f-a749-53e3-8e0e-c872d6b42966",
-              "routeRevisionId": "52d065fa-4cf2-528e-8b21-8ce79e8bd1cb",
+              "routeLineageId": "f59e4a7f-68bf-583b-8833-6f662280ed92",
+              "routeRevisionId": "08c41b32-5eaa-558e-8f52-c27ba6de9b57",
               "revisionNumber": 1,
               "schemaVersion": 1,
               "lifecycleStatus": "committed",
-              "planId": "859e029e-38f1-4adb-af82-48659fc8e6d1",
-              "sessionId": "367c85a4-ecbf-4929-bb5b-35f9384b6157",
+              "planId": "9b34f4f9-fea4-422b-aada-dd6dd1f78973",
+              "sessionId": "8ce0d93b-64bf-49ad-99a2-3868832f8061",
               "createdAt": "2026-09-07T19:35:00.000Z",
               "committedAt": "2026-09-07T19:35:00.000Z"
             },
@@ -705,10 +705,10 @@
       ]
     },
     "completion": {
-      "id": "b3b3f1c9-326c-4ea2-9738-3c36c554ac4f",
-      "planId": "859e029e-38f1-4adb-af82-48659fc8e6d1",
-      "planSessionId": "367c85a4-ecbf-4929-bb5b-35f9384b6157",
-      "routeRevisionId": "52d065fa-4cf2-528e-8b21-8ce79e8bd1cb",
+      "id": "6d24d3aa-14c1-41fa-be0e-58ecaa22ee71",
+      "planId": "9b34f4f9-fea4-422b-aada-dd6dd1f78973",
+      "planSessionId": "8ce0d93b-64bf-49ad-99a2-3868832f8061",
+      "routeRevisionId": "08c41b32-5eaa-558e-8f52-c27ba6de9b57",
       "startedAt": "2026-09-07T19:34:59.000Z",
       "completedAt": "2026-09-07T19:35:00.000Z",
       "plannedMinutes": 10,
@@ -721,35 +721,35 @@
       "conceptEvidence": [
         {
           "topicId": "90000000-0000-4000-8000-000000000001",
-          "concept": "ATP transfers energy by losing a terminal phosphate to power cellular work.",
+          "concept": "ATP stores usable energy in phosphate bonds for cellular work.",
           "outcome": "secure",
           "activityType": "free_response",
           "methodPhase": "explain",
-          "routeRevisionId": "52d065fa-4cf2-528e-8b21-8ce79e8bd1cb"
+          "routeRevisionId": "08c41b32-5eaa-558e-8f52-c27ba6de9b57"
         },
         {
           "topicId": "90000000-0000-4000-8000-000000000001",
-          "concept": "ATP transfers energy by losing a terminal phosphate to power cellular work.",
+          "concept": "ATP stores usable energy in phosphate bonds for cellular work.",
           "outcome": "secure",
           "activityType": "free_response",
           "methodPhase": "repair",
-          "routeRevisionId": "52d065fa-4cf2-528e-8b21-8ce79e8bd1cb"
+          "routeRevisionId": "08c41b32-5eaa-558e-8f52-c27ba6de9b57"
         },
         {
           "topicId": "90000000-0000-4000-8000-000000000001",
-          "concept": "ATP transfers energy by losing a terminal phosphate to power cellular work.",
+          "concept": "ATP stores usable energy in phosphate bonds for cellular work.",
           "outcome": "secure",
           "activityType": "free_response",
           "methodPhase": "reexplain",
-          "routeRevisionId": "52d065fa-4cf2-528e-8b21-8ce79e8bd1cb"
+          "routeRevisionId": "08c41b32-5eaa-558e-8f52-c27ba6de9b57"
         },
         {
           "topicId": "90000000-0000-4000-8000-000000000001",
-          "concept": "Recognition transfer: ATP transfers energy by losing a terminal phosphate to power cellular work.",
+          "concept": "Recognition transfer: ATP stores usable energy in phosphate bonds for cellular work.",
           "outcome": "secure",
           "activityType": "multiple_choice",
           "methodPhase": "transfer",
-          "routeRevisionId": "52d065fa-4cf2-528e-8b21-8ce79e8bd1cb"
+          "routeRevisionId": "08c41b32-5eaa-558e-8f52-c27ba6de9b57"
         }
       ],
       "confidenceEvidence": []

@@ -6,7 +6,7 @@
 YOVA answer evaluation · accepts a correct biology paraphrase
 Expected · secure
 Received · secure
-Feedback · Your response establishes the required idea. oxygen is the final electron acceptor oxygen allows electron flow and oxidative phosphorylation to continue
+Feedback · Your response establishes the required idea. oxygen is the final electron acceptor electron acceptance allows oxidative phosphorylation to continue
 Human label · The answer states oxygen's essential role and the consequence even though it does not copy the reference wording.
 
 
@@ -15,7 +15,7 @@ Human label · The answer states oxygen's essential role and the consequence eve
 YOVA answer evaluation · catches confident biology keyword soup
 Expected · needs_review
 Received · needs_review
-Feedback · The response does not establish the key mechanism of natural selection. It incorrectly implies organisms choose helpful mutations, and it does not clearly explain that heritable variation is already present and becomes more common because individuals with advantageous traits leave more offspring over generations.
+Feedback · The response does not establish that natural selection acts on pre-existing heritable variation and differential reproduction. It also incorrectly suggests organisms intentionally choose helpful mutations. The population-level change over generations is only implied, not clearly explained in the correct way.
 Human label · The response uses relevant vocabulary but reverses causality and incorrectly describes organisms as choosing mutations.
 
 
@@ -24,7 +24,7 @@ Human label · The response uses relevant vocabulary but reverses causality and 
 YOVA answer evaluation · marks a materially incomplete causal explanation for review
 Expected · needs_review
 Received · needs_review
-Feedback · The response identifies that taxes were a source of anger, but it does not establish the key reason for resistance: the lack of colonial representation and the dispute over Parliament’s authority to tax the colonies.
+Feedback · The response identifies higher taxes, but it does not establish the key reason colonists resisted: the issue of taxation without representation or Parliament’s authority to tax them.
 Human label · Taxation is relevant, but the answer misses representation and the broader dispute about political authority required by the rubric.
 
 
@@ -33,7 +33,7 @@ Human label · Taxation is relevant, but the answer misses representation and th
 YOVA answer evaluation · accepts equivalent mathematical notation
 Expected · secure
 Received · secure
-Feedback · Your response establishes the required idea. Derivative is equivalent to 3x^2 + 2 Power rule is identified or demonstrated
+Feedback · Your response establishes the required idea. Equivalent derivative is 3x^2 + 2 Power rule is correctly identified or used
 Human label · The derivative is correct and the brief rule explanation establishes how it was obtained.
 
 
@@ -42,7 +42,7 @@ Human label · The derivative is correct and the brief rule explanation establis
 YOVA answer evaluation · does not reward a true statement that misses the mechanism
 Expected · needs_review
 Received · needs_review
-Feedback · The response identifies that diversification lowers risk, but it does not establish the key reason: exposure is spread across assets that do not all move together, so one holding’s poor result matters less.
+Feedback · The response establishes that diversification can lower risk, but it does not explain the key mechanism: spreading exposure across assets so one holding has less impact on the whole portfolio. The “more investments” idea is too vague on its own.
 Human label · Diversification can reduce risk, but merely saying there are more investments does not explain reduced exposure to any one asset or uncorrelated losses.
 
 
@@ -60,23 +60,23 @@ Human label · The response correctly states that the base case terminates recur
 YOVA answer evaluation · admits uncertainty when the prompt lacks necessary context
 Expected · uncertain
 Received · uncertain
-Feedback · This check does not give enough context for a reliable judgment. The activity omits the observations and does not name the condition that supposedly changed, so the learner’s statement cannot be checked against a specific factual change.
+Feedback · This check does not give enough context for a reliable judgment. The activity omits the observations and the changed condition, so the cause of the rate change cannot be verified from the evidence provided.
 Human label · Neither the prompt nor the reference identifies what process changed, so several interpretations are defensible.
 
 
- [32m✓[39m src/evals/answer-evaluation-quality.live.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 18337[2mms[22m[39m
-     [33m[2m✓[22m[39m 'accepts a correct biology paraphrase' [33m 2505[2mms[22m[39m
-     [33m[2m✓[22m[39m 'catches confident biology keyword soup' [33m 2634[2mms[22m[39m
-     [33m[2m✓[22m[39m 'marks a materially incomplete causal …' [33m 2090[2mms[22m[39m
-     [33m[2m✓[22m[39m 'accepts equivalent mathematical notat…' [33m 4195[2mms[22m[39m
-     [33m[2m✓[22m[39m 'does not reward a true statement that…' [33m 2047[2mms[22m[39m
-     [33m[2m✓[22m[39m 'accepts a concise programming explana…' [33m 2074[2mms[22m[39m
-     [33m[2m✓[22m[39m 'admits uncertainty when the prompt la…' [33m 2790[2mms[22m[39m
+ [32m✓[39m src/evals/answer-evaluation-quality.live.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 14017[2mms[22m[39m
+     [33m[2m✓[22m[39m 'accepts a correct biology paraphrase' [33m 1759[2mms[22m[39m
+     [33m[2m✓[22m[39m 'catches confident biology keyword soup' [33m 2464[2mms[22m[39m
+     [33m[2m✓[22m[39m 'marks a materially incomplete causal …' [33m 1895[2mms[22m[39m
+     [33m[2m✓[22m[39m 'accepts equivalent mathematical notat…' [33m 1863[2mms[22m[39m
+     [33m[2m✓[22m[39m 'does not reward a true statement that…' [33m 2709[2mms[22m[39m
+     [33m[2m✓[22m[39m 'accepts a concise programming explana…' [33m 1506[2mms[22m[39m
+     [33m[2m✓[22m[39m 'admits uncertainty when the prompt la…' [33m 1815[2mms[22m[39m
 
 [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
 [2m      Tests [22m [1m[32m8 passed[39m[22m[90m (8)[39m
-[2m   Start at [22m 12:32:20
-[2m   Duration [22m 18.46s[2m (transform 40ms, setup 0ms, import 29ms, tests 18.34s, environment 0ms)[22m
+[2m   Start at [22m 06:39:24
+[2m   Duration [22m 14.19s[2m (transform 52ms, setup 0ms, import 40ms, tests 14.02s, environment 0ms)[22m
 
 
 Exit code: 0
