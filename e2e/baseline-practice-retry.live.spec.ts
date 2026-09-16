@@ -46,6 +46,7 @@ for (const misses of [1, 2]) {
     await page.getByRole("button", { name: /Start session/ }).first().click();
     const keepDates = page.getByRole("button", { name: "Start now, keep dates" });
     if (await keepDates.isVisible({ timeout: 1_500 }).catch(() => false)) await keepDates.click();
+    await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.locator("[data-shape]")).toHaveAttribute("data-shape", "C", { timeout: 60_000 });
 
     await page.getByRole("button", { name: "Start the questions" }).click({ timeout: 120_000 });
@@ -100,6 +101,7 @@ async function startReadyPractice(page: Page) {
   await page.getByRole("button", { name: /Start session/ }).first().click();
   const keepDates = page.getByRole("button", { name: "Start now, keep dates" });
   if (await keepDates.isVisible({ timeout: 1_500 }).catch(() => false)) await keepDates.click();
+  await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click();
   await expect(page.locator("[data-shape]")).toHaveAttribute("data-shape", "C", { timeout: 60_000 });
 }
 

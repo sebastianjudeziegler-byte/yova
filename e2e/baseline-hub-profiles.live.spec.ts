@@ -77,8 +77,6 @@ for (const profile of ["P1", "P2"] as const) {
       await expect(page.getByRole("heading", { name: "You studied, produced and compared." })).toBeVisible();
       await capture("end");
     } else {
-      await capture("method-choice");
-      await page.getByRole("button", { name: "Start with Feynman Technique" }).click();
       await expect(page.getByRole("heading", { name: "Explain it in your own words" })).toBeVisible();
       await capture("produce");
       await page.getByLabel("Explain it in your own words").fill("Light hits chlorophyll in the thylakoids, which splits water and makes ATP and NADPH. The Calvin cycle in the stroma uses them to fix carbon dioxide into sugar.");
@@ -133,9 +131,7 @@ async function startStudyNow(page: Page, answers: ReadonlyArray<string | readonl
   }
   await page.getByRole("button", { name: "Open YOVA" }).click();
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
-  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(GOAL);
-  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
-  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
-  await page.getByRole("button", { name: /Create it for me/ }).click();
-  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await page.getByLabel("Study Now topic or result").fill(GOAL);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click({ timeout: 120_000 });
 }

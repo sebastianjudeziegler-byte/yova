@@ -259,7 +259,6 @@ test("a try-it-first learner produces before studying and still gets the compari
   const shell = page.locator("[data-shape]");
   await expect(shell).toHaveAttribute("data-shape", "A");
   expect((await shell.getAttribute("data-rule-ids"))?.split(" ")).toContain("L3.q5.try_then_feedback");
-  await page.getByRole("button", { name: "Start with Feynman Technique" }).click();
   await expect(page.getByRole("heading", { name: "Explain it in your own words" })).toBeVisible();
   await page.getByLabel("Explain it in your own words").fill("Glucose is split into pyruvate and the cell makes ATP.");
   await page.getByRole("button", { name: "Compare with the source" }).click();
@@ -374,13 +373,12 @@ async function completeBaselineOnboarding(page: Page) {
   await page.getByRole("button", { name: "Open YOVA" }).click();
 }
 
+/** Brief 1.5 item 8: Study Now's first screen, then the pre-session card, then the hub. */
 async function startStudyNowSession(page: Page, goal: string) {
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
-  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(goal);
-  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
-  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
-  await page.getByRole("button", { name: /Create it for me/ }).click();
-  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await page.getByLabel("Study Now topic or result").fill(goal);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click();
 }
 
 async function createAndActivatePlan(page: Page, description: string) {
@@ -412,4 +410,5 @@ async function startReadySession(page: Page) {
   await page.getByRole("button", { name: /Start session/ }).first().click();
   const keepDates = page.getByRole("button", { name: "Start now, keep dates" });
   if (await keepDates.isVisible({ timeout: 1_500 }).catch(() => false)) await keepDates.click();
+  await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click();
 }

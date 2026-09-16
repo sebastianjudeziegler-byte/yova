@@ -35,7 +35,7 @@ describe("StudyNowCreator request summary", () => {
       seed,
     }));
 
-    expect(html).toContain("YOUR REQUEST");
+    expect(html).toContain("What do you want to study?");
     expect(html).toContain(
       "Calc Unit 3 test. Understand the chain rule well enough for the calc test. Scope: Chain rule only, before the calc test.",
     );

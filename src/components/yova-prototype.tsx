@@ -61,11 +61,14 @@ import { PlanDeletionControl } from "@/components/plan-deletion-dialog";
 import { PageHeader } from "@/components/page-header";
 import { PostSessionPersonalizationReceipt } from "@/components/post-session-personalization-receipt";
 import { BaselineSession, type BaselineSessionResult } from "@/components/baseline-session";
+import { PreSessionCard } from "@/components/pre-session-card";
+import { browserCheckpointStorage, clearBaselineCheckpoint, loadBaselineCheckpoint, routeFingerprint, saveBaselineCheckpoint, type BaselineCheckpoint, type StudyLocation } from "@/lib/session-shapes/baseline-checkpoint";
+import { baselineSourceForTopic } from "@/lib/session-shapes/source-context";
 import { BaselineOnboardingIntro, BaselineOnboardingQuestion, BaselineProfileSummary } from "@/components/baseline-onboarding";
 import { BaselineProfileEditor } from "@/components/baseline-profile-editor";
 import { onboardingAnsweredCount, readOnboardingAnswers, writeOnboardingAnswers } from "@/lib/onboarding/answers";
 import { ONBOARDING_QUESTIONS } from "@/lib/onboarding/questions";
-import { routeSession, withProduceStepOverride, type ProduceStep, type SessionRoute } from "@/lib/routing/session-route";
+import { routeSession, withProduceStepOverride, withStudyOutside, type ProduceStep, type SessionRoute } from "@/lib/routing/session-route";
 import { interleavedKeyPointsForSession, routingInputForSession, sessionTopic } from "@/lib/routing/route-for-session";
 import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
 import { StudyMethodBriefing } from "@/components/study-method-briefing";
@@ -468,7 +471,7 @@ import {
   type TutorThreadSummary,
 } from "@/lib/tutor/schema";
 
-type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session-quota" | "session-method" | "session" | "complete" | "baseline-session";
+type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session-quota" | "session-method" | "session" | "complete" | "pre-session" | "baseline-session";
 type Tab = "Home" | "Learning" | "Calendar" | "Ask YOVA" | "You";
 type LearningPlanView = "active" | "recent" | "archive";
 type LearningSection = LearningPlanView | "methods";
@@ -686,7 +689,8 @@ export function YovaPrototype({
   const [guidedSessionAllowanceChecking, setGuidedSessionAllowanceChecking] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [baselineSessionTarget, setBaselineSessionTarget] = useState<{ planId: string; planSessionId: string; produceStep: ProduceStep | null } | null>(null);
+  /** The block being started: the pre-session card, then the hub (Brief 1.5 item 8). */
+  const [baselineSessionTarget, setBaselineSessionTarget] = useState<{ planId: string; planSessionId: string; topicId: string | null; produceStep: ProduceStep | null; studyLocation: StudyLocation } | null>(null);
   const [answers, setAnswers] = useState<string[]>([]);
   const [plans, setPlans] = useState<LearningPlan[]>([]);
   const [deadlineMilestones, setDeadlineMilestones] = useState<DeadlineMilestone[]>([]);
@@ -2173,11 +2177,21 @@ export function YovaPrototype({
     }).catch(() => undefined);
   };
 
+  const baselineCheckpointAccount = account?.id ?? "browser-preview";
+  // The card's method and location choices, not the session's effective values, are what reopen it.
+  const baselineTargetProduceStep = baselineSessionTarget?.produceStep ?? null;
+  const baselineTargetLocation = baselineSessionTarget?.studyLocation ?? "inside";
+  const saveBaselineSessionCheckpoint = useCallback((checkpoint: BaselineCheckpoint) => {
+    const storage = browserCheckpointStorage();
+    if (storage) saveBaselineCheckpoint(storage, baselineCheckpointAccount, { ...checkpoint, produceStep: baselineTargetProduceStep, studyLocation: baselineTargetLocation });
+  }, [baselineCheckpointAccount, baselineTargetProduceStep, baselineTargetLocation]);
+
   const startSession = async (
     planId?: string,
     planOverride?: LearningPlan,
     adjustment?: SessionAdjustment | null,
     planSessionId?: string,
+    studyLocation: StudyLocation = "inside",
   ) => {
     const storedRequestedPlan = planOverride
       ?? (planId ? activePlans.find((plan) => plan.id === planId) ?? null : activePlan);
@@ -2195,8 +2209,18 @@ export function YovaPrototype({
       sessionGenerationAbortRef.current = null;
       setSelectedPlanId(storedRequestedPlan.id);
       setPendingSessionPlan(null);
-      setBaselineSessionTarget({ planId: storedRequestedPlan.id, planSessionId: storedRequestedSession.id, produceStep: null });
-      setStage("baseline-session");
+      // Brief 1.5 item 8: a session left mid-way reopens on the same step with no setup;
+      // anything else opens the one pre-session card.
+      const storage = browserCheckpointStorage();
+      const saved = storage ? loadBaselineCheckpoint(storage, baselineCheckpointAccount, storedRequestedSession.id) : null;
+      setBaselineSessionTarget({
+        planId: storedRequestedPlan.id,
+        planSessionId: storedRequestedSession.id,
+        topicId: storedRequestedSession.topicIds?.[0] ?? null,
+        produceStep: saved?.produceStep ?? null,
+        studyLocation: saved?.studyLocation ?? studyLocation,
+      });
+      setStage(saved ? "baseline-session" : "pre-session");
       return;
     }
     const plannedRouteContract = resolveStudyRouteSessionContract(
@@ -3309,6 +3333,8 @@ export function YovaPrototype({
         : plan
     )));
     setSessionCompletions((current) => [...current, completion]);
+    const checkpointStorage = browserCheckpointStorage();
+    if (checkpointStorage) clearBaselineCheckpoint(checkpointStorage, baselineCheckpointAccount, targetSession.id);
     setBaselineSessionTarget(null);
     setStage("app");
     setActiveTab("Home");
@@ -4442,7 +4468,31 @@ export function YovaPrototype({
     }
   };
 
+  function resolveBaselineTarget() {
+    const target = baselineSessionTarget;
+    const targetPlan = target ? activePlans.find((plan) => plan.id === target.planId) ?? null : null;
+    if (!target || !targetPlan) return null;
+    // A plan revision on the card (covered, material) can replace the session; follow its topic.
+    const targetSession = targetPlan.sessions.find((session) => session.id === target.planSessionId)
+      ?? (target.topicId ? targetPlan.sessions.find((session) => session.status === "ready" && session.topicIds?.includes(target.topicId!)) : undefined)
+      ?? null;
+    if (!targetSession) return null;
+    const topic = sessionTopic(targetPlan, targetSession);
+    const baseRoute = routeSession(routingInputForSession({ plan: targetPlan, session: targetSession, topic, answers: readOnboardingAnswers(answers), completions: sessionCompletions, now: new Date() }));
+    const insideRoute = target.produceStep ? withProduceStepOverride(baseRoute, target.produceStep) : baseRoute;
+    const route = target.studyLocation === "outside" ? withStudyOutside(insideRoute) : insideRoute;
+    return { target: { ...target, planSessionId: targetSession.id }, plan: targetPlan, session: targetSession, topic, insideRoute, route, source: baselineSourceForTopic(targetPlan, topic).description };
+  }
+
+  function leaveBaselineSession() {
+    setBaselineSessionTarget(null);
+    setStage("app");
+  }
+
   if (!ready) return <LoadingAccount inviteOnly={inviteOnly} />;
+
+  const baselineStage = stage === "pre-session" || stage === "baseline-session";
+  const baselineTarget = baselineStage ? resolveBaselineTarget() : null;
 
   if (stage === "landing") return <Landing inviteOnly={inviteOnly} authIssue={authStartupIssue} signedOutStorageIssue={signedOutStorageIssue} onRetryAuth={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onCreate={() => { setAccountMode(inviteOnly ? "sign-in" : "create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
   if (stage === "cloud-error") return <CloudAccountLoadError issue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetry={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onSignOut={signOut} />;
@@ -4575,7 +4625,7 @@ export function YovaPrototype({
     setStage("app");
     setActiveTab("Learning");
   }} />;
-  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("app"); }} onFinish={(plan) => {
+  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("app"); }} onFinish={(plan, studyLocation) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -4589,26 +4639,44 @@ export function YovaPrototype({
     setPlans((current) => [...current, plan]);
     preserveSeedDeadline(plan);
     setSelectedPlanId(plan.id);
-    void startSession(plan.id, plan, null);
+    void startSession(plan.id, plan, null, undefined, studyLocation);
   }} />;
-  if (stage === "baseline-session") {
-    const targetPlan = baselineSessionTarget ? activePlans.find((plan) => plan.id === baselineSessionTarget.planId) ?? null : null;
-    const targetSession = targetPlan?.sessions.find((session) => session.id === baselineSessionTarget?.planSessionId) ?? null;
-    if (!baselineSessionTarget || !targetPlan || !targetSession) {
-      return <SessionLoading plan={activePlan} onExit={() => { setBaselineSessionTarget(null); setStage("app"); }} />;
-    }
-    const targetTopic = sessionTopic(targetPlan, targetSession);
-    const baseRoute = routeSession(routingInputForSession({ plan: targetPlan, session: targetSession, topic: targetTopic, answers: readOnboardingAnswers(answers), completions: sessionCompletions, now: new Date() }));
-    const route = baselineSessionTarget.produceStep ? withProduceStepOverride(baseRoute, baselineSessionTarget.produceStep) : baseRoute;
+  // A target that no longer resolves (the plan changed underneath it) returns to Home; there is no loading screen.
+  if (baselineStage && !baselineTarget) return <BaselineTargetGone onGone={leaveBaselineSession} />;
+  if (stage === "pre-session" && baselineTarget) {
+    const { target, plan: targetPlan, session: targetSession, topic: targetTopic, insideRoute, route, source } = baselineTarget;
+    return <PreSessionCard
+      plan={targetPlan}
+      session={targetSession}
+      topic={targetTopic}
+      insideRoute={insideRoute}
+      route={route}
+      source={source}
+      studyLocation={target.studyLocation}
+      canStudyOutside={withStudyOutside(insideRoute) !== insideRoute}
+      revisionClient={account ? revisionClient : null}
+      onStudyLocationChange={(studyLocation) => setBaselineSessionTarget({ ...target, studyLocation })}
+      onChangeProduceStep={(produceStep) => setBaselineSessionTarget({ ...target, produceStep })}
+      onStart={() => setStage("baseline-session")}
+      onExit={leaveBaselineSession}
+    />;
+  }
+  if (stage === "baseline-session" && baselineTarget) {
+    const { target, plan: targetPlan, session: targetSession, topic: targetTopic, route } = baselineTarget;
+    const checkpointStorage = browserCheckpointStorage();
+    const checkpoint = checkpointStorage ? loadBaselineCheckpoint(checkpointStorage, baselineCheckpointAccount, targetSession.id, routeFingerprint(route)) : null;
     return <BaselineSession
-      key={`${targetSession.id}:${route.produceStep ?? route.shape}`}
+      key={`${targetSession.id}:${route.learnPath ?? ""}:${route.produceStep ?? route.shape}`}
       plan={targetPlan}
       session={targetSession}
       topic={targetTopic}
       route={route}
       nextSession={nextUnfinishedSessionAfter(targetPlan.sessions, targetSession.sequence)}
-      onChangeProduceStep={(step) => setBaselineSessionTarget({ ...baselineSessionTarget, produceStep: step })}
-      onExit={() => { setBaselineSessionTarget(null); setStage("app"); }}
+      studyLocation={target.studyLocation}
+      checkpoint={checkpoint}
+      onCheckpoint={saveBaselineSessionCheckpoint}
+      onChangeProduceStep={(step) => setBaselineSessionTarget({ ...target, produceStep: step })}
+      onExit={leaveBaselineSession}
       onComplete={(result) => completeBaselineSession(targetPlan, targetSession, route, result)}
       interleavedKeyPoints={route.firstPracticeRound === "interleaved_review" ? interleavedKeyPointsForSession({ plan: targetPlan, topic: targetTopic, completions: sessionCompletions }) : []}
     />;
@@ -8240,4 +8308,10 @@ function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Returns to Home when a started block can no longer be found (Brief 1.5 item 8: no loading screen). */
+function BaselineTargetGone({ onGone }: { onGone: () => void }) {
+  useEffect(() => { onGone(); }, [onGone]);
+  return null;
 }
