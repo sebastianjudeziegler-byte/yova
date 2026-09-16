@@ -15,6 +15,9 @@ export default defineConfig({
   workers: 1,
   webServer: server && {
     ...server,
-    env: { ...server.env, OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "", YOVA_NEXT_DIST_DIR: ".next-e2e-baseline-live" },
+    // Reuses the baseline build directory, which tsconfig.json already lists.
+    // A new directory makes next dev rewrite tsconfig.json mid-run, and that
+    // uncommitted change broke the Study Profile comparison's git checkout.
+    env: { ...server.env, OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "" },
   },
 });

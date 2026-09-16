@@ -78,9 +78,58 @@ Focused local run (the one browser case the standing rules allow):
 should have generated is not a test of that path; fixtures mock transport, not
 the shape of the model's answer.
 
-### Still open for item 1
+### Live, unmocked verification
 
-- **Live, unmocked verification** (one-point and two-point retries to
-  completion, desktop and mobile): not yet run. Nothing live exercises the
-  baseline practice path today — the live gate's browser half runs only
-  `e2e/plan-launch-live.spec.ts` against a flag-off server.
+Nothing live exercised the baseline practice path before this brief: the live
+gate's browser half runs only `e2e/plan-launch-live.spec.ts` against a flag-off
+server. `e2e/baseline-practice-retry.live.spec.ts` now runs in CI ("Run live
+baseline practice retries") on the flag-on server with the real model key.
+Every learn-block and practice call reaches the real slot route and composer;
+responses are only observed, to know which choice is correct so round one can
+miss exactly one or two key points. The saved plan is the no-model fallback
+plan whose first session routes to Shape C.
+
+CI run 35076002955 (commit 0781076):
+
+```
+✓ [baseline-chromium]        a 1-point retry generates live and completes (16.5s)
+✓ [baseline-chromium]        a 2-point retry generates live and completes (12.4s)
+✓ [baseline-mobile-chromium] a 1-point retry generates live and completes (13.1s)
+✓ [baseline-mobile-chromium] a 2-point retry generates live and completes (22.6s)
+4 passed
+```
+
+Each case asserts the live round-two practice call returned 200, that
+round two shows exactly one question per missed point and covers exactly the
+missed key points, and that the round finishes with "A full round passed
+clean." Screenshots of round-one end, the round-two question and the passed
+round are retained in the run's quality evidence artifact.
+
+### Full gate on run 35076002955
+
+The regression comparator reports **BLOCKED** on three cases. None is a
+regression from item 1:
+
+| Case | Evidence | Disposition |
+|---|---|---|
+| `calendar-tab.spec.ts` quick-add deadline, desktop | Fails 0/3 on **today's main** too (run 35074864685, 6ed9aa3), which the same comparator also reports as a new failure versus the older retained main sample. Weekday-relative input. | Pre-existing on current main; backlogged |
+| `calendar-tab.spec.ts` quick-add deadline, mobile | Same as desktop | Pre-existing on current main; backlogged |
+| live plan-to-session "History essay using outside sources" | Passed on today's main, failed once here; single live sample on a path item 1 does not touch | FLAKY; backlogged |
+
+Today's main fails the same three steps (core learner journey, full live gate,
+regression gate). The gate will keep blocking every branch until the calendar
+case is fixed on main or the retained main sample is refreshed.
+
+**One failure was caused by this branch and is fixed.** "Compare the Study
+Profile phone-width case on main and release" failed because `git checkout`
+found an uncommitted `tsconfig.json`: the first version of the live config gave
+its dev server a new build directory, and `next dev` added it to
+`tsconfig.json` mid-run. The live config now reuses `.next-e2e-baseline`, which
+`tsconfig.json` already lists.
+
+### Merge plan (founder decision, 2026-09-16)
+
+If item 1's live gate is green, #91 merges with item 1 on its own rather than
+waiting on items 2–7, which will take days. Items 2–7 continue on a follow-up
+branch and PR. This overrides the standing "one branch, one PR" rule for this
+brief.
