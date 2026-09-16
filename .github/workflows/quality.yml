@@ -113,7 +113,16 @@ jobs:
           YOVA_MIGRATED_SUPABASE_URL="$API_URL" \
           YOVA_MIGRATED_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY" \
           YOVA_MIGRATED_SUPABASE_SECRET_KEY="$SERVICE_ROLE_KEY" \
-          pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.migrated.test.ts
+          pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.migrated.test.ts \
+            2>&1 | tee "$RUNNER_TEMP/migrated-route.log" || {
+              {
+                echo '### Migrated route test failed'
+                echo '```'
+                tail -80 "$RUNNER_TEMP/migrated-route.log"
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            }
 
       - name: Stop isolated database
         if: always()
