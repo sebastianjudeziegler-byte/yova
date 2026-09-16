@@ -99,6 +99,19 @@ jobs:
             exit 1
           fi
 
+      # The browser journey runs the development-preview path, which never
+      # touches the database. This sends a real preview request through the
+      # adjust route while the migrated database is still running.
+      - name: Test the plan adjustment route against the migrated database
+        run: |
+          set -o pipefail
+          eval "$(pnpm exec supabase status -o env | sed 's/^/export /')"
+          YOVA_REQUIRE_MIGRATED_ROUTE_TEST=1 \
+          YOVA_MIGRATED_SUPABASE_URL="$API_URL" \
+          YOVA_MIGRATED_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY" \
+          YOVA_MIGRATED_SUPABASE_SECRET_KEY="$SERVICE_ROLE_KEY" \
+          pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.migrated.test.ts
+
       - name: Stop isolated database
         if: always()
         continue-on-error: true
