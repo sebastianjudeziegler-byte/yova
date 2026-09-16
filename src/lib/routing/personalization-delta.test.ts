@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { emptyOnboardingAnswers, withOnboardingAnswer, type OnboardingAnswers } from "@/lib/onboarding/answers";
 import type { OnboardingQuestionId } from "@/lib/onboarding/questions";
 import { shapeASteps } from "@/lib/session-shapes/shape-a";
+import { settleTips, tipRequest, type TipStep } from "@/lib/session-shapes/session-tips";
 import { personalizationNote } from "./personalization-note";
 import { routeSession, type RoutingInput, type SessionRoute } from "./session-route";
 
@@ -49,6 +50,9 @@ export const BASELINE_PROFILE_2 = profile({
 
 const SAME_TOPIC: Omit<RoutingInput, "answers"> = { taskType: "conceptual_learning", blockKind: "learn", evidence: "not_assessed", hasSource: true, topicHasProblems: false };
 
+/** The Shape A hub steps whose tips the delta compares. */
+const HUB_STEPS: TipStep[] = ["study", "produce", "compare", "repair", "end"];
+
 export const DELTA_FIELDS = ["entry", "produceStep", "timerMinutes", "questionCap", "questionMix", "instructionStyle"] as const;
 
 export function routingDeltaFields(first: SessionRoute, second: SessionRoute) {
@@ -80,6 +84,7 @@ export function sessionPrintout(route: SessionRoute) {
     stoppingPoints: route.stoppingPoints,
     visibility: route.visibility,
     personalizationNote: personalizationNote(route),
+    tips: settleTips(tipRequest(route, HUB_STEPS), []).map(({ step, title, body, ruleId }) => ({ step, title, body, ruleId })),
     ruleIds: route.ruleIds,
   };
 }
@@ -151,6 +156,19 @@ describe("Brief 1 permanent personalization delta", () => {
     expect(second.ruleIds).toContain("L4.q7.detail_leaning.mix_compare_contrast");
     expect(first.ruleIds).not.toContain("L4.q7.detail_leaning.mix_compare_contrast");
     expect(second.ruleIds).not.toContain("L4.q7.gist_leaning.mix_recall");
+  });
+
+  // Brief 1.5 gate: different tip text, on rule IDs. The reason half of every tip is a rule that fired for that profile.
+  it("two contrasting profiles get different tips on the same steps, each on a rule that fired", () => {
+    const firstTips = settleTips(tipRequest(first, HUB_STEPS), []);
+    const secondTips = settleTips(tipRequest(second, HUB_STEPS), []);
+    expect(firstTips.map((tip) => tip.step)).toEqual(HUB_STEPS);
+    expect(secondTips.map((tip) => tip.step)).toEqual(HUB_STEPS);
+    for (const tip of firstTips) expect(first.ruleIds).toContain(tip.ruleId);
+    for (const tip of secondTips) expect(second.ruleIds).toContain(tip.ruleId);
+    expect(Object.fromEntries(firstTips.map((tip) => [tip.step, tip.ruleId]))).toEqual({ study: "L3.q5.concrete_example", produce: "L3.q6.map_it", compare: "L3.q6.map_it", repair: "L4.q9.simpler_repeated_instructions", end: "L4.q10.forget_during_tests" });
+    expect(Object.fromEntries(secondTips.map((tip) => [tip.step, tip.ruleId]))).toEqual({ study: "L3.q5.try_then_feedback", produce: "L3.q6.explain_back", compare: "L3.q5.try_then_feedback", repair: "L3.q6.explain_back", end: "L4.q2.minutes_45_60" });
+    for (const [index, tip] of firstTips.entries()) expect(tip.body).not.toBe(secondTips[index]!.body);
   });
 
   it("the same profile twice is byte-identical (no randomness in routing)", () => {

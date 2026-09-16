@@ -2,6 +2,7 @@ import { z } from "zod";
 import { PRACTICE_ROUND_KINDS } from "@/lib/practice/practice-rounds";
 import { LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import { KeyPointSchema, PracticeQuestionSchema } from "@/lib/practice/compose-practice";
+import { SessionTipSchema, TipRequestSchema } from "@/lib/session-shapes/session-tips";
 
 /**
  * The AI generation contract for the baseline session shapes
@@ -67,7 +68,12 @@ const RequestBase = {
   planSessionId: z.string().uuid(),
   topic: ShapeTopicSchema,
   modifiers: ShapeProfileModifiersSchema,
+  /** The hub tips this call writes, with the fired-rule reasons each may draw on (Brief 1.5 item 6). */
+  tips: TipRequestSchema,
 };
+
+/** Tips written in this call, each on a reason it was offered. */
+const ResponseTips = z.array(SessionTipSchema).max(5).default([]);
 
 /** A concrete worked example: a title and its steps (Brief 1.5 item 5). */
 export const WorkedExampleSchema = z.object({
@@ -146,6 +152,7 @@ export const DirectionResponseSchema = z.object({
   origin: z.enum(["generated", "template"]),
   /** A worked example drawn only from the learner's material; null when none could be shown. */
   example: WorkedExampleSchema.nullable(),
+  tips: ResponseTips,
 }).strict();
 
 /**
@@ -162,6 +169,7 @@ export const LearnBlockResponseSchema = z.object({
   structure: z.array(z.string().trim().min(2).max(200)).min(2).max(8),
   /** The explanation's own concrete example, restated as steps (Brief 1.5 item 5). */
   example: WorkedExampleSchema,
+  tips: ResponseTips,
 }).strict();
 
 /** Slot 3 — what is missing or wrong. Feedback, never a verdict. */
@@ -170,6 +178,7 @@ export const CompareResponseSchema = z.object({
   feedback: z.string().trim().min(20).max(1_200),
   missing: z.array(z.string().trim().min(2).max(240)).max(6),
   incorrect: z.array(z.string().trim().min(2).max(240)).max(6),
+  tips: ResponseTips,
 }).strict();
 
 /** Slot 4 — fresh questions per attempt, checked in code. */
@@ -177,6 +186,7 @@ export const PracticeResponseSchema = z.object({
   action: z.literal("practice"),
   keyPoints: z.array(KeyPointSchema).min(1).max(8),
   questions: z.array(PracticeQuestionSchema).min(1).max(8),
+  tips: ResponseTips,
 }).strict();
 
 export const ShapeSlotResponseSchema = z.discriminatedUnion("action", [

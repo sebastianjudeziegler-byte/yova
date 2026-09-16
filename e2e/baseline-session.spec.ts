@@ -11,6 +11,11 @@ import { expect, test, type Page, type Route } from "./helpers/frozen-clock";
  * round has the shape the server really returns — a retry has one question
  * per missed point. Composition is proven by compose-practice.test.ts and
  * shape-slot-generator.test.ts, and live by e2e/baseline-practice-retry.live.spec.ts.
+ *
+ * Hub tips (Brief 1.5 item 6) follow the request like the model is told to:
+ * one tip per requested step, on that step's first offered reason. Which
+ * reasons are offered is the product's own routing; tip writing and binding
+ * are proven by session-tips.test.ts and shape-slot-generator.test.ts.
  */
 const BASELINE_ONBOARDING = [
   "Evening",
@@ -58,19 +63,25 @@ function practiceResponse(round: number) {
     : [question("p4", "k2", 0, "Round two: what leaves glycolysis?")] };
 }
 
+type TipRequestEntry = { step: string; reasons: Array<{ ruleId: string; sentence: string }> };
+
+function tipsFollowing(requested: TipRequestEntry[] = []) {
+  return requested.map(({ step, reasons }) => ({ step, title: `Hub tip for the ${step} step.`, body: reasons[0]!.sentence, ruleId: reasons[0]!.ruleId, origin: "generated" }));
+}
+
 async function mockShapeSlots(page: Page, calls: string[]) {
   await page.route("**/api/sessions/shape", async (route: Route) => {
-    const body = route.request().postDataJSON() as { action: string; round?: number };
+    const body = route.request().postDataJSON() as { action: string; round?: number; tips?: TipRequestEntry[] };
     calls.push(body.action);
     const json = body.action === "learn_block" ? LEARN_BLOCK
       : body.action === "compare" ? COMPARISON
         : body.action === "practice" ? practiceResponse(body.round ?? 1)
           : { action: "direction", whatToLookAt: "Review your notes on cellular respiration.", howToApproach: "Read for the mechanism, not the terms.", origin: "generated", example: null };
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(json) });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...json, tips: tipsFollowing(body.tips) }) });
   });
 }
 
-test("a learner is routed through Shape A, produces, compares, and finishes with a personalization note", async ({ page }) => {
+test("a learner is routed through Shape A, produces, compares, and finishes with a personalization note", async ({ page }, testInfo) => {
   const calls: string[] = [];
   await mockShapeSlots(page, calls);
   await createPreviewAccount(page);
@@ -86,7 +97,19 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await expect(page.getByRole("button", { name: "Change method" })).toHaveCount(0);
   await expect(page.getByText("Method: Concept Mapping")).toBeVisible();
   // Q2 10–15 minutes, Q3 very often, Q9 shorter sections → 11-minute nudge.
-  await expect(page.getByLabel(/Session timer/)).toContainText("/ 11:00");
+  await expect(page.getByLabel(/Session timer/)).toContainText("0:");
+  await expect(page.getByRole("region", { name: "Timer" })).toContainText("/ 11:00");
+
+  // Brief 1.5 item 6: the hub. Briefing, reasons, shape, tip — every reason a rule that fired.
+  await expect(page.getByRole("region", { name: "How to study this" })).toContainText("Concept Mapping");
+  await expect(page.locator('[data-pill-rule-id="L3.q6.map_it"]')).toHaveText("you prove knowledge by mapping");
+  for (const pillRuleId of await page.locator("[data-pill-rule-id]").evaluateAll((pills) => pills.map((pill) => pill.getAttribute("data-pill-rule-id")))) expect(ruleIds).toContain(pillRuleId);
+  await expect(page.getByRole("region", { name: "Session shape" })).toContainText("SHAPE A · STUDY → PRODUCE → COMPARE → REPAIR");
+  const tip = page.getByTestId("hub-tip");
+  await expect(tip).toHaveAttribute("data-tip-step", "study");
+  await expect(tip).toContainText("YOVA TIP · STEP 1");
+  expect(ruleIds).toContain(await tip.getAttribute("data-tip-rule-id"));
+  await page.screenshot({ path: testInfo.outputPath("hub-shape-a-study.png"), fullPage: true });
 
   // A2: no source, so the explanation, key points and questions come from one call.
   await expect(page.getByText(/Cellular respiration is how a cell releases/)).toBeVisible();
@@ -101,6 +124,10 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await page.getByRole("button", { name: "Continue" }).click();
   // Q6 map_it: the produce step is a concept map with the source hidden.
   await expect(page.getByRole("heading", { name: "Map the concepts and links" })).toBeVisible();
+  await expect(page.getByText("STEP 2 OF 5")).toBeVisible();
+  await expect(tip).toHaveAttribute("data-tip-step", "produce");
+  await expect(tip).toHaveAttribute("data-tip-rule-id", "L3.q6.map_it");
+  await page.screenshot({ path: testInfo.outputPath("hub-shape-a-produce.png"), fullPage: true });
   await expect(page.getByText(/Cellular respiration is how a cell releases/)).toHaveCount(0);
   await page.getByLabel("Concept 1").fill("Glucose");
   await page.getByLabel("Concept 2").fill("Pyruvate");
@@ -113,6 +140,8 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await expect(comparison).toContainText("you didn't mention the proton gradient");
   await expect(comparison).toContainText("Feedback, not a verdict");
   await expect(comparison).not.toContainText(/pass|fail/i);
+  await expect(tip).toHaveAttribute("data-tip-step", "compare");
+  expect(ruleIds).toContain(await tip.getAttribute("data-tip-rule-id"));
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Address the named gaps, or move on." })).toBeVisible();
   await page.getByRole("button", { name: "Move on" }).click();
@@ -122,6 +151,7 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await expect(note).toContainText("Because you said a concrete example helps most, YOVA showed a worked example");
   await expect(page.getByRole("heading", { name: "You studied, produced and compared." })).toBeVisible();
   await expect(page.getByText("Nothing else queued in this plan")).toBeVisible();
+  await expect(tip).toHaveAttribute("data-tip-step", "end");
   // Development StrictMode mounts twice, so an aborted duplicate of the first
   // request can reach the mock; assert the slots used and their order, not a count.
   expect([...new Set(calls)]).toEqual(["learn_block", "compare"]);
@@ -162,6 +192,20 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   await expect(page.getByText("No source shown.")).toBeVisible();
   // Brief 1.5 item 2: the screen names the question's real type instead of claiming an order.
   await expect(page.getByText("Active Recall round. Recall question. No source shown.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Session shape" })).toContainText("SHAPE C · CLOSED-BOOK PRACTICE");
+  await expect(page.getByTestId("hub-tip")).toHaveAttribute("data-tip-step", "questions");
+  expect(ruleIds).toContain(await page.getByTestId("hub-tip").getAttribute("data-tip-rule-id"));
+  // Handoff 3A timer: pause, +5, hide and show again. Never blocks.
+  const timer = page.getByRole("region", { name: "Timer" });
+  await timer.getByRole("button", { name: "Pause" }).click();
+  await expect(timer.getByRole("button", { name: "Resume" })).toBeVisible();
+  const limit = (await timer.textContent())?.match(/\/ (\d+):00/)?.[1];
+  await timer.getByRole("button", { name: "Add 5 minutes" }).click();
+  await expect(timer).toContainText(`/ ${Number(limit) + 5}:00`);
+  await timer.getByRole("button", { name: "Hide" }).click();
+  await expect(page.getByRole("region", { name: "Timer" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Timer hidden, show it" }).click();
+  await expect(page.getByRole("region", { name: "Timer" }).getByRole("button", { name: "Resume" })).toBeVisible();
   // Round 1 uses the questions generated with the explanation; miss the second one.
   await expect(page.getByTestId("baseline-question")).toContainText("ROUND 1 · QUESTION 1 OF 3");
   await expect(page.getByTestId("baseline-question")).toContainText(LEARN_BLOCK.questions[0].prompt);
@@ -177,6 +221,7 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   await page.getByRole("button", { name: "Two pyruvate" }).click();
   await page.getByRole("button", { name: "Finish round" }).click();
   await expect(page.getByRole("heading", { name: "1 point still to pass." })).toBeVisible();
+  await expect(page.getByTestId("hub-tip")).toHaveAttribute("data-tip-step", "round");
   await page.getByRole("button", { name: "Start round 2" }).click();
   // Round 2 covers only the missed key point, with fresh questions from Slot 4.
   await expect(page.getByTestId("baseline-question")).toContainText("ROUND 2 · QUESTION 1 OF 1");
@@ -198,6 +243,27 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   });
   expect(recorded).toHaveLength(1);
   expect(recorded[0]).toMatchObject({ correctAnswers: 3, totalAnswers: 4 });
+});
+
+// Brief 1.5 item 6: below ~1100px the rail sits under the card in one column. Functional, NOT designed.
+test("the session hub falls back to one column on a phone without breaking", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const calls: string[] = [];
+  await mockShapeSlots(page, calls);
+  await createPreviewAccount(page);
+  await completeBaselineOnboarding(page);
+  await startStudyNowSession(page, "Explain how photosynthesis converts light energy into chemical energy inside a leaf.");
+  await expect(page.getByText(/Cellular respiration is how a cell releases/)).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  const card = await page.locator("section").filter({ hasText: /Cellular respiration is how a cell releases/ }).last().boundingBox();
+  const rail = await page.getByRole("complementary", { name: "Session hub" }).boundingBox();
+  expect(card && rail && rail.y >= card.y + card.height - 1).toBe(true);
+  await expect(page.getByTestId("hub-tip")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("hub-mobile-fallback-undesigned.png"), fullPage: true });
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByTestId("baseline-worked-example")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
 
 test("a profile saved by position survives the question reorder and is editable by ID in You", async ({ page }) => {

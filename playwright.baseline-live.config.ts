@@ -10,7 +10,7 @@ const server = baseline.webServer && !Array.isArray(baseline.webServer) ? baseli
 
 export default defineConfig({
   ...baseline,
-  testMatch: /(^|\/)baseline-practice-retry\.live\.spec\.ts$/,
+  testMatch: /(^|\/)baseline-(practice-retry|hub-profiles)\.live\.spec\.ts$/,
   retries: 0,
   workers: 1,
   webServer: server && {

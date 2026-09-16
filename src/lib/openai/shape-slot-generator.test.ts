@@ -7,7 +7,7 @@ vi.mock("@/lib/openai/config", () => ({ getOpenAISessionConfig: () => null }));
 
 const { fillShapeSlot, ShapeSlotGenerationError, templateDirection } = await import("./shape-slot-generator");
 
-const ids = { requestId: "11111111-1111-4111-8111-111111111111", recoveryKey: "22222222-2222-4222-8222-222222222222", planId: "33333333-3333-4333-8333-333333333333", planSessionId: "44444444-4444-4444-8444-444444444444" };
+const ids = { requestId: "11111111-1111-4111-8111-111111111111", recoveryKey: "22222222-2222-4222-8222-222222222222", planId: "33333333-3333-4333-8333-333333333333", planSessionId: "44444444-4444-4444-8444-444444444444", tips: [] as never[] };
 const topic = { id: "55555555-5555-4555-8555-555555555555", title: "Glycolysis", description: "How glucose is split into pyruvate with a net gain of ATP and NADH.", subtopics: [], taskType: "conceptual_learning" as const };
 const modifiers = { instructionStyle: "standard" as const, questionMix: { recall: 1, application: 2, compare_contrast: 1, prediction: 0, misconception: 1 }, produceStep: "typed_explanation" as const, explanationFocus: "concept" as const, questionCap: 8, questionTarget: 5 };
 
@@ -114,7 +114,7 @@ describe("Slot 1 — direction", () => {
   it("uses the generated two sentences when the provider answers", async () => {
     const { provider } = providerReturning({ whatToLookAt: "Review your Unit 3 slides on glycolysis.", howToApproach: "Read for the mechanism, not the terms." });
     const result = await fillShapeSlot(request, provider as never);
-    expect(result).toEqual({ action: "direction", whatToLookAt: "Review your Unit 3 slides on glycolysis.", howToApproach: "Read for the mechanism, not the terms.", origin: "generated", example: null });
+    expect(result).toEqual({ action: "direction", whatToLookAt: "Review your Unit 3 slides on glycolysis.", howToApproach: "Read for the mechanism, not the terms.", origin: "generated", example: null, tips: [] });
   });
 
   it("falls back to an honest template naming the learner's own material when the provider is absent or fails twice", async () => {
@@ -137,7 +137,7 @@ describe("Slot 3 — comparison is feedback, never a verdict", () => {
   it("returns what is missing or wrong with no pass/fail field", async () => {
     const { provider } = providerReturning({ feedback: "You covered the split into pyruvate and the ATP gain, but you didn't mention NADH.", missing: ["NAD+ is reduced to NADH"], incorrect: [] });
     const result = await fillShapeSlot(request, provider as never);
-    expect(result).toEqual({ action: "compare", feedback: "You covered the split into pyruvate and the ATP gain, but you didn't mention NADH.", missing: ["NAD+ is reduced to NADH"], incorrect: [] });
+    expect(result).toEqual({ action: "compare", feedback: "You covered the split into pyruvate and the ATP gain, but you didn't mention NADH.", missing: ["NAD+ is reduced to NADH"], incorrect: [], tips: [] });
     expect(Object.keys(result)).not.toContain("verdict");
   });
 
@@ -286,3 +286,84 @@ describe("worked examples for examples-first learners", () => {
   });
 });
 
+
+// Brief 1.5 item 6: tips are written in the same slot call as the step's content.
+describe("hub tips in the same slot call", () => {
+  const reasons = {
+    map: { ruleId: "L3.q6.map_it", head: "you prove knowledge by mapping", sentence: "Because you prove knowledge by mapping, this session used Concept Mapping." },
+    example: { ruleId: "L3.q5.concrete_example", head: "you said a concrete example helps most", sentence: "Because you said a concrete example helps most, YOVA showed a worked example before asking you to produce." },
+    fallback: { ruleId: "L1.conceptual_learning.learn", head: "the default for this kind of topic", sentence: "This session followed the Feynman Technique default for this kind of topic; answer the profile questions in You to change how sessions run." },
+    mix: { ruleId: "L4.mix.conceptual_learning", head: "this is a conceptual topic", sentence: "Because this is a conceptual topic, practice asks 1 recall, 2 application, 1 compare and contrast, 1 misconception questions." },
+  };
+  const tip = (step: string, ruleId: string) => ({ step, title: "Draw the links before the labels.", body: "You prove what you know by mapping it, so the links are the part that counts.", ruleId });
+
+  it("a learn block writes its study and produce tips in its one call, and a tip on an unoffered rule becomes a template tip", async () => {
+    const tips = [{ step: "study" as const, reasons: [reasons.map, reasons.fallback] }, { step: "produce" as const, reasons: [reasons.map, reasons.fallback] }];
+    const { provider, calls } = followingPrompt((slots) => ({ explanation, keyPoints, structure, example: { title: "A sprinting muscle cell", steps: ["Glucose enters.", "Pyruvate becomes lactate."] }, questions: slots.map((slot) => draft(slot.slotId)), tips: [tip("study", "L3.q6.map_it"), tip("produce", "L4.q9.invented")] }));
+    const result = await fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers, tips }, provider as never);
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(calls[0]!.instructions).toContain("Follow one glucose end to end.");
+    expect(JSON.parse(calls[0]!.input).tips).toEqual(tips);
+    expect(result.tips).toEqual([
+      { ...tip("study", "L3.q6.map_it"), origin: "generated" },
+      { step: "produce", title: "Close the material before you start.", body: reasons.map.sentence, ruleId: "L3.q6.map_it", origin: "template" },
+    ]);
+  });
+
+  it("the comparison writes the compare, repair and end tips", async () => {
+    const tips = (["compare", "repair", "end"] as const).map((step) => ({ step, reasons: [reasons.map] }));
+    const { provider, calls } = providerReturning({ feedback: "You named the products; the NADH step is still missing.", missing: ["NADH"], incorrect: [], tips: tips.map(({ step }) => tip(step, "L3.q6.map_it")) });
+    const result = await fillShapeSlot({ ...ids, action: "compare", topic, modifiers, produced: "Glucose becomes pyruvate.", reference: { excerpts: [], keyPoints }, tips }, provider as never);
+    expect(result.tips.map((entry) => [entry.step, entry.origin])).toEqual([["compare", "generated"], ["repair", "generated"], ["end", "generated"]]);
+    expect((calls[0] as ProviderCall).instructions).toMatch(/ONE sentence of reason/);
+  });
+
+  it("practice writes the questions, round and end tips", async () => {
+    const tips = (["questions", "round", "end"] as const).map((step) => ({ step, reasons: [reasons.mix, reasons.fallback] }));
+    const supplied = keyPoints.slice(0, 3);
+    const { provider } = followingPrompt((slots) => ({ keyPoints: supplied, questions: slots.map((slot) => draft(slot.slotId)), tips: [tip("questions", "L4.mix.conceptual_learning")] }));
+    const result = await fillShapeSlot({ ...ids, action: "practice", topic, modifiers, round: 1, keyPoints: supplied, outstandingKeyPointIds: [], excerpts: [], attempt: "66666666-6666-4666-8666-666666666666", roundKind: "active_recall", repairTargets: [], tips }, provider as never);
+    expect(result.tips.map((entry) => [entry.step, entry.origin, entry.ruleId])).toEqual([["questions", "generated", "L4.mix.conceptual_learning"], ["round", "template", "L4.mix.conceptual_learning"], ["end", "template", "L4.mix.conceptual_learning"]]);
+  });
+
+  it("the direction template writes template tips, and never claims an example it could not show", async () => {
+    const tips = [{ step: "study" as const, reasons: [reasons.example, reasons.fallback] }];
+    const request: DirectionRequest = { ...ids, action: "direction", topic, modifiers, source: { name: "Unit 3 slides", kind: "slides", location: null }, entry: "study_full", excerpts: [], wantsExample: true, tips };
+    const result = await fillShapeSlot(request, null);
+    expect(result.tips).toEqual([{ step: "study", title: "Study for how it works, not for the terms.", body: reasons.fallback.sentence, ruleId: reasons.fallback.ruleId, origin: "template" }]);
+  });
+
+  it("writes no tips and asks for none when the call has no tip steps", async () => {
+    const { provider, calls } = providerReturning({ feedback: "You named the products; the NADH step is still missing.", missing: ["NADH"], incorrect: [] });
+    const result = await fillShapeSlot({ ...ids, action: "compare", topic, modifiers, produced: "Glucose becomes pyruvate.", reference: { excerpts: [], keyPoints }, tips: [] }, provider as never);
+    expect(result.tips).toEqual([]);
+    expect((calls[0] as ProviderCall).instructions).not.toMatch(/Follow one glucose/);
+  });
+});
+
+// Brief 1.5 item 6 decision: simpler_repeated_instructions gets a shorter, plainer explanation on reveal (Q9).
+describe("answer explanations for plain instructions", () => {
+  const plain = { ...modifiers, instructionStyle: "plain_restated" as const };
+  const supplied = keyPoints.slice(0, 3);
+  const practice = (explanationText: string) => (slots: Slot[]) => ({ keyPoints: supplied, questions: slots.map((slot) => draft(slot.slotId, { explanation: explanationText })) });
+  const request: PracticeRequest = { ...ids, action: "practice", topic, modifiers: plain, round: 1, keyPoints: supplied, outstandingKeyPointIds: [], excerpts: [], attempt: "66666666-6666-4666-8666-666666666666", roundKind: "active_recall", repairTargets: [], tips: [] };
+
+  it("asks for short plain explanations and refuses long ones", async () => {
+    const long = "Beta is correct because the explanation describes in considerable detail how the investment phase spends two ATP molecules before the payoff phase recovers four of them for a net gain.";
+    const { provider, calls } = followingPrompt(practice(long));
+    await expect(fillShapeSlot(request, provider as never)).rejects.toMatchObject({ code: "generation_failed" });
+    expect(calls[0]!.instructions).toMatch(/at most 20 words/);
+  });
+
+  it("accepts a short plain explanation", async () => {
+    const { provider } = followingPrompt(practice("Beta is right: two ATP go in, four come out."));
+    expect((await fillShapeSlot(request, provider as never)).action).toBe("practice");
+  });
+
+  it("the standard style keeps the one-sentence explanation without the word cap", async () => {
+    const long = "Beta is correct because the explanation describes in considerable detail how the investment phase spends two ATP molecules before the payoff phase recovers four of them for a net gain.";
+    const { provider, calls } = followingPrompt(practice(long));
+    expect((await fillShapeSlot({ ...request, modifiers }, provider as never)).action).toBe("practice");
+    expect(calls[0]!.instructions).not.toMatch(/at most 20 words/);
+  });
+});

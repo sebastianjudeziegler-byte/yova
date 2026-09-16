@@ -404,3 +404,81 @@ unit tests of the note and slots, not by a browser case.
   import graph (88 modules) reaches none of the files this branch changed, so
   it is FLAKY under the standing rules, not a regression. Backlogged.
 
+## Item 6: the session hub (frame 3A)
+
+### What changed
+
+- **Layout:** `src/components/baseline-session.tsx` now renders the handoff's hub:
+  - header;
+  - briefing strip (method, what it is, the four instructions, "chosen because" pills);
+  - the step card;
+  - a sticky right rail with the YOVA tip, the timer, the session shape, today's target and your source.
+
+  The components live in `src/components/session-hub.tsx`, styled in its CSS module with the codebase's tokens. The state machines and slot requests are unchanged.
+- **Rail rows and timer:** derived in `src/lib/session-shapes/session-hub.ts`; there is no new progression state.
+- **Reasons:** pills, tip reasons and the end note all read from `src/lib/routing/rule-evidence.ts`. Every entry is a template on a rule in `route.ruleIds`.
+- **Tips:** `src/lib/session-shapes/session-tips.ts`.
+  - Each slot call carries `tips`: the steps it writes for, plus that step's fired-rule reasons.
+  - The model writes an instruction plus one sentence of reason and names the `ruleId`.
+  - The server keeps a tip only for a requested step, on an offered reason. Otherwise it uses a template tip, whose body is the evidence sentence itself.
+  - The screen shows a tip only if its rule is in `route.ruleIds`.
+  - The handoff table goes into the prompt as style exemplars.
+  - Tips never get a call of their own:
+
+    | Call | Tips it writes |
+    |---|---|
+    | study (Shape A) | study, produce |
+    | study with questions (Shape C, Active Recall hand-off) | brief/study, questions, round, end |
+    | compare | compare, repair, end |
+    | practice | questions, round, end |
+- **Explanation on reveal:** for `simpler_repeated_instructions` (instruction style `plain_restated`), question explanations are asked for in at most 20 plain words. Over 25 words is refused and retried.
+
+### Red, then green
+
+| Test | Red (before implementation) | Green |
+|---|---|---|
+| `src/lib/routing/rule-evidence.test.ts` (5) | module missing, file fails | 5 pass |
+| `src/lib/session-shapes/session-tips.test.ts` (7) | module missing, file fails | 7 pass |
+| `src/lib/session-shapes/session-hub.test.ts` (7) | module missing, file fails | 7 pass |
+| `src/lib/openai/shape-slot-generator.test.ts`: tips in the same slot call (5), plain explanations (1) | 6 failed | 36 pass |
+| `src/lib/routing/personalization-delta.test.ts`: different tips, on rule IDs | imports the new tips module (red on 542d3af) | 7 pass |
+| `e2e/baseline-session.spec.ts`: hub assertions in Shape A and Shape C; phone fallback case | no hub on 542d3af | Shape A case passed locally, desktop and mobile; full journey runs in CI |
+
+Personalization delta gate: profile 1's tips sit on rules `L3.q5.concrete_example`, `L3.q6.map_it`, `L3.q6.map_it`, `L4.q9.simpler_repeated_instructions` and `L4.q10.forget_during_tests`. Profile 2's sit on `L3.q5.try_then_feedback`, `L3.q6.explain_back`, `L3.q5.try_then_feedback`, `L3.q6.explain_back` and `L4.q2.minutes_45_60`. The tip text differs on every step.
+
+**Live, side by side:** `e2e/baseline-hub-profiles.live.spec.ts` runs both delta profiles through the same Study Now topic against the real model. It screenshots every step with the hub and fails if a tip's rule did not fire. Results are recorded below once CI has run.
+
+### Decisions taken
+
+- **Open question, timer hidden scope:** session-scoped, as the brief decided. Hide, +5 and pause live only in the session screen's state.
+- **Newsreader in the app surface:** approved by the brief; used as specified.
+- **Shape toggle:** not shipped. The shape comes from `route.shape`.
+- **Step rows:** display-only (hover tint only).
+- **Change-method control:** shown enabled only before the first step is done and before anything is produced; afterwards it shows locked with the explanatory line.
+  - It is not shown at all when the learner asked to be told exactly what to do (silent visibility): offering a choice would contradict that answer.
+  - It is also hidden when there is no other method to switch to (for example, Shape C practice): a locked button there would claim a choice existed.
+- **Briefing strip:** a new component, not a restyle of `study-method-briefing.tsx`. That component renders the legacy `SessionMethodBriefing` record, which baseline routes do not have.
+- **Per-step minutes:** the handoff's proportions (Shape A 10/8/3/4, Shape C 4/12/5) scaled to the route's timer so the rows add up to it. This is pacing guidance, not tracked time.
+- **Active Recall hand-off (Shape A study, then questions):** the rail reads "Shape A · Study → closed-book questions", with rows Study, Closed-book round N, Round review, Session complete.
+- **No tip before any slot call has run:** for example, the first produce step of a try-then-feedback learner. No tip is invented.
+- **"Chosen because" pills:** every fired rule with evidence, except topic difficulty, which item 4 keeps hidden. This is pending the founder's answer on item 7.
+- **Timer status pill:** RUNNING / PAUSED / OVER. The handoff names only the OVER state.
+- **Global `showTimer: false` setting:** none exists in the codebase, so none was added.
+- **Source card actions:** the handoff says the no-material version drops them; the codebase has none for either case, so none are shipped.
+- **Today's target:** `session.objective`. For baseline sessions this is also the coverage focus, and `BaselineSession` receives no coverage record.
+- **Exit button:** reads "Exit session", per the handoff.
+
+### Mobile fallback: UNDESIGNED
+
+Below 1100px the rail drops under the step card in a single column, and the four instruction cards become two (one below 640px). The layout is functional, not designed, and needs a proper design pass.
+
+`e2e/baseline-session.spec.ts` checks at 390px that:
+- the page has no horizontal overflow;
+- the rail sits below the card.
+
+Its screenshot is `hub-mobile-fallback-undesigned.png`.
+
+### Found in passing
+
+Try-then-feedback learners stall at Compare. This is pre-existing; see BACKLOG.md.
+

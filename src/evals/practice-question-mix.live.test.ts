@@ -23,7 +23,7 @@ const topic = {
   taskType: "conceptual_learning" as const,
 };
 const modifiers = { instructionStyle: "standard" as const, questionMix: TASK_TYPE_QUESTION_MIX.conceptual_learning, produceStep: "typed_explanation" as const, explanationFocus: "concept" as const, questionCap: 8, questionTarget: 5 };
-const ids = () => ({ requestId: randomUUID(), recoveryKey: randomUUID(), planId: randomUUID(), planSessionId: randomUUID() });
+const ids = () => ({ requestId: randomUUID(), recoveryKey: randomUUID(), planId: randomUUID(), planSessionId: randomUUID(), tips: [] });
 const studyGuideExcerpt = {
   label: "Unit 2 study guide, osmosis",
   text: "Osmosis is the net movement of water molecules across a partially permeable membrane from a region of higher water potential to a region of lower water potential. Pure water has a water potential of zero; adding solute makes it negative. A plant cell placed in a solution with a lower water potential than its cytoplasm loses water, the vacuole shrinks and the membrane pulls away from the wall: plasmolysis. In a solution with a higher water potential the cell gains water until the wall resists further expansion, and the cell becomes turgid. Animal cells have no wall, so in a solution of much higher water potential they swell and can burst, and in a solution of lower water potential they shrink and crenate.",

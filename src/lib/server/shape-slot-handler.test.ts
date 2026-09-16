@@ -46,7 +46,7 @@ describe("shape slot handler", () => {
     const response = await handleShapeSlotRequest(post({ ...base, action: "compare", produced: "Glucose becomes pyruvate.", reference: { excerpts: [], keyPoints: [] } }), { provider: provider as never });
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Yova-Request-Id")).toBe(base.requestId);
-    expect(await response.json()).toEqual({ action: "compare", feedback: "You named the products; NADH is missing.", missing: ["NADH"], incorrect: [] });
+    expect(await response.json()).toEqual({ action: "compare", feedback: "You named the products; NADH is missing.", missing: ["NADH"], incorrect: [], tips: [] });
   });
 
   it("reports a generation failure honestly with the attempt count", async () => {
