@@ -47,4 +47,19 @@ describe("baseline source context", () => {
     expect(result.excerpts).toHaveLength(8);
     expect(result.excerpts.every((excerpt) => excerpt.text.length === 4_000)).toBe(true);
   });
+
+  // Brief 1.5 item 8: "Add material" on the pre-session card attaches a file to the topic and flips the block to the source path.
+  it("uses a file attached to the topic: its name, and its text as excerpts", () => {
+    const attached = material({ id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", name: "My glycolysis notes.txt", mimeType: "text/plain", textContent: "y".repeat(9_000) });
+    const result = baselineSourceForTopic(plan([attached], "yova_generated"), topic({ attachedSources: [{ material_id: attached.id }] }));
+    expect(result.description).toEqual({ name: "My glycolysis notes.txt", kind: "notes", location: null });
+    expect(result.excerpts.map((excerpt) => [excerpt.label, excerpt.text.length])).toEqual([["My glycolysis notes.txt · part 1", 4_000], ["My glycolysis notes.txt · part 2", 4_000], ["My glycolysis notes.txt · part 3", 1_000]]);
+  });
+
+  it("prefers an attached file over an attached link", () => {
+    const attached = material({ id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", name: "Chapter 4.pdf", mimeType: "application/pdf" });
+    const result = baselineSourceForTopic(plan([attached], "yova_generated"), topic({ attachedSources: [{ url: "https://example.com/glycolysis" }, { material_id: attached.id }] }));
+    expect(result.description?.name).toBe("Chapter 4.pdf");
+  });
 });
+

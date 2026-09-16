@@ -40,7 +40,9 @@ import {
   type ShapeCState,
 } from "@/lib/session-shapes/shape-c";
 import { makeSlotIds, requestComparison, requestDirection, requestLearnBlock, requestPractice, ShapeSlotClientError } from "@/lib/session-shapes/slots-client";
+import { routeFingerprint, type BaselineCheckpoint, type StudyLocation } from "@/lib/session-shapes/baseline-checkpoint";
 import { baselineSourceForTopic } from "@/lib/session-shapes/source-context";
+import { CORE_METHOD_CATALOG } from "@/lib/learning/method-catalog";
 import {
   SHAPE_SLOT_HONEST_ERROR,
   type DirectionResponse,
@@ -90,6 +92,11 @@ export type BaselineSessionProps = {
   onComplete: (result: BaselineSessionResult) => Promise<boolean>;
   /** Interleaved Review only: the key points of related topics that each passed once (Brief 1.5 item 3). */
   interleavedKeyPoints?: KeyPoint[];
+  /** Inside or outside YOVA, chosen on the pre-session card (Brief 1.5 item 8). */
+  studyLocation?: StudyLocation;
+  /** Where the learner left off; the session opens on that step (Brief 1.5 item 8). */
+  checkpoint?: BaselineCheckpoint | null;
+  onCheckpoint?: (checkpoint: BaselineCheckpoint) => void;
 };
 
 type SlotStatus = "idle" | "loading" | "ready" | "error";
@@ -108,7 +115,7 @@ function formatClock(seconds: number) {
 }
 
 export function BaselineSession(props: BaselineSessionProps) {
-  const { plan, session, topic, route, nextSession, onChangeProduceStep, onExit, onComplete, interleavedKeyPoints } = props;
+  const { plan, session, topic, route, nextSession, onChangeProduceStep, onExit, onComplete, interleavedKeyPoints, studyLocation = "inside", checkpoint = null, onCheckpoint } = props;
   const planMaterials = plan.materials;
   const planSourceMode = plan.sourceMode;
   const source: BaselineSessionSource = useMemo(
@@ -136,15 +143,16 @@ export function BaselineSession(props: BaselineSessionProps) {
   // ---------------------------------------------------------------- timer
   // Pause freezes only this counter; nothing server-side pauses. Hidden, +5 and
   // the acknowledgement are session-scoped UI state (handoff decision).
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const clockRef = useRef<{ accumulatedMs: number; runningSince: number | null }>({ accumulatedMs: 0, runningSince: null });
+  const [elapsedSeconds, setElapsedSeconds] = useState(checkpoint?.elapsedSeconds ?? 0);
+  const [elapsedSecondsRestored] = useState(checkpoint?.elapsedSeconds ?? 0);
+  const clockRef = useRef<{ accumulatedMs: number; runningSince: number | null }>({ accumulatedMs: elapsedSecondsRestored * 1_000, runningSince: null });
   const [timerPaused, setTimerPaused] = useState(false);
   const [timerHidden, setTimerHidden] = useState(false);
   const [timerExtraMinutes, setTimerExtraMinutes] = useState(0);
   const [acknowledgedLimit, setAcknowledgedLimit] = useState<number | null>(null);
   useEffect(() => {
     const clock = clockRef.current;
-    if (clock.runningSince === null && clock.accumulatedMs === 0) clock.runningSince = Date.now();
+    clock.runningSince ??= Date.now();
     const interval = window.setInterval(() => {
       setElapsedSeconds(Math.floor((clock.accumulatedMs + (clock.runningSince === null ? 0 : Date.now() - clock.runningSince)) / 1_000));
     }, 1_000);
@@ -163,8 +171,8 @@ export function BaselineSession(props: BaselineSessionProps) {
   const timer = timerView({ elapsedSeconds, timerMinutes: route.timerMinutes, extraMinutes: timerExtraMinutes, acknowledgedLimit });
 
   // ---------------------------------------------------------------- shapes
-  const [aState, dispatchA] = useReducer(shapeAReducer, route, initialShapeAState);
-  const [cState, dispatchC] = useReducer(shapeCReducer, route, initialShapeCState);
+  const [aState, dispatchA] = useReducer(shapeAReducer, route, (initial) => checkpoint?.aState ?? initialShapeAState(initial));
+  const [cState, dispatchC] = useReducer(shapeCReducer, route, (initial) => checkpoint?.cState ?? initialShapeCState(initial));
   // Active Recall: Shape A's study step hands off to closed-book questions.
   const handoffToQuestions = route.shape === "A" && route.produceStep === "retrieval_questions";
   const aStep = currentShapeAStep(aState);
@@ -173,7 +181,8 @@ export function BaselineSession(props: BaselineSessionProps) {
   const inQuestions = route.shape === "C"
     ? cState.phase !== "brief_study"
     : handoffToQuestions && aStep?.kind === "end";
-  const [started, setStarted] = useState(route.visibility !== "chooser");
+  // The pre-session card already offered the method choice (Brief 1.5 item 8), so the hub opens on the work.
+  const [started, setStarted] = useState(true);
   const [methodPanelOpen, setMethodPanelOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [finishIssue, setFinishIssue] = useState<string | null>(null);
@@ -182,13 +191,13 @@ export function BaselineSession(props: BaselineSessionProps) {
   // Every request starts from an event (a click, or the first render's
   // hand-off) and only updates state when its promise settles, so no effect
   // sets state synchronously.
-  const [direction, setDirection] = useState<DirectionResponse | null>(null);
-  const [learnBlock, setLearnBlock] = useState<LearnBlockResponse | null>(null);
-  const [learnStatus, setLearnStatus] = useState<SlotStatus>("idle");
+  const [direction, setDirection] = useState<DirectionResponse | null>(checkpoint?.direction ?? null);
+  const [learnBlock, setLearnBlock] = useState<LearnBlockResponse | null>(checkpoint?.learnBlock ?? null);
+  const [learnStatus, setLearnStatus] = useState<SlotStatus>(checkpoint?.direction || checkpoint?.learnBlock ? "ready" : "idle");
   const [learnError, setLearnError] = useState<string | null>(null);
   const [compareStatus, setCompareStatus] = useState<SlotStatus>("idle");
   const [compareError, setCompareError] = useState<string | null>(null);
-  const [practiceKeyPoints, setPracticeKeyPoints] = useState<KeyPoint[]>([]);
+  const [practiceKeyPoints, setPracticeKeyPoints] = useState<KeyPoint[]>(checkpoint?.practiceKeyPoints ?? []);
   // Brief 1.5 item 5: examples-first may only be claimed when an example was shown.
   const shownExample = learnBlock?.example ?? direction?.example ?? null;
   const exampleShown = route.workedStructureBeforeProduce ? shownExample !== null : undefined;
@@ -197,7 +206,7 @@ export function BaselineSession(props: BaselineSessionProps) {
   // Brief 1.5 item 7: every fired rule is named on the end receipt (the difficulty band only by its effect).
   const receipt = useMemo(() => receiptEvidence(route, { exampleShown }), [route, exampleShown]);
   // Brief 1.5 item 6: each slot call writes the tips for the steps it covers.
-  const [tips, setTips] = useState<Partial<Record<TipStep, SessionTip>>>({});
+  const [tips, setTips] = useState<Partial<Record<TipStep, SessionTip>>>(checkpoint?.tips ?? {});
   const mergeTips = useCallback((written: SessionTip[]) => {
     if (written.length) setTips((current) => ({ ...current, ...Object.fromEntries(written.map((tip) => [tip.step, tip])) }));
   }, []);
@@ -219,8 +228,9 @@ export function BaselineSession(props: BaselineSessionProps) {
 
   const sourceDescription = source.description;
   const requestStudySlot = useCallback((signal: AbortSignal) => {
-    const request = route.learnPath === "source" && sourceDescription
-      ? requestDirection({ ...makeSlotIds(), planId, planSessionId, action: "direction", topic: slotTopic, modifiers, source: sourceDescription, entry: route.entry === "brief_review" ? "brief_review" : "study_full", excerpts: route.workedStructureBeforeProduce ? source.excerpts.slice(0, 8) : [], wantsExample: route.workedStructureBeforeProduce, purpose: "study_inside", tips: studyTips.direction }, signal)
+    const outside = route.learnPath === "outside";
+    const request = outside || (route.learnPath === "source" && sourceDescription)
+      ? requestDirection({ ...makeSlotIds(), planId, planSessionId, action: "direction", topic: slotTopic, modifiers, source: sourceDescription, entry: route.entry === "brief_review" ? "brief_review" : "study_full", excerpts: outside ? source.excerpts.slice(0, 4) : route.workedStructureBeforeProduce ? source.excerpts.slice(0, 8) : [], wantsExample: !outside && route.workedStructureBeforeProduce, purpose: outside ? "study_outside" : "study_inside", tips: studyTips.direction }, signal)
         .then((result) => { setDirection(result); mergeTips(result.tips); })
       : requestLearnBlock({ ...makeSlotIds(), planId, planSessionId, action: "learn_block", topic: slotTopic, modifiers, tips: studyTips.learnBlock }, signal)
         .then((result) => { setLearnBlock(result); setPracticeKeyPoints(result.keyPoints); mergeTips(result.tips); });
@@ -362,6 +372,20 @@ export function BaselineSession(props: BaselineSessionProps) {
     requestCompare(aState.produce);
   };
 
+  // ---------------------------------------------------------------- resume
+  // Saved as the learner goes, so leaving and coming back opens this same step.
+  const savedTick = Math.floor(elapsedSeconds / 10);
+  const fingerprint = routeFingerprint(route);
+  const elapsedRef = useRef(elapsedSeconds);
+  useEffect(() => { elapsedRef.current = elapsedSeconds; }, [elapsedSeconds]);
+  useEffect(() => {
+    onCheckpoint?.({
+      version: 1, planId, planSessionId, produceStep: route.produceStep, studyLocation, routeFingerprint: fingerprint,
+      savedAt: new Date().toISOString(), elapsedSeconds: elapsedRef.current, started,
+      aState, cState, direction, learnBlock, practiceKeyPoints, tips,
+    });
+  }, [onCheckpoint, planId, planSessionId, route.produceStep, studyLocation, fingerprint, started, aState, cState, direction, learnBlock, practiceKeyPoints, tips, savedTick]);
+
   // ---------------------------------------------------------------- end
   const totals = shapeCTotals(cState);
   const atEnd = route.shape === "A"
@@ -448,6 +472,8 @@ export function BaselineSession(props: BaselineSessionProps) {
               route={route}
               state={aState}
               restate={restate}
+              why={note.sentence}
+              whyRuleId={note.ruleId}
               direction={direction}
               learnBlock={learnBlock}
               learnStatus={studyLoading ? "loading" : learnStatus}
@@ -467,7 +493,7 @@ export function BaselineSession(props: BaselineSessionProps) {
               <StepHead>BRIEF STUDY</StepHead>
               <h2>{topicTitle}</h2>
               {restate && <p className={styles.restated}>Read this once, then answer questions without it.</p>}
-              {studyLoading && <p className={styles.loading}><span className="button-spinner dark" /> Preparing a short explanation…</p>}
+              {studyLoading && <p className={styles.loading}><span className="button-spinner dark" /> Writing your explanation…</p>}
               {learnStatus === "error" && <HonestError message={learnError} onRetry={retryStudySlot} onExit={onExit} />}
               {route.learnPath === "source" && direction && <><p>{direction.whatToLookAt}</p><p>{direction.howToApproach}</p></>}
               {learnBlock && <><div className={styles.explanation}>{learnBlock.explanation}</div><Bullets items={learnBlock.keyPoints.map((keyPoint) => keyPoint.text)} /></>}
@@ -551,9 +577,11 @@ function HonestError({ message, onRetry, onExit }: { message: string | null; onR
   </div>;
 }
 
-function ShapeAStepCard({ step, route, state, restate, direction, learnBlock, learnStatus, learnError, compareStatus, compareError, onRetryStudy, onRetryCompare, onContinue, onSubmitProduce, onSubmitRepair, onSkipRepair, onExit }: {
+function ShapeAStepCard({ step, route, state, restate, why, whyRuleId, direction, learnBlock, learnStatus, learnError, compareStatus, compareError, onRetryStudy, onRetryCompare, onContinue, onSubmitProduce, onSubmitRepair, onSkipRepair, onExit }: {
   step: ShapeAState["steps"][number]["kind"];
   route: SessionRoute;
+  why: string;
+  whyRuleId: string;
   state: ShapeAState;
   restate: boolean;
   direction: DirectionResponse | null;
@@ -576,11 +604,29 @@ function ShapeAStepCard({ step, route, state, restate, direction, learnBlock, le
   const [repair, setRepair] = useState("");
   const numbered = route.instructionStyle === "numbered_steps";
 
+  if (step === "direct" && route.learnPath === "outside") {
+    // Brief 1.5 item 8: the directions card is the whole outside experience.
+    const method = CORE_METHOD_CATALOG[route.methodId];
+    return <section className={styles.card} data-testid="outside-directions">
+      <StepHead>STUDY OUTSIDE YOVA</StepHead>
+      <h2>{method.name}</h2>
+      <div className={styles.keyPointBlock}><p>{method.what}</p><p className={styles.progressLine} data-rule-id-why={whyRuleId}>{why}</p></div>
+      {learnStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Writing your directions…</p>}
+      {learnStatus === "error" && <HonestError message={learnError} onRetry={onRetryStudy} onExit={onExit} />}
+      {direction && <>
+        <div><span className={styles.groupLabel}>WHAT TO STUDY</span><p>{direction.whatToLookAt}</p></div>
+        <div><span className={styles.groupLabel}>HOW TO APPROACH IT</span><p>{direction.howToApproach}</p></div>
+        <div><span className={styles.groupLabel}>SUGGESTED TIME</span><p>{route.timerMinutes} minutes</p></div>
+        {restate && <p className={styles.restated}>Task: study it outside YOVA, then press I&apos;m back.</p>}
+        <div className={styles.actions}><button type="button" className="button primary large" onClick={onContinue}>I&apos;m back <ArrowRight size={16} /></button><small>Next: closed-book questions on it.</small></div>
+      </>}
+    </section>;
+  }
   if (step === "direct") {
     return <section className={styles.card}>
       <StepHead>{route.entry === "brief_review" ? "BRIEF REVIEW" : "STUDY YOUR MATERIAL"}</StepHead>
       <h2>{direction?.whatToLookAt ?? "Open your material for this topic."}</h2>
-      {learnStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Preparing your direction…</p>}
+      {learnStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Writing your directions…</p>}
       {learnStatus === "error" && <HonestError message={learnError} onRetry={onRetryStudy} onExit={onExit} />}
       {direction && <p>{direction.howToApproach}</p>}
       {restate && <p className={styles.restated}>Task: study the material, then come back and continue.</p>}
@@ -599,7 +645,7 @@ function ShapeAStepCard({ step, route, state, restate, direction, learnBlock, le
   if (step === "explanation") {
     return <section className={styles.card}>
       <StepHead>{route.entry === "brief_review" ? "BRIEF REVIEW" : "READ THE EXPLANATION"}</StepHead>
-      {learnStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Building the explanation, key points and questions together…</p>}
+      {learnStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Writing your explanation and questions…</p>}
       {learnStatus === "error" && <HonestError message={learnError} onRetry={onRetryStudy} onExit={onExit} />}
       {learnBlock && <>
         <div className={styles.explanation}>{learnBlock.explanation}</div>
@@ -617,7 +663,7 @@ function ShapeAStepCard({ step, route, state, restate, direction, learnBlock, le
     const settled = learnStatus === "ready";
     return <section className={styles.card} data-testid="baseline-worked-example" data-example-shown={example !== null}>
       <StepHead>{example ? "A WORKED EXAMPLE FIRST" : "BEFORE YOU PRODUCE"}</StepHead>
-      {learnStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Preparing the example…</p>}
+      {learnStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Writing your example…</p>}
       {learnStatus === "error" && <HonestError message={learnError} onRetry={onRetryStudy} onExit={onExit} />}
       {example && <>
         <h2>{example.title}</h2>
@@ -654,6 +700,7 @@ function ShapeAStepCard({ step, route, state, restate, direction, learnBlock, le
       <StepHead>COMPARE</StepHead>
       <h2>What is missing or wrong</h2>
       {compareStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Comparing with the source…</p>}
+      {compareStatus === "idle" && state.produce && !state.comparison && <div className={styles.actions}><button type="button" className="button primary" onClick={onRetryCompare}>Compare with the source <ArrowRight size={16} /></button><small>Your work was kept while you were away.</small></div>}
       {compareStatus === "error" && <div className={styles.issue} role="alert"><AlertCircle size={18} /><div><p>{compareError ?? SHAPE_SLOT_HONEST_ERROR}</p><div className={styles.actions}><button type="button" className="button secondary" onClick={onRetryCompare}><RotateCcw size={14} /> Try again</button><button type="button" className="button ghost" onClick={onSkipRepair}>Move on without feedback</button></div></div></div>}
       {state.comparison && <div className={styles.feedback} data-testid="baseline-comparison">
         <p>{state.comparison.feedback}</p>
@@ -703,7 +750,7 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
   const answered = round?.answers.length ?? 0;
   const shownQuestion = revealed ? round?.questions[answered - 1] ?? null : pendingQuestion;
   if (state.phase === "loading") {
-    return <section className={styles.card}><StepHead>CLOSED-BOOK PRACTICE</StepHead><p className={styles.loading}><span className="button-spinner dark" /> Writing fresh questions for this attempt…</p></section>;
+    return <section className={styles.card}><StepHead>CLOSED-BOOK PRACTICE</StepHead><p className={styles.loading}><span className="button-spinner dark" /> Writing your questions…</p></section>;
   }
   if (state.phase === "failed") {
     return <section className={styles.card}><StepHead>CLOSED-BOOK PRACTICE</StepHead><HonestError message={state.error} onRetry={onRetry} onExit={onExit} /></section>;

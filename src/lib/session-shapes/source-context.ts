@@ -43,6 +43,16 @@ export function baselineSourceForTopic(plan: Pick<LearningPlan, "materials" | "s
     if (excerpts.length >= EXCERPT_LIMIT) break;
   }
   const attachedLink = topic.attachedSources?.find((attached): attached is { url: string } => "url" in attached);
+  // A file attached to this topic (the plan screen, or Add material on the pre-session card).
+  const attachedMaterial = (topic.attachedSources ?? [])
+    .flatMap((attached) => ("material_id" in attached ? [materials.get(attached.material_id)] : []))
+    .find((material): material is LearningMaterial => Boolean(material));
+  if (!excerpts.length && attachedMaterial?.textContent) {
+    const text = attachedMaterial.textContent.trim();
+    for (let start = 0, part = 1; start < text.length && excerpts.length < EXCERPT_LIMIT; start += EXCERPT_CHARACTERS, part += 1) {
+      excerpts.push({ label: `${attachedMaterial.name} · part ${part}`, text: text.slice(start, start + EXCERPT_CHARACTERS) });
+    }
+  }
   const referencedMaterial = [...locations.keys()].map((id) => materials.get(id)).find((material): material is LearningMaterial => Boolean(material));
   const anyMaterial = referencedMaterial ?? (plan.materials ?? [])[0] ?? null;
   let description: SourceDescription | null = null;
@@ -53,6 +63,8 @@ export function baselineSourceForTopic(plan: Pick<LearningPlan, "materials" | "s
       kind: materialKind(referencedMaterial),
       location: labels.length ? labels.slice(0, 3).join(", ").slice(0, 120) : null,
     };
+  } else if (attachedMaterial) {
+    description = { name: attachedMaterial.name.slice(0, 160), kind: materialKind(attachedMaterial), location: null };
   } else if (attachedLink) {
     const video = /youtube\.com|youtu\.be|vimeo\.com/.test(attachedLink.url);
     description = { name: video ? "the video you added" : "the link you added", kind: video ? "video" : "link", location: null };
