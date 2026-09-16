@@ -70,8 +70,10 @@ jobs:
       - name: Initialize isolated database configuration
         run: pnpm exec supabase init
 
+      # Replays every migration and brings up sign-in and PostgREST, which the
+      # migrated route test needs. Everything else stays off to keep CI quick.
       - name: Replay every database migration
-        run: pnpm exec supabase db start
+        run: pnpm exec supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
       - name: Lint the migrated database
         run: pnpm exec supabase db lint --local --level warning --fail-on error
@@ -105,10 +107,6 @@ jobs:
       - name: Test the plan adjustment route against the migrated database
         run: |
           set -o pipefail
-          # "supabase db start" runs only the database. The route signs a
-          # learner in and calls PostgREST, so bring up the rest of the stack
-          # against that same database first.
-          pnpm exec supabase start
           eval "$(pnpm exec supabase status -o env | sed 's/^/export /')"
           test -n "$API_URL" && test -n "$ANON_KEY" && test -n "$SERVICE_ROLE_KEY"
           YOVA_REQUIRE_MIGRATED_ROUTE_TEST=1 \
