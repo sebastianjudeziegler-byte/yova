@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { freezePlanClock } from "./helpers/frozen-clock";
 
 const FIXED_NOW = new Date("2026-09-02T10:00:00.000Z");
 
@@ -16,8 +17,11 @@ const onboardingAnswers = [
   "Afternoon",
 ] as const;
 
+// Freeze the server's clock as well as the browser's. The quick-add plan is
+// generated server-side; with only the page clock fixed, "due in 9 days" from
+// 2026-09-02 fell into the server's past once the real date passed 2026-09-11.
 test.beforeEach(async ({ page }) => {
-  await page.clock.setFixedTime(FIXED_NOW);
+  await freezePlanClock(page, FIXED_NOW);
 });
 
 test("Calendar exposes Week and Agenda surfaces with bounded keyboard navigation", async ({ page }) => {
