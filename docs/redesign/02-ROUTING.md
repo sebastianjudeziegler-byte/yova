@@ -72,8 +72,8 @@ Never change the shape. Change delivery, size, timing, visibility.
 
 | Source | Answer | Modifier |
 |---|---|---|
-| Q7 gist/detail | `gist_leaning` | Practice weights definition/term items first |
-| | `detail_leaning` | Practice weights compare-contrast and structure items |
+| Q7 gist/detail | `gist_leaning` | Practice weights definition/term items first (superseded by Brief 1.5 item 2: shifts one item of the task-type question mix toward recall) |
+| | `detail_leaning` | Practice weights compare-contrast and structure items (superseded by Brief 1.5 item 2: shifts one item toward compare_contrast) |
 | Q9 support | `shorter_sections` | Fewer targets per block; timer −25%; questions clamped to 5 |
 | | `reduced_text_visual_structure` | Produce-step becomes concept map (**overrides Q6**) |
 | | `extra_reading_time` | Timer +25%; no pace prompts |

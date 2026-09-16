@@ -326,19 +326,21 @@ describe("Layer 4 — modifiers never change the shape", () => {
     expect(steady.stoppingPoints).toBe("standard");
   });
 
+  // Brief 1.5 item 2: task type decides the question-type mix, Q7 shifts one item.
   it.each([
-    ["gist_leaning", "terms_first"],
-    ["detail_leaning", "relationships_first"],
-  ] as const)("Q7 %s → %s", (answer, weighting) => {
-    const route = routeSession(input({ answers: answersOf({ gist_detail: answer }) }));
-    expect(route.weighting).toBe(weighting);
-    expect(route.ruleIds).toContain(`L4.q7.${answer}`);
+    ["gist_leaning", "L4.q7.gist_leaning.mix_recall", { recall: 2, application: 1, compare_contrast: 1, prediction: 0, misconception: 1 }],
+    ["detail_leaning", "L4.q7.detail_leaning.mix_compare_contrast", { recall: 1, application: 1, compare_contrast: 2, prediction: 0, misconception: 1 }],
+  ] as const)("Q7 %s shifts the conceptual question mix (%s)", (answer, ruleId, mix) => {
+    const route = routeSession(input({ taskType: "conceptual_learning", answers: answersOf({ gist_detail: answer }) }));
+    expect(route.questionMix).toEqual(mix);
+    expect(route.ruleIds).toEqual(expect.arrayContaining(["L4.mix.conceptual_learning", ruleId]));
   });
 
-  it("Q7 balanced or unanswered uses the task default", () => {
-    expect(routeSession(input({ answers: answersOf({ gist_detail: "balanced" }) })).weighting).toBe("relationships_first");
-    expect(routeSession(input({ taskType: "memorization", answers: answersOf({ gist_detail: "balanced" }) })).weighting).toBe("terms_first");
-    expect(routeSession(input()).ruleIds).toContain("L4.q7.unanswered.task_default");
+  it("Q7 balanced or unanswered keeps the task type's mix", () => {
+    const balanced = routeSession(input({ taskType: "memorization", answers: answersOf({ gist_detail: "balanced" }) }));
+    expect(balanced.questionMix).toEqual({ recall: 4, application: 0, compare_contrast: 0, prediction: 0, misconception: 1 });
+    expect(balanced.ruleIds).toContain("L4.mix.memorization");
+    expect(routeSession(input()).ruleIds.filter((id) => id.includes(".mix_"))).toEqual([]);
   });
 
   it("Q9 shorter_sections trims the timer and caps questions at five", () => {

@@ -31,8 +31,8 @@ const KEY_POINTS = [
   { id: "k3", text: "The electron transport chain builds a proton gradient that drives ATP synthase." },
 ];
 
-function question(id: string, keyPointId: string, correctChoiceIndex: number, prompt: string, kind: "definition" | "relationship" = "relationship") {
-  return { id, keyPointId, kind, prompt, choices: ["Two pyruvate", "One lactate", "Three acetyl-CoA", "Four oxaloacetate"], correctChoiceIndex, explanation: "Glycolysis ends with two three-carbon pyruvate molecules." };
+function question(id: string, keyPointId: string, correctChoiceIndex: number, prompt: string, kind: "recall" | "misconception" = "recall") {
+  return { id, slotId: id, keyPointIds: [keyPointId], kind, prompt, choices: ["Two pyruvate", "One lactate", "Three acetyl-CoA", "Four oxaloacetate"], correctChoiceIndex, explanation: "Glycolysis ends with two three-carbon pyruvate molecules." };
 }
 
 const LEARN_BLOCK = {
@@ -41,7 +41,7 @@ const LEARN_BLOCK = {
   keyPoints: KEY_POINTS,
   questions: [
     question("q1", "k1", 0, "How many stages does cellular respiration have, and where does the first one happen?"),
-    question("q2", "k2", 0, "What does glycolysis produce from one glucose?", "definition"),
+    question("q2", "k2", 0, "What does glycolysis produce from one glucose?", "misconception"),
     question("q3", "k3", 0, "What directly drives ATP synthase in the electron transport chain?"),
   ],
   structure: ["Glucose enters the cell", "Glycolysis splits it into pyruvate", "The citric acid cycle loads carriers", "The electron transport chain drives ATP synthase"],
@@ -51,7 +51,7 @@ const COMPARISON = { action: "compare", feedback: "You covered glycolysis and AT
 
 function practiceResponse(round: number) {
   return { action: "practice", keyPoints: KEY_POINTS, questions: round === 1
-    ? [question("p1", "k1", 0, "Round one: which product ends glycolysis?", "definition"), question("p2", "k2", 0, "Round one: where does glycolysis take place, and what leaves it?"), question("p3", "k3", 0, "Round one: what does the proton gradient power?")]
+    ? [question("p1", "k1", 0, "Round one: which product ends glycolysis?", "misconception"), question("p2", "k2", 0, "Round one: where does glycolysis take place, and what leaves it?"), question("p3", "k3", 0, "Round one: what does the proton gradient power?")]
     // One missed point, so one question: the round-two contract. This fixture
     // used to hand-supply three, which hid the 502 on the ordinary retry.
     : [question("p4", "k2", 0, "Round two: what leaves glycolysis?")] };
@@ -147,7 +147,7 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   const shell = page.locator("[data-shape]");
   await expect(shell).toHaveAttribute("data-shape", "C");
   const ruleIds = (await shell.getAttribute("data-rule-ids"))?.split(" ") ?? [];
-  expect(ruleIds).toEqual(expect.arrayContaining(["L1.memorization.learn", "L2.not_assessed.shape_c", "L4.q7.gist_leaning", "L4.q10.forget_during_tests"]));
+  expect(ruleIds).toEqual(expect.arrayContaining(["L1.memorization.learn", "L2.not_assessed.shape_c", "L4.mix.memorization", "L4.q7.gist_leaning.mix_recall", "L4.q10.forget_during_tests"]));
   await expect(page.getByText("Method: Active Recall")).toBeVisible();
   // A memorization learn block is a learn block that runs Shape C.
   await expect(page.getByText(/LEARN BLOCK ·/)).toBeVisible();
@@ -156,7 +156,8 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   await page.getByRole("button", { name: "Start the questions" }).click();
 
   await expect(page.getByText("No source shown.")).toBeVisible();
-  await expect(page.getByText("Definitions and terms first.")).toBeVisible();
+  // Brief 1.5 item 2: the screen names the question's real type instead of claiming an order.
+  await expect(page.getByText("Recall question. No source shown.")).toBeVisible();
   // Round 1 uses the questions generated with the explanation; miss the second one.
   await expect(page.getByTestId("baseline-question")).toContainText("ROUND 1 · QUESTION 1 OF 3");
   await expect(page.getByTestId("baseline-question")).toContainText(LEARN_BLOCK.questions[0].prompt);

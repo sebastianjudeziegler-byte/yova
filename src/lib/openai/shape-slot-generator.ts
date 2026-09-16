@@ -3,7 +3,8 @@ import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
-import { composePracticeRound, KeyPointSchema, practiceQuestionCount, PracticeQuestionSchema, type KeyPoint, type PracticeQuestion } from "@/lib/practice/compose-practice";
+import { composePracticeRound, firstRoundKeyPointCount, KeyPointSchema, keyPointsForRound, QuestionDraftSchema, roundQuestionCount, type KeyPoint } from "@/lib/practice/compose-practice";
+import { planQuestionSlots, type QuestionMix, type QuestionSlot, type QuestionType } from "@/lib/practice/question-mix";
 import {
   SHAPE_SLOT_HONEST_ERROR,
   type CompareRequest,
@@ -152,14 +153,42 @@ async function fillDirection(request: DirectionRequest, provider: SlotProvider |
 
 // ------------------------------------------------------------------ Slot 2
 
+const TYPE_GUIDANCE: Record<QuestionType, string> = {
+  recall: "recall: retrieve one specific fact from its key point, worded so it cannot be answered by matching the key point's wording.",
+  application: "application: put both key points to work in a new, concrete situation the material does not describe; answering needs both.",
+  compare_contrast: "compare_contrast: distinguish or relate the two key points; a learner who knows only one of them cannot answer.",
+  prediction: "prediction: change one condition and ask what happens next, reasoning from both key points.",
+  misconception: "misconception: state a plausible but wrong belief about the key point and ask which choice corrects it.",
+};
+
+/** The slot contract shared by Slot 2 and Slot 4: code plans the slots, the model writes one question per slot. */
+function questionSlotInstructions(slots: readonly QuestionSlot[]) {
+  const types = [...new Set(slots.map((slot) => slot.type))];
+  return `Write exactly ${slots.length} ${slots.length === 1 ? "question" : "questions"}: one for each slot in input.slots, with slotId set to that slot's id. Each slot names its question type and the key point ids its question may draw on; draw only on those key points. Types: ${types.map((type) => TYPE_GUIDANCE[type]).join(" ")} Every question has exactly four distinct choices, correctChoiceIndex, and a one-sentence explanation of the correct choice. Each wrong choice is a plausible reasoning error a learner could make about these key points, never an obviously false statement.`;
+}
+
+function derivedKeyPointIds(count: number) {
+  return Array.from({ length: count }, (_, index) => `k${index + 1}`);
+}
+
+function sameIds(keyPoints: readonly KeyPoint[], expected: readonly string[]) {
+  return keyPoints.length === expected.length && keyPoints.every((keyPoint, index) => keyPoint.id === expected[index]);
+}
+
+function firstRoundPlan(mix: QuestionMix, questionCap: number) {
+  const count = roundQuestionCount({ round: 1, keyPointCount: 0, questionCap });
+  const keyPointIds = derivedKeyPointIds(firstRoundKeyPointCount(count));
+  return { keyPointIds, slots: planQuestionSlots({ keyPointIds, mix, count }) };
+}
+
 const LearnBlockDraftSchema = z.object({
   explanation: z.string().trim().min(200).max(6_000),
   keyPoints: z.array(KeyPointSchema).min(3).max(5),
-  questions: z.array(PracticeQuestionSchema).min(3).max(8),
+  questions: z.array(QuestionDraftSchema).min(1).max(8),
   structure: z.array(z.string().trim().min(2).max(200)).min(2).max(8),
 }).strict();
 
-function learnBlockInstructions(request: LearnBlockRequest) {
+function learnBlockInstructions(request: LearnBlockRequest, plan: ReturnType<typeof firstRoundPlan>) {
   const focus = request.modifiers.explanationFocus === "worked_example"
     ? "Centre the explanation on ONE fully worked example: state the problem, show each step, and say why each step is taken."
     : "Cover the core idea, the mechanism, and one concrete example. Nothing else.";
@@ -168,46 +197,31 @@ function learnBlockInstructions(request: LearnBlockRequest) {
     : request.modifiers.instructionStyle === "plain_restated"
       ? "Use plain, simple language and short sentences."
       : "";
-  const weighting = request.modifiers.weighting === "terms_first"
-    ? "Prefer definition and term questions, then relationship questions."
-    : "Prefer compare-contrast, relationship and structure questions, then term questions.";
+  const count = plan.keyPointIds.length;
   return `You write one bounded learn block for YOVA, in ONE response, from ONE shared context.
 1. explanation: plain prose on exactly the supplied topic, as good as a strong ChatGPT answer. ${focus} ${style}
-2. keyPoints: 3–5 facts derived only from the explanation, each with a short id (k1, k2, ...).
-3. questions: one multiple-choice question per key point (at most ${request.modifiers.questionCap}), each with keyPointId set to the key point it tests, exactly four distinct choices, correctChoiceIndex, a kind, and a one-sentence explanation of the correct choice. A question may only test what the explanation states. ${weighting}
+2. keyPoints: exactly ${count} key points derived only from the explanation, with ids ${plan.keyPointIds.join(", ")} in that order.
+3. questions: ${questionSlotInstructions(plan.slots)} A question may only test what the explanation states.
 4. structure: the explanation's skeleton as 2–8 short lines, in order, for a learner who wants to see the structure before producing.
 ${UNTRUSTED}`;
 }
 
 async function fillLearnBlock(request: LearnBlockRequest, provider: SlotProvider | null): Promise<LearnBlockResponse> {
+  const plan = firstRoundPlan(request.modifiers.questionMix, request.modifiers.questionCap);
   return withOneRetry(async () => {
     const draft = await provider!({
-      instructions: learnBlockInstructions(request),
-      input: JSON.stringify({ topic: request.topic }),
+      instructions: learnBlockInstructions(request, plan),
+      input: JSON.stringify({ topic: request.topic, slots: plan.slots }),
       schema: LearnBlockDraftSchema,
       schemaName: "yova_shape_learn_block",
       maxOutputTokens: 4_000,
-      cacheKey: "yova-shape-learn-block-v1",
+      cacheKey: "yova-shape-learn-block-v2",
     });
-    if (!draft) return null;
-    const bound = bindQuestionsToKeyPoints(draft.keyPoints, draft.questions, request.modifiers);
-    if (!bound) return null;
-    return { action: "learn_block" as const, explanation: draft.explanation, keyPoints: draft.keyPoints, questions: bound, structure: draft.structure };
+    if (!draft || !sameIds(draft.keyPoints, plan.keyPointIds)) return null;
+    const composed = composePracticeRound({ keyPoints: draft.keyPoints, slots: plan.slots, drafts: draft.questions });
+    if (!composed.ok) return null;
+    return { action: "learn_block" as const, explanation: draft.explanation, keyPoints: draft.keyPoints, questions: composed.questions, structure: draft.structure };
   }, provider !== null);
-}
-
-/** Code-side guarantee: every question tests a key point from the same call, choices are distinct, count is in clamp. */
-function bindQuestionsToKeyPoints(keyPoints: KeyPoint[], questions: PracticeQuestion[], modifiers: LearnBlockRequest["modifiers"], round = 1, outstanding: string[] = []) {
-  const ids = new Set(keyPoints.map((keyPoint) => keyPoint.id));
-  if (ids.size !== keyPoints.length) return null;
-  const composed = composePracticeRound({
-    keyPoints,
-    questions,
-    route: { questionCap: modifiers.questionCap, questionMinimum: 3, weighting: modifiers.weighting },
-    round,
-    outstandingKeyPointIds: outstanding,
-  });
-  return composed.ok ? composed.questions : null;
 }
 
 // ------------------------------------------------------------------ Slot 3
@@ -238,41 +252,44 @@ async function fillCompare(request: CompareRequest, provider: SlotProvider | nul
 
 const PracticeDraftSchema = z.object({
   keyPoints: z.array(KeyPointSchema).min(1).max(8),
-  questions: z.array(PracticeQuestionSchema).min(1).max(8),
+  questions: z.array(QuestionDraftSchema).min(1).max(8),
 }).strict();
 
 async function fillPractice(request: PracticeRequest, provider: SlotProvider | null): Promise<PracticeResponse> {
-  const providedKeyPoints = request.keyPoints;
-  const outstanding = request.round > 1 ? request.outstandingKeyPointIds : [];
-  const targetKeyPoints = providedKeyPoints.length
-    ? (request.round > 1 ? providedKeyPoints.filter((keyPoint) => outstanding.includes(keyPoint.id)) : providedKeyPoints)
-    : [];
-  const weighting = request.modifiers.weighting === "terms_first"
-    ? "Prefer definition and term questions, then relationship questions."
-    : "Prefer compare-contrast, relationship and structure questions, then term questions.";
+  const provided = request.keyPoints;
+  const roundKeyPoints = provided.length ? keyPointsForRound(provided, request.round, request.outstandingKeyPointIds) : [];
+  const plan = provided.length
+    ? (() => {
+      const keyPointIds = roundKeyPoints.map((keyPoint) => keyPoint.id);
+      const count = roundQuestionCount({ round: request.round, keyPointCount: keyPointIds.length, questionCap: request.modifiers.questionCap });
+      return { keyPointIds, slots: planQuestionSlots({ keyPointIds, mix: request.modifiers.questionMix, count }) };
+    })()
+    : firstRoundPlan(request.modifiers.questionMix, request.modifiers.questionCap);
+  if (plan.slots.length === 0) throw new ShapeSlotGenerationError("generation_failed", 0);
+  const keyPointSource = provided.length
+    ? "Use ONLY the supplied key points; keep their ids exactly and return them unchanged in keyPoints."
+    : request.excerpts.length
+      ? `Derive exactly ${plan.keyPointIds.length} key points from the supplied source excerpts, with ids ${plan.keyPointIds.join(", ")} in that order, each answerable from the excerpts.`
+      : `Derive exactly ${plan.keyPointIds.length} key points about the topic, with ids ${plan.keyPointIds.join(", ")} in that order.`;
   return withOneRetry(async () => {
     const draft = await provider!({
-      instructions: `You write fresh closed-book multiple-choice practice for one topic in YOVA. ${providedKeyPoints.length
-        ? `Use ONLY the supplied key points; keep their ids exactly and return them unchanged in keyPoints. ${request.round > 1
-          ? (() => { const count = practiceQuestionCount(targetKeyPoints.length, { questionCap: request.modifiers.questionCap, questionMinimum: 1 }, request.round); return `Write exactly ${count} ${count === 1 ? "question" : "questions"}: one per supplied key point.`; })()
-          : "Write one question per key point."}`
-        : request.excerpts.length
-          ? "Derive 3–5 key points from the supplied source excerpts (ids k1, k2, ...), then one question per key point that the excerpts can answer."
-          : "Derive 3–5 key points about the topic (ids k1, k2, ...), then one question per key point."} Each question has exactly four distinct choices, correctChoiceIndex, a kind, keyPointId, and a one-sentence explanation of the correct choice. ${weighting} Do not repeat questions from earlier attempts; this attempt id is ${request.attempt}. Write at most ${request.modifiers.questionCap} questions. ${UNTRUSTED}`,
-      input: JSON.stringify({ topic: request.topic, keyPoints: targetKeyPoints, excerpts: request.excerpts, round: request.round }),
+      instructions: `You write fresh closed-book multiple-choice practice for one topic in YOVA. ${keyPointSource} ${questionSlotInstructions(plan.slots)} Do not repeat questions from earlier attempts; this attempt id is ${request.attempt}. ${UNTRUSTED}`,
+      input: JSON.stringify({ topic: request.topic, keyPoints: roundKeyPoints, excerpts: request.excerpts, round: request.round, slots: plan.slots }),
       schema: PracticeDraftSchema,
       schemaName: "yova_shape_practice",
       maxOutputTokens: 3_000,
-      cacheKey: "yova-shape-practice-v1",
+      cacheKey: "yova-shape-practice-v2",
     });
     if (!draft) return null;
-    const keyPoints = providedKeyPoints.length ? providedKeyPoints : draft.keyPoints;
-    if (providedKeyPoints.length) {
-      const known = new Set(providedKeyPoints.map((keyPoint) => keyPoint.id));
+    if (provided.length) {
+      const known = new Set(provided.map((keyPoint) => keyPoint.id));
       if (draft.keyPoints.some((keyPoint) => !known.has(keyPoint.id))) return null;
+    } else if (!sameIds(draft.keyPoints, plan.keyPointIds)) {
+      return null;
     }
-    const bound = bindQuestionsToKeyPoints(keyPoints, draft.questions, request.modifiers, request.round, outstanding);
-    if (!bound) return null;
-    return { action: "practice" as const, keyPoints, questions: bound };
+    const keyPoints = provided.length ? provided : draft.keyPoints;
+    const composed = composePracticeRound({ keyPoints, slots: plan.slots, drafts: draft.questions });
+    if (!composed.ok) return null;
+    return { action: "practice" as const, keyPoints, questions: composed.questions };
   }, provider !== null);
 }

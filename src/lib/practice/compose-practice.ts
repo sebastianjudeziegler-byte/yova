@@ -1,28 +1,32 @@
 import { z } from "zod";
-import {
-  PRACTICE_QUESTION_MAXIMUM,
-  PRACTICE_QUESTION_MINIMUM,
-  type QuestionWeighting,
-  type SessionRoute,
-} from "@/lib/routing/session-route";
+import { BASE_MIX_SIZE, QUESTION_TYPES, type QuestionSlot } from "@/lib/practice/question-mix";
 
 /**
  * Practice composition. See docs/redesign/04-AI-SLOTS.md "Practice
- * Composition". Counts, clamps, ordering and rounds are code; the model only
- * writes the questions.
+ * Composition" and Brief 1.5 items 1–2. Counts, question types, which key
+ * points each question may draw on, and rounds are code; the model only writes
+ * the question for each slot.
  */
-export const PRACTICE_QUESTION_KINDS = ["definition", "term", "relationship", "compare_contrast", "structure", "application"] as const;
-export type PracticeQuestionKind = (typeof PRACTICE_QUESTION_KINDS)[number];
-
 export const KeyPointSchema = z.object({
   id: z.string().trim().min(1).max(40),
   text: z.string().trim().min(8).max(400),
 }).strict();
 
+/** A question as the learner receives it: its type and key points come from the code-planned slot, never from the model. */
 export const PracticeQuestionSchema = z.object({
   id: z.string().trim().min(1).max(40),
-  keyPointId: z.string().trim().min(1).max(40),
-  kind: z.enum(PRACTICE_QUESTION_KINDS),
+  slotId: z.string().trim().min(1).max(40),
+  kind: z.enum(QUESTION_TYPES),
+  keyPointIds: z.array(z.string().trim().min(1).max(40)).min(1).max(2),
+  prompt: z.string().trim().min(8).max(500),
+  choices: z.array(z.string().trim().min(1).max(240)).length(4),
+  correctChoiceIndex: z.number().int().min(0).max(3),
+  explanation: z.string().trim().min(8).max(500),
+}).strict();
+
+/** What the model writes for one slot. */
+export const QuestionDraftSchema = z.object({
+  slotId: z.string().trim().min(1).max(40),
   prompt: z.string().trim().min(8).max(500),
   choices: z.array(z.string().trim().min(1).max(240)).length(4),
   correctChoiceIndex: z.number().int().min(0).max(3),
@@ -31,36 +35,28 @@ export const PracticeQuestionSchema = z.object({
 
 export type KeyPoint = z.infer<typeof KeyPointSchema>;
 export type PracticeQuestion = z.infer<typeof PracticeQuestionSchema>;
-
-const TERM_KINDS: readonly PracticeQuestionKind[] = ["definition", "term"];
-const RELATIONSHIP_KINDS: readonly PracticeQuestionKind[] = ["compare_contrast", "relationship", "structure"];
+export type QuestionDraft = z.infer<typeof QuestionDraftSchema>;
 
 /**
- * Round 1: one question per key point, clamped 3–8, then the route's cap (Q9
- * shorter sections, short timer band). Later rounds: exactly one question per
- * missed key point, capped. A retry checks each missed point to the round-1
- * standard; it must not demand three questions from one or two points
+ * Round 1 asks a five-question mix (the size the task-type table is written
+ * for), within the route cap. Later rounds ask one question per missed key
+ * point, within the cap: a retry checks each missed point to the round-1
+ * standard and must not demand three questions from one or two points
  * (Brief 1.5 item 1: that mismatch returned 502 on the ordinary retry).
  */
-export function practiceQuestionCount(keyPointCount: number, route: Pick<SessionRoute, "questionCap" | "questionMinimum">, round = 1) {
-  if (round > 1) return Math.max(1, Math.min(route.questionCap, keyPointCount));
-  const clamped = Math.min(PRACTICE_QUESTION_MAXIMUM, Math.max(PRACTICE_QUESTION_MINIMUM, keyPointCount));
-  return Math.max(route.questionMinimum, Math.min(route.questionCap, clamped));
+export function roundQuestionCount({ round, keyPointCount, questionCap }: { round: number; keyPointCount: number; questionCap: number }) {
+  if (round > 1) return Math.max(1, Math.min(questionCap, keyPointCount));
+  return Math.max(1, Math.min(questionCap, Math.max(BASE_MIX_SIZE, keyPointCount)));
 }
 
-/** Stable ordering: the weighted kinds first, original order preserved within each group. */
-export function orderQuestionsByWeighting(questions: readonly PracticeQuestion[], weighting: QuestionWeighting): PracticeQuestion[] {
-  const first = weighting === "terms_first" ? TERM_KINDS : RELATIONSHIP_KINDS;
-  const rank = (question: PracticeQuestion) => (first.includes(question.kind) ? 0 : 1);
-  return questions
-    .map((question, index) => ({ question, index }))
-    .sort((a, b) => rank(a.question) - rank(b.question) || a.index - b.index)
-    .map((entry) => entry.question);
+/** Key points a generated first round derives: three to five, never more than it has questions for. */
+export function firstRoundKeyPointCount(questionCount: number) {
+  return Math.min(5, Math.max(3, questionCount));
 }
 
 /**
  * The key points a round must cover. Round 1 covers everything; later rounds
- * only what was missed. Returns the ordered subset to request questions for.
+ * only what was missed.
  */
 export function keyPointsForRound(keyPoints: readonly KeyPoint[], round: number, outstandingKeyPointIds: readonly string[]): KeyPoint[] {
   if (round <= 1) return [...keyPoints];
@@ -68,45 +64,38 @@ export function keyPointsForRound(keyPoints: readonly KeyPoint[], round: number,
 }
 
 /**
- * Deterministic validation of a generated question set against the key
- * points and the route: no question outside the key points, distinct choices,
- * a correct index that points at a choice, and the count inside the clamp.
- * Returns the ordered, trimmed set or a reason it cannot be used.
+ * Deterministic binding of model drafts to code-planned slots: every slot
+ * filled exactly once, nothing outside the plan, distinct choices, and every
+ * slot's key points known. Type and key points are copied from the slot.
+ * Returns the questions in slot (generation) order or a reason.
  */
-export function composePracticeRound({ keyPoints, questions, route, round = 1, outstandingKeyPointIds = [] }: {
+export function composePracticeRound({ keyPoints, slots, drafts }: {
   keyPoints: readonly KeyPoint[];
-  questions: readonly PracticeQuestion[];
-  route: Pick<SessionRoute, "questionCap" | "questionMinimum" | "weighting">;
-  round?: number;
-  outstandingKeyPointIds?: readonly string[];
+  slots: readonly QuestionSlot[];
+  drafts: readonly unknown[];
 }): { ok: true; questions: PracticeQuestion[] } | { ok: false; reason: string } {
-  const roundKeyPoints = keyPointsForRound(keyPoints, round, outstandingKeyPointIds);
-  const allowed = new Set(roundKeyPoints.map((keyPoint) => keyPoint.id));
-  const seenIds = new Set<string>();
-  const usable: PracticeQuestion[] = [];
-  for (const question of questions) {
-    const parsed = PracticeQuestionSchema.safeParse(question);
+  if (slots.length === 0) return { ok: false, reason: "No question slots were planned." };
+  const known = new Set(keyPoints.map((keyPoint) => keyPoint.id));
+  if (slots.some((slot) => slot.keyPointIds.some((id) => !known.has(id)))) return { ok: false, reason: "A slot referenced a key point this round does not have." };
+  const planned = new Map(slots.map((slot) => [slot.slotId, slot]));
+  const filled = new Map<string, QuestionDraft>();
+  for (const candidate of drafts) {
+    const parsed = QuestionDraftSchema.safeParse(candidate);
     if (!parsed.success) return { ok: false, reason: `A question was malformed: ${parsed.error.issues[0]?.message ?? "unknown"}.` };
-    if (!allowed.has(parsed.data.keyPointId)) return { ok: false, reason: "A question tested something outside this round's key points." };
-    if (seenIds.has(parsed.data.id)) return { ok: false, reason: "Two questions shared an id." };
+    if (!planned.has(parsed.data.slotId)) return { ok: false, reason: "A question filled a slot that was not planned." };
+    if (filled.has(parsed.data.slotId)) return { ok: false, reason: "Two questions filled one slot." };
     if (new Set(parsed.data.choices.map(normalizeChoice)).size !== parsed.data.choices.length) return { ok: false, reason: "A question repeated a choice." };
-    seenIds.add(parsed.data.id);
-    usable.push(parsed.data);
+    filled.set(parsed.data.slotId, parsed.data);
   }
-  const target = practiceQuestionCount(roundKeyPoints.length, route, round);
-  const required = round > 1 ? target : Math.min(target, route.questionMinimum);
-  // Prefer one question per key point before any second question on the same point.
-  const perKeyPoint = new Map<string, PracticeQuestion[]>();
-  for (const question of usable) perKeyPoint.set(question.keyPointId, [...(perKeyPoint.get(question.keyPointId) ?? []), question]);
-  const firstPass = roundKeyPoints.flatMap((keyPoint) => perKeyPoint.get(keyPoint.id)?.slice(0, 1) ?? []);
-  const secondPass = roundKeyPoints.flatMap((keyPoint) => perKeyPoint.get(keyPoint.id)?.slice(1) ?? []);
-  // A retry checks each missed point once; a second question on one point must
-  // never stand in for a missed point the model skipped.
-  const selected = (round > 1 ? firstPass : [...firstPass, ...secondPass]).slice(0, target);
-  if (selected.length < required) {
-    return { ok: false, reason: `Only ${selected.length} usable questions were produced; at least ${required} are needed.` };
-  }
-  return { ok: true, questions: orderQuestionsByWeighting(selected, route.weighting) };
+  const missing = slots.filter((slot) => !filled.has(slot.slotId));
+  if (missing.length) return { ok: false, reason: `Only ${filled.size} of ${slots.length} planned questions were written.` };
+  return {
+    ok: true,
+    questions: slots.map((slot) => {
+      const written = filled.get(slot.slotId)!;
+      return { id: slot.slotId, slotId: slot.slotId, kind: slot.type, keyPointIds: [...slot.keyPointIds], prompt: written.prompt, choices: written.choices, correctChoiceIndex: written.correctChoiceIndex, explanation: written.explanation };
+    }),
+  };
 }
 
 function normalizeChoice(value: string) {

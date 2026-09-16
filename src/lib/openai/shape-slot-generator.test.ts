@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PracticeQuestion } from "@/lib/practice/compose-practice";
 import { SHAPE_SLOT_HONEST_ERROR, type CompareRequest, type DirectionRequest, type LearnBlockRequest, type PracticeRequest } from "@/lib/session-shapes/slots-schema";
 
 vi.mock("server-only", () => ({}));
@@ -10,24 +9,25 @@ const { fillShapeSlot, ShapeSlotGenerationError, templateDirection } = await imp
 
 const ids = { requestId: "11111111-1111-4111-8111-111111111111", recoveryKey: "22222222-2222-4222-8222-222222222222", planId: "33333333-3333-4333-8333-333333333333", planSessionId: "44444444-4444-4444-8444-444444444444" };
 const topic = { id: "55555555-5555-4555-8555-555555555555", title: "Glycolysis", description: "How glucose is split into pyruvate with a net gain of ATP and NADH.", subtopics: [], taskType: "conceptual_learning" as const };
-const modifiers = { instructionStyle: "standard" as const, weighting: "relationships_first" as const, produceStep: "typed_explanation" as const, explanationFocus: "concept" as const, questionCap: 8 };
+const modifiers = { instructionStyle: "standard" as const, questionMix: { recall: 1, application: 2, compare_contrast: 1, prediction: 0, misconception: 1 }, produceStep: "typed_explanation" as const, explanationFocus: "concept" as const, questionCap: 8 };
 
-function question(id: string, keyPointId: string, kind: PracticeQuestion["kind"] = "relationship"): PracticeQuestion {
-  return { id, keyPointId, kind, prompt: `Which statement about ${keyPointId} is right?`, choices: ["Alpha", "Beta", "Gamma", "Delta"], correctChoiceIndex: 1, explanation: "Beta is what the explanation states." };
+type Slot = { slotId: string; type: string; keyPointIds: string[] };
+type ProviderCall = { instructions: string; input: string };
+
+function draft(slotId: string, overrides: Record<string, unknown> = {}) {
+  return { slotId, prompt: `Which statement answers slot ${slotId}?`, choices: ["Alpha", "Beta", "Gamma", "Delta"], correctChoiceIndex: 1, explanation: "Beta is what the explanation states.", ...overrides };
 }
 
 const keyPoints = [
   { id: "k1", text: "Glycolysis splits one glucose into two pyruvate." },
   { id: "k2", text: "The pathway invests two ATP and produces four, a net gain of two." },
   { id: "k3", text: "NAD+ is reduced to NADH during the payoff phase." },
+  { id: "k4", text: "Glycolysis takes place in the cytosol of every cell." },
+  { id: "k5", text: "Without oxygen, pyruvate becomes lactate to regenerate NAD+." },
 ];
 
-const goodLearnBlock = {
-  explanation: "Glycolysis is the first stage of cellular respiration. It takes place in the cytosol and splits one six-carbon glucose into two three-carbon pyruvate molecules. The pathway first invests two ATP to phosphorylate glucose, then recovers four ATP in the payoff phase, for a net gain of two ATP. Along the way NAD+ is reduced to NADH, which carries electrons to later stages. For example, a muscle cell sprinting without enough oxygen still runs glycolysis and then turns pyruvate into lactate to regenerate NAD+.",
-  keyPoints,
-  questions: [question("q1", "k1"), question("q2", "k2", "term"), question("q3", "k3")],
-  structure: ["Glucose enters the cytosol", "Investment phase spends 2 ATP", "Payoff phase gains 4 ATP and 2 NADH", "Two pyruvate leave"],
-};
+const explanation = "Glycolysis is the first stage of cellular respiration. It takes place in the cytosol and splits one six-carbon glucose into two three-carbon pyruvate molecules. The pathway first invests two ATP to phosphorylate glucose, then recovers four ATP in the payoff phase, for a net gain of two ATP. Along the way NAD+ is reduced to NADH, which carries electrons to later stages. For example, a muscle cell sprinting without enough oxygen still runs glycolysis and then turns pyruvate into lactate to regenerate NAD+.";
+const structure = ["Glucose enters the cytosol", "Investment phase spends 2 ATP", "Payoff phase gains 4 ATP and 2 NADH", "Two pyruvate leave"];
 
 function providerReturning(...results: Array<unknown | Error>) {
   const calls: unknown[] = [];
@@ -40,28 +40,56 @@ function providerReturning(...results: Array<unknown | Error>) {
   return { provider, calls };
 }
 
+/** A stand-in for the model that follows the prompt: one question per slot the generator sent. */
+function followingPrompt(shape: (slots: Slot[], call: ProviderCall) => unknown, failures: Array<Error | null> = []) {
+  const calls: ProviderCall[] = [];
+  const provider = vi.fn(async (call: ProviderCall) => {
+    calls.push(call);
+    const failure = failures.shift();
+    if (failure) throw failure;
+    return shape(JSON.parse(call.input).slots as Slot[], call);
+  });
+  return { provider, calls };
+}
+const slotsOf = (call: ProviderCall) => JSON.parse(call.input).slots as Slot[];
+
 describe("Slot 2 — learn block in one call", () => {
   const request: LearnBlockRequest = { ...ids, action: "learn_block", topic, modifiers };
+  const goodBlock = (slots: Slot[]) => ({ explanation, keyPoints, structure, questions: slots.map((slot) => draft(slot.slotId)) });
 
-  it("returns the explanation, key points and questions from a single provider call", async () => {
-    const { provider } = providerReturning(goodLearnBlock);
+  it("returns the explanation, key points and questions from a single provider call, bound to code-planned slots", async () => {
+    const { provider, calls } = followingPrompt(goodBlock);
     const result = await fillShapeSlot(request, provider as never);
     expect(provider).toHaveBeenCalledTimes(1);
     expect(result.action).toBe("learn_block");
     if (result.action !== "learn_block") return;
     expect(result.keyPoints).toEqual(keyPoints);
-    expect(result.questions.map((item) => item.keyPointId)).toEqual(["k1", "k3", "k2"]);
+    const slots = slotsOf(calls[0]!);
+    expect(slots.map((slot) => slot.type)).toEqual(["recall", "application", "application", "compare_contrast", "misconception"]);
+    expect(result.questions.map((question) => question.kind)).toEqual(slots.map((slot) => slot.type));
+    expect(result.questions.map((question) => question.keyPointIds)).toEqual(slots.map((slot) => slot.keyPointIds));
   });
 
-  it("rejects a draft whose questions test something the explanation's key points do not cover, retries once, then errors honestly", async () => {
-    const outside = { ...goodLearnBlock, questions: [question("q1", "k1"), question("q2", "k2"), question("q9", "not-covered")] };
-    const { provider } = providerReturning(outside, outside);
+  it("tells the model the exact key points to derive and asks for plausible reasoning errors as distractors", async () => {
+    const { provider, calls } = followingPrompt(goodBlock);
+    await fillShapeSlot(request, provider as never);
+    expect(calls[0]!.instructions).toContain("exactly 5 key points");
+    expect(calls[0]!.instructions).toMatch(/plausible reasoning error/i);
+  });
+
+  it("rejects a draft that skips a planned slot, retries once, then errors honestly", async () => {
+    const { provider } = followingPrompt((slots) => ({ explanation, keyPoints, structure, questions: slots.slice(1).map((slot) => draft(slot.slotId)) }));
     await expect(fillShapeSlot(request, provider as never)).rejects.toMatchObject({ code: "generation_failed", attempts: 2, message: SHAPE_SLOT_HONEST_ERROR });
     expect(provider).toHaveBeenCalledTimes(2);
   });
 
+  it("rejects a draft whose key points are not the ones the slots reference", async () => {
+    const { provider } = followingPrompt((slots) => ({ ...goodBlock(slots), keyPoints: keyPoints.slice(0, 3) }));
+    await expect(fillShapeSlot(request, provider as never)).rejects.toMatchObject({ code: "generation_failed" });
+  });
+
   it("recovers on the single retry after a provider failure", async () => {
-    const { provider } = providerReturning(new Error("timeout"), goodLearnBlock);
+    const { provider } = followingPrompt(goodBlock, [new Error("timeout")]);
     const result = await fillShapeSlot(request, provider as never);
     expect(result.action).toBe("learn_block");
     expect(provider).toHaveBeenCalledTimes(2);
@@ -72,11 +100,11 @@ describe("Slot 2 — learn block in one call", () => {
     await expect(fillShapeSlot(request, null)).rejects.toMatchObject({ code: "provider_unavailable", attempts: 0 });
   });
 
-  it("caps questions from the profile", async () => {
-    const many = { ...goodLearnBlock, keyPoints: [...keyPoints, { id: "k4", text: "Pyruvate is converted to lactate when oxygen is scarce." }, { id: "k5", text: "Glycolysis happens in the cytosol of every cell." }], questions: [question("q1", "k1"), question("q2", "k2"), question("q3", "k3"), question("q4", "k4"), question("q5", "k5")] };
-    const { provider } = providerReturning(many);
+  it("caps questions from the profile and derives matching key points", async () => {
+    const { provider, calls } = followingPrompt((slots) => ({ explanation, structure, keyPoints: keyPoints.slice(0, 3), questions: slots.map((slot) => draft(slot.slotId)) }));
     const result = await fillShapeSlot({ ...request, modifiers: { ...modifiers, questionCap: 3 } }, provider as never);
     expect(result.action === "learn_block" && result.questions).toHaveLength(3);
+    expect(calls[0]!.instructions).toContain("exactly 3 key points");
   });
 });
 
@@ -122,45 +150,57 @@ describe("Slot 3 — comparison is feedback, never a verdict", () => {
 });
 
 describe("Slot 4 — fresh practice checked in code", () => {
-  const request: PracticeRequest = { ...ids, action: "practice", topic, modifiers, round: 1, keyPoints, outstandingKeyPointIds: [], excerpts: [], attempt: "66666666-6666-4666-8666-666666666666" };
+  const supplied = keyPoints.slice(0, 3);
+  const request: PracticeRequest = { ...ids, action: "practice", topic, modifiers, round: 1, keyPoints: supplied, outstandingKeyPointIds: [], excerpts: [], attempt: "66666666-6666-4666-8666-666666666666" };
+  const answer = (points: typeof keyPoints) => (slots: Slot[]) => ({ keyPoints: points, questions: slots.map((slot) => draft(slot.slotId)) });
 
-  it("keeps the supplied key points and binds every question to one of them", async () => {
-    const { provider, calls } = providerReturning({ keyPoints, questions: [question("p1", "k1"), question("p2", "k2"), question("p3", "k3")] });
+  it("keeps the supplied key points and binds every question to a planned slot", async () => {
+    const { provider, calls } = followingPrompt(answer(supplied));
     const result = await fillShapeSlot(request, provider as never);
-    expect(result.action === "practice" && result.keyPoints).toEqual(keyPoints);
-    expect((calls[0] as { instructions: string }).instructions).toContain(request.attempt);
+    expect(result.action === "practice" && result.keyPoints).toEqual(supplied);
+    expect(calls[0]!.instructions).toContain(request.attempt);
+    if (result.action !== "practice") return;
+    const slots = slotsOf(calls[0]!);
+    expect(result.questions.map((question) => question.slotId)).toEqual(slots.map((slot) => slot.slotId));
+    expect(new Set(result.questions.flatMap((question) => question.keyPointIds))).toEqual(new Set(["k1", "k2", "k3"]));
   });
 
   it("round 2 requests only the outstanding key points", async () => {
-    const { provider, calls } = providerReturning({ keyPoints: [keyPoints[1]], questions: [question("p4", "k2"), question("p5", "k2"), question("p6", "k2")] });
+    const { provider, calls } = followingPrompt(answer([supplied[1]!]));
     const result = await fillShapeSlot({ ...request, round: 2, outstandingKeyPointIds: ["k2"] }, provider as never);
-    expect(JSON.parse((calls[0] as { input: string }).input).keyPoints).toEqual([keyPoints[1]]);
-    expect(result.action === "practice" && result.questions.every((item) => item.keyPointId === "k2")).toBe(true);
+    expect(JSON.parse(calls[0]!.input).keyPoints).toEqual([supplied[1]]);
+    expect(result.action === "practice" && result.questions.every((item) => item.keyPointIds.every((id) => id === "k2"))).toBe(true);
   });
 
-  // Brief 1.5 item 1: the ordinary retry. The model follows "one question per
-  // key point" and must not be rejected for it.
+  // Brief 1.5 item 1: the ordinary retry. A model that follows the prompt must not be rejected.
   it.each([
     { missed: ["k2"], label: "one-point" },
     { missed: ["k1", "k3"], label: "two-point" },
   ])("a $label retry succeeds on the first call with one question per missed point", async ({ missed }) => {
-    const { provider, calls } = providerReturning({ keyPoints: keyPoints.filter((item) => missed.includes(item.id)), questions: missed.map((id, index) => question(`r${index}`, id)) });
+    const { provider, calls } = followingPrompt(answer(supplied.filter((item) => missed.includes(item.id))));
     const result = await fillShapeSlot({ ...request, round: 2, outstandingKeyPointIds: missed }, provider as never);
-    expect(result.action === "practice" && result.questions.map((item) => item.keyPointId).sort()).toEqual([...missed].sort());
     expect(provider).toHaveBeenCalledTimes(1);
-    expect((calls[0] as { instructions: string }).instructions).toContain(`exactly ${missed.length} question`);
+    expect(result.action === "practice" && result.questions).toHaveLength(missed.length);
+    expect(result.action === "practice" && new Set(result.questions.flatMap((item) => item.keyPointIds))).toEqual(new Set(missed));
+    expect(calls[0]!.instructions).toContain(`exactly ${missed.length} question`);
   });
 
-  it("derives key points from the topic when none are supplied", async () => {
-    const derived = [{ id: "k1", text: "Glycolysis splits glucose into two pyruvate." }, { id: "k2", text: "Net gain is two ATP." }, { id: "k3", text: "NADH is produced." }];
-    const { provider } = providerReturning({ keyPoints: derived, questions: [question("p1", "k1"), question("p2", "k2"), question("p3", "k3")] });
+  it("a one-point retry only plans one-point question types", async () => {
+    const { provider, calls } = followingPrompt(answer([supplied[1]!]));
+    await fillShapeSlot({ ...request, round: 2, outstandingKeyPointIds: ["k2"] }, provider as never);
+    expect(slotsOf(calls[0]!).map((slot) => slot.type)).not.toEqual(expect.arrayContaining(["application"]));
+    expect(slotsOf(calls[0]!).every((slot) => slot.keyPointIds.length === 1)).toBe(true);
+  });
+
+  it("derives exactly the planned number of key points from the topic when none are supplied", async () => {
+    const { provider, calls } = followingPrompt(answer(keyPoints));
     const result = await fillShapeSlot({ ...request, keyPoints: [] }, provider as never);
-    expect(result.action === "practice" && result.keyPoints).toEqual(derived);
+    expect(calls[0]!.instructions).toContain("exactly 5 key points");
+    expect(result.action === "practice" && result.keyPoints).toEqual(keyPoints);
   });
 
   it("rejects a provider that invents key point ids", async () => {
-    const invented = { keyPoints: [{ id: "zzz", text: "Something not in the learn block." }], questions: [question("p1", "zzz"), question("p2", "k1"), question("p3", "k2")] };
-    const { provider } = providerReturning(invented, invented);
+    const { provider } = followingPrompt((slots) => ({ keyPoints: [{ id: "zzz", text: "Something not in the learn block." }], questions: slots.map((slot) => draft(slot.slotId)) }));
     await expect(fillShapeSlot(request, provider as never)).rejects.toMatchObject({ code: "generation_failed" });
   });
 });

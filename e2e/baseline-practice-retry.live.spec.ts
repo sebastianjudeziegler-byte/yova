@@ -17,7 +17,7 @@ test.skip(process.env.YOVA_RUN_LIVE_BASELINE_PRACTICE !== "1", "Live model run o
 const { plans } = JSON.parse(readFileSync("e2e/fixtures/baseline-shape-c-plan.json", "utf8")) as { plans: LearningPlan[] };
 const ONBOARDING = ["Evening", "10 to 15 minutes", "Very often", "Tell me exactly what to do", "A concrete example first", "Mapping out how the pieces connect", "I get the big picture but miss specifics", "I intend to begin but often delay", "Shorter sections with fewer steps at once", "I understand in class but forget during tests"];
 
-type Question = { id: string; keyPointId: string; prompt: string; choices: string[]; correctChoiceIndex: number };
+type Question = { id: string; keyPointIds: string[]; prompt: string; choices: string[]; correctChoiceIndex: number };
 type ShapeReply = { action: string; questions?: Question[] };
 
 for (const misses of [1, 2]) {
@@ -49,7 +49,7 @@ for (const misses of [1, 2]) {
     await expect(page.getByTestId("baseline-question")).toContainText(`ROUND 2 · QUESTION 1 OF ${misses}`, { timeout: 120_000 });
     const retry = replies.find((reply) => reply.body?.action === "practice" && reply.round === 2);
     expect(retry?.status, "live round-two practice").toBe(200);
-    expect(retry!.body!.questions!.map((question) => question.keyPointId).sort()).toEqual([...missed].sort());
+    expect([...new Set(retry!.body!.questions!.flatMap((question) => question.keyPointIds))].sort()).toEqual([...missed].sort());
     await page.screenshot({ path: testInfo.outputPath(`round2-question-${misses}.png`), fullPage: true });
 
     await answerRound(page, retry!.body!.questions!, 0);
@@ -79,7 +79,7 @@ async function openWithPlan(page: Page) {
   await page.reload();
 }
 
-/** Answers the shown round from the observed live questions; misses the first `misses` distinct key points. Returns the missed key point ids. */
+/** Answers the shown round from the observed live questions; misses questions until `misses` distinct key points are missed. Returns the missed key point ids. */
 async function answerRound(page: Page, questions: Question[], misses: number) {
   const missed: string[] = [];
   const card = page.getByTestId("baseline-question");
@@ -87,9 +87,11 @@ async function answerRound(page: Page, questions: Question[], misses: number) {
     const prompt = (await card.getByRole("heading", { level: 2 }).innerText()).trim();
     const question = questions.find((item) => item.prompt.trim() === prompt);
     expect(question, `shown question came from the live reply: ${prompt}`).toBeTruthy();
-    const miss = missed.length < misses && !missed.includes(question!.keyPointId);
+    // A two-point question misses both of its points, so only miss one that keeps the total within `misses`.
+    const unseen = question!.keyPointIds.filter((id) => !missed.includes(id));
+    const miss = unseen.length > 0 && missed.length + unseen.length <= misses;
     const choice = miss ? (question!.correctChoiceIndex + 1) % question!.choices.length : question!.correctChoiceIndex;
-    if (miss) missed.push(question!.keyPointId);
+    if (miss) missed.push(...unseen);
     await card.getByRole("group", { name: "Answer choices" }).getByRole("button").nth(choice).click();
     await expect(page.getByTestId("baseline-reveal")).toHaveAttribute("data-correct", String(!miss));
     await page.getByRole("button", { name: /^(Next question|Finish round)/ }).click();

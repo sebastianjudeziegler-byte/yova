@@ -35,7 +35,14 @@ export const ShapeTopicSchema = z.object({
 /** Profile modifiers that shape wording. IDs only, never labels or prose. */
 export const ShapeProfileModifiersSchema = z.object({
   instructionStyle: z.enum(["standard", "numbered_steps", "plain_restated"]),
-  weighting: z.enum(["terms_first", "relationships_first"]),
+  /** Question-type counts for a five-question round (route.questionMix); code scales and plans slots from it. */
+  questionMix: z.object({
+    recall: z.number().int().min(0).max(8),
+    application: z.number().int().min(0).max(8),
+    compare_contrast: z.number().int().min(0).max(8),
+    prediction: z.number().int().min(0).max(8),
+    misconception: z.number().int().min(0).max(8),
+  }).strict(),
   produceStep: z.enum(["typed_explanation", "concept_map", "outline", "retrieval_questions", "worked_solution"]).nullable(),
   explanationFocus: z.enum(["concept", "worked_example"]).nullable(),
   questionCap: z.number().int().min(3).max(8),

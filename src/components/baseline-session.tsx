@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { QUESTION_TYPE_LABEL } from "@/lib/practice/question-mix";
 import { AlertCircle, ArrowRight, Check, Clock3, HelpCircle, RotateCcw, Sparkles, X } from "lucide-react";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
@@ -114,11 +115,11 @@ export function BaselineSession(props: BaselineSessionProps) {
   }), [route.input.taskType, session.objective, topic, topicId, topicTitle]);
   const modifiers = useMemo(() => ({
     instructionStyle: route.instructionStyle,
-    weighting: route.weighting,
+    questionMix: route.questionMix,
     produceStep: route.produceStep,
     explanationFocus: route.explanationFocus,
     questionCap: route.questionCap,
-  }), [route.explanationFocus, route.instructionStyle, route.produceStep, route.questionCap, route.weighting]);
+  }), [route.explanationFocus, route.instructionStyle, route.produceStep, route.questionCap, route.questionMix]);
   const note = useMemo(() => personalizationNote(route), [route]);
 
   // ---------------------------------------------------------------- timer
@@ -597,7 +598,7 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
   const shownAnswer = revealed ? answer : null;
   return <section className={styles.card} data-testid="baseline-question">
     <span className="step-label">ROUND {round.number} · QUESTION {Math.min(revealed ? answered : answered + 1, round.questions.length)} OF {round.questions.length}</span>
-    <p className={styles.progressLine}>{route.weighting === "terms_first" ? "Definitions and terms first." : "Relationships and comparisons first."} No source shown.</p>
+    <p className={styles.progressLine} data-question-kind={shownQuestion.kind}>{QUESTION_TYPE_LABEL[shownQuestion.kind]} question. No source shown.</p>
     <h2>{shownQuestion.prompt}</h2>
     {restate && !revealed && <p className={styles.restated}>Task: choose one answer.</p>}
     <div className={styles.choices} role="group" aria-label="Answer choices">

@@ -271,6 +271,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YOVA_DELTA_PRINTOUT: ${{ github.workspace }}/test-results/live-gate/profile-plans.json
+          YOVA_QUESTION_MIX_PRINTOUT: ${{ github.workspace }}/test-results/live-gate/question-mix.json
           # Three serial release samples; ordinary main/PR gates retain one.
           LIVE_GATE_RUNS: ${{ github.head_ref == 'codex/brief-0-5-grader-and-validators' && '3' || '1' }}
 

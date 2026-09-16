@@ -133,3 +133,96 @@ If item 1's live gate is green, #91 merges with item 1 on its own rather than
 waiting on items 2–7, which will take days. Items 2–7 continue on a follow-up
 branch and PR. This overrides the standing "one branch, one PR" rule for this
 brief.
+
+## Item 2 — Question-type mix
+
+Merged separately from item 1 (founder decision). Items 2–7 continue on
+`baseline-session-hub` rebuilt from main `4db4b99`.
+
+### What changed
+
+- **Routing** replaces `route.weighting` with `route.questionMix`: counts per
+  type for a five-question round, from the brief's task-type table
+  (rule `L4.mix.<taskType>`), then Q7 shifts one item
+  (`L4.q7.gist_leaning.mix_recall`, `L4.q7.detail_leaning.mix_compare_contrast`).
+  The old `L4.q7.gist_leaning` / `L4.q7.detail_leaning` weighting rules and
+  `L4.q7.*.task_default` are gone; their personalization notes now name the
+  mix change.
+- **Question type is a slot.** `planQuestionSlots` assigns every question its
+  type and the key points it may draw on. The model receives the slots and
+  writes one question per slot id; `composePracticeRound` copies type and key
+  points from the slot, never from the model, and refuses a missing, duplicate
+  or unplanned slot.
+- **Two-point types** (application, compare_contrast, prediction) span two key
+  points; recall and misconception span one.
+- **Distractors:** the prompt asks for plausible reasoning errors. No
+  validator, per the brief.
+- **Order:** flat generation order, types in table order. Nothing is reordered
+  by profile.
+- **Shape C** records every key point an answer tested. A missed two-point
+  question marks both points missed (founder-confirmed).
+- **Learner-visible:** the question screen said "Definitions and terms first."
+  Order no longer follows the profile, so that line would claim a
+  personalization that did not happen. It now names the question's real type
+  ("Application question."). The onboarding summary describes the mix.
+
+### Decisions taken
+
+| Question | Decision |
+|---|---|
+| Which type gives up an item when Q7 shifts the mix? | The largest other type; ties go application, compare_contrast, prediction, recall, misconception, so misconception is kept while it can be. Memorization + gist becomes 5 recall. |
+| Counts other than five | Largest-remainder scaling, ties in type order; always sums to the count. |
+| Round size | A first round asks five questions within the route cap. It is no longer one question per key point: two-point questions cover more ground. Learn blocks and derived practice ask the model for exactly 3–5 key points (fewer for a smaller cap) so slots can reference `k1…kN` before the model writes them. |
+| Retry (item 1 contract) | Still one question per missed point. Slots cover every missed point. A one-point retry turns two-point types into recall; a two-point retry pairs only the missed points. |
+| Two-point question in a retry with one missed point | Not possible, so recall (founder-confirmed). |
+| Superseded spec text | `04-AI-SLOTS.md` "one question per key point" and the `02-ROUTING.md` Q7 weighting rows now point to this brief. |
+
+### Red — before
+
+Routing (`session-route.test.ts`, `personalization-delta.test.ts`):
+**5 failed** — routes had no question mix and no mix rule IDs:
+
+```
+× asserts on the rule IDs that fired for each profile
+× two contrasting profiles get different question-type mixes, decided by rule
+× Q7 gist_leaning shifts the conceptual question mix (L4.q7.gist_leaning.mix_recall)
+× Q7 detail_leaning shifts the conceptual question mix (L4.q7.detail_leaning.mix_compare_contrast)
+× Q7 balanced or unanswered keeps the task type's mix
+```
+
+Pipeline (composer, slot generator, Shape C, slot handler): **33 failed**
+against the old one-question-per-key-point contract. `question-mix.test.ts`
+failed to import before the module existed.
+
+### Green — after
+
+- Item 2 suites (practice, generator, session shapes, handler, routing):
+  **160 passed**.
+- Full unit suite: **4214 passed**, 91 skipped. `tsc` and `lint` clean.
+- Focused local browser case (mocked Shape C session to completion):
+  **1 passed**, now asserting "Recall question. No source shown."
+
+### Personalization delta (gate)
+
+Same topic, contrasting profiles: P1 (gist) gets
+`2 recall, 1 application, 1 compare_contrast, 1 misconception` with
+`L4.q7.gist_leaning.mix_recall`; P2 (detail) gets
+`1 recall, 1 application, 2 compare_contrast, 1 misconception` with
+`L4.q7.detail_leaning.mix_compare_contrast`. Asserted on rule IDs. Tip text for
+the delta arrives with items 6–7.
+
+### Live check (new)
+
+`src/evals/practice-question-mix.live.test.ts` is **new**. The brief asked to
+extend a study-guide live test that had never been written (founder-confirmed).
+Two conceptual rounds from the real model, a learn block and a practice round
+from a study-guide excerpt, each assert at least one non-recall question,
+two-point types spanning two key points, and no question prompt containing a
+key point's text. The live gate discovers it automatically; its questions are
+written to `test-results/live-gate/question-mix.json`. **Not yet run.**
+
+### Still open for item 2
+
+- The live check and the live retry spec on the new question shape run in
+  CI on this push.
+

@@ -1,4 +1,5 @@
 import { CORE_METHOD_CATALOG, type CoreMethodId, type LearningTaskType } from "@/lib/learning/method-catalog";
+import { questionMixFor, QUESTION_TYPES, TASK_TYPE_QUESTION_MIX, type QuestionMix } from "@/lib/practice/question-mix";
 import {
   onboardingAnswerId,
   onboardingSupportNeeds,
@@ -41,7 +42,6 @@ export type ShapeAVariant = "standard" | "sq3r" | "outline_from_memory" | "worke
 export const SHAPE_A_ENTRY_LEVELS = ["study_full", "brief_review", "skip_to_practice"] as const;
 export type ShapeAEntry = (typeof SHAPE_A_ENTRY_LEVELS)[number];
 export type ProduceStep = "typed_explanation" | "concept_map" | "outline" | "retrieval_questions" | "worked_solution";
-export type QuestionWeighting = "terms_first" | "relationships_first";
 export type InstructionStyle = "standard" | "numbered_steps" | "plain_restated";
 export type StoppingPoints = "standard" | "after_each_step";
 export type MethodVisibility = "silent" | "change_link" | "chooser";
@@ -80,7 +80,8 @@ export type SessionRoute = {
   /** Maximum questions per practice round (3–8). */
   questionCap: number;
   questionMinimum: number;
-  weighting: QuestionWeighting;
+  /** Question-type counts for a five-question round (Brief 1.5 item 2); scaled to the round size in code. */
+  questionMix: QuestionMix;
   practiceRoundCeiling: number;
   instructionStyle: InstructionStyle;
   stoppingPoints: StoppingPoints;
@@ -256,16 +257,7 @@ export function routeSession(input: RoutingInput): SessionRoute {
   let timerMinutes: number = TIMER_BANDS[timerBand];
   let pacePrompts = true;
   let practiceRoundCeiling = PRACTICE_ROUND_CEILING;
-  let weighting: QuestionWeighting | null = null;
   let homeQueueCollapsed = false;
-
-  if (q7 === "gist_leaning") {
-    weighting = "terms_first";
-    decide({ layer: 4, ruleId: "L4.q7.gist_leaning", field: "weighting", value: weighting, reason: "You catch the big picture but miss specifics, so definition and term items come first." });
-  } else if (q7 === "detail_leaning") {
-    weighting = "relationships_first";
-    decide({ layer: 4, ruleId: "L4.q7.detail_leaning", field: "weighting", value: weighting, reason: "You know details but lose how they fit, so compare-contrast and structure items come first." });
-  }
 
   for (const support of q9) {
     switch (support) {
@@ -320,9 +312,15 @@ export function routeSession(input: RoutingInput): SessionRoute {
   timerMinutes = clamped;
   decide({ layer: 4, ruleId: "L4.timer_resolved", field: "timerMinutes", value: timerMinutes, reason: "The session timer is a nudge from your profile, not a boundary." });
 
-  if (!weighting) {
-    weighting = input.taskType === "memorization" ? "terms_first" : "relationships_first";
-    decide({ layer: 4, ruleId: `L4.q7.${q7 ?? "unanswered"}.task_default`, field: "weighting", value: weighting, reason: input.taskType === "memorization" ? "Memorization defaults to term items first." : "Conceptual work defaults to relationship items first." });
+  // Question-type mix: task type first, then Q7 shifts one item.
+  const mixed = questionMixFor({ taskType: input.taskType, q7: q7 === "gist_leaning" || q7 === "detail_leaning" || q7 === "balanced" ? q7 : null });
+  const questionMix = { ...mixed.mix };
+  const taskMix = TASK_TYPE_QUESTION_MIX[input.taskType];
+  decide({ layer: 4, ruleId: `L4.mix.${input.taskType}`, field: "questionMix", value: formatMix(taskMix), reason: "Your task type sets which kinds of question a practice round asks." });
+  if (mixed.ruleIds.includes("L4.q7.gist_leaning.mix_recall")) {
+    decide({ layer: 4, ruleId: "L4.q7.gist_leaning.mix_recall", field: "questionMix", value: formatMix(questionMix), reason: "You catch the big picture but miss specifics, so one more question asks you to recall a specific." });
+  } else if (mixed.ruleIds.includes("L4.q7.detail_leaning.mix_compare_contrast")) {
+    decide({ layer: 4, ruleId: "L4.q7.detail_leaning.mix_compare_contrast", field: "questionMix", value: formatMix(questionMix), reason: "You know details but lose how they fit, so one more question asks you to compare two ideas." });
   }
 
   // ---------------------------------------------------------------- Layer 5
@@ -362,7 +360,7 @@ export function routeSession(input: RoutingInput): SessionRoute {
     timerMinutes,
     questionCap,
     questionMinimum: PRACTICE_QUESTION_MINIMUM,
-    weighting,
+    questionMix,
     practiceRoundCeiling,
     instructionStyle,
     stoppingPoints,
@@ -465,4 +463,8 @@ export function withProduceStepOverride(route: SessionRoute, produceStep: Produc
     decisions,
     ruleIds: decisions.map((entry) => entry.ruleId),
   };
+}
+
+function formatMix(mix: QuestionMix) {
+  return QUESTION_TYPES.filter((type) => mix[type] > 0).map((type) => `${mix[type]} ${type}`).join(", ");
 }
