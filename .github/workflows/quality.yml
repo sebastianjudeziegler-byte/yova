@@ -105,7 +105,12 @@ jobs:
       - name: Test the plan adjustment route against the migrated database
         run: |
           set -o pipefail
+          # "supabase db start" runs only the database. The route signs a
+          # learner in and calls PostgREST, so bring up the rest of the stack
+          # against that same database first.
+          pnpm exec supabase start
           eval "$(pnpm exec supabase status -o env | sed 's/^/export /')"
+          test -n "$API_URL" && test -n "$ANON_KEY" && test -n "$SERVICE_ROLE_KEY"
           YOVA_REQUIRE_MIGRATED_ROUTE_TEST=1 \
           YOVA_MIGRATED_SUPABASE_URL="$API_URL" \
           YOVA_MIGRATED_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY" \
