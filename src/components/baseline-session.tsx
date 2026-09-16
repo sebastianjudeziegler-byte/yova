@@ -20,6 +20,7 @@ import {
 } from "@/lib/routing/session-route";
 import {
   currentShapeAStep,
+  entersCompare,
   initialShapeAState,
   produceAsText,
   produceStepLabel,
@@ -310,6 +311,8 @@ export function BaselineSession(props: BaselineSessionProps) {
     const next = shapeAReducer(aState, { type: "continue" });
     dispatchA({ type: "continue" });
     if (handoffToQuestions && currentShapeAStep(next)?.kind === "end") enterQuestionsFromLearnBlock();
+    // Try-it-first: produced earlier, arrives at Compare from the study step.
+    if (entersCompare(aState, next) && next.produce) startCompare(next.produce);
   };
 
   const requestCompare = useCallback((produce: ShapeAProduceInput) => {
@@ -338,15 +341,17 @@ export function BaselineSession(props: BaselineSessionProps) {
     });
   }, [slotTopic, modifiers, sourceExcerpts, learnBlock, planId, planSessionId, compareTips, mergeTips]);
 
+  function startCompare(produce: ShapeAProduceInput) {
+    setCompareStatus("loading");
+    setCompareError(null);
+    requestCompare(produce);
+  }
+
   const submitProduce = (produce: ShapeAProduceInput) => {
     const next = shapeAReducer(aState, { type: "submit_produce", produce });
     if (next === aState) return;
     dispatchA({ type: "submit_produce", produce });
-    if (currentShapeAStep(next)?.kind === "compare") {
-      setCompareStatus("loading");
-      setCompareError(null);
-      requestCompare(produce);
-    }
+    if (entersCompare(aState, next)) startCompare(produce);
   };
   const retryCompare = () => {
     if (!aState.produce) return;

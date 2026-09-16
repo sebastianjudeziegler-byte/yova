@@ -478,7 +478,16 @@ Below 1100px the rail drops under the step card in a single column, and the four
 
 Its screenshot is `hub-mobile-fallback-undesigned.png`.
 
-### Found in passing
+### Found in passing, then fixed at the founder's request
 
-Try-then-feedback learners stall at Compare. This is pre-existing; see BACKLOG.md.
+**The bug:** try-then-feedback learners stalled at Compare. They produce before studying, and the comparison was only requested when produce led straight into Compare. Nothing requested it when they arrived from the study step.
+
+**The fix:** `entersCompare(previous, next)` in `src/lib/session-shapes/shape-a.ts` names the one moment to request the comparison. Both submit-produce and continue use it.
+
+| Test | Red | Green |
+|---|---|---|
+| `src/lib/session-shapes/shape-a.test.ts`, "when to request the comparison" (3) | 3 failed (no trigger existed) | 15 pass |
+| `e2e/baseline-session.spec.ts`, "a try-it-first learner produces before studying and still gets the comparison" | Failed locally at the comparison: `expect(locator).toContainText("you didn't mention the proton gradient")`, element not found | Passed locally, desktop and mobile |
+
+The live two-profile hub run now takes profile 2 through the full session as well.
 

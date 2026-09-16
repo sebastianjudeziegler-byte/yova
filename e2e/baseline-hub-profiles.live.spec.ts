@@ -7,11 +7,6 @@ import { expect, test, type Page, type TestInfo } from "./helpers/frozen-clock";
  * personalization-delta profiles run the same Study Now topic through the real
  * slot route, and every step of the hub is captured side by side. Tips come
  * from the real model; each one shown must sit on a rule that fired.
- *
- * Known stall (docs/audits/BACKLOG.md): a try-then-feedback learner (profile 2)
- * produces before studying, and the comparison is only requested when produce
- * leads straight into compare, so their compare step never loads. Profile 2
- * runs up to that step and records it; it does not fake the rest.
  */
 test.skip(process.env.YOVA_RUN_LIVE_BASELINE_PRACTICE !== "1", "Live model run only: pnpm test:e2e:baseline:live.");
 test.describe.configure({ mode: "serial" });
@@ -24,7 +19,7 @@ const PROFILES = {
 } as const;
 
 type StepRecord = { step: string; screenshot: string; tip: { step: string; ruleId: string; origin: string; title: string; body: string } | null };
-type ProfileRecord = { profile: string; ruleIds: string[]; pills: string[]; steps: StepRecord[]; stoppedAt: string | null };
+type ProfileRecord = { profile: string; ruleIds: string[]; pills: string[]; steps: StepRecord[] };
 
 const recordPath = (testInfo: TestInfo, profile: string) => join(testInfo.project.outputDir, "hub-profiles", `${profile}.json`);
 
@@ -35,7 +30,7 @@ test.beforeEach(({}, testInfo) => {
 for (const profile of ["P1", "P2"] as const) {
   test(`${profile} runs a live session with the hub`, async ({ page }, testInfo) => {
     test.setTimeout(420_000);
-    const record: ProfileRecord = { profile, ruleIds: [], pills: [], steps: [], stoppedAt: null };
+    const record: ProfileRecord = { profile, ruleIds: [], pills: [], steps: [] };
     const capture = async (step: string) => {
       const screenshot = testInfo.outputPath(`${profile}-${record.steps.length + 1}-${step}.png`);
       await page.screenshot({ path: screenshot, fullPage: true });
@@ -91,13 +86,14 @@ for (const profile of ["P1", "P2"] as const) {
       await expect(page.getByText("Key points")).toBeVisible({ timeout: 150_000 });
       await capture("study");
       await page.getByRole("button", { name: "Continue", exact: true }).click();
-      await expect(page.getByRole("heading", { name: "What is missing or wrong" })).toBeVisible();
-      const loaded = await page.getByTestId("baseline-comparison").isVisible({ timeout: 90_000 }).catch(() => false);
+      await expect(page.getByTestId("baseline-comparison")).toBeVisible({ timeout: 150_000 });
       await capture("compare");
-      if (!loaded) {
-        record.stoppedAt = "compare";
-        testInfo.annotations.push({ type: "known-stall", description: "Compare never requested after produce-before-study (docs/audits/BACKLOG.md)." });
-      }
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Address the named gaps, or move on." })).toBeVisible();
+      await capture("repair");
+      await page.getByRole("button", { name: "Move on", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "You studied, produced and compared." })).toBeVisible();
+      await capture("end");
     }
 
     mkdirSync(join(testInfo.project.outputDir, "hub-profiles"), { recursive: true });
@@ -110,7 +106,7 @@ test("the two profiles' hubs differ on rule IDs and tip text", async ({}, testIn
   const [first, second] = (["P1", "P2"] as const).map((profile) => JSON.parse(readFileSync(recordPath(testInfo, profile), "utf8")) as ProfileRecord);
   expect(first!.pills).not.toEqual(second!.pills);
   const tipFor = (record: ProfileRecord, step: string) => record.steps.find((entry) => entry.tip?.step === step)?.tip ?? null;
-  for (const step of ["study", "produce"]) {
+  for (const step of ["study", "produce", "compare", "repair", "end"]) {
     const a = tipFor(first!, step);
     const b = tipFor(second!, step);
     if (!a || !b) continue;

@@ -119,6 +119,16 @@ export function currentShapeAStep(state: ShapeAState): ShapeAStep | null {
   return state.steps[state.index] ?? null;
 }
 
+/**
+ * True when an event has just moved the session onto Compare with work to
+ * compare and no comparison yet: the one moment to request it. Produce leads
+ * straight to Compare normally, but a try-it-first learner reaches Compare
+ * from the study step after producing.
+ */
+export function entersCompare(previous: ShapeAState, next: ShapeAState) {
+  return next.index !== previous.index && currentShapeAStep(next)?.kind === "compare" && next.produce !== null && next.comparison === null;
+}
+
 export function isShapeAComplete(state: ShapeAState) {
   return currentShapeAStep(state)?.kind === "end";
 }

@@ -245,6 +245,32 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   expect(recorded[0]).toMatchObject({ correctAnswers: 3, totalAnswers: 4 });
 });
 
+// Brief 1.5 follow-up: a try-it-first learner produces, then studies, then gets the comparison.
+// It used to stall on Compare: the comparison was only requested when produce led straight into it.
+test("a try-it-first learner produces before studying and still gets the comparison", async ({ page }) => {
+  const calls: string[] = [];
+  await mockShapeSlots(page, calls);
+  await createPreviewAccount(page);
+  await completeOnboarding(page, ["Morning", "45 to 60 minutes", "Rarely", "Recommend options and let me decide", "Trying it and getting feedback", "Explaining it out loud or in writing", "I know the details but lose how they fit together", "I usually begin when I plan to", null, "Nothing else for now"]);
+  await startStudyNowSession(page, "Explain how photosynthesis converts light energy into chemical energy inside a leaf.");
+
+  const shell = page.locator("[data-shape]");
+  await expect(shell).toHaveAttribute("data-shape", "A");
+  expect((await shell.getAttribute("data-rule-ids"))?.split(" ")).toContain("L3.q5.try_then_feedback");
+  await page.getByRole("button", { name: "Start with Feynman Technique" }).click();
+  await expect(page.getByRole("heading", { name: "Explain it in your own words" })).toBeVisible();
+  await page.getByLabel("Explain it in your own words").fill("Glucose is split into pyruvate and the cell makes ATP.");
+  await page.getByRole("button", { name: "Compare with the source" }).click();
+  await expect(page.getByText(/Cellular respiration is how a cell releases/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "What is missing or wrong" })).toBeVisible();
+  await expect(page.getByTestId("baseline-comparison")).toContainText("you didn't mention the proton gradient");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Move on", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "You studied, produced and compared." })).toBeVisible();
+  expect([...new Set(calls)]).toEqual(["learn_block", "compare"]);
+});
+
 // Brief 1.5 item 6: below ~1100px the rail sits under the card in one column. Functional, NOT designed.
 test("the session hub falls back to one column on a phone without breaking", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -315,6 +341,15 @@ async function createPreviewAccount(page: Page) {
   await page.getByLabel("Email address").fill("baseline@example.com");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Make YOVA fit how you actually study." })).toBeVisible();
+}
+
+async function completeOnboarding(page: Page, answers: ReadonlyArray<string | null>) {
+  await page.getByRole("button", { name: /Personalize YOVA/ }).click();
+  for (const [index, answer] of answers.entries()) {
+    if (answer) await page.getByRole("button", { name: answer, exact: true }).click();
+    await page.getByRole("button", { name: index === answers.length - 1 ? "Build my setup" : "Continue" }).click();
+  }
+  await page.getByRole("button", { name: "Open YOVA" }).click();
 }
 
 async function completeBaselineOnboarding(page: Page) {
