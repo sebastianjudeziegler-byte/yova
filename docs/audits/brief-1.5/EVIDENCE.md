@@ -386,3 +386,21 @@ had no example field; the template could not say "none".
 The "no example" screen, for a source with no worked example, is covered by
 unit tests of the note and slots, not by a browser case.
 
+## CI run 35110929012 (5ea9d9a: items 2–3)
+
+- **Green steps:** unit, migrated database tests, migrated route test,
+  TypeScript, build, core learner journey, baseline session journey, public
+  authentication, Study Profile comparison.
+- **Live question-type mix (item 2, new):** both conceptual cases **PASS**
+  against the real model (learn block, and practice from a study-guide
+  excerpt): non-recall questions present, two-point types spanning two key
+  points, no question restating a key point.
+- **Live baseline practice (items 1 and 3):** the step passed (1m 41s). The
+  per-case count could not be read from the job log viewer, so the workflow
+  now writes "N passed, N skipped" to the run summary and fails on any skipped
+  live case. The next run confirms all eight cases individually.
+- **Regression gate: BLOCKED on one case.** The live "streamed World War I
+  session skeleton" test passed on retained main and failed once here. Its
+  import graph (88 modules) reaches none of the files this branch changed, so
+  it is FLAKY under the standing rules, not a regression. Backlogged.
+
