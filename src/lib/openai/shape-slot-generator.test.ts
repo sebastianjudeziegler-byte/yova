@@ -109,7 +109,7 @@ describe("Slot 2 — learn block in one call", () => {
 });
 
 describe("Slot 1 — direction", () => {
-  const request: DirectionRequest = { ...ids, action: "direction", topic, modifiers, source: { name: "Unit 3 slides", kind: "slides", location: "slides 12–20" }, entry: "study_full", excerpts: [], wantsExample: false };
+  const request: DirectionRequest = { ...ids, action: "direction", topic, modifiers, source: { name: "Unit 3 slides", kind: "slides", location: "slides 12–20" }, entry: "study_full", excerpts: [], wantsExample: false, purpose: "study_inside" };
 
   it("uses the generated two sentences when the provider answers", async () => {
     const { provider } = providerReturning({ whatToLookAt: "Review your Unit 3 slides on glycolysis.", howToApproach: "Read for the mechanism, not the terms." });
@@ -268,7 +268,7 @@ describe("worked examples for examples-first learners", () => {
     expect(calls[0]!.instructions).toMatch(/worked example/i);
   });
 
-  const direction: DirectionRequest = { ...ids, action: "direction", topic, modifiers, source: { name: "Unit 3 slides", kind: "slides", location: "slides 12–20" }, entry: "study_full", excerpts: [], wantsExample: false };
+  const direction: DirectionRequest = { ...ids, action: "direction", topic, modifiers, source: { name: "Unit 3 slides", kind: "slides", location: "slides 12–20" }, entry: "study_full", excerpts: [], wantsExample: false, purpose: "study_inside" };
   const excerpt = { label: "Unit 3 slides, glycolysis", text: "A sprinting muscle cell runs glycolysis faster than oxygen can arrive; pyruvate is reduced to lactate so NAD+ is regenerated and glycolysis continues." };
 
   it("a source-based block asks for an example only from the learner's material and returns it", async () => {
@@ -328,7 +328,7 @@ describe("hub tips in the same slot call", () => {
 
   it("the direction template writes template tips, and never claims an example it could not show", async () => {
     const tips = [{ step: "study" as const, reasons: [reasons.example, reasons.fallback] }];
-    const request: DirectionRequest = { ...ids, action: "direction", topic, modifiers, source: { name: "Unit 3 slides", kind: "slides", location: null }, entry: "study_full", excerpts: [], wantsExample: true, tips };
+    const request: DirectionRequest = { ...ids, action: "direction", topic, modifiers, source: { name: "Unit 3 slides", kind: "slides", location: null }, entry: "study_full", excerpts: [], wantsExample: true, purpose: "study_inside", tips };
     const result = await fillShapeSlot(request, null);
     expect(result.tips).toEqual([{ step: "study", title: "Study for how it works, not for the terms.", body: reasons.fallback.sentence, ruleId: reasons.fallback.ruleId, origin: "template" }]);
   });
@@ -367,3 +367,31 @@ describe("answer explanations for plain instructions", () => {
     expect(calls[0]!.instructions).not.toMatch(/at most 20 words/);
   });
 });
+
+// Brief 1.5 item 8: the outside directions card is Slot 1 doing more work.
+describe("Slot 1 — directions for studying outside YOVA", () => {
+  const outside: DirectionRequest = { ...ids, action: "direction", topic: { ...topic, subtopics: ["Investment phase", "Payoff phase"] }, modifiers: { ...modifiers, produceStep: "retrieval_questions" }, source: null, entry: "study_full", excerpts: [], wantsExample: false, purpose: "study_outside" };
+
+  it("without material, the template tells the learner what to find in their own textbook or notes", () => {
+    const result = templateDirection(outside);
+    expect(result.whatToLookAt).toBe("Find the part of your textbook or notes that covers Glycolysis, focusing on Investment phase and Payoff phase.");
+    expect(result.howToApproach).toMatch(/answer.*questions.*not explain it back/i);
+  });
+
+  it("with material, the template names it and still says practice comes next", () => {
+    const result = templateDirection({ ...outside, source: { name: "Unit 3 slides", kind: "slides", location: "pages 4–9" } });
+    expect(result.whatToLookAt).toBe("Review Unit 3 slides (pages 4–9) on Glycolysis.");
+    expect(result.howToApproach).toMatch(/not explain it back/);
+  });
+
+  it("asks the model for an exact scope, honest when it cannot locate it, and never invents pages", async () => {
+    const { provider, calls } = providerReturning({ whatToLookAt: "Find the part of your textbook that covers glycolysis: where ATP and NADH are made.", howToApproach: "Read for the mechanism, not the terms; you'll answer questions on it, not explain it back.", example: null, tips: [] });
+    const result = await fillShapeSlot(outside, provider as never);
+    expect(result).toMatchObject({ action: "direction", origin: "generated" });
+    const instructions = (calls[0] as ProviderCall).instructions;
+    expect(instructions).toMatch(/outside YOVA/i);
+    expect(instructions).toMatch(/never invent page/i);
+    expect(instructions).toMatch(/textbook or notes/);
+  });
+});
+

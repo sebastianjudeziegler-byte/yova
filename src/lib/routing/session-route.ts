@@ -73,8 +73,8 @@ export type SessionRoute = {
   input: RoutingInput;
   shape: SessionShape;
   shapeVariant: ShapeAVariant | null;
-  /** Shape A only: study the learner's material (A1) or an AI explanation (A2). */
-  learnPath: "source" | "ai_explanation" | null;
+  /** Shape A only: study the learner's material (A1), an AI explanation (A2), or outside YOVA with directions (Brief 1.5 item 8). */
+  learnPath: "source" | "ai_explanation" | "outside" | null;
   /** Shape A only: what the AI explanation must centre on when there is no source. */
   explanationFocus: "concept" | "worked_example" | null;
   entry: ShapeAEntry;
@@ -480,7 +480,7 @@ export function isProceduralTaskType(taskType: LearningTaskType) {
 
 /** The Shape A produce steps a learner may switch to for this route without changing the shape. */
 export function alternativeProduceSteps(route: SessionRoute): ProduceStep[] {
-  if (route.shape !== "A" || !route.produceStep) return [];
+  if (route.shape !== "A" || !route.produceStep || route.learnPath === "outside") return [];
   if (route.shapeVariant === "outline_from_memory") return [];
   const candidates: ProduceStep[] = ["typed_explanation", "concept_map", "retrieval_questions"];
   if (route.shapeVariant === "worked_example_source") candidates.push("worked_solution");
@@ -510,6 +510,44 @@ export function withProduceStepOverride(route: SessionRoute, produceStep: Produc
     produceBeforeStudy: produceStep === "retrieval_questions" ? false : route.produceBeforeStudy,
     methodId,
     methodName,
+    decisions,
+    ruleIds: decisions.map((entry) => entry.ruleId),
+  };
+}
+
+/** Decisions about how the in-app study and produce steps run; studying outside YOVA carries none of them out. */
+const INSIDE_ONLY_FIELDS = new Set(["produceStep", "produceBeforeStudy", "workedStructureBeforeProduce", "temporaryRoute"]);
+
+/**
+ * Study outside YOVA (Brief 1.5 item 8, a learner choice on the pre-session
+ * card): YOVA gives directions, the learner studies wherever they like, and
+ * "I'm back" goes straight to closed-book practice. No produce step and no AI
+ * explanation. Decisions only the inside path would carry out are dropped, so
+ * no note, tip or receipt claims them. Practice blocks and learn blocks that
+ * already skip to practice are unchanged.
+ */
+export function withStudyOutside(route: SessionRoute): SessionRoute {
+  const studies = route.input.blockKind === "learn" && ((route.shape === "A" && route.entry !== "skip_to_practice") || (route.shape === "C" && route.briefStudyStep));
+  if (!studies) return route;
+  const method = CORE_METHOD_CATALOG.retrieval_practice;
+  const decisions: RoutingDecision[] = [
+    ...route.decisions.filter((decision) => !INSIDE_ONLY_FIELDS.has(decision.field)),
+    { layer: 5, ruleId: "L5.learner_study_outside", field: "learnPath", value: "outside", reason: "You chose to study outside YOVA, so YOVA gives directions and then goes straight to practice." },
+  ];
+  return {
+    ...route,
+    shape: "A",
+    entry: route.shape === "C" ? "study_full" : route.entry,
+    learnPath: "outside",
+    explanationFocus: null,
+    produceStep: "retrieval_questions",
+    produceBeforeStudy: false,
+    workedStructureBeforeProduce: false,
+    briefStudyStep: false,
+    temporaryRoute: null,
+    methodId: method.id,
+    methodName: method.name,
+    firstPracticeRound: "active_recall",
     decisions,
     ruleIds: decisions.map((entry) => entry.ruleId),
   };

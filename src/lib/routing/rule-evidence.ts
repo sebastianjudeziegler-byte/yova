@@ -74,6 +74,7 @@ const PRACTICE_TEMPLATES: ReadonlyArray<Template> = [
   ["L4.practice.interleaved_review.related_topics_passed", () => "Because you have passed related topics once each, practice mixes them and asks which idea applies."],
   ["L4.practice.active_recall.default", () => "Because recall comes before review, practice opens with closed-book Active Recall on this topic."],
   ["L4.practice.error_repair.after_missed_round", () => "Because a missed point needs another try, a round after a miss covers only what you missed."],
+  ["L5.learner_study_outside", () => "Because you chose to study outside YOVA, YOVA gave directions and then went straight to practice."],
   [/^L5\.learner_change_method\./, (_decision, route) => `Because you chose it, this session used ${route.methodName}.`],
   ["L4.mix.", (decision, route) => `Because ${TASK_TYPE_PHRASE[route.input.taskType]}, practice asks ${describeQuestionMix(route.questionMix)} questions.`],
 ];

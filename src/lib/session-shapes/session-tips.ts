@@ -53,7 +53,7 @@ export const TIP_EXEMPLARS: Record<TipStep, ReadonlyArray<{ title: string; body:
 
 /** Which fired rules are relevant to which step, most relevant first. A trailing dot matches a family. */
 const STEP_RULES: Record<TipStep, readonly string[]> = {
-  study: ["L3.q5.concrete_example", "L3.q10.examples_before_ready", "L2.demonstrated", "L3.q5.try_then_feedback", "L4.q9.extra_reading_time", "L3.q5.step_by_step", "L4.q9.simpler_repeated_instructions", "L1.temporary.shape_b_not_built", "L3.q6."],
+  study: ["L5.learner_study_outside", "L3.q5.concrete_example", "L3.q10.examples_before_ready", "L2.demonstrated", "L3.q5.try_then_feedback", "L4.q9.extra_reading_time", "L3.q5.step_by_step", "L4.q9.simpler_repeated_instructions", "L1.temporary.shape_b_not_built", "L3.q6."],
   produce: ["C2.q9_visual_overrides_q6", "L3.q6.", "L3.q5.try_then_feedback", "L3.q5.step_by_step", "L4.q9.simpler_repeated_instructions"],
   compare: ["L3.q5.try_then_feedback", "C2.q9_visual_overrides_q6", "L3.q6.", "L4.q9.frequent_check_ins"],
   repair: ["L4.q9.frequent_check_ins", "L4.q9.simpler_repeated_instructions", "C2.q9_visual_overrides_q6", "L3.q6."],

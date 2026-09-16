@@ -3,7 +3,7 @@ import { LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import { emptyOnboardingAnswers, withOnboardingAnswer, type OnboardingAnswers } from "@/lib/onboarding/answers";
 import { ONBOARDING_QUESTIONS } from "@/lib/onboarding/questions";
 import { chosenBecause, HIDDEN_RULE_IDS, receiptEvidence } from "./rule-evidence";
-import { alternativeProduceSteps, routeSession, withProduceStepOverride, type RoutingInput, type SessionRoute } from "./session-route";
+import { alternativeProduceSteps, routeSession, withProduceStepOverride, withStudyOutside, type RoutingInput, type SessionRoute } from "./session-route";
 
 /**
  * Brief 1.5 item 7: if a routing rule fired, the learner can see it somewhere.
@@ -44,7 +44,7 @@ function everyRoute(): SessionRoute[] {
           for (const hasSource of [true, false]) {
             for (const context of contexts) {
               const route = routeSession({ taskType, blockKind, evidence, hasSource, topicHasProblems: taskType === "mixed_assessment", answers, ...context });
-              routes.push(route, ...alternativeProduceSteps(route).map((step) => withProduceStepOverride(route, step)));
+              routes.push(route, withStudyOutside(route), ...alternativeProduceSteps(route).map((step) => withProduceStepOverride(route, step)));
             }
           }
         }

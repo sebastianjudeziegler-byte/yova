@@ -220,7 +220,7 @@ export function BaselineSession(props: BaselineSessionProps) {
   const sourceDescription = source.description;
   const requestStudySlot = useCallback((signal: AbortSignal) => {
     const request = route.learnPath === "source" && sourceDescription
-      ? requestDirection({ ...makeSlotIds(), planId, planSessionId, action: "direction", topic: slotTopic, modifiers, source: sourceDescription, entry: route.entry === "brief_review" ? "brief_review" : "study_full", excerpts: route.workedStructureBeforeProduce ? source.excerpts.slice(0, 8) : [], wantsExample: route.workedStructureBeforeProduce, tips: studyTips.direction }, signal)
+      ? requestDirection({ ...makeSlotIds(), planId, planSessionId, action: "direction", topic: slotTopic, modifiers, source: sourceDescription, entry: route.entry === "brief_review" ? "brief_review" : "study_full", excerpts: route.workedStructureBeforeProduce ? source.excerpts.slice(0, 8) : [], wantsExample: route.workedStructureBeforeProduce, purpose: "study_inside", tips: studyTips.direction }, signal)
         .then((result) => { setDirection(result); mergeTips(result.tips); })
       : requestLearnBlock({ ...makeSlotIds(), planId, planSessionId, action: "learn_block", topic: slotTopic, modifiers, tips: studyTips.learnBlock }, signal)
         .then((result) => { setLearnBlock(result); setPracticeKeyPoints(result.keyPoints); mergeTips(result.tips); });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyOnboardingAnswers, withOnboardingAnswer } from "@/lib/onboarding/answers";
-import { routeSession, type RoutingInput } from "@/lib/routing/session-route";
+import { routeSession, withStudyOutside, type RoutingInput } from "@/lib/routing/session-route";
 import {
   currentShapeAStep,
   entersCompare,
@@ -148,6 +148,13 @@ describe("when to request the comparison", () => {
     const compared = shapeAReducer(atCompare, { type: "comparison_ready", comparison: { feedback: "You named the light reactions.", missing: [], incorrect: [] } });
     expect(entersCompare(atCompare, compared)).toBe(false);
     expect(entersCompare(atCompare, shapeAReducer(atCompare, { type: "skip_repair" }))).toBe(false);
+  });
+});
+
+describe("outside YOVA", () => {
+  it("is directions and then the practice hand-off: no away step, no produce, no explanation", () => {
+    expect(shapeASteps(withStudyOutside(route({ hasSource: false }))).map((step) => step.kind)).toEqual(["direct", "end"]);
+    expect(shapeASteps(withStudyOutside(route())).map((step) => step.kind)).toEqual(["direct", "end"]);
   });
 });
 

@@ -12,6 +12,7 @@ import {
   SHAPE_A_ENTRY_LEVELS,
   TIMER_MAXIMUM_MINUTES,
   TIMER_MINIMUM_MINUTES,
+  withStudyOutside,
   type RoutingInput,
 } from "./session-route";
 
@@ -492,3 +493,40 @@ describe("Change method alternatives", () => {
     expect(alternativeProduceSteps(routeSession(input({ blockKind: "practice" })))).toEqual([]);
   });
 });
+
+// Brief 1.5 item 8: outside YOVA is directions, then "I'm back", then straight to practice.
+describe("studying outside YOVA", () => {
+  it("turns a learn block into directions then closed-book practice, with no produce step or explanation", () => {
+    const inside = routeSession(input({ hasSource: false, answers: answersOf({ prove_knowing: "map_it", difficulty_help: "concrete_example" }) }));
+    const outside = withStudyOutside(inside);
+    expect(outside.learnPath).toBe("outside");
+    expect(outside.produceStep).toBe("retrieval_questions");
+    expect(outside.workedStructureBeforeProduce).toBe(false);
+    expect(outside.produceBeforeStudy).toBe(false);
+    expect(outside.explanationFocus).toBeNull();
+    expect(outside.methodName).toBe(CORE_METHOD_CATALOG.retrieval_practice.name);
+    expect(outside.ruleIds).toContain("L5.learner_study_outside");
+    expect(alternativeProduceSteps(outside)).toEqual([]);
+  });
+
+  it("drops the decisions the outside path no longer carries out, so nothing claims them", () => {
+    const outside = withStudyOutside(routeSession(input({ answers: answersOf({ prove_knowing: "map_it", difficulty_help: "concrete_example", support_needs: ["reduced_text_visual_structure"] }) })));
+    for (const gone of ["L3.q6.map_it", "L3.q5.concrete_example", "C2.q9_visual_overrides_q6"]) expect(outside.ruleIds).not.toContain(gone);
+    expect(outside.ruleIds).toContain("L4.q2.unanswered");
+  });
+
+  it("a memorization learn block's brief study step also becomes outside directions", () => {
+    const outside = withStudyOutside(routeSession(input({ taskType: "memorization" })));
+    expect(outside.shape).toBe("A");
+    expect(outside.briefStudyStep).toBe(false);
+    expect(outside.learnPath).toBe("outside");
+  });
+
+  it("leaves practice blocks and skipped learn blocks alone", () => {
+    const practice = routeSession(input({ blockKind: "practice" }));
+    expect(withStudyOutside(practice)).toBe(practice);
+    const covered = routeSession(input({ evidence: "learner_reported_covered" }));
+    expect(withStudyOutside(covered)).toBe(covered);
+  });
+});
+

@@ -53,6 +53,7 @@ const SHAPE_A_KIND_KEY: Record<ShapeAStepKind, TipStep> = {
 
 function studyRow(route: SessionRoute): Omit<HubRow, "minutes" | "status"> {
   const brief = route.entry === "brief_review";
+  if (route.learnPath === "outside") return { key: "study", label: "Study outside YOVA", blurb: "Follow the directions, then come back." };
   return route.learnPath === "source"
     ? { key: "study", label: brief ? "Brief review" : "Study your material", blurb: "YOVA names what to look at and how." }
     : { key: "study", label: brief ? "Brief review" : "Read the explanation", blurb: "YOVA explains it, then hides it." };

@@ -121,10 +121,24 @@ const DirectionDraftSchema = z.object({
   tips: DraftTips,
 }).strict();
 
+function listJoin(items: string[]) {
+  return items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
 export function templateDirection(request: DirectionRequest): DirectionResponse {
-  const where = request.source.location ? `${request.source.name} (${request.source.location})` : request.source.name;
-  const verb = request.source.kind === "video" ? "Watch" : request.source.kind === "link" ? "Open" : request.entry === "brief_review" ? "Skim" : "Review";
-  const approach = request.modifiers.produceStep === "concept_map"
+  const outside = request.purpose === "study_outside";
+  const source = request.source;
+  const focus = request.topic.subtopics.slice(0, 3);
+  const verb = source?.kind === "video" ? "Watch" : source?.kind === "link" ? "Open" : request.entry === "brief_review" ? "Skim" : "Review";
+  const whatToLookAt = source
+    ? `${verb} ${source.location ? `${source.name} (${source.location})` : source.name} on ${request.topic.title}.`
+    // Outside with no material: say what to find in their own textbook or notes.
+    : `Find the part of your textbook or notes that covers ${request.topic.title}${focus.length ? `, focusing on ${listJoin(focus)}` : ""}.`;
+  const approach = outside
+    ? request.modifiers.instructionStyle === "plain_restated"
+      ? "Read it once for how it works. Next you will answer questions on it, not explain it back."
+      : "Read for how it works, not for the terms; you'll answer closed-book questions on it next, not explain it back."
+    : request.modifiers.produceStep === "concept_map"
     ? "Note the main ideas and how they connect; you'll map them afterwards."
     : request.modifiers.produceStep === "worked_solution"
       ? "Follow each step of the worked example and why it is taken; you'll solve a similar problem next."
@@ -133,7 +147,7 @@ export function templateDirection(request: DirectionRequest): DirectionResponse 
         : "Read for the mechanism, not the terms; you'll explain it back.";
   return {
     action: "direction",
-    whatToLookAt: `${verb} ${where} on ${request.topic.title}.`,
+    whatToLookAt,
     howToApproach: approach,
     origin: "template",
     // The template never invents an example; the screen must not claim one.
@@ -154,12 +168,15 @@ async function fillDirection(request: DirectionRequest, provider: SlotProvider |
       const exampleInstruction = withExample
         ? "Also return example: one concrete worked example of the topic taken only from the supplied excerpts, as a short title and 2–6 steps in the material's own terms; return null if the excerpts contain no worked example."
         : "Return example as null.";
+      const purpose = request.purpose === "study_outside"
+        ? `The learner will study OUTSIDE YOVA, then come back and answer closed-book questions straight away. Sentence one is the scope: exactly what to study. Be specific when you can locate it (the supplied location, or section titles that appear in the supplied excerpts); never invent page numbers, chapters or titles. When it cannot be located, say so honestly and name the ideas to focus on (for example "the part of your chapter that covers glycolysis — focus on where ATP and NADH are made").${request.source ? "" : " There is no material: tell the learner what to find in their own textbook or notes, naming the specific ideas from the topic."} Sentence two says how to approach it for answering questions afterwards, not explaining it back.`
+        : "Sentence one names what to look at in the learner's own material (use the supplied source name and location; never invent pages, chapters or titles). Sentence two says how to approach it for the coming produce step.";
       const draft = await provider({
-        instructions: `You write the first step of a study session in YOVA. Return exactly two sentences as separate fields. Sentence one names what to look at in the learner's own material (use the supplied source name and location; never invent pages, chapters or titles). Sentence two says how to approach it for the coming produce step. ${exampleInstruction} ${request.modifiers.instructionStyle === "plain_restated" ? "Use plain, simple language." : ""} ${request.entry === "brief_review" ? "This is a brief review of material the learner has already shown they know." : ""} ${tipsPrompt(request.tips)} ${UNTRUSTED}`,
-        input: JSON.stringify({ topic: request.topic, source: request.source, produceStep: request.modifiers.produceStep, ...(withExample ? { excerpts: request.excerpts } : {}), tips: request.tips }),
+        instructions: `You write the first step of a study session in YOVA. Return exactly two sentences as separate fields. ${purpose} ${exampleInstruction} ${request.modifiers.instructionStyle === "plain_restated" ? "Use plain, simple language." : ""} ${request.entry === "brief_review" ? "This is a brief review of material the learner has already shown they know." : ""} ${tipsPrompt(request.tips)} ${UNTRUSTED}`,
+        input: JSON.stringify({ topic: request.topic, source: request.source, produceStep: request.modifiers.produceStep, ...(withExample || request.purpose === "study_outside" ? { excerpts: request.excerpts.slice(0, withExample ? 8 : 4) } : {}), tips: request.tips }),
         schema: DirectionDraftSchema,
         schemaName: "yova_shape_direction",
-        maxOutputTokens: (withExample ? 900 : 300) + request.tips.length * 200,
+        maxOutputTokens: (withExample ? 900 : request.purpose === "study_outside" ? 500 : 300) + request.tips.length * 200,
         cacheKey: "yova-shape-direction-v3",
       });
       if (!draft) return null;

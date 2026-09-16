@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyOnboardingAnswers, withOnboardingAnswer } from "@/lib/onboarding/answers";
-import { routeSession, type RoutingInput } from "@/lib/routing/session-route";
+import { routeSession, withStudyOutside, type RoutingInput } from "@/lib/routing/session-route";
 import { hubRail, splitMinutes, timerView } from "./session-hub";
 import { initialShapeAState, shapeAReducer } from "./shape-a";
 import { initialShapeCState, shapeCReducer } from "./shape-c";
@@ -79,6 +79,15 @@ describe("session hub rail", () => {
     const rail = hubRail({ route: routed, aState: initialShapeAState(routed), cState: initialShapeCState(routed), atEnd: false, inQuestions: false });
     expect(rail.kicker).toBe("SHAPE A · STUDY → CLOSED-BOOK QUESTIONS");
     expect(rail.rows.map((row) => row.key)).toEqual(["study", "questions", "round", "end"]);
+    expect(rail.tipStep).toBe("study");
+  });
+});
+
+describe("session hub rail outside YOVA", () => {
+  it("shows studying outside, then closed-book questions", () => {
+    const routed = withStudyOutside(route({ hasSource: false }));
+    const rail = hubRail({ route: routed, aState: initialShapeAState(routed), cState: initialShapeCState(routed), atEnd: false, inQuestions: false });
+    expect(rail.rows.map((row) => row.label)).toEqual(["Study outside YOVA", "Closed-book round 1", "Round review", "Session complete"]);
     expect(rail.tipStep).toBe("study");
   });
 });

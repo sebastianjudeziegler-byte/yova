@@ -85,7 +85,10 @@ export type WorkedExample = z.infer<typeof WorkedExampleSchema>;
 export const DirectionRequestSchema = z.object({
   ...RequestBase,
   action: z.literal("direction"),
-  source: SourceDescriptionSchema,
+  /** null only when the learner studies outside YOVA with no material added. */
+  source: SourceDescriptionSchema.nullable(),
+  /** Inside: point at material before producing in-app. Outside: directions, then practice (Brief 1.5 item 8). */
+  purpose: z.enum(["study_inside", "study_outside"]).default("study_inside"),
   entry: z.enum(["study_full", "brief_review"]),
   /** The learner's material, when an example should be drawn from it. */
   excerpts: z.array(SourceExcerptSchema).max(8).default([]),
