@@ -193,3 +193,68 @@ test("returning mid-session lands on the same step, with no setup", async ({ pag
   await expect(page.getByTestId("pre-session-card")).toHaveCount(0);
   expect(calls.filter((call) => call === "learn_block").length).toBeLessThanOrEqual(2);
 });
+
+// Founder decision (16 Sept): the allowance is enforced on the pre-session card.
+test("at the allowance limit the card shows the limit instead of Start, and a saved session still resumes", async ({ page }) => {
+  const calls: string[] = [];
+  await mockShapeSlots(page, calls);
+  let exhausted = false;
+  await page.route("**/api/sessions/allowance", async (route) => {
+    const body = exhausted
+      ? { status: "exhausted", remainingToday: 0, retryAfterSeconds: 7_200, resetAt: "2026-09-17T00:00:00.000Z" }
+      : { status: "available", remainingToday: 3, retryAfterSeconds: 0, resetAt: null };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+  await openWithPlan(page, plans);
+  // Below the limit: no allowance message and no count anywhere.
+  await expect(page.getByText(/allowance|remaining today|sessions left/i)).toHaveCount(0);
+  await pressStart(page);
+  await expect(page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true })).toBeEnabled();
+  await expect(page.getByTestId("allowance-limit")).toHaveCount(0);
+  await page.getByTestId("pre-session-card").getByRole("button", { name: "Close" }).click();
+
+  exhausted = true;
+  await page.reload();
+  // Home no longer blocks or explains; the card does.
+  await expect(page.getByRole("button", { name: /Start session/ }).first()).toBeEnabled();
+  await expect(page.getByText(/allowance/i)).toHaveCount(0);
+  await pressStart(page);
+  const card = page.getByTestId("pre-session-card");
+  await expect(card.getByTestId("allowance-limit")).toContainText("You have used today's guided sessions.");
+  await expect(card.getByRole("button", { name: "Start", exact: true })).toHaveCount(0);
+  expect(calls).toEqual([]);
+  await card.getByRole("button", { name: "Close" }).click();
+
+  // A session started before the limit continues without the card.
+  exhausted = false;
+  await page.reload();
+  await pressStart(page);
+  await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click();
+  await page.getByRole("button", { name: "Start the questions" }).click();
+  await expect(page.getByTestId("baseline-question")).toContainText("ROUND 1 · QUESTION 1 OF 3");
+  await page.getByRole("button", { name: "Exit session" }).click();
+  exhausted = true;
+  await page.reload();
+  await pressStart(page);
+  await expect(page.getByTestId("baseline-question")).toContainText("ROUND 1 · QUESTION 1 OF 3");
+});
+
+// Founder decision (16 Sept): scheduled reviews stay functional; they run as practice through the card.
+test("a scheduled review opens the card as a practice block and runs closed-book practice", async ({ page }) => {
+  const calls: string[] = [];
+  await mockShapeSlots(page, calls);
+  const withReview = planWith((plan) => {
+    const first = plan.sessions[0]!;
+    first.status = "complete";
+    plan.sessions.push({ ...first, id: "7b3a2c1d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", sequence: plan.sessions.length + 1, status: "ready", learningMode: "study", title: "Verify the core vocabulary", estimatedMinutes: 5, reviewType: "verify", reviewConcept: "Photosynthesis stores light energy in glucose", studyRoute: undefined } as LearningPlan["sessions"][number]);
+    return plan;
+  });
+  await openWithPlan(page, withReview);
+  await pressStart(page);
+  const card = page.getByTestId("pre-session-card");
+  await expect(card).toContainText("Practice block · 5 min");
+  await card.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(page.getByTestId("baseline-question")).toContainText("Round one: where is light energy stored?");
+  expect([...new Set(calls)]).toEqual(["practice"]);
+});
+

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ArrowRight, Clock3, Paperclip, X } from "lucide-react";
+import { AllowanceLimitMessage, guidedSessionAllowanceBlocksNewStart, type GuidedSessionAllowanceDisplayState } from "@/components/guided-session-allowance-notice";
 import { LivingPlanRevision, type RevisionClient } from "@/components/plan-revision/living-plan-revision";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
@@ -31,6 +32,9 @@ export type PreSessionCardProps = {
   /** False when this block has no study step to move outside (practice, or already covered). */
   canStudyOutside: boolean;
   revisionClient: RevisionClient | null;
+  /** The guided-session allowance is enforced here: at the limit the card shows why instead of Start. */
+  allowance: GuidedSessionAllowanceDisplayState;
+  allowanceChecking: boolean;
   onStudyLocationChange: (location: StudyLocation) => void;
   onChangeProduceStep: (step: ProduceStep | null) => void;
   onStart: () => void;
@@ -44,7 +48,7 @@ export function sourceLine(source: SourceDescription) {
   return `${verb} ${source.name}${source.location ? `, ${source.location}` : ""}`;
 }
 
-export function PreSessionCard({ plan, session, topic, insideRoute, route, source, studyLocation, canStudyOutside, revisionClient, onStudyLocationChange, onChangeProduceStep, onStart, onExit }: PreSessionCardProps) {
+export function PreSessionCard({ plan, session, topic, insideRoute, route, source, studyLocation, canStudyOutside, revisionClient, allowance, allowanceChecking, onStudyLocationChange, onChangeProduceStep, onStart, onExit }: PreSessionCardProps) {
   const [choosingMethod, setChoosingMethod] = useState(false);
   const [revision, setRevision] = useState<Revision | null>(null);
   const note = personalizationNote(route);
@@ -113,7 +117,9 @@ export function PreSessionCard({ plan, session, topic, insideRoute, route, sourc
       </div>}
 
       <footer className={styles.footer}>
-        <button type="button" className="button primary large" onClick={onStart}>Start <ArrowRight size={17} /></button>
+        {allowance.kind === "exhausted" || allowance.kind === "temporarily_limited"
+          ? <AllowanceLimitMessage allowance={allowance} />
+          : <button type="button" className="button primary large" disabled={guidedSessionAllowanceBlocksNewStart(allowance, false, allowanceChecking)} onClick={onStart}>Start <ArrowRight size={17} /></button>}
       </footer>
     </section>
   </main>;

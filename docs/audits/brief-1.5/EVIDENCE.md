@@ -690,3 +690,30 @@ Recorded after CI:
   - The live two-profile hub run failed for P1: no session appeared within 120 seconds through the old Study Now flow, so P2 and the comparison did not run.
   - Item 8 replaces that Study Now flow; the run repeats on the item 8 commit.
 
+## Item 8 follow-up: allowance and scheduled reviews (founder decisions, 16 Sept)
+
+### Allowance: enforced on the pre-session card
+
+- **At the limit:** the card shows the limit message instead of Start.
+  - Exhausted: "You have used today's guided sessions", with the server's reset time.
+  - Paused: "Too many sessions started in a short time".
+- **Otherwise:** nothing about the allowance is shown anywhere, and never a count. Start is held (disabled, no message) only during the first server check.
+- **Home and Calendar** no longer disable Start, relabel it, or show the allowance notice.
+- **Study Now** is no longer disabled; its card enforces the limit.
+- **Saved sessions:** a session saved mid-way reopens on its step without the card, so it can always continue, as before.
+- **The server** still refuses AI slot calls past the limit, as before.
+
+Tests:
+
+| Test | Red | Green |
+|---|---|---|
+| `guided-session-allowance-notice.test.ts` (4), `pre-session-card.test.ts` (3) | no card enforcement, no limit message | 7 pass |
+| `e2e/baseline-pre-session.spec.ts`, "at the allowance limit the card shows the limit instead of Start, and a saved session still resumes" | new | passed locally (desktop); CI both viewports |
+
+### Scheduled reviews: left functional
+
+- A scheduled review (`learningMode: "study"`, `reviewType`) routes as a practice block and runs closed-book practice through the card.
+- **Fixed:** activating a review from the agenda started "the next ready session" rather than the review itself. It now starts the review session by id.
+- **Test:** `e2e/baseline-pre-session.spec.ts`, "a scheduled review opens the card as a practice block and runs closed-book practice". It runs in CI.
+- **Not kept:** the retired setup screen's fixed three-question contract. Reviews become Brief 2's practice blocks (backlog).
+

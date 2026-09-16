@@ -48,9 +48,6 @@ import { AccountSecurityCard } from "@/components/auth/account-security-card";
 import { prepareAccountDataExport } from "@/lib/account-export/client";
 import { AddToYova } from "@/components/add-to-yova";
 import {
-  GuidedSessionAllowanceNotice,
-  guidedSessionAllowanceBlocksNewStart,
-  guidedSessionStartLabel,
   type GuidedSessionAllowanceDisplayState,
 } from "@/components/guided-session-allowance-notice";
 import { LearningContent } from "@/components/learning-content";
@@ -2170,17 +2167,7 @@ export function YovaPrototype({
       interruptions: sessionInterruptions,
       restorableCheckpoints: recoverableSessionCheckpoints,
     });
-    if (guidedSessionAllowanceBlocksNewStart(
-      guidedSessionAllowance,
-      startDecision.canStartWithoutGeneration,
-      guidedSessionAllowanceChecking,
-    )) {
-      setPendingSessionPlan(null);
-      setSelectedPlanId(requestedPlan.id);
-      setActiveTab("Home");
-      setStage("app");
-      return true;
-    }
+    // The guided-session allowance is enforced on the pre-session card, not here (founder decision, 16 Sept 2026).
     if (!startDecision.advertiseContinue && isSessionAheadOfSchedule(requestedSession)) {
       setEarlySessionPlanId(requestedPlan.id);
       setEarlySessionPlanSessionId(requestedSession.id);
@@ -2286,7 +2273,8 @@ export function YovaPrototype({
     };
     setPlans((current) => current.map((candidate) => candidate.id === plan.id ? activatedPlan : candidate));
     setSelectedPlanId(plan.id);
-    await startSession(plan.id, activatedPlan);
+    // The review session itself, not whichever block is next (Brief 1.5 item 8: reviews run as practice through the card).
+    await startSession(plan.id, activatedPlan, reviewSession.id);
   };
 
   const completeActiveSession = async (correctAnswers: number, totalAnswers: number, feedback: SessionCompletion["feedback"], actualMinutes: number, applyRecommendedChange: boolean) => {
@@ -3807,6 +3795,8 @@ export function YovaPrototype({
       studyLocation={target.studyLocation}
       canStudyOutside={withStudyOutside(insideRoute) !== insideRoute}
       revisionClient={account ? revisionClient : null}
+      allowance={guidedSessionAllowance}
+      allowanceChecking={guidedSessionAllowanceChecking}
       onStudyLocationChange={(studyLocation) => setBaselineSessionTarget({ ...target, studyLocation })}
       onChangeProduceStep={(produceStep) => setBaselineSessionTarget({ ...target, produceStep })}
       onStart={() => setStage("baseline-session")}
@@ -3962,7 +3952,7 @@ export function YovaPrototype({
         } catch (error) { setQuickRevisionError(error instanceof Error ? error.message : "Undo could not be saved."); }
         finally { setQuickRevisionUndoing(false); }
       }}>{quickRevisionUndoing ? "Restoring…" : "Undo"}</button>}</div>{quickRevisionError && <p role="alert">{quickRevisionError}</p>}</div>}
-      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("study-now"); }} milestones={agendaMilestones} onOpenAgenda={() => setActiveTab("Calendar")} />}
+      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("study-now"); }} milestones={agendaMilestones} onOpenAgenda={() => setActiveTab("Calendar")} />}
       {activeTab === "Learning" && <LearningScreen revisionClient={revisionClient} plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} preferredMethodIds={savedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={personalizationState.controls.selfReport} onPreferredMethodIdsChange={changePreferredMethodIds} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap}  />}
       {activeTab === "Calendar" && <CalendarScreen
         initialCalendarDescription={calendarDescription}
@@ -3978,8 +3968,6 @@ export function YovaPrototype({
         calendarMaterials={calendarMaterials}
         personalizationReasons={calendarReasons}
         personalizationSummary={calendarProfileSummary}
-        allowance={guidedSessionAllowance}
-        allowanceChecking={guidedSessionAllowanceChecking}
         previewMode={browserPreviewMode || account?.identityMode === "preview"}
         onOpenAdd={beginCalendarAdd}
         onOpenPlan={(planId) => {
@@ -4133,7 +4121,7 @@ function workspaceClassName(settings: PersonalizationWorkspaceSettings) {
   ].filter(Boolean).join(" ");
 }
 
-function HomeScreen({ account, answers, plans, plan, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, tutorQuestion, onTutorQuestion, onOpenTutor, onOpenYou, onStart, onOpenPlan, onCreatePlan, onStudyNow, milestones, onOpenAgenda }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; plan: LearningPlan | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onOpenYou: () => void; onStart: (planId?: string) => void; onOpenPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void; milestones: DeadlineMilestone[]; onOpenAgenda: () => void }) {
+function HomeScreen({ account, answers, plans, plan, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, tutorQuestion, onTutorQuestion, onOpenTutor, onOpenYou, onStart, onOpenPlan, onCreatePlan, onStudyNow, milestones, onOpenAgenda }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; plan: LearningPlan | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onOpenYou: () => void; onStart: (planId?: string) => void; onOpenPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void; milestones: DeadlineMilestone[]; onOpenAgenda: () => void }) {
   const rankedPlans = rankPlansForHome(plans);
   const recoverablePlan = rankedPlans.find((candidate) => {
     const readySession = candidate.sessions.find((session) => session.status === "ready");
@@ -4172,13 +4160,6 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
     restorableCheckpoints: activeSessionCheckpoints,
   }) : null;
   const resumePoint = startDecision?.resumePoint ?? null;
-  const displayedSessionHasSavedWork = startDecision?.canStartWithoutGeneration ?? false;
-  const displayedStartBlocked = guidedSessionAllowanceBlocksNewStart(
-    allowance,
-    displayedSessionHasSavedWork,
-    allowanceChecking,
-  );
-  const newStudyNowBlocked = guidedSessionAllowanceBlocksNewStart(allowance, false, allowanceChecking);
   const awaitingSessionFinish = isActiveSessionCheckpointResumePoint(resumePoint)
     && resumePoint.checkpointStatus === "awaiting_finish";
   const completedCount = displayedPlan?.sessions.filter((session) => session.status === "complete").length ?? 0;
@@ -4339,7 +4320,6 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
       <h1>{greetingFor(now)}, <em>{firstName}</em></h1>
     </header>
 
-    <GuidedSessionAllowanceNotice allowance={allowance} surface="home" checking={allowanceChecking} />
 
     {displayedPlan && readySession ? <div className="hg-hero">
       <section
@@ -4361,7 +4341,7 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
           {visiblePersonalization.length > 0 && <p className="hg-personalized"><Sparkles size={13} aria-hidden="true" /><span><strong>Personalized today:</strong> {visiblePersonalization.join(" · ")}</span><button type="button" onClick={onOpenYou}>Why?</button></p>}
         </div>
         <div className="hg-upnext-foot">
-          <button className="yv-pill primary large" disabled={displayedStartBlocked} onClick={() => onStart(displayedPlan.id)}>{guidedSessionStartLabel(allowance, awaitingSessionFinish ? "Review and finish" : resumePoint ? "Continue session" : "Start session", displayedSessionHasSavedWork, allowanceChecking)}</button>
+          <button className="yv-pill primary large" onClick={() => onStart(displayedPlan.id)}>{awaitingSessionFinish ? "Review and finish" : resumePoint ? "Continue session" : "Start session"}</button>
           {recommendations.length > 6 ? <span className="hg-dots"><button type="button" className="hg-arrow" aria-label="Show previous recommendation" onClick={showPreviousRecommendation}><ChevronLeft size={16} /></button><span className="hg-dots-count">{recommendationIndex + 1} of {recommendations.length}</span><button type="button" className="hg-arrow" aria-label="Show next recommendation" onClick={showNextRecommendation}><ChevronRight size={16} /></button></span> : recommendations.length > 1 ? <span className="hg-dots">{recommendations.map((item, index) => <button key={item.id} type="button" className={index === recommendationIndex ? "active" : ""} aria-label={`Show recommendation ${index + 1} of ${recommendations.length}`} aria-pressed={index === recommendationIndex} onClick={() => setSelectedRecommendationId(item.id)} />)}<span className="hg-dots-count">{recommendationIndex + 1} of {recommendations.length}</span></span> : <span className="hg-dots-count">{completedCount} of {displayedPlan.sessions.length} sessions complete</span>}
         </div>
       </section>
@@ -4380,13 +4360,13 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
       <span className="hg-upnext-kicker">START HERE</span>
       <h2>Turn any goal into a clear next step.</h2>
       <p>Use your own materials, let YOVA create the content, or get a plan for studying somewhere else.</p>
-      <div className="hg-empty-actions"><button className="yv-pill primary large" onClick={onCreatePlan}>Build my first plan</button><button className="yv-pill outline" disabled={newStudyNowBlocked} onClick={onStudyNow}>Study something now</button></div>
+      <div className="hg-empty-actions"><button className="yv-pill primary large" onClick={onCreatePlan}>Build my first plan</button><button className="yv-pill outline" onClick={onStudyNow}>Study something now</button></div>
     </section>}
 
     <div className="hg-actionrow">
       <AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} hero />
       <button type="button" className="hg-tile" onClick={onCreatePlan}><span className="hg-tile-icon blue" aria-hidden="true">+</span><span className="hg-tile-copy"><strong>Add plan</strong><span>Notes, syllabus, link</span></span><span className="hg-tile-arrow" aria-hidden="true">›</span></button>
-      <button type="button" className="hg-tile" disabled={newStudyNowBlocked} onClick={onStudyNow}><span className="hg-tile-icon navy" aria-hidden="true">→</span><span className="hg-tile-copy"><strong>Study now</strong><span>Quick, off-plan</span></span><span className="hg-tile-arrow" aria-hidden="true">›</span></button>
+      <button type="button" className="hg-tile" onClick={onStudyNow}><span className="hg-tile-icon navy" aria-hidden="true">→</span><span className="hg-tile-copy"><strong>Study now</strong><span>Quick, off-plan</span></span><span className="hg-tile-arrow" aria-hidden="true">›</span></button>
     </div>
 
     {noticedCount > 0 && <>
@@ -4405,7 +4385,7 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
         {!homeWeeklyReview && personalizationRecommendation && <section className="yv-tint hg-insight">
           <span className="hg-insight-head"><span className="hg-yava" aria-hidden="true">Y</span><span className="yv-kicker accent">PERSONALIZATION</span></span>
           <span className="hg-insight-body"><strong>{personalizationRecommendation.title}.</strong> {personalizationRecommendation.explanation} <em>{personalizationRecommendation.evidence}</em></span>
-          <span className="hg-insight-actions">{personalizationRecommendation.action === "improve_profile" ? <button className="yv-pill primary small" onClick={onOpenYou}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "open_learning" && displayedPlan ? <button className="yv-pill primary small" onClick={() => onOpenPlan(displayedPlan.id)}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "start_session" ? <button className="yv-pill primary small" disabled={displayedStartBlocked} onClick={() => onStart(displayedPlan?.id)}>{guidedSessionStartLabel(allowance, personalizationRecommendation.actionLabel ?? "Start session", displayedSessionHasSavedWork, allowanceChecking)}</button> : null}</span>
+          <span className="hg-insight-actions">{personalizationRecommendation.action === "improve_profile" ? <button className="yv-pill primary small" onClick={onOpenYou}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "open_learning" && displayedPlan ? <button className="yv-pill primary small" onClick={() => onOpenPlan(displayedPlan.id)}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "start_session" ? <button className="yv-pill primary small" onClick={() => onStart(displayedPlan?.id)}>{personalizationRecommendation.actionLabel ?? "Start session"}</button> : null}</span>
         </section>}
       </div>
     </>}
@@ -4429,7 +4409,7 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
           <strong>{thread.session.title}</strong>
           <span className="hg-resume-meta">{thread.point.completedSteps} of {thread.point.totalSteps} {thread.point.totalSteps === 1 ? "section" : "sections"} saved</span>
           <span className="hg-bar-row"><span className="yv-bar"><span style={{ width: `${thread.percent}%` }} /></span><span className="hg-bar-pct">{thread.percent}%</span></span>
-          <button className={`yv-pill ${index === 0 ? "primary" : "outline"} small`} disabled={guidedSessionAllowanceBlocksNewStart(allowance, true, allowanceChecking)} onClick={() => onStart(thread.plan.id)}>{index === 0 ? "Resume" : "Continue"}</button>
+          <button className={`yv-pill ${index === 0 ? "primary" : "outline"} small`} onClick={() => onStart(thread.plan.id)}>{index === 0 ? "Resume" : "Continue"}</button>
         </section>)}
       </div>
     </>}

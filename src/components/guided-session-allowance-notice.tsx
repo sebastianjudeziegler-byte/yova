@@ -9,6 +9,7 @@ export type GuidedSessionAllowanceDisplayState =
   | GuidedSessionAllowanceState
   | GuidedSessionAllowanceUnavailableState;
 
+/** True when a new session may not start: at the limit, paused, or not yet checked. A saved session always may. */
 export function guidedSessionAllowanceBlocksNewStart(
   allowance: GuidedSessionAllowanceDisplayState,
   hasSavedSession = false,
@@ -19,41 +20,25 @@ export function guidedSessionAllowanceBlocksNewStart(
   return allowance.kind === "exhausted" || allowance.kind === "temporarily_limited";
 }
 
-export function guidedSessionStartLabel(
-  allowance: GuidedSessionAllowanceDisplayState,
-  defaultLabel: string,
-  hasSavedSession = false,
-  checking = false,
-) {
-  if (hasSavedSession) return defaultLabel;
-  if (checking) return "Checking allowance…";
-  if (allowance.kind === "exhausted") return "Allowance used today";
-  if (allowance.kind === "temporarily_limited") return "Available after the short pause";
-  return defaultLabel;
-}
-
-export function GuidedSessionAllowanceNotice({
-  allowance,
-  surface,
-}: {
-  allowance: GuidedSessionAllowanceDisplayState;
-  surface: "home" | "agenda";
-  checking?: boolean;
-}) {
-  if (allowance.kind !== "exhausted") return null;
-
-  const resetLabel = formatGuidedSessionAllowanceReset(allowance.resetAt);
-
-  return <section
-    className={`guided-session-allowance-notice exhausted ${surface}`}
-    aria-label="Guided-session allowance"
-    role="status"
-  >
+/**
+ * The pre-session card's limit message, shown instead of Start (founder
+ * decision, 16 Sept 2026). Nothing is shown below the limit, and never a count.
+ */
+export function AllowanceLimitMessage({ allowance }: { allowance: GuidedSessionAllowanceDisplayState }) {
+  if (allowance.kind !== "exhausted" && allowance.kind !== "temporarily_limited") return null;
+  const resetLabel = allowance.kind === "exhausted" ? formatGuidedSessionAllowanceReset(allowance.resetAt) : null;
+  return <div className="guided-session-allowance-notice exhausted pre-session" role="status" data-testid="allowance-limit">
     <span className="guided-session-allowance-icon" aria-hidden="true"><Clock3 size={18} /></span>
     <div>
-      <span>GUIDED SESSION ALLOWANCE</span>
-      <strong>Daily guided-session allowance used</strong>
-      <p>You can still continue a session that was already saved.{resetLabel && <> New guided sessions are available after <time dateTime={allowance.resetAt}>{resetLabel}</time>.</>}</p>
+      {allowance.kind === "exhausted"
+        ? <>
+          <strong>You have used today&apos;s guided sessions.</strong>
+          <p>A session you already started can still continue.{resetLabel && <> New sessions open again after <time dateTime={allowance.resetAt}>{resetLabel}</time>.</>}</p>
+        </>
+        : <>
+          <strong>Too many sessions started in a short time.</strong>
+          <p>Wait a moment, then open this block again.</p>
+        </>}
     </div>
-  </section>;
+  </div>;
 }

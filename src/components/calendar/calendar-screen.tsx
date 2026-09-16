@@ -31,12 +31,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import {
-  GuidedSessionAllowanceNotice,
-  guidedSessionAllowanceBlocksNewStart,
-  guidedSessionStartLabel,
-  type GuidedSessionAllowanceDisplayState,
-} from "@/components/guided-session-allowance-notice";
 import { ManualEventEditor } from "@/components/calendar/manual-event-editor";
 import { RecurrenceFields, RecurrencePreview } from "@/components/calendar/recurrence-fields";
 import { changeRecurringOccurrence, firstCalendarBlockId, recurrenceSummary } from "@/lib/calendar/recurrence";
@@ -140,8 +134,6 @@ export type CalendarScreenProps = {
   calendarMaterials?: readonly CalendarMaterialState[];
   personalizationReasons?: readonly CalendarReason[];
   personalizationSummary?: readonly string[];
-  allowance: GuidedSessionAllowanceDisplayState;
-  allowanceChecking: boolean;
   previewMode: boolean;
   onOpenAdd: (seed?: AddIntakeSeed, context?: CalendarPlanBuildContext) => void;
   onOpenPlan: (planId: string) => void;
@@ -174,8 +166,6 @@ export function CalendarScreen(props: CalendarScreenProps) {
     calendarMaterials = [],
     personalizationReasons = [],
     personalizationSummary = [],
-    allowance,
-    allowanceChecking,
     previewMode,
     onOpenAdd,
     onOpenPlan,
@@ -1262,7 +1252,6 @@ export function CalendarScreen(props: CalendarScreenProps) {
         <Plus size={18} /> Add to YOVA
       </button>
     </div>
-    <GuidedSessionAllowanceNotice allowance={allowance} surface="agenda" checking={allowanceChecking} />
     {actionError && !selectedBlock && !quickAddDraft && <div className="chat-error calendar-action-error" role="alert">
       <AlertCircle size={16} />
       <span>{actionError}</span>
@@ -1331,10 +1320,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
           movePanel={movePanel?.blockId === selectedBlock.id ? movePanel : null}
           hasRecoveryRecord={selectedBlock.source === "plan_session" && protectedSessionIds.has(selectedBlock.session.id)}
           advertiseContinue={selectedStartDecision?.advertiseContinue ?? false}
-          canStartWithoutGeneration={selectedStartDecision?.canStartWithoutGeneration ?? false}
           canShorten={selectedCanShorten}
-          allowance={allowance}
-          allowanceChecking={allowanceChecking}
           onClose={() => selectBlock(null)}
           onStart={() => selectedBlock.source === "plan_session" && startBlock(selectedBlock)}
           onMove={() => openMovePanel(selectedBlock)}
@@ -1398,8 +1384,6 @@ export function CalendarScreen(props: CalendarScreenProps) {
           blocks={todaysBlocks}
           upNextId={upcomingBlock?.id ?? null}
           now={now}
-          allowance={allowance}
-          allowanceChecking={allowanceChecking}
           activeSessionCheckpoints={activeSessionCheckpoints}
           sessionInterruptions={sessionInterruptions}
           canSkipSession={Boolean(onSkipSession)}
@@ -1483,7 +1467,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
             {recoveryReason && recoveryReason !== "App problem" && <small>This answer helps YOVA recommend the recovery choice. It does not create a permanent label.</small>}
           </div>
           <div className="agenda-recovery-actions">
-            <button type="button" className="button primary" disabled={Boolean(pendingAction) || guidedSessionAllowanceBlocksNewStart(allowance, overdueRecoveryDecision?.canStartWithoutGeneration ?? false, allowanceChecking)} onClick={() => startBlock(overdueBlock)}>{guidedSessionStartLabel(allowance, completedSplitForOverdue ? `Start Part 1 (${completedSplitForOverdue.minutes} min)` : overdueRecoveryDecision?.advertiseContinue ? "Continue" : recoveryReason === "Too difficult" || recoveryReason === "Instructions unclear" ? "Open setup and choose more support" : "Start it now", overdueRecoveryDecision?.canStartWithoutGeneration ?? false, allowanceChecking)}</button>
+            <button type="button" className="button primary" disabled={Boolean(pendingAction)} onClick={() => startBlock(overdueBlock)}>{(completedSplitForOverdue ? `Start Part 1 (${completedSplitForOverdue.minutes} min)` : overdueRecoveryDecision?.advertiseContinue ? "Continue" : recoveryReason === "Too difficult" || recoveryReason === "Instructions unclear" ? "Open setup and choose more support" : "Start it now")}</button>
             {overdueSplitSafe && overdueMinutes !== null && <button type="button" className="button secondary" disabled={Boolean(pendingAction)} onClick={() => void shortenOverdue()}>{pendingAction === "recovery-shorten" ? <span className="button-spinner dark" /> : null} {recoveryReason === "Ran out of time" || recoveryReason === "Low energy" ? "Recommended: " : ""}Split into {overdueMinutes}-min sessions</button>}
             <button type="button" className="button ghost" disabled={Boolean(pendingAction)} onClick={() => void moveOverdueTomorrow()}>{pendingAction === "recovery-move" ? <span className="button-spinner dark" /> : null} Move to tomorrow</button>
             <button type="button" className="button ghost" disabled={Boolean(pendingAction)} onClick={() => setDismissedRecoverySessionId(overdueEntry.session.id)}>Keep the original plan</button>
@@ -1509,17 +1493,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
                   interruptions: sessionInterruptions,
                   restorableCheckpoints: activeSessionCheckpoints,
                 });
-                const startBlocked = guidedSessionAllowanceBlocksNewStart(
-                  allowance,
-                  decision.canStartWithoutGeneration,
-                  allowanceChecking,
-                );
-                const label = guidedSessionStartLabel(
-                  allowance,
-                  decision.advertiseContinue ? "Continue" : "Start",
-                  decision.canStartWithoutGeneration,
-                  allowanceChecking,
-                );
+                const label = (decision.advertiseContinue ? "Continue" : "Start");
                 return <li key={block.id} className={`calendar-next-up-item ${item.bucket}`}>
                   <button type="button" className="calendar-next-up-open" onClick={() => selectBlock(block.id)}>
                     <span className={`calendar-next-up-tag ${item.bucket}`}>{nextUpBucketLabel(item.bucket)}</span>
@@ -1531,7 +1505,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
                   <button
                     type="button"
                     className={`button ${index === 0 ? "primary" : "secondary"} calendar-next-up-start`}
-                    disabled={startBlocked || Boolean(pendingAction)}
+                    disabled={Boolean(pendingAction)}
                     onClick={() => startBlock(block)}
                   >{label}</button>
                 </li>;
@@ -1715,10 +1689,7 @@ function SelectedBlockDetail({
   movePanel,
   hasRecoveryRecord,
   advertiseContinue,
-  canStartWithoutGeneration,
   canShorten,
-  allowance,
-  allowanceChecking,
   canSkip,
   onClose,
   onStart,
@@ -1747,10 +1718,7 @@ function SelectedBlockDetail({
   movePanel: MovePanelState | null;
   hasRecoveryRecord: boolean;
   advertiseContinue: boolean;
-  canStartWithoutGeneration: boolean;
   canShorten: boolean;
-  allowance: GuidedSessionAllowanceDisplayState;
-  allowanceChecking: boolean;
   canSkip: boolean;
   onClose: () => void;
   onStart: () => void;
@@ -1782,9 +1750,6 @@ function SelectedBlockDetail({
     && pending === `milestone-complete:${block.milestone.id}`;
   const deletingMilestone = block.source === "milestone"
     && pending === `milestone-delete:${block.milestone.id}`;
-  const startBlocked = block.source === "plan_session"
-    ? guidedSessionAllowanceBlocksNewStart(allowance, canStartWithoutGeneration, allowanceChecking)
-    : false;
 
   return <CalendarInspector onClose={onClose}><section className={`section-block calendar-block-detail ${block.source} ${block.blockType}`} aria-labelledby="calendar-block-detail-title">
     <div className="calendar-detail-heading">
@@ -1809,7 +1774,7 @@ function SelectedBlockDetail({
     {block.source === "plan_session" && block.session.status === "upcoming" && <p className="calendar-plan-order-note"><LockKeyhole size={14} /> This is upcoming work. It stays visible on your calendar, but follows the earlier unfinished sessions in this plan.</p>}
     {block.source === "manual" && block.series && <label className="calendar-delete-scope">Delete applies to<select value={deleteScope} onChange={(event) => setDeleteScope(event.target.value as typeof deleteScope)}><option value="occurrence">This occurrence only</option><option value="series">Entire series</option></select></label>}
     <div className="calendar-detail-actions agenda-session-actions">
-      {readyToStart && <button type="button" className="button primary" disabled={startBlocked} onClick={onStart}>{guidedSessionStartLabel(allowance, advertiseContinue ? "Continue" : "Start", canStartWithoutGeneration, allowanceChecking)}</button>}
+      {readyToStart && <button type="button" className="button primary" onClick={onStart}>{(advertiseContinue ? "Continue" : "Start")}</button>}
       {block.source === "manual" && <button type="button" className="button secondary" onClick={() => setEditing(true)}>Edit</button>}
       {block.source === "manual" && <button type="button" className="button primary" onClick={onToggleDone}>{block.done ? "Mark open" : "Mark done"}</button>}
       {block.source === "suggestion" && <button type="button" className="button primary" onClick={onKeepSuggestion}>Keep</button>}
@@ -1837,8 +1802,6 @@ function YourDayCard({
   blocks,
   upNextId,
   now,
-  allowance,
-  allowanceChecking,
   activeSessionCheckpoints,
   sessionInterruptions,
   canSkipSession,
@@ -1851,8 +1814,6 @@ function YourDayCard({
   blocks: CalendarBlock[];
   upNextId: string | null;
   now: Date;
-  allowance: GuidedSessionAllowanceDisplayState;
-  allowanceChecking: boolean;
   activeSessionCheckpoints: ActiveSessionCheckpoint[];
   sessionInterruptions: SessionInterruption[];
   canSkipSession: boolean;
@@ -1868,12 +1829,11 @@ function YourDayCard({
       const upNext = block.id === upNextId;
       const startDecision = block.source === "plan_session" ? sessionStartRecoveryDecision({ plan: block.plan, session: block.session, interruptions: sessionInterruptions, restorableCheckpoints: activeSessionCheckpoints }) : null;
       const readyToStart = block.source === "plan_session" && block.session.status === "ready";
-      const startBlocked = block.source === "plan_session" && guidedSessionAllowanceBlocksNewStart(allowance, startDecision?.canStartWithoutGeneration ?? false, allowanceChecking);
       return <article className={`calendar-day-item ${upNext ? "up-next" : ""} ${block.done ? "done" : ""} ${block.fixed ? "fixed" : ""} ${block.source === "suggestion" ? "suggested" : ""}`} key={block.id}>
         <span className="calendar-day-marker">{block.done ? <Check size={13} /> : <Circle size={10} />}</span>
         <div className="calendar-day-copy"><small>{formatTime(block.startsAt)}{block.fixed ? " · Fixed" : block.source === "suggestion" ? " · Suggested" : ""}</small><strong>{block.title}</strong>{upNext && <span>Up next</span>}</div>
         <div className="calendar-day-actions">
-          {upNext && readyToStart && <button type="button" className="button primary" disabled={startBlocked} onClick={() => block.source === "plan_session" && onStart(block)}>{guidedSessionStartLabel(allowance, startDecision?.advertiseContinue ? "Continue" : "Start", startDecision?.canStartWithoutGeneration ?? false, allowanceChecking)}</button>}
+          {upNext && readyToStart && <button type="button" className="button primary" onClick={() => block.source === "plan_session" && onStart(block)}>{(startDecision?.advertiseContinue ? "Continue" : "Start")}</button>}
           {upNext && block.source === "plan_session" && block.session.status === "upcoming" && <p className="calendar-plan-order-note compact">Upcoming work follows the earlier sessions in this plan and cannot be started from this block yet.</p>}
           <button type="button" className="button ghost" onClick={() => onSelect(block)}>Details</button>
           {block.source === "suggestion" && <><button type="button" className="button secondary" onClick={() => onKeep(block)}>Keep</button><button type="button" className="button ghost" onClick={() => onMove(block)}>Move</button><button type="button" className="button ghost" onClick={() => onSkip(block)}>Dismiss</button></>}
