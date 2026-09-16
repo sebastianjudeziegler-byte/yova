@@ -404,6 +404,14 @@ unit tests of the note and slots, not by a browser case.
   import graph (88 modules) reaches none of the files this branch changed, so
   it is FLAKY under the standing rules, not a regression. Backlogged.
 
+## CI run 35118646914 (542d3af: items 4–5 and the live-count guard)
+
+- **Live baseline practice:** all eight cases passed, with none skipped. The workflow now reports the count on the run page: "Live baseline practice: 8 passed, 0 failed, 0 flaky, 0 skipped".
+  - This confirms each case individually for items 1 and 3: the 1-point and 2-point retries on desktop and mobile, Practice Test, and Interleaved Review.
+- **Regression gate against retained main (00995f1):** "No regression versus main", so the gate is PASSED.
+- **Full live gate step:** the raw step went red on intermittent live cases. None is a regression versus main, and the standing rules block only on a regression.
+- **Every other step:** green.
+
 ## Item 6: the session hub (frame 3A)
 
 ### What changed
