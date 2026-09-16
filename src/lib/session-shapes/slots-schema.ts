@@ -69,11 +69,22 @@ const RequestBase = {
   modifiers: ShapeProfileModifiersSchema,
 };
 
+/** A concrete worked example: a title and its steps (Brief 1.5 item 5). */
+export const WorkedExampleSchema = z.object({
+  title: z.string().trim().min(8).max(160),
+  steps: z.array(z.string().trim().min(8).max(300)).min(2).max(6),
+}).strict();
+export type WorkedExample = z.infer<typeof WorkedExampleSchema>;
+
 export const DirectionRequestSchema = z.object({
   ...RequestBase,
   action: z.literal("direction"),
   source: SourceDescriptionSchema,
   entry: z.enum(["study_full", "brief_review"]),
+  /** The learner's material, when an example should be drawn from it. */
+  excerpts: z.array(SourceExcerptSchema).max(8).default([]),
+  /** Examples-first learners (Q5 concrete_example / Q10 examples_before_ready). */
+  wantsExample: z.boolean().default(false),
 }).strict();
 
 export const LearnBlockRequestSchema = z.object({
@@ -133,6 +144,8 @@ export const DirectionResponseSchema = z.object({
   whatToLookAt: z.string().trim().min(8).max(300),
   howToApproach: z.string().trim().min(8).max(300),
   origin: z.enum(["generated", "template"]),
+  /** A worked example drawn only from the learner's material; null when none could be shown. */
+  example: WorkedExampleSchema.nullable(),
 }).strict();
 
 /**
@@ -147,6 +160,8 @@ export const LearnBlockResponseSchema = z.object({
   questions: z.array(PracticeQuestionSchema).min(3).max(8),
   /** The worked structure shown before producing, when the profile asks for one. */
   structure: z.array(z.string().trim().min(2).max(200)).min(2).max(8),
+  /** The explanation's own concrete example, restated as steps (Brief 1.5 item 5). */
+  example: WorkedExampleSchema,
 }).strict();
 
 /** Slot 3 — what is missing or wrong. Feedback, never a verdict. */

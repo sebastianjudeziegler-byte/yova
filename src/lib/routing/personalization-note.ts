@@ -13,8 +13,8 @@ export type PersonalizationNote = {
 
 const NOTE_TEMPLATES: ReadonlyArray<[prefix: string, sentence: (decision: RoutingDecision) => string]> = [
   ["C2.q9_visual_overrides_q6", () => "Because you asked for less text and more visual structure, you built a concept map instead of writing an explanation."],
-  ["L3.q5.concrete_example", () => "Because you said a concrete example helps most, YOVA showed the structure before asking you to produce."],
-  ["L3.q10.examples_before_ready", () => "Because you said you need examples before you feel ready, YOVA showed the structure before asking you to produce."],
+  ["L3.q5.concrete_example", () => "Because you said a concrete example helps most, YOVA showed a worked example before asking you to produce."],
+  ["L3.q10.examples_before_ready", () => "Because you said you need examples before you feel ready, YOVA showed a worked example before asking you to produce."],
   ["L3.q5.try_then_feedback", () => "Because you said trying first helps most, you produced before studying and then compared."],
   ["L3.q5.step_by_step", () => "Because you asked for step-by-step instructions, YOVA held the scaffolding one level higher and numbered the steps."],
   ["L3.q6.explain_back", () => "Because you prove knowledge by explaining, this session used the Feynman Technique."],
@@ -39,8 +39,17 @@ const NOTE_TEMPLATES: ReadonlyArray<[prefix: string, sentence: (decision: Routin
   ["L1.temporary.shape_b_not_built", () => "This procedural topic used a worked example as its source; the full worked-example route arrives in Week 2."],
 ];
 
-export function personalizationNote(route: SessionRoute): PersonalizationNote {
+/** Rules whose sentence claims an example was shown. */
+const EXAMPLE_CLAIM_RULE_IDS = new Set(["L3.q5.concrete_example", "L3.q10.examples_before_ready"]);
+
+/**
+ * `exampleShown: false` means the session could not show a worked example, so
+ * no sentence may claim one (Brief 1.5 item 5: never claim a personalization
+ * that did not happen). Omit it before a session has run.
+ */
+export function personalizationNote(route: SessionRoute, happened: { exampleShown?: boolean } = {}): PersonalizationNote {
   for (const [prefix, sentence] of NOTE_TEMPLATES) {
+    if (happened.exampleShown === false && EXAMPLE_CLAIM_RULE_IDS.has(prefix)) continue;
     const decision = route.decisions.find((candidate) => candidate.ruleId === prefix);
     if (decision) return { ruleId: decision.ruleId, sentence: sentence(decision) };
   }

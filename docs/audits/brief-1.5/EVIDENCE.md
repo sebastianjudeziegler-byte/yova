@@ -337,3 +337,52 @@ eight-question round.
 
 - Full unit suite: **4246 passed**, 93 skipped. `tsc` and `lint` clean.
 
+## Item 5 — Examples-first honesty
+
+### Before
+
+Q5 `concrete_example` / Q10 `examples_before_ready` add a step before the
+learner produces:
+
+- **With the learner's material:** the step had no learn block, so it listed the
+  two direction sentences.
+- **Without material:** it listed the explanation's outline.
+
+Neither is an example. The end note then said YOVA had shown one.
+
+### Decision: render a real example, or claim none
+
+- **No material:** the learn-block call (Slot 2) returns `example`, the
+  explanation's own concrete example restated as a title and steps, in the same
+  call. The step shows it, labelled "From the explanation."
+- **With material:** the direction call (Slot 1) is sent the learner's excerpts
+  and returns `example` taken only from them, or null. The step shows it,
+  labelled "From your material."
+- **No example:** when the direction template stands in, the material has no
+  readable text, or the model finds no example, the step says "No worked
+  example to show for this material." and the note falls back to the next rule.
+  Nothing claims an example.
+- **Note wording:** "…YOVA showed a worked example before asking you to
+  produce."
+
+### Standing rule added
+
+`06-STANDING-RULES.md`: never claim a personalization that did not happen.
+
+### Red — before
+
+**5 failed:** the note always claimed the example; learn blocks and directions
+had no example field; the template could not say "none".
+
+### Green — after
+
+- Full unit suite: **4250 passed**, 93 skipped. `tsc` and `lint` clean.
+- Focused local browser case (mocked Shape A examples-first session): **1
+  passed**. The worked example is visible with "From the explanation.", and
+  the end note claims the example.
+
+### Not covered in the browser
+
+The "no example" screen, for a source with no worked example, is covered by
+unit tests of the note and slots, not by a browser case.
+

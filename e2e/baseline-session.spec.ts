@@ -45,6 +45,7 @@ const LEARN_BLOCK = {
     question("q3", "k3", 0, "What directly drives ATP synthase in the electron transport chain?"),
   ],
   structure: ["Glucose enters the cell", "Glycolysis splits it into pyruvate", "The citric acid cycle loads carriers", "The electron transport chain drives ATP synthase"],
+  example: { title: "A sprinting muscle cell", steps: ["Glucose is split by glycolysis in the cytosol.", "Oxygen runs short, so pyruvate becomes lactate.", "NAD+ is regenerated and glycolysis keeps making ATP."] },
 };
 
 const COMPARISON = { action: "compare", feedback: "You covered glycolysis and ATP, but you didn't mention the proton gradient that drives ATP synthase.", missing: ["The proton gradient drives ATP synthase"], incorrect: [] };
@@ -64,7 +65,7 @@ async function mockShapeSlots(page: Page, calls: string[]) {
     const json = body.action === "learn_block" ? LEARN_BLOCK
       : body.action === "compare" ? COMPARISON
         : body.action === "practice" ? practiceResponse(body.round ?? 1)
-          : { action: "direction", whatToLookAt: "Review your notes on cellular respiration.", howToApproach: "Read for the mechanism, not the terms.", origin: "generated" };
+          : { action: "direction", whatToLookAt: "Review your notes on cellular respiration.", howToApproach: "Read for the mechanism, not the terms.", origin: "generated", example: null };
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(json) });
   });
 }
@@ -91,9 +92,12 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await expect(page.getByText(/Cellular respiration is how a cell releases/)).toBeVisible();
   await expect(page.getByText(KEY_POINTS[2].text)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
-  // Q5 concrete_example: the structure appears before producing.
-  await expect(page.getByRole("heading", { name: "Here is the shape of it before you produce." })).toBeVisible();
-  await expect(page.getByText("The electron transport chain drives ATP synthase")).toBeVisible();
+  // Q5 concrete_example: a worked example appears before producing.
+  // Brief 1.5 item 5: a real example from the explanation, not an outline or the directions presented as one.
+  await expect(page.getByTestId("baseline-worked-example")).toHaveAttribute("data-example-shown", "true");
+  await expect(page.getByRole("heading", { name: "A sprinting muscle cell" })).toBeVisible();
+  await expect(page.getByText("From the explanation.")).toBeVisible();
+  await expect(page.getByText("Oxygen runs short, so pyruvate becomes lactate.")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   // Q6 map_it: the produce step is a concept map with the source hidden.
   await expect(page.getByRole("heading", { name: "Map the concepts and links" })).toBeVisible();
@@ -115,7 +119,7 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
 
   const note = page.locator("[data-rule-id]");
   await expect(note).toHaveAttribute("data-rule-id", "L3.q5.concrete_example");
-  await expect(note).toContainText("Because you said a concrete example helps most");
+  await expect(note).toContainText("Because you said a concrete example helps most, YOVA showed a worked example");
   await expect(page.getByRole("heading", { name: "You studied, produced and compared." })).toBeVisible();
   await expect(page.getByText("Nothing else queued in this plan")).toBeVisible();
   // Development StrictMode mounts twice, so an aborted duplicate of the first

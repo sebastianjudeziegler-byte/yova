@@ -109,12 +109,12 @@ describe("Slot 2 — learn block in one call", () => {
 });
 
 describe("Slot 1 — direction", () => {
-  const request: DirectionRequest = { ...ids, action: "direction", topic, modifiers, source: { name: "Unit 3 slides", kind: "slides", location: "slides 12–20" }, entry: "study_full" };
+  const request: DirectionRequest = { ...ids, action: "direction", topic, modifiers, source: { name: "Unit 3 slides", kind: "slides", location: "slides 12–20" }, entry: "study_full", excerpts: [], wantsExample: false };
 
   it("uses the generated two sentences when the provider answers", async () => {
     const { provider } = providerReturning({ whatToLookAt: "Review your Unit 3 slides on glycolysis.", howToApproach: "Read for the mechanism, not the terms." });
     const result = await fillShapeSlot(request, provider as never);
-    expect(result).toEqual({ action: "direction", whatToLookAt: "Review your Unit 3 slides on glycolysis.", howToApproach: "Read for the mechanism, not the terms.", origin: "generated" });
+    expect(result).toEqual({ action: "direction", whatToLookAt: "Review your Unit 3 slides on glycolysis.", howToApproach: "Read for the mechanism, not the terms.", origin: "generated", example: null });
   });
 
   it("falls back to an honest template naming the learner's own material when the provider is absent or fails twice", async () => {
@@ -253,6 +253,36 @@ describe("Slot 2 and Slot 4 — question target", () => {
     const { provider, calls } = followingPrompt((slots) => ({ explanation, structure, keyPoints, questions: slots.map((slot) => draft(slot.slotId)) }));
     await fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers: { ...modifiers, questionTarget: 5 } }, provider as never);
     expect(slotsOf(calls[0]!)).toHaveLength(5);
+  });
+});
+
+// Brief 1.5 item 5: examples-first shows a real example or claims none.
+describe("worked examples for examples-first learners", () => {
+  const example = { title: "A sprinting muscle cell", steps: ["Glucose enters the cytosol.", "Glycolysis yields two pyruvate and two ATP.", "Without oxygen, pyruvate becomes lactate to regenerate NAD+."] };
+
+  it("a learn block returns the example from its own explanation, in the same call", async () => {
+    const { provider, calls } = followingPrompt((slots) => ({ explanation, keyPoints, structure, example, questions: slots.map((slot) => draft(slot.slotId)) }));
+    const result = await fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers }, provider as never);
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(result.action === "learn_block" && result.example).toEqual(example);
+    expect(calls[0]!.instructions).toMatch(/worked example/i);
+  });
+
+  const direction: DirectionRequest = { ...ids, action: "direction", topic, modifiers, source: { name: "Unit 3 slides", kind: "slides", location: "slides 12–20" }, entry: "study_full", excerpts: [], wantsExample: false };
+  const excerpt = { label: "Unit 3 slides, glycolysis", text: "A sprinting muscle cell runs glycolysis faster than oxygen can arrive; pyruvate is reduced to lactate so NAD+ is regenerated and glycolysis continues." };
+
+  it("a source-based block asks for an example only from the learner's material and returns it", async () => {
+    const { provider, calls } = providerReturning({ whatToLookAt: "Review your Unit 3 slides on glycolysis.", howToApproach: "Read for the mechanism, not the terms.", example });
+    const result = await fillShapeSlot({ ...direction, excerpts: [excerpt], wantsExample: true }, provider as never);
+    expect(result).toMatchObject({ action: "direction", origin: "generated", example });
+    expect((calls[0] as { instructions: string }).instructions).toMatch(/only from the supplied excerpts/i);
+  });
+
+  it("claims no example when the source has no readable text, or the template stands in", async () => {
+    const noText = providerReturning({ whatToLookAt: "Review your Unit 3 slides on glycolysis.", howToApproach: "Read for the mechanism, not the terms.", example: null });
+    expect(await fillShapeSlot({ ...direction, wantsExample: true }, noText.provider as never)).toMatchObject({ example: null });
+    expect(await fillShapeSlot({ ...direction, excerpts: [excerpt], wantsExample: true }, null)).toMatchObject({ action: "direction", example: null });
+    expect(templateDirection({ ...direction, excerpts: [excerpt], wantsExample: true }).example).toBeNull();
   });
 });
 

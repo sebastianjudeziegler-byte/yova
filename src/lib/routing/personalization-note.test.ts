@@ -26,6 +26,17 @@ describe("personalization note", () => {
     expect(note.sentence).toContain("Feynman Technique");
   });
 
+  // Brief 1.5 item 5: never claim a personalization that did not happen.
+  it("claims the example only when one was actually shown", () => {
+    const examplesFirst = route({}, { difficulty_help: "concrete_example" });
+    expect(personalizationNote(examplesFirst, { exampleShown: true })).toEqual({ ruleId: "L3.q5.concrete_example", sentence: "Because you said a concrete example helps most, YOVA showed a worked example before asking you to produce." });
+    const withoutExample = personalizationNote(examplesFirst, { exampleShown: false });
+    expect(withoutExample.ruleId).not.toBe("L3.q5.concrete_example");
+    expect(withoutExample.sentence).not.toMatch(/example/i);
+    const q10 = route({}, { extra_context: "examples_before_ready" });
+    expect(personalizationNote(q10, { exampleShown: false }).ruleId).not.toBe("L3.q10.examples_before_ready");
+  });
+
   it("is exactly one sentence", () => {
     for (const answers of [{}, { difficulty_help: "concrete_example" }, { support_needs: ["shorter_sections"] }, { extra_context: "forget_during_tests" }]) {
       const { sentence } = personalizationNote(route({}, answers as never));

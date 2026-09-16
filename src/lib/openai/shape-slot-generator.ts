@@ -8,6 +8,7 @@ import { planQuestionSlots, type QuestionMix, type QuestionSlot, type QuestionTy
 import { PRACTICE_TEST_QUESTION_COUNT, type PracticeRoundKind } from "@/lib/practice/practice-rounds";
 import {
   SHAPE_SLOT_HONEST_ERROR,
+  WorkedExampleSchema,
   type CompareRequest,
   type CompareResponse,
   type DirectionRequest,
@@ -110,6 +111,7 @@ async function withOneRetry<T>(attempt: () => Promise<T | null>, providerConfigu
 const DirectionDraftSchema = z.object({
   whatToLookAt: z.string().trim().min(8).max(300),
   howToApproach: z.string().trim().min(8).max(300),
+  example: WorkedExampleSchema.nullable(),
 }).strict();
 
 export function templateDirection(request: DirectionRequest): DirectionResponse {
@@ -127,6 +129,8 @@ export function templateDirection(request: DirectionRequest): DirectionResponse 
     whatToLookAt: `${verb} ${where} on ${request.topic.title}.`,
     howToApproach: approach,
     origin: "template",
+    // The template never invents an example; the screen must not claim one.
+    example: null,
   };
 }
 
@@ -137,15 +141,20 @@ async function fillDirection(request: DirectionRequest, provider: SlotProvider |
   if (!provider) return templateDirection(request);
   try {
     return await withOneRetry(async () => {
+      // Brief 1.5 item 5: an example only from the learner's own text, never invented.
+      const withExample = request.wantsExample && request.excerpts.length > 0;
+      const exampleInstruction = withExample
+        ? "Also return example: one concrete worked example of the topic taken only from the supplied excerpts, as a short title and 2–6 steps in the material's own terms; return null if the excerpts contain no worked example."
+        : "Return example as null.";
       const draft = await provider({
-        instructions: `You write the first step of a study session in YOVA. Return exactly two sentences as separate fields. Sentence one names what to look at in the learner's own material (use the supplied source name and location; never invent pages, chapters or titles). Sentence two says how to approach it for the coming produce step. ${request.modifiers.instructionStyle === "plain_restated" ? "Use plain, simple language." : ""} ${request.entry === "brief_review" ? "This is a brief review of material the learner has already shown they know." : ""} ${UNTRUSTED}`,
-        input: JSON.stringify({ topic: request.topic, source: request.source, produceStep: request.modifiers.produceStep }),
+        instructions: `You write the first step of a study session in YOVA. Return exactly two sentences as separate fields. Sentence one names what to look at in the learner's own material (use the supplied source name and location; never invent pages, chapters or titles). Sentence two says how to approach it for the coming produce step. ${exampleInstruction} ${request.modifiers.instructionStyle === "plain_restated" ? "Use plain, simple language." : ""} ${request.entry === "brief_review" ? "This is a brief review of material the learner has already shown they know." : ""} ${UNTRUSTED}`,
+        input: JSON.stringify({ topic: request.topic, source: request.source, produceStep: request.modifiers.produceStep, ...(withExample ? { excerpts: request.excerpts } : {}) }),
         schema: DirectionDraftSchema,
         schemaName: "yova_shape_direction",
-        maxOutputTokens: 300,
-        cacheKey: "yova-shape-direction-v1",
+        maxOutputTokens: withExample ? 900 : 300,
+        cacheKey: "yova-shape-direction-v2",
       });
-      return draft ? { action: "direction" as const, ...draft, origin: "generated" as const } : null;
+      return draft ? { action: "direction" as const, whatToLookAt: draft.whatToLookAt, howToApproach: draft.howToApproach, origin: "generated" as const, example: withExample ? draft.example : null } : null;
     }, true);
   } catch {
     return templateDirection(request);
@@ -187,6 +196,7 @@ const LearnBlockDraftSchema = z.object({
   keyPoints: z.array(KeyPointSchema).min(3).max(5),
   questions: z.array(QuestionDraftSchema).min(1).max(8),
   structure: z.array(z.string().trim().min(2).max(200)).min(2).max(8),
+  example: WorkedExampleSchema,
 }).strict();
 
 function learnBlockInstructions(request: LearnBlockRequest, plan: ReturnType<typeof firstRoundPlan>) {
@@ -204,6 +214,7 @@ function learnBlockInstructions(request: LearnBlockRequest, plan: ReturnType<typ
 2. keyPoints: exactly ${count} key points derived only from the explanation, with ids ${plan.keyPointIds.join(", ")} in that order.
 3. questions: ${questionSlotInstructions(plan.slots)} A question may only test what the explanation states.
 4. structure: the explanation's skeleton as 2–8 short lines, in order, for a learner who wants to see the structure before producing.
+5. example: the explanation's one concrete worked example, restated as a short title and 2–6 steps, for a learner who wants an example first. Use only the example the explanation gives.
 ${UNTRUSTED}`;
 }
 
@@ -221,7 +232,7 @@ async function fillLearnBlock(request: LearnBlockRequest, provider: SlotProvider
     if (!draft || !sameIds(draft.keyPoints, plan.keyPointIds)) return null;
     const composed = composePracticeRound({ keyPoints: draft.keyPoints, slots: plan.slots, drafts: draft.questions });
     if (!composed.ok) return null;
-    return { action: "learn_block" as const, explanation: draft.explanation, keyPoints: draft.keyPoints, questions: composed.questions, structure: draft.structure };
+    return { action: "learn_block" as const, explanation: draft.explanation, keyPoints: draft.keyPoints, questions: composed.questions, structure: draft.structure, example: draft.example };
   }, provider !== null);
 }
 

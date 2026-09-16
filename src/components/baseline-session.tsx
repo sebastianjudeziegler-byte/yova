@@ -126,7 +126,6 @@ export function BaselineSession(props: BaselineSessionProps) {
     questionCap: route.questionCap,
     questionTarget: route.questionTarget,
   }), [route.explanationFocus, route.instructionStyle, route.produceStep, route.questionCap, route.questionMix, route.questionTarget]);
-  const note = useMemo(() => personalizationNote(route), [route]);
 
   // ---------------------------------------------------------------- timer
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -167,6 +166,10 @@ export function BaselineSession(props: BaselineSessionProps) {
   const [compareStatus, setCompareStatus] = useState<SlotStatus>("idle");
   const [compareError, setCompareError] = useState<string | null>(null);
   const [practiceKeyPoints, setPracticeKeyPoints] = useState<KeyPoint[]>([]);
+  // Brief 1.5 item 5: examples-first may only be claimed when an example was shown.
+  const shownExample = learnBlock?.example ?? direction?.example ?? null;
+  const exampleShown = route.workedStructureBeforeProduce ? shownExample !== null : undefined;
+  const note = useMemo(() => personalizationNote(route, { exampleShown }), [route, exampleShown]);
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => () => abortRef.current?.abort(), []);
   const planId = plan.id;
@@ -175,7 +178,7 @@ export function BaselineSession(props: BaselineSessionProps) {
   const sourceDescription = source.description;
   const requestStudySlot = useCallback((signal: AbortSignal) => {
     const request = route.learnPath === "source" && sourceDescription
-      ? requestDirection({ ...makeSlotIds(), planId, planSessionId, action: "direction", topic: slotTopic, modifiers, source: sourceDescription, entry: route.entry === "brief_review" ? "brief_review" : "study_full" }, signal)
+      ? requestDirection({ ...makeSlotIds(), planId, planSessionId, action: "direction", topic: slotTopic, modifiers, source: sourceDescription, entry: route.entry === "brief_review" ? "brief_review" : "study_full", excerpts: route.workedStructureBeforeProduce ? source.excerpts.slice(0, 8) : [], wantsExample: route.workedStructureBeforeProduce }, signal)
         .then((result) => { setDirection(result); })
       : requestLearnBlock({ ...makeSlotIds(), planId, planSessionId, action: "learn_block", topic: slotTopic, modifiers }, signal)
         .then((result) => { setLearnBlock(result); setPracticeKeyPoints(result.keyPoints); });
@@ -185,7 +188,7 @@ export function BaselineSession(props: BaselineSessionProps) {
       setLearnError(message);
       setLearnStatus("error");
     });
-  }, [route.learnPath, route.entry, sourceDescription, slotTopic, modifiers, planId, planSessionId]);
+  }, [route.learnPath, route.entry, route.workedStructureBeforeProduce, source.excerpts, sourceDescription, slotTopic, modifiers, planId, planSessionId]);
 
   const needsStudySlot = started && !inQuestions && (
     (route.shape === "A" && (aStep?.kind === "direct" || aStep?.kind === "explanation" || aStep?.kind === "worked_structure"))
@@ -518,12 +521,24 @@ function ShapeAStepCard({ step, route, state, restate, direction, learnBlock, le
     </section>;
   }
   if (step === "worked_structure") {
-    return <section className={styles.card}>
-      <span className="step-label">THE STRUCTURE FIRST</span>
-      <h2>Here is the shape of it before you produce.</h2>
-      {learnStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Preparing the structure…</p>}
+    // Brief 1.5 item 5: a real example from the explanation or the learner's
+    // material, or an honest statement that there is none. Never a repeat of
+    // the directions presented as an example.
+    const example = learnBlock?.example ?? direction?.example ?? null;
+    const settled = learnStatus === "ready";
+    return <section className={styles.card} data-testid="baseline-worked-example" data-example-shown={example !== null}>
+      <span className="step-label">{example ? "A WORKED EXAMPLE FIRST" : "BEFORE YOU PRODUCE"}</span>
+      {learnStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Preparing the example…</p>}
       {learnStatus === "error" && <HonestError message={learnError} onRetry={onRetryStudy} onExit={onExit} />}
-      <ol className={styles.structure}>{(learnBlock?.structure ?? (direction ? [direction.whatToLookAt, direction.howToApproach] : [])).map((line, index) => <li key={index}>{line}</li>)}</ol>
+      {example && <>
+        <h2>{example.title}</h2>
+        <p className={styles.progressLine}>{learnBlock?.example ? "From the explanation." : "From your material."}</p>
+        <ol className={styles.structure}>{example.steps.map((line, index) => <li key={index}>{line}</li>)}</ol>
+      </>}
+      {settled && !example && <>
+        <h2>No worked example to show for this material.</h2>
+        <p>YOVA could not find a worked example in your material, so produce straight from what you studied.</p>
+      </>}
       <div className={styles.actions}><button type="button" className="button primary" onClick={onContinue}>Continue <ArrowRight size={16} /></button></div>
     </section>;
   }
