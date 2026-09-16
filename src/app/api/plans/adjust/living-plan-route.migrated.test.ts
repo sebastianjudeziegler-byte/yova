@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { DELTA_NOW, deltaFixture, deltaTopicId, deterministicDeltaPlan } from "@/evals/personalization-delta-fixture";
 
@@ -23,7 +24,19 @@ import { PATCH } from "@/app/api/plans/adjust/route";
 const url = process.env.YOVA_MIGRATED_SUPABASE_URL;
 const publishableKey = process.env.YOVA_MIGRATED_SUPABASE_PUBLISHABLE_KEY;
 const secretKey = process.env.YOVA_MIGRATED_SUPABASE_SECRET_KEY;
-const configured = Boolean(url && publishableKey && secretKey);
+const databaseContainer = process.env.YOVA_MIGRATED_DB_CONTAINER;
+const configured = Boolean(url && publishableKey && secretKey && databaseContainer);
+
+// The service role is deliberately denied plan_sessions, so raw rows are read,
+// and the pre-fix shape is written, as the database owner - the way the pgTAP
+// suites do. The route itself only ever sees the signed-in learner's client.
+function ownerSql(sql: string) {
+  return execFileSync("docker", ["exec", "-i", databaseContainer!, "psql", "-U", "postgres", "-d", "postgres", "-X", "-q", "-At", "-v", "ON_ERROR_STOP=1"], { input: sql, encoding: "utf8" }).trim();
+}
+function uuid(value: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value)) throw new Error(`not a uuid: ${value}`);
+  return value;
+}
 
 // CI sets this so a missing database fails the run instead of skipping silently.
 describe.runIf(process.env.YOVA_REQUIRE_MIGRATED_ROUTE_TEST)("migrated-database route coverage", () => {
@@ -69,13 +82,10 @@ describe.skipIf(!configured)("plan adjustment route against a migrated database"
     await expect(persistPlanForAuthenticatedUser(plan, fixture.request, new Date().toISOString())).resolves.toBe("supabase");
   });
 
-  it("stores an empty reviewed-edit list for sessions the learner never edited", async () => {
-    const stored = await clients.admin.from("plan_sessions").select("id,step_data").eq("plan_id", planId);
-    expect(stored.error, `could not read the saved sessions: ${stored.error?.message}`).toBeNull();
-    expect(stored.data!.length).toBeGreaterThan(0);
-    for (const row of stored.data!) {
-      expect((row.step_data as Record<string, unknown>).revisionEditedFields).toEqual([]);
-    }
+  it("stores an empty reviewed-edit list for sessions the learner never edited", () => {
+    const stored = ownerSql(`select coalesce((step_data->'revisionEditedFields')::text, '<absent>') from public.plan_sessions where plan_id = '${uuid(planId)}' order by sequence;`).split("\n");
+    expect(stored.length).toBe(plan.sessions.length);
+    expect(stored.every(value => value === "[]"), `stored edit lists: ${stored.join(", ")}`).toBe(true);
   });
 
   it("returns a preview instead of the 503 every plan saved after 202609090001 used to get", async () => {
@@ -87,12 +97,9 @@ describe.skipIf(!configured)("plan adjustment route against a migrated database"
   });
 
   it("still previews a plan whose sessions were stored before the fix", async () => {
-    const stored = await clients.admin.from("plan_sessions").select("id,step_data").eq("plan_id", planId).limit(1);
-    const row = stored.data![0]!;
-    const legacy = await clients.admin.from("plan_sessions")
-      .update({ step_data: { ...(row.step_data as Record<string, unknown>), revisionEditedFields: null } })
-      .eq("id", row.id);
-    expect(legacy.error, `could not restore the pre-fix shape: ${legacy.error?.message}`).toBeNull();
+    const rewritten = ownerSql(`update public.plan_sessions set step_data = jsonb_set(step_data, '{revisionEditedFields}', 'null'::jsonb) where plan_id = '${uuid(planId)}' returning id;`);
+    expect(rewritten.split("\n").filter(Boolean)).toHaveLength(plan.sessions.length);
+    expect(ownerSql(`select count(*) from public.plan_sessions where plan_id = '${uuid(planId)}' and step_data->'revisionEditedFields' = 'null'::jsonb;`)).toBe(String(plan.sessions.length));
 
     const { status, body } = await preview();
     expect(body.error ?? null, `a stored null edit list still breaks the preview: ${body.error}`).toBeNull();
