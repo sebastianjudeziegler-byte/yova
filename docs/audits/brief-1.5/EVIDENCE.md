@@ -226,3 +226,76 @@ written to `test-results/live-gate/question-mix.json`. **Not yet run.**
 - The live check and the live retry spec on the new question shape run in
   CI on this push.
 
+## Item 3 — Practice labels
+
+### What changed
+
+- **Routing** records which round a Shape C block opens with
+  (`route.firstPracticeRound`), and names the method after it:
+  - `L4.practice.practice_test.deadline_within_3_days`: a practice block whose
+    plan deadline is 0–3 days away opens with a **Practice Test**;
+  - `L4.practice.interleaved_review.related_topics_passed`: otherwise, if two
+    or more prerequisite-linked topics have each passed once, an
+    **Interleaved Review**;
+  - `L4.practice.active_recall.default`: otherwise **Active Recall**;
+  - `C7.practice_test_over_interleaved`: recorded when both could fire;
+  - `L4.practice.error_repair.after_missed_round`: always recorded for Shape C.
+    Any round after a miss is **Error Repair**.
+- **Each label is a different round, not a relabel.** The practice request
+  carries `roundKind`, and the model gets different framing:
+  - **Practice Test:** exam-style, and eight questions regardless of the
+    profile's usual cap.
+  - **Interleaved Review:** the key points of the passed related topics, mixed,
+    with questions that force deciding which idea applies.
+  - **Error Repair:** built only from missed points. `repairTargets` carries each
+    missed question, the answer chosen and the correct answer, and the model
+    targets the same reasoning error in a new question.
+- **Routing input:** `routingInputForSession` adds `daysToDeadline` and
+  `passedRelatedTopicIds` from the plan and the learner's completion records.
+- **Learner-visible:** the question card reads "Error Repair round. Recall
+  question. No source shown." and carries `data-practice-round`. The method line
+  names the opening round ("Method: Practice Test").
+
+### Decisions taken
+
+| Question | Decision |
+|---|---|
+| Practice Test vs Interleaved when both fire | Practice Test (founder-approved): the exam comes first. Recorded as `C7.practice_test_over_interleaved`. |
+| Learn blocks | A learn block's first round uses the questions generated with its explanation and stays Active Recall. Practice Test and Interleaved Review fire on practice blocks only. |
+| Past deadline | No Practice Test once the deadline has passed. |
+| "Passed once" | A completion in which every checked key point for that topic was secure. |
+| "Related" | The session's topic plus topics linked to it by a prerequisite in either direction (Brief 2's topic relationships will replace this, per the brief). |
+| What an Interleaved Review sweeps | The key point texts from those clean completions, ids `t{topic}k{n}`, deduplicated, at most eight. |
+| Error Repair on a two-point question | One repair target per missed question, keyed to its first key point; both points are still outstanding. |
+| Known limitation | An Interleaved Review's outcomes are recorded against the session's topic, because completion evidence is per session topic. Noted for Brief 2. |
+
+### Red — before
+
+`practice-rounds.test.ts` failed to import (module missing). **11 failed** in
+routing, route-for-session and the slot generator: no practice round kinds,
+no deadline or passed-topic input, and no per-kind framing, counts or repair
+targets.
+
+### Green — after
+
+- Full unit suite: **4229 passed**, 93 skipped. `tsc` and `lint` clean.
+- Focused local browser case (mocked Shape C session): **1 passed**, now
+  asserting "Active Recall round." on round one, and `error_repair` plus
+  "Error Repair round." on round two.
+
+### Live samples (gate: every label firing, with its rule ID)
+
+`e2e/baseline-practice-retry.live.spec.ts` now runs 8 live cases on desktop and
+mobile against the real model, each asserting the round kind on screen, the
+rule ID on the session, and the round kind the server received, with a
+screenshot per label:
+
+- **Active Recall → Error Repair:** the one- and two-point retries. Error Repair
+  carries its repair targets.
+- **Practice Test:** a practice block due in two days. Eight questions,
+  "Method: Practice Test".
+- **Interleaved Review:** a practice block whose topic and its prerequisite
+  each passed once. The request sweeps key points from both topics.
+
+**Not yet run.** CI runs them on this push.
+

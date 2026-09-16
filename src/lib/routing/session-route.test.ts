@@ -343,6 +343,47 @@ describe("Layer 4 — modifiers never change the shape", () => {
     expect(routeSession(input()).ruleIds.filter((id) => id.includes(".mix_"))).toEqual([]);
   });
 
+  // Brief 1.5 item 3: which practice round a practice block opens with, by rule.
+  it("a practice block opens with Active Recall by default and records the Error Repair rule", () => {
+    const route = routeSession(input({ blockKind: "practice" }));
+    expect(route.firstPracticeRound).toBe("active_recall");
+    expect(route.methodName).toBe("Active Recall");
+    expect(route.ruleIds).toEqual(expect.arrayContaining(["L4.practice.active_recall.default", "L4.practice.error_repair.after_missed_round"]));
+  });
+
+  it("a deadline within three days makes it a Practice Test", () => {
+    const route = routeSession(input({ blockKind: "practice", daysToDeadline: 2.5 }));
+    expect(route.firstPracticeRound).toBe("practice_test");
+    expect(route.methodId).toBe("practice_test_error_repair");
+    expect(route.methodName).toBe("Practice Test");
+    expect(route.ruleIds).toContain("L4.practice.practice_test.deadline_within_3_days");
+    expect(routeSession(input({ blockKind: "practice", daysToDeadline: 3.5 })).firstPracticeRound).toBe("active_recall");
+    expect(routeSession(input({ blockKind: "practice", daysToDeadline: -1 })).firstPracticeRound).toBe("active_recall");
+  });
+
+  it("two or more related topics that each passed once make it an Interleaved Review", () => {
+    const route = routeSession(input({ blockKind: "practice", passedRelatedTopicIds: ["t1", "t2"] }));
+    expect(route.firstPracticeRound).toBe("interleaved_review");
+    expect(route.methodId).toBe("interleaved_practice");
+    expect(route.methodName).toBe("Interleaved Review");
+    expect(route.ruleIds).toContain("L4.practice.interleaved_review.related_topics_passed");
+    expect(routeSession(input({ blockKind: "practice", passedRelatedTopicIds: ["t1"] })).firstPracticeRound).toBe("active_recall");
+  });
+
+  it("the Practice Test wins when both could fire, and says so", () => {
+    const route = routeSession(input({ blockKind: "practice", daysToDeadline: 1, passedRelatedTopicIds: ["t1", "t2"] }));
+    expect(route.firstPracticeRound).toBe("practice_test");
+    expect(route.ruleIds).toEqual(expect.arrayContaining(["L4.practice.practice_test.deadline_within_3_days", "C7.practice_test_over_interleaved"]));
+    expect(route.ruleIds).not.toContain("L4.practice.interleaved_review.related_topics_passed");
+  });
+
+  it("a learn block's questions stay Active Recall", () => {
+    const route = routeSession(input({ taskType: "memorization", blockKind: "learn", daysToDeadline: 1, passedRelatedTopicIds: ["t1", "t2"] }));
+    expect(route.shape).toBe("C");
+    expect(route.firstPracticeRound).toBe("active_recall");
+    expect(route.ruleIds).not.toContain("L4.practice.practice_test.deadline_within_3_days");
+  });
+
   it("Q9 shorter_sections trims the timer and caps questions at five", () => {
     const route = routeSession(input({ answers: answersOf({ session_length: "minutes_45_60", support_needs: ["shorter_sections"] }) }));
     expect(route.timerMinutes).toBe(41);

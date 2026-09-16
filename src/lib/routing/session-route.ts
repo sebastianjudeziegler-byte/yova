@@ -1,5 +1,6 @@
 import { CORE_METHOD_CATALOG, type CoreMethodId, type LearningTaskType } from "@/lib/learning/method-catalog";
 import { questionMixFor, QUESTION_TYPES, TASK_TYPE_QUESTION_MIX, type QuestionMix } from "@/lib/practice/question-mix";
+import { INTERLEAVED_MINIMUM_PASSED_TOPICS, PRACTICE_ROUND_LABEL, PRACTICE_ROUND_METHOD, PRACTICE_ROUND_RULE_ID, PRACTICE_TEST_DEADLINE_DAYS, type FirstPracticeRoundKind } from "@/lib/practice/practice-rounds";
 import {
   onboardingAnswerId,
   onboardingSupportNeeds,
@@ -34,6 +35,10 @@ export type RoutingInput = {
   /** Only consulted for `mixed_assessment`: whether the topic contains problems. */
   topicHasProblems: boolean;
   answers: OnboardingAnswers;
+  /** Days until the plan deadline (fractional); null when there is no future deadline. Brief 1.5 item 3. */
+  daysToDeadline?: number | null;
+  /** Prerequisite-linked topics, this one included, that have each passed a practice round clean at least once. */
+  passedRelatedTopicIds?: string[];
 };
 
 export type SessionShape = "A" | "C";
@@ -83,6 +88,8 @@ export type SessionRoute = {
   /** Question-type counts for a five-question round (Brief 1.5 item 2); scaled to the round size in code. */
   questionMix: QuestionMix;
   practiceRoundCeiling: number;
+  /** Which practice round a Shape C block opens with; later rounds are Error Repair (Brief 1.5 item 3). */
+  firstPracticeRound: FirstPracticeRoundKind;
   instructionStyle: InstructionStyle;
   stoppingPoints: StoppingPoints;
   pacePrompts: boolean;
@@ -323,6 +330,27 @@ export function routeSession(input: RoutingInput): SessionRoute {
     decide({ layer: 4, ruleId: "L4.q7.detail_leaning.mix_compare_contrast", field: "questionMix", value: formatMix(questionMix), reason: "You know details but lose how they fit, so one more question asks you to compare two ideas." });
   }
 
+  // Practice rounds (Brief 1.5 item 3): which round a Shape C practice block
+  // opens with. A learn block's questions come with its explanation and stay
+  // Active Recall. Any later round follows a miss and is Error Repair.
+  let firstPracticeRound: FirstPracticeRoundKind = "active_recall";
+  if (shape === "C") {
+    const daysToDeadline = input.daysToDeadline ?? null;
+    const deadlineSoon = input.blockKind === "practice" && daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= PRACTICE_TEST_DEADLINE_DAYS;
+    const interleavable = input.blockKind === "practice" && (input.passedRelatedTopicIds?.length ?? 0) >= INTERLEAVED_MINIMUM_PASSED_TOPICS;
+    if (deadlineSoon) {
+      firstPracticeRound = "practice_test";
+      decide({ layer: 4, ruleId: PRACTICE_ROUND_RULE_ID.practice_test, field: "firstPracticeRound", value: firstPracticeRound, reason: "Your deadline is within three days, so practice runs as a longer exam-style practice test." });
+      if (interleavable) decide({ layer: "conflict", ruleId: "C7.practice_test_over_interleaved", field: "firstPracticeRound", value: firstPracticeRound, reason: "Related topics could be interleaved, but the exam is close, so the practice test comes first." });
+    } else if (interleavable) {
+      firstPracticeRound = "interleaved_review";
+      decide({ layer: 4, ruleId: PRACTICE_ROUND_RULE_ID.interleaved_review, field: "firstPracticeRound", value: firstPracticeRound, reason: "You have passed related topics once each, so practice mixes them and asks which idea applies." });
+    } else {
+      decide({ layer: 4, ruleId: PRACTICE_ROUND_RULE_ID.active_recall, field: "firstPracticeRound", value: firstPracticeRound, reason: "Practice opens with closed-book recall of this topic." });
+    }
+    decide({ layer: 4, ruleId: PRACTICE_ROUND_RULE_ID.error_repair, field: "retryRound", value: "error_repair", reason: "A round after a miss is built only from what you missed and targets the reasoning error behind it." });
+  }
+
   // ---------------------------------------------------------------- Layer 5
   let visibility: MethodVisibility;
   if (q4 === "exact_guidance") {
@@ -338,7 +366,7 @@ export function routeSession(input: RoutingInput): SessionRoute {
 
   // ---------------------------------------------------------------- Output
   const briefStudyStepActive = shape === "C" && input.blockKind === "learn" && briefStudyStep;
-  const method = resolveMethod({ shape, shapeVariant, produceStep, layer1 });
+  const method = resolveMethod({ shape, shapeVariant, produceStep, layer1, firstPracticeRound });
   decide({ layer: "conflict", ruleId: "C6.rule_ids_recorded", field: "methodId", value: method.id, reason: `Every decision above is recorded; the session runs ${method.name}.` });
 
   return {
@@ -362,6 +390,7 @@ export function routeSession(input: RoutingInput): SessionRoute {
     questionMinimum: PRACTICE_QUESTION_MINIMUM,
     questionMix,
     practiceRoundCeiling,
+    firstPracticeRound,
     instructionStyle,
     stoppingPoints,
     pacePrompts,
@@ -414,10 +443,11 @@ function layerOneShape(input: RoutingInput): LayerOneResult {
   }
 }
 
-function resolveMethod({ shape, shapeVariant, produceStep, layer1 }: { shape: SessionShape; shapeVariant: ShapeAVariant; produceStep: ProduceStep | null; layer1: LayerOneResult }): { id: CoreMethodId; name: string } {
+function resolveMethod({ shape, shapeVariant, produceStep, layer1, firstPracticeRound }: { shape: SessionShape; shapeVariant: ShapeAVariant; produceStep: ProduceStep | null; layer1: LayerOneResult; firstPracticeRound: FirstPracticeRoundKind }): { id: CoreMethodId; name: string } {
+  // Shape C names the practice round it opens with (Brief 1.5 item 3).
+  if (shape === "C") return { id: PRACTICE_ROUND_METHOD[firstPracticeRound], name: PRACTICE_ROUND_LABEL[firstPracticeRound] };
   let id: CoreMethodId;
-  if (shape === "C") id = "retrieval_practice";
-  else if (shapeVariant === "sq3r") id = "read_recall_review";
+  if (shapeVariant === "sq3r") id = "read_recall_review";
   else if (shapeVariant === "outline_from_memory") id = "retrieval_based_outlining";
   else if (shapeVariant === "worked_example_source") id = produceStep === "worked_solution" ? "practice_problems" : "worked_example_fading";
   else id = METHOD_FOR_PRODUCE_STEP[produceStep ?? layer1.defaultProduceStep];

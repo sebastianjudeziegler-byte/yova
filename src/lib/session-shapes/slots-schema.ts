@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PRACTICE_ROUND_KINDS } from "@/lib/practice/practice-rounds";
 import { LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import { KeyPointSchema, PracticeQuestionSchema } from "@/lib/practice/compose-practice";
 
@@ -100,6 +101,15 @@ export const PracticeRequestSchema = z.object({
   excerpts: z.array(SourceExcerptSchema).max(8).default([]),
   /** A nonce so every attempt gets fresh questions rather than a cached bank. */
   attempt: z.string().uuid(),
+  /** Which practice round this is (Brief 1.5 item 3); decided in code from the route and the round number. */
+  roundKind: z.enum(PRACTICE_ROUND_KINDS).default("active_recall"),
+  /** Error Repair only: each missed question, the answer chosen and the correct answer. */
+  repairTargets: z.array(z.object({
+    keyPointId: z.string().trim().min(1).max(40),
+    question: z.string().trim().min(8).max(500),
+    chosenAnswer: z.string().trim().min(1).max(240),
+    correctAnswer: z.string().trim().min(1).max(240),
+  }).strict()).max(8).default([]),
 }).strict();
 
 export const ShapeSlotRequestSchema = z.discriminatedUnion("action", [

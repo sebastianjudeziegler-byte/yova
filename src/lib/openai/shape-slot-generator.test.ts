@@ -151,7 +151,7 @@ describe("Slot 3 — comparison is feedback, never a verdict", () => {
 
 describe("Slot 4 — fresh practice checked in code", () => {
   const supplied = keyPoints.slice(0, 3);
-  const request: PracticeRequest = { ...ids, action: "practice", topic, modifiers, round: 1, keyPoints: supplied, outstandingKeyPointIds: [], excerpts: [], attempt: "66666666-6666-4666-8666-666666666666" };
+  const request: PracticeRequest = { ...ids, action: "practice", topic, modifiers, round: 1, keyPoints: supplied, outstandingKeyPointIds: [], excerpts: [], attempt: "66666666-6666-4666-8666-666666666666", roundKind: "active_recall", repairTargets: [] };
   const answer = (points: typeof keyPoints) => (slots: Slot[]) => ({ keyPoints: points, questions: slots.map((slot) => draft(slot.slotId)) });
 
   it("keeps the supplied key points and binds every question to a planned slot", async () => {
@@ -204,3 +204,39 @@ describe("Slot 4 — fresh practice checked in code", () => {
     await expect(fillShapeSlot(request, provider as never)).rejects.toMatchObject({ code: "generation_failed" });
   });
 });
+
+// Brief 1.5 item 3: each practice label is a different round, not a relabel.
+describe("Slot 4 — practice round kinds", () => {
+  const supplied = keyPoints.slice(0, 3);
+  const base: PracticeRequest = { ...ids, action: "practice", topic, modifiers: { ...modifiers, questionCap: 5 }, round: 1, keyPoints: supplied, outstandingKeyPointIds: [], excerpts: [], attempt: "77777777-7777-4777-8777-777777777777", roundKind: "active_recall", repairTargets: [] };
+  const answer = (points: typeof keyPoints) => (slots: Slot[]) => ({ keyPoints: points, questions: slots.map((slot) => draft(slot.slotId)) });
+
+  it("a Practice Test asks a longer exam-style set of eight, even when the profile caps rounds at five", async () => {
+    const { provider, calls } = followingPrompt(answer(supplied));
+    const result = await fillShapeSlot({ ...base, roundKind: "practice_test" }, provider as never);
+    expect(result.action === "practice" && result.questions).toHaveLength(8);
+    expect(calls[0]!.instructions).toMatch(/exam/i);
+  });
+
+  it("Error Repair sends each missed question and the answer chosen, and asks for the same reasoning error", async () => {
+    const repairTargets = [{ keyPointId: "k2", question: "What is the net ATP gain of glycolysis?", chosenAnswer: "Four", correctAnswer: "Two" }];
+    const { provider, calls } = followingPrompt(answer([supplied[1]!]));
+    const result = await fillShapeSlot({ ...base, round: 2, outstandingKeyPointIds: ["k2"], roundKind: "error_repair", repairTargets }, provider as never);
+    expect(result.action === "practice" && result.questions).toHaveLength(1);
+    expect(JSON.parse(calls[0]!.input).repairTargets).toEqual(repairTargets);
+    expect(calls[0]!.instructions).toMatch(/same reasoning error/i);
+  });
+
+  it("an Interleaved Review asks the learner to decide which idea applies across topics", async () => {
+    const { provider, calls } = followingPrompt(answer(supplied));
+    await fillShapeSlot({ ...base, roundKind: "interleaved_review" }, provider as never);
+    expect(calls[0]!.instructions).toMatch(/which idea applies/i);
+  });
+
+  it("Active Recall keeps the ordinary framing", async () => {
+    const { provider, calls } = followingPrompt(answer(supplied));
+    await fillShapeSlot(base, provider as never);
+    expect(calls[0]!.instructions).not.toMatch(/exam|same reasoning error|which idea applies/i);
+  });
+});
+

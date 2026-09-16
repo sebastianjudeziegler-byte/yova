@@ -44,9 +44,9 @@ export type QuestionDraft = z.infer<typeof QuestionDraftSchema>;
  * standard and must not demand three questions from one or two points
  * (Brief 1.5 item 1: that mismatch returned 502 on the ordinary retry).
  */
-export function roundQuestionCount({ round, keyPointCount, questionCap }: { round: number; keyPointCount: number; questionCap: number }) {
+export function roundQuestionCount({ round, keyPointCount, questionCap, baseSize = BASE_MIX_SIZE }: { round: number; keyPointCount: number; questionCap: number; baseSize?: number }) {
   if (round > 1) return Math.max(1, Math.min(questionCap, keyPointCount));
-  return Math.max(1, Math.min(questionCap, Math.max(BASE_MIX_SIZE, keyPointCount)));
+  return Math.max(1, Math.min(questionCap, Math.max(baseSize, keyPointCount)));
 }
 
 /** Key points a generated first round derives: three to five, never more than it has questions for. */

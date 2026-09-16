@@ -147,7 +147,7 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   const shell = page.locator("[data-shape]");
   await expect(shell).toHaveAttribute("data-shape", "C");
   const ruleIds = (await shell.getAttribute("data-rule-ids"))?.split(" ") ?? [];
-  expect(ruleIds).toEqual(expect.arrayContaining(["L1.memorization.learn", "L2.not_assessed.shape_c", "L4.mix.memorization", "L4.q7.gist_leaning.mix_recall", "L4.q10.forget_during_tests"]));
+  expect(ruleIds).toEqual(expect.arrayContaining(["L1.memorization.learn", "L2.not_assessed.shape_c", "L4.mix.memorization", "L4.q7.gist_leaning.mix_recall", "L4.practice.active_recall.default", "L4.practice.error_repair.after_missed_round", "L4.q10.forget_during_tests"]));
   await expect(page.getByText("Method: Active Recall")).toBeVisible();
   // A memorization learn block is a learn block that runs Shape C.
   await expect(page.getByText(/LEARN BLOCK ·/)).toBeVisible();
@@ -157,7 +157,7 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
 
   await expect(page.getByText("No source shown.")).toBeVisible();
   // Brief 1.5 item 2: the screen names the question's real type instead of claiming an order.
-  await expect(page.getByText("Recall question. No source shown.")).toBeVisible();
+  await expect(page.getByText("Active Recall round. Recall question. No source shown.")).toBeVisible();
   // Round 1 uses the questions generated with the explanation; miss the second one.
   await expect(page.getByTestId("baseline-question")).toContainText("ROUND 1 · QUESTION 1 OF 3");
   await expect(page.getByTestId("baseline-question")).toContainText(LEARN_BLOCK.questions[0].prompt);
@@ -176,6 +176,9 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   await page.getByRole("button", { name: "Start round 2" }).click();
   // Round 2 covers only the missed key point, with fresh questions from Slot 4.
   await expect(page.getByTestId("baseline-question")).toContainText("ROUND 2 · QUESTION 1 OF 1");
+  // Brief 1.5 item 3: a round after a miss is Error Repair, and the screen says so.
+  await expect(page.getByTestId("baseline-question")).toHaveAttribute("data-practice-round", "error_repair");
+  await expect(page.getByText("Error Repair round.")).toBeVisible();
   await page.getByRole("button", { name: "Two pyruvate" }).click();
   await page.getByRole("button", { name: "Finish round" }).click();
   await expect(page.getByRole("heading", { name: "A full round passed clean." })).toBeVisible();

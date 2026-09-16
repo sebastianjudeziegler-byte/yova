@@ -56,7 +56,7 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_QUESTION_MIX !== "1")("Brief 1.5 live 
   it("a conceptual practice round from a study-guide excerpt includes non-recall questions that span two key points", async () => {
     const provider = openAIShapeSlotProvider();
     expect(provider, "OPENAI_API_KEY is required for this live case").not.toBeNull();
-    const request: PracticeRequest = { ...ids(), action: "practice", topic, modifiers, round: 1, keyPoints: [], outstandingKeyPointIds: [], excerpts: [studyGuideExcerpt], attempt: randomUUID() };
+    const request: PracticeRequest = { ...ids(), action: "practice", topic, modifiers, round: 1, keyPoints: [], outstandingKeyPointIds: [], excerpts: [studyGuideExcerpt], attempt: randomUUID(), roundKind: "active_recall", repairTargets: [] };
     const result = await fillShapeSlot(request, provider);
     expect(result.action).toBe("practice");
     if (result.action !== "practice") return;

@@ -5,6 +5,7 @@ import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import { composePracticeRound, firstRoundKeyPointCount, KeyPointSchema, keyPointsForRound, QuestionDraftSchema, roundQuestionCount, type KeyPoint } from "@/lib/practice/compose-practice";
 import { planQuestionSlots, type QuestionMix, type QuestionSlot, type QuestionType } from "@/lib/practice/question-mix";
+import { PRACTICE_TEST_QUESTION_COUNT, type PracticeRoundKind } from "@/lib/practice/practice-rounds";
 import {
   SHAPE_SLOT_HONEST_ERROR,
   type CompareRequest,
@@ -175,8 +176,8 @@ function sameIds(keyPoints: readonly KeyPoint[], expected: readonly string[]) {
   return keyPoints.length === expected.length && keyPoints.every((keyPoint, index) => keyPoint.id === expected[index]);
 }
 
-function firstRoundPlan(mix: QuestionMix, questionCap: number) {
-  const count = roundQuestionCount({ round: 1, keyPointCount: 0, questionCap });
+function firstRoundPlan(mix: QuestionMix, questionCap: number, baseSize?: number) {
+  const count = roundQuestionCount({ round: 1, keyPointCount: 0, questionCap, baseSize });
   const keyPointIds = derivedKeyPointIds(firstRoundKeyPointCount(count));
   return { keyPointIds, slots: planQuestionSlots({ keyPointIds, mix, count }) };
 }
@@ -255,16 +256,28 @@ const PracticeDraftSchema = z.object({
   questions: z.array(QuestionDraftSchema).min(1).max(8),
 }).strict();
 
+/** How each practice round kind differs (Brief 1.5 item 3): a different round, not a relabel. */
+const ROUND_FRAMING: Record<PracticeRoundKind, string> = {
+  active_recall: "",
+  practice_test: "This round is a practice test for an exam within three days: write exam-style questions, at the difficulty and in the register a teacher would set on the test.",
+  interleaved_review: "The key points come from different topics the learner has each passed once. This is an interleaved review: mix the topics, and write each question so the learner must decide which idea applies, not recognise which topic it came from.",
+  error_repair: "This is an error-repair round. input.repairTargets lists each question the learner missed, the answer they chose and the correct answer. For each slot, target the same reasoning error that produced the wrong answer on that key point, in a new question that does not reuse the missed question's wording.",
+};
+
 async function fillPractice(request: PracticeRequest, provider: SlotProvider | null): Promise<PracticeResponse> {
   const provided = request.keyPoints;
   const roundKeyPoints = provided.length ? keyPointsForRound(provided, request.round, request.outstandingKeyPointIds) : [];
+  // A practice test is a longer set: eight questions regardless of the profile's usual cap.
+  const longer = request.roundKind === "practice_test";
+  const questionCap = longer ? PRACTICE_TEST_QUESTION_COUNT : request.modifiers.questionCap;
+  const baseSize = longer ? PRACTICE_TEST_QUESTION_COUNT : undefined;
   const plan = provided.length
     ? (() => {
       const keyPointIds = roundKeyPoints.map((keyPoint) => keyPoint.id);
-      const count = roundQuestionCount({ round: request.round, keyPointCount: keyPointIds.length, questionCap: request.modifiers.questionCap });
+      const count = roundQuestionCount({ round: request.round, keyPointCount: keyPointIds.length, questionCap, baseSize });
       return { keyPointIds, slots: planQuestionSlots({ keyPointIds, mix: request.modifiers.questionMix, count }) };
     })()
-    : firstRoundPlan(request.modifiers.questionMix, request.modifiers.questionCap);
+    : firstRoundPlan(request.modifiers.questionMix, questionCap, baseSize);
   if (plan.slots.length === 0) throw new ShapeSlotGenerationError("generation_failed", 0);
   const keyPointSource = provided.length
     ? "Use ONLY the supplied key points; keep their ids exactly and return them unchanged in keyPoints."
@@ -273,8 +286,8 @@ async function fillPractice(request: PracticeRequest, provider: SlotProvider | n
       : `Derive exactly ${plan.keyPointIds.length} key points about the topic, with ids ${plan.keyPointIds.join(", ")} in that order.`;
   return withOneRetry(async () => {
     const draft = await provider!({
-      instructions: `You write fresh closed-book multiple-choice practice for one topic in YOVA. ${keyPointSource} ${questionSlotInstructions(plan.slots)} Do not repeat questions from earlier attempts; this attempt id is ${request.attempt}. ${UNTRUSTED}`,
-      input: JSON.stringify({ topic: request.topic, keyPoints: roundKeyPoints, excerpts: request.excerpts, round: request.round, slots: plan.slots }),
+      instructions: `You write fresh closed-book multiple-choice practice for one topic in YOVA. ${ROUND_FRAMING[request.roundKind]} ${keyPointSource} ${questionSlotInstructions(plan.slots)} Do not repeat questions from earlier attempts; this attempt id is ${request.attempt}. ${UNTRUSTED}`,
+      input: JSON.stringify({ topic: request.topic, keyPoints: roundKeyPoints, excerpts: request.excerpts, round: request.round, roundKind: request.roundKind, repairTargets: request.repairTargets, slots: plan.slots }),
       schema: PracticeDraftSchema,
       schemaName: "yova_shape_practice",
       maxOutputTokens: 3_000,

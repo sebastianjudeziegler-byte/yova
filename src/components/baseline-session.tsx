@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { QUESTION_TYPE_LABEL } from "@/lib/practice/question-mix";
+import { PRACTICE_ROUND_LABEL, practiceRoundKind } from "@/lib/practice/practice-rounds";
 import { AlertCircle, ArrowRight, Check, Clock3, HelpCircle, RotateCcw, Sparkles, X } from "lucide-react";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
@@ -40,6 +41,7 @@ import {
   SHAPE_SLOT_HONEST_ERROR,
   type DirectionResponse,
   type LearnBlockResponse,
+  type PracticeRequest,
   type SourceDescription,
   type SourceExcerpt,
 } from "@/lib/session-shapes/slots-schema";
@@ -80,9 +82,12 @@ export type BaselineSessionProps = {
   onChangeProduceStep: (step: ProduceStep) => void;
   onExit: () => void;
   onComplete: (result: BaselineSessionResult) => Promise<boolean>;
+  /** Interleaved Review only: the key points of related topics that each passed once (Brief 1.5 item 3). */
+  interleavedKeyPoints?: KeyPoint[];
 };
 
 type SlotStatus = "idle" | "loading" | "ready" | "error";
+type RepairTarget = PracticeRequest["repairTargets"][number];
 
 function slotErrorMessage(error: unknown) {
   if (error instanceof ShapeSlotClientError) return error.message;
@@ -97,7 +102,7 @@ function formatClock(seconds: number) {
 }
 
 export function BaselineSession(props: BaselineSessionProps) {
-  const { plan, session, topic, route, nextSession, onChangeProduceStep, onExit, onComplete } = props;
+  const { plan, session, topic, route, nextSession, onChangeProduceStep, onExit, onComplete, interleavedKeyPoints } = props;
   const planMaterials = plan.materials;
   const planSourceMode = plan.sourceMode;
   const source: BaselineSessionSource = useMemo(
@@ -200,7 +205,10 @@ export function BaselineSession(props: BaselineSessionProps) {
   const studyLoading = learnStatus === "idle" && needsStudySlot;
 
   const sourceExcerpts = source.excerpts;
-  const requestPracticeRound = useCallback((round: number, outstandingKeyPointIds: string[], keyPoints: KeyPoint[], signal: AbortSignal) => {
+  const requestPracticeRound = useCallback((round: number, outstandingKeyPointIds: string[], knownKeyPoints: KeyPoint[], repairTargets: RepairTarget[], signal: AbortSignal) => {
+    // Brief 1.5 item 3: the round kind is code's choice, and each kind is a different round.
+    const roundKind = practiceRoundKind(route.firstPracticeRound, round);
+    const keyPoints = !knownKeyPoints.length && roundKind === "interleaved_review" ? (interleavedKeyPoints ?? []) : knownKeyPoints;
     requestPractice({
       ...makeSlotIds(),
       planId,
@@ -213,25 +221,34 @@ export function BaselineSession(props: BaselineSessionProps) {
       outstandingKeyPointIds,
       excerpts: sourceExcerpts.slice(0, 8),
       attempt: crypto.randomUUID(),
+      roundKind,
+      repairTargets: roundKind === "error_repair" ? repairTargets : [],
     }, signal).then((result) => {
-      if (!keyPoints.length) setPracticeKeyPoints(result.keyPoints);
+      if (!knownKeyPoints.length) setPracticeKeyPoints(result.keyPoints);
       dispatchC({ type: "questions_ready", questions: result.questions });
     }).catch((error: unknown) => {
       const message = slotErrorMessage(error);
       if (message === null) return;
       dispatchC({ type: "questions_failed", message });
     });
-  }, [slotTopic, modifiers, sourceExcerpts, planId, planSessionId]);
+  }, [slotTopic, modifiers, sourceExcerpts, planId, planSessionId, route.firstPracticeRound, interleavedKeyPoints]);
 
   const nextRoundNumber = (currentShapeCRound(cState)?.number ?? 0) + 1;
   const outstandingKeyPointIds = cState.outstandingKeyPointIds;
+  const lastRound = currentShapeCRound(cState);
+  // Error Repair targets: what the learner chose on each question they missed.
+  const repairTargets = useMemo<RepairTarget[]>(() => (lastRound?.answers ?? []).flatMap((answer) => {
+    const missed = lastRound?.questions.find((question) => question.id === answer.questionId);
+    if (answer.correct || !missed) return [];
+    return [{ keyPointId: missed.keyPointIds[0]!, question: missed.prompt, chosenAnswer: missed.choices[answer.choiceIndex]!, correctAnswer: missed.choices[missed.correctChoiceIndex]! }];
+  }).slice(0, 8), [lastRound]);
   const practiceLoading = started && inQuestions && cState.phase === "loading";
   useEffect(() => {
     if (!practiceLoading) return;
     const controller = new AbortController();
-    requestPracticeRound(nextRoundNumber, outstandingKeyPointIds, practiceKeyPoints, controller.signal);
+    requestPracticeRound(nextRoundNumber, outstandingKeyPointIds, practiceKeyPoints, repairTargets, controller.signal);
     return () => controller.abort();
-  }, [practiceLoading, nextRoundNumber, outstandingKeyPointIds, practiceKeyPoints, requestPracticeRound]);
+  }, [practiceLoading, nextRoundNumber, outstandingKeyPointIds, practiceKeyPoints, repairTargets, requestPracticeRound]);
   const retryPractice = () => dispatchC({ type: "continue" });
 
   /**
@@ -596,9 +613,10 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
   }
   if (!round || !shownQuestion) return null;
   const shownAnswer = revealed ? answer : null;
-  return <section className={styles.card} data-testid="baseline-question">
+  const roundKind = practiceRoundKind(route.firstPracticeRound, round.number);
+  return <section className={styles.card} data-testid="baseline-question" data-practice-round={roundKind}>
     <span className="step-label">ROUND {round.number} · QUESTION {Math.min(revealed ? answered : answered + 1, round.questions.length)} OF {round.questions.length}</span>
-    <p className={styles.progressLine} data-question-kind={shownQuestion.kind}>{QUESTION_TYPE_LABEL[shownQuestion.kind]} question. No source shown.</p>
+    <p className={styles.progressLine} data-question-kind={shownQuestion.kind}>{PRACTICE_ROUND_LABEL[roundKind]} round. {QUESTION_TYPE_LABEL[shownQuestion.kind]} question. No source shown.</p>
     <h2>{shownQuestion.prompt}</h2>
     {restate && !revealed && <p className={styles.restated}>Task: choose one answer.</p>}
     <div className={styles.choices} role="group" aria-label="Answer choices">

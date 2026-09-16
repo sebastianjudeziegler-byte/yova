@@ -66,7 +66,7 @@ import { BaselineProfileEditor } from "@/components/baseline-profile-editor";
 import { onboardingAnsweredCount, readOnboardingAnswers, writeOnboardingAnswers } from "@/lib/onboarding/answers";
 import { ONBOARDING_QUESTIONS } from "@/lib/onboarding/questions";
 import { routeSession, withProduceStepOverride, type ProduceStep, type SessionRoute } from "@/lib/routing/session-route";
-import { routingInputForSession, sessionTopic } from "@/lib/routing/route-for-session";
+import { interleavedKeyPointsForSession, routingInputForSession, sessionTopic } from "@/lib/routing/route-for-session";
 import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
 import { StudyMethodBriefing } from "@/components/study-method-briefing";
 import { StudyRouteRecipeCard } from "@/components/study-route-recipe-card";
@@ -4598,7 +4598,7 @@ export function YovaPrototype({
       return <SessionLoading plan={activePlan} onExit={() => { setBaselineSessionTarget(null); setStage("app"); }} />;
     }
     const targetTopic = sessionTopic(targetPlan, targetSession);
-    const baseRoute = routeSession(routingInputForSession({ plan: targetPlan, session: targetSession, topic: targetTopic, answers: readOnboardingAnswers(answers) }));
+    const baseRoute = routeSession(routingInputForSession({ plan: targetPlan, session: targetSession, topic: targetTopic, answers: readOnboardingAnswers(answers), completions: sessionCompletions, now: new Date() }));
     const route = baselineSessionTarget.produceStep ? withProduceStepOverride(baseRoute, baselineSessionTarget.produceStep) : baseRoute;
     return <BaselineSession
       key={`${targetSession.id}:${route.produceStep ?? route.shape}`}
@@ -4610,6 +4610,7 @@ export function YovaPrototype({
       onChangeProduceStep={(step) => setBaselineSessionTarget({ ...baselineSessionTarget, produceStep: step })}
       onExit={() => { setBaselineSessionTarget(null); setStage("app"); }}
       onComplete={(result) => completeBaselineSession(targetPlan, targetSession, route, result)}
+      interleavedKeyPoints={route.firstPracticeRound === "interleaved_review" ? interleavedKeyPointsForSession({ plan: targetPlan, topic: targetTopic, completions: sessionCompletions }) : []}
     />;
   }
   if (stage === "session-setup") return <SessionSetup plan={pendingSessionPlan ?? activePlan} answers={answers} completions={sessionCompletions} interruptions={sessionInterruptions} onChangeMethod={changeReadySessionMethod} onExit={() => {
