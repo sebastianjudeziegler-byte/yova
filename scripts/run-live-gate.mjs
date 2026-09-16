@@ -1,9 +1,9 @@
 import { spawn, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildReport, caseId, discoverLiveFiles, liveEnvironment, normalizeBrowserReport, publicError, redact, renderMarkdown, unavailableReason } from "./live-gate/core.mjs";
+import { buildReport, caseId, discoverLiveFiles, liveEnvironment, publicError, redact, renderMarkdown, unavailableReason } from "./live-gate/core.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 process.chdir(root);
@@ -69,14 +69,6 @@ try {
   });
   for (const file of files) if (!collected.some((test) => test.file === file)) cases.push(failure(file, "collection", "No runnable cases collected; opt-in/filter/import configuration must be checked", 0));
   if (listingCode !== 0) cases.push(failure("vitest", "collection", "Vitest collection failed; see collection.txt", 0));
-  const browserOutput = resolve(scratch, "browser-list");
-  mkdirSync(browserOutput);
-  const browserEnv = { ...env, YOVA_LIVE_BROWSER_OUTPUT: browserOutput };
-  const browserListCode = await execute(["node_modules/@playwright/test/cli.js", "test", "e2e/plan-launch-live.spec.ts", "--config", "playwright.live.config.ts", "--list"], browserEnv, "browser-collection.txt");
-  const browserListing = readJSON(resolve(browserOutput, "browser.json"));
-  const browserCases = browserListing ? normalizeBrowserReport(browserListing, root).cases : [];
-  if (browserListCode !== 0 || browserCases.length !== 2) cases.push(failure("e2e/plan-launch-live.spec.ts", "collection", "Expected the desktop and mobile live browser journeys; see browser-collection.txt", 0));
-  collected.push(...browserCases);
   for (const required of policy.requiredCases) if (!collected.some((test) => test.id === required.id)) {
     cases.push(failure(required.file, `${required.name} (required collection)`, "An audited live case disappeared from collection; restore it or document its deliberate replacement", 0));
   }
@@ -103,23 +95,6 @@ try {
       if (result?.errors?.length) cases.push(failure(file, "suite error", "Suite/import/unhandled error; see suite log", run, result.errors.map((error) => publicError(error))));
       if (code !== 0 && actual.every((test) => test.state === "passed") && !result?.errors?.length) cases.push(failure(file, "runner exit", `Test process exited ${code} without a failed case`, run));
       save();
-    }
-    console.log(`Live gate ${run}/${runs}: desktop + mobile browser`);
-    const browserRoot = resolve(runRoot, "browser");
-    mkdirSync(browserRoot);
-    const code = await execute(["node_modules/@playwright/test/cli.js", "test", "e2e/plan-launch-live.spec.ts", "--config", "playwright.live.config.ts"], { ...runEnv, YOVA_LIVE_BROWSER_OUTPUT: browserRoot }, `run-${run}-browser.txt`);
-    const browserReport = readJSON(resolve(browserRoot, "browser.json"));
-    const result = browserReport ? normalizeBrowserReport(browserReport, root) : { cases: [], errors: [] };
-    const setupUnavailable = unavailableReason(result.errors);
-    cases.push(...result.cases.map((test) => ({ ...test, run, log: `run-${run}-browser.txt`, ...(["pending", "skipped"].includes(test.state) && setupUnavailable ? { unavailable: setupUnavailable } : {}) })));
-    for (const expected of browserCases) if (!result.cases.some((test) => test.id === expected.id)) cases.push({ ...failure(expected.file, expected.name, "Collected browser case produced no result", run), id: expected.id, project: expected.project, ...(setupUnavailable ? { unavailable: setupUnavailable } : {}) });
-    if (result.errors.length || (code !== 0 && result.cases.every((test) => test.state === "passed"))) cases.push(failure("playwright", "browser runner", `Browser process exited ${code}; see browser log`, run, result.errors));
-    for (const file of readdirSync(browserRoot, { recursive: true })) {
-      if (!/[/\\](?:lesson-complete\.png|completion\.json|error-context\.md|test-failed-\d+\.png)$/.test(file)) continue;
-      const destination = resolve(output, `run-${run}-browser-evidence`, file);
-      mkdirSync(dirname(destination), { recursive: true });
-      if (file.endsWith(".json") || file.endsWith(".md")) writeFileSync(destination, redact(readFileSync(resolve(browserRoot, file), "utf8"), env));
-      else copyFileSync(resolve(browserRoot, file), destination);
     }
     save();
   }

@@ -547,3 +547,137 @@ That is more than 20,000 routes, each checked with an example shown, not shown a
 
 - **Receipt starts collapsed:** it can hold fifteen or more sentences, and the end card's job is the note and what's next. The personalization note stays open above it.
 
+## Item 8: the pre-session screen
+
+### What changed
+
+- **Start** on a plan block opens one card, then the hub:
+  - topic, block type and time;
+  - method with one line of why and a Change link;
+  - source ("Review …", or "YOVA will teach this") with Add material;
+  - "I've already covered this";
+  - Study inside / outside YOVA;
+  - Start.
+
+  The early-start dialog ("Start now, keep dates") still comes first when a block is ahead of schedule, as before.
+- **Add material** and **I've already covered this** open the same plan revision the plan screen uses (`LivingPlanRevision`: preview, Confirm changes, receipt, Undo).
+  - A covered report is recorded as learner report, not evidence, and routing makes the block practice.
+  - A file attached to the topic now supplies the source description and excerpts: `baselineSourceForTopic` previously ignored attached files, so an attached file could never flip a block to the source path.
+- **Outside YOVA** (`withStudyOutside`, rule `L5.learner_study_outside`) turns a learn block into a directions card, then "I'm back", then closed-book practice.
+  - No produce step and no AI explanation run.
+  - The directions card shows the method (named, what it is, why it fits: the fired-rule note), what to study (Slot 1: specific when located, honest when not, the learner's own textbook or notes when there is no material), how to approach it, and suggested time.
+  - Decisions that only the inside path carries out (produce step, worked example first, produce before study, the Week 2 worked-example source) are dropped from the route, so no tip, note or receipt claims them.
+  - Practice blocks and blocks already skipping to practice have no outside choice.
+- **Loading:** the hub renders at once, and the step card says "Writing your explanation…", "Writing your directions…" or "Writing your questions…" until the slot returns. There is no loading screen. A failure shows the honest error with Try again on the step card.
+- **Study Now** is one screen: what to study, optional material, inside or outside. Continue builds the one-session plan on that screen, then the same card, then the hub. That is two screens for Study Now and one for a plan block.
+- **Returning mid-session:** the session saves where the learner is as they go (per account, in this browser; `baseline-checkpoint.ts`). Start on that block reopens the same step with no card and no repeated generation. Finish clears it.
+
+### Deleted
+
+- **Components:**
+  - `SessionSetup`, the three setup screens: session direction, "Has anything changed?", "Set the pace for today".
+  - `SessionLoading`.
+  - The Study Now review and loading steps.
+- **Stages:** `session-setup` and `session-loading`.
+- **Start path:** the generated-runtime start path in `startSession`, about 650 lines.
+- **Recovery:** the setup-review recovery action.
+- **Setup-only modules and their tests:**
+  - `src/lib/session-setup/objective-copy.ts`
+  - `src/lib/personalization/session-support.ts`
+  - `src/lib/personalization/session-decision.ts`
+  - `formatSessionPreparationTopic`
+- **Check before deleting — nothing on them routes to anything the shapes use.** A read-only search found no import from `src/lib/session-shapes`, `src/lib/routing` or `baseline-session.tsx` into the setup screens, the loading screen, the adjustment helpers or `SessionAdjustment`.
+  - What those screens set (familiarity, known targets, support level, available minutes, a note, a committed-method change) fed only the generated runtime's `/api/sessions/generate` request.
+  - Their nearest baseline equivalents are the plan (mark covered, attach material), the hub timer (+5, Hide) and the card's Change.
+
+### Tests retired with the runtime they drove
+
+Every Start now opens the card and a baseline session, so these cases could not run as written. Each walked the setup screens, the loading screen or generated lessons.
+
+They are named in `scripts/live-gate/retired-cases.json`. The regression gate excuses only their absence: a retired case that still runs and fails is judged like any other.
+
+- **`e2e/core-learning-loop.spec.ts`** (34 cases):
+  - Study Now lets the learner review and safely choose an eligible method before activation
+  - Study Now discloses omitted scope before starting and lets the learner change time
+  - durable allowance exhaustion loads the committed method workpad and names the reset
+  - durable allowance exhaustion without a safe fallback has its own non-retryable state
+  - streamed lesson quota uses its built-in explanation and surfaces the reset
+  - a confident misconception is repaired now without a duplicate follow-up
+  - Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context
+  - a support request keeps the committed practice recipe when fallback generation fails
+  - an inactive-plan generation response cannot open a stale built-in lesson
+  - a visibly shortened inside recipe keeps its method in the fallback workpad
+  - a built-in fallback never ignores a learner's custom session requirement
+  - a new topic is taught before YOVA asks for independent performance
+  - a World War I beginner receives real teaching and a direct model answer
+  - an opaque class label is stopped until the learner names the actual calculus concept
+  - a teaching-first inside outage does not start with unsupported recall
+  - a temporary AI failure loads a subject-specific startup funding lesson
+  - outside study gives a concrete source-based session instead of pretending YOVA owns the content
+  - an arbitrary outside method workpad completes as practice without changing topic evidence
+  - a fallback method workpad resumes its timer and checked targets after reload
+  - a 10-minute outside teaching-first session loads its built-in method lesson
+  - an overdue outside teaching-first session splits into runnable 10-minute parts
+  - an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad
+  - a learner can stop twice without losing progress or earlier evidence
+  - a lesson and its reopened model teach every fact required by the glycolysis recall check
+  - a resumed streamed question can reopen its prior lesson by persisted activity index
+  - a refresh recovers semantic progress without saving draft answers or inventing an interruption
+  - a saved first-step recall round resumes at the next prompt without persisting draft text
+  - learner text fields keep long pastes visible and block submission until trimmed
+  - spent guided-session allowance is visible before Home or Calendar opens setup
+  - spent allowance still permits a saved session to continue
+  - the session tutor stays anchored to the exact learning activity
+  - finishing a shortened guided lesson keeps every deferred target as exact next work
+  - scheduled-review setup stays fixed and opens the exact active or Study Now goal
+  - session setup changes one committed method and generates from its exact successor route
+- **`e2e/plan-launch-live.spec.ts`:** "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload" (desktop and mobile).
+  - The live gate runner no longer runs a browser journey.
+  - The pinned required-case count moves from 75 to 73, and `cli.test.mjs` now requires the retirement to be named.
+  - The live browser journeys for the baseline path run in their own CI step (practice retries, the two-profile hub, outside YOVA).
+- **Removed source-text contract assertions** about the retired start code, in `yova-prototype-ui-contract.test.ts`:
+  - session setup labels;
+  - scheduled-review setup;
+  - committed-route setup controls;
+  - ready-session method control;
+  - pre-start recipe;
+  - generation fallback classification;
+  - generation operation id reuse;
+  - the old start-path lines in two other checks.
+
+  Also: the setup-review action expectation in `yova-prototype.session-error.test.ts` (now asserted absent), and the Study Now duration picker in `typography-contract.test.ts`.
+
+### Adapted, not retired
+
+- Home recommendations and Add to YOVA's one-off session: create through the new Study Now, then leave the card.
+- Material upload UI: the dropzone is on Study Now's first screen.
+- Add to YOVA's outside assignment: it preselects Outside YOVA.
+- The founder revision journey: completes its first session as a baseline session with mocked slots.
+
+### Red, then green
+
+| Test | Red | Green |
+|---|---|---|
+| `session-route.test.ts` outside YOVA (4), `shape-a.test.ts` (1), `session-hub.test.ts` (1), `shape-slot-generator.test.ts` outside directions (3) | 9 failed | pass |
+| `baseline-checkpoint.test.ts` (3) | module missing | pass |
+| `source-context.test.ts` attached files (2) | 2 failed | pass |
+| `scripts/live-gate/regression.test.mjs` retired cases (1) | failed (absence blocked) | 25 pass |
+| `scripts/live-gate/cli.test.mjs` canary pin | failed on the deleted spec | pass, pin updated with the named retirement |
+| `e2e/baseline-pre-session.spec.ts` (7) | the card did not exist | unsourced case passed locally; all run in CI, desktop and mobile |
+| `e2e/baseline-outside.live.spec.ts` (live, both viewports) | new | runs in CI |
+
+### Gates
+
+Recorded after CI:
+- Start, then the card, then the hub, desktop and mobile, for sourced, unsourced and covered blocks.
+- The outside path, live, both viewports, with no produce step or explanation.
+- Study Now in two screens.
+- Resume on the same step.
+
+### Decisions taken
+
+- **Covered switch:** turning it on opens the plan's revision preview. The receipt's Undo turns it off. A topic already marked covered on the plan shows the switch on and locked there, since its undo lives on the plan.
+- **Outside method:** Active Recall, because outside practice is closed-book questions. Change is hidden outside YOVA.
+- **Suggested time:** the route's timer.
+- **The hub's in-session method chooser:** no longer opens before the work, because the card already offered the choice. The hub's Change control stays for the first step.
+

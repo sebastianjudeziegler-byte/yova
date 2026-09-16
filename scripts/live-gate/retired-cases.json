@@ -1,0 +1,146 @@
+{
+  "brief": "Brief 1.5 item 8",
+  "reason": "The pre-baseline generated session runtime can no longer be started: every Start opens the pre-session card and a baseline session. These cases walked its setup screens, loading screen or generated lessons. Listed case by case in docs/audits/brief-1.5/EVIDENCE.md.",
+  "cases": [
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Study Now lets the learner review and safely choose an eligible method before activation"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Study Now discloses omitted scope before starting and lets the learner change time"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "durable allowance exhaustion loads the committed method workpad and names the reset"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "durable allowance exhaustion without a safe fallback has its own non-retryable state"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "streamed lesson quota uses its built-in explanation and surfaces the reset"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a confident misconception is repaired now without a duplicate follow-up"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a support request keeps the committed practice recipe when fallback generation fails"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an inactive-plan generation response cannot open a stale built-in lesson"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a visibly shortened inside recipe keeps its method in the fallback workpad"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a built-in fallback never ignores a learner's custom session requirement"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a new topic is taught before YOVA asks for independent performance"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a World War I beginner receives real teaching and a direct model answer"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an opaque class label is stopped until the learner names the actual calculus concept"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a teaching-first inside outage does not start with unsupported recall"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a temporary AI failure loads a subject-specific startup funding lesson"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "outside study gives a concrete source-based session instead of pretending YOVA owns the content"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an arbitrary outside method workpad completes as practice without changing topic evidence"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a fallback method workpad resumes its timer and checked targets after reload"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a 10-minute outside teaching-first session loads its built-in method lesson"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue outside teaching-first session splits into runnable 10-minute parts"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a learner can stop twice without losing progress or earlier evidence"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a lesson and its reopened model teach every fact required by the glycolysis recall check"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a resumed streamed question can reopen its prior lesson by persisted activity index"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a refresh recovers semantic progress without saving draft answers or inventing an interruption"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "a saved first-step recall round resumes at the next prompt without persisting draft text"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "learner text fields keep long pastes visible and block submission until trimmed"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "spent guided-session allowance is visible before Home or Calendar opens setup"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "spent allowance still permits a saved session to continue"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "the session tutor stays anchored to the exact learning activity"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "finishing a shortened guided lesson keeps every deferred target as exact next work"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "scheduled-review setup stays fixed and opens the exact active or Study Now goal"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "session setup changes one committed method and generates from its exact successor route"
+    },
+    {
+      "file": "plan-launch-live.spec.ts",
+      "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload"
+    }
+  ]
+}

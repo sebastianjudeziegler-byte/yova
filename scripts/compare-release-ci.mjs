@@ -15,7 +15,12 @@ const main = read(`${baseline}/main-live/report.json`);
 if (main.commit !== "00995f11bd33415137ca6015d5f8ca27eaaf588d") throw new Error("Unexpected main baseline revision.");
 const after = read("test-results/live-gate/report.json");
 const policy = read("scripts/live-gate/policy.json");
+// Cases removed on purpose with the feature they tested; absence alone is excused.
+const retiredCases = read("scripts/live-gate/retired-cases.json").cases;
+const isRetired = (file, name) => retiredCases.some(entry => file.replace(/^e2e\//, "") === entry.file && name === entry.name);
+const retiredLive = main.rows.filter(row => { const [file, , name] = row.id.split("::"); return name !== undefined && isRetired(file, name); }).map(row => row.id);
 const live = compareLiveReports(main, after, {
+  retired: retiredLive,
   scoped: after.rows.filter(row => row.id.includes("History essay using outside sources") && row.file.includes("plan-session-journey") || row.file.includes("personalization-delta")).map(row => row.id),
   quarantined: Object.entries(policy.cases).filter(([, value]) => value.classification === "FLAKY").map(([id]) => id),
 });
@@ -38,6 +43,7 @@ const observed = normalized.cases.flatMap((row, index) => (runs[index]?.length ?
 const scopedBrowser = normalized.cases.filter(row => row.file.includes("living-plan") || /visibly shortened inside recipe|10-minute outside teaching-first session|overdue outside teaching-first session|overdue arbitrary inside session|scheduled-review setup stays fixed|shorter sessions preserve weekly availability/.test(row.name)).map(key);
 const browserFlakes = normalized.cases.filter((_row, index) => runs[index].some(result => result.status === "passed") && runs[index].some(result => ["failed", "timedOut"].includes(result.status))).map(key);
 const browser = compareLiveReports({ rows: mainBrowser.rows.map(row => ({ ...row, id: key(row), state: "passed" })) }, { rows: observed }, {
+  retired: mainBrowser.rows.filter(row => isRetired(row.file, row.name)).map(key),
   scoped: scopedBrowser,
   quarantined: [...browserFlakes,
     // Explicitly pre-existing in the brief and reproduced on main e03a082.

@@ -1,5 +1,5 @@
 import { expect, test, freezePlanClock, type Page } from "./helpers/frozen-clock";
-import type { LearningPlan, SessionResource } from "../src/lib/domain";
+import type { LearningPlan } from "../src/lib/domain";
 import type { PlanKnowledgeMap } from "../src/lib/knowledge-map/schema";
 
 test.use({ video: "on" });
@@ -59,46 +59,59 @@ async function createAndActivate(page: Page, activate = true) {
   await expect(page.getByRole("heading", { name: "Your plan", exact: true })).toBeVisible();
 }
 
+/**
+ * Brief 1.5 item 8: a block starts on the pre-session card and runs as a
+ * baseline session. Its AI slots are mocked at the network boundary with
+ * answers the loop below can complete; the revision journey is what this spec tests.
+ */
+async function mockShapeSlots(page: Page) {
+  const keyPoints = [
+    { id: "k1", text: "Glycolysis splits glucose into two pyruvate." },
+    { id: "k2", text: "The Krebs cycle releases carbon dioxide and loads carriers." },
+    { id: "k3", text: "The electron transport chain makes most of the ATP." },
+  ];
+  const question = (id: string, keyPointId: string, prompt: string) => ({ id, slotId: id, kind: "recall", keyPointIds: [keyPointId], prompt, choices: ["Correct choice", "Wrong choice one", "Wrong choice two", "Wrong choice three"], correctChoiceIndex: 0, explanation: "The first choice is what the explanation states." });
+  const questions = [question("q1", "k1", "What does glycolysis produce?"), question("q2", "k2", "What does the Krebs cycle release?"), question("q3", "k3", "Where is most ATP made?")];
+  await page.route("**/api/sessions/shape", async (route) => {
+    const body = route.request().postDataJSON() as { action: string };
+    const json = body.action === "learn_block"
+      ? { action: "learn_block", explanation: "Cellular respiration releases energy from glucose in three stages: glycolysis, the Krebs cycle and the electron transport chain. ".repeat(3), keyPoints, questions, structure: ["Glycolysis", "Krebs cycle", "Electron transport"], example: { title: "A running muscle cell", steps: ["Glucose is split.", "ATP is made."] } }
+      : body.action === "compare" ? { action: "compare", feedback: "You named the three stages; the carriers are still missing.", missing: ["Electron carriers"], incorrect: [] }
+        : body.action === "practice" ? { action: "practice", keyPoints, questions }
+          : { action: "direction", whatToLookAt: "Review your notes on cellular respiration.", howToApproach: "Read for how it works.", origin: "generated", example: null };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(json) });
+  });
+}
+
 async function completeFirstSession(page: Page) {
   const before = await snapshot(page);
+  await mockShapeSlots(page);
   await page.getByRole("button", { name: "Start next session", exact: true }).click();
   const early = page.getByRole("button", { name: "Start now, keep dates" });
   if (await early.isVisible()) await early.click();
-  await expect(page.locator(".session-setup-shell, .session-shell")).toBeVisible({ timeout: 30_000 });
-  if (await page.locator(".session-setup-shell").isVisible()) {
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await page.getByRole("button", { name: "Prepare this session" }).click();
-  }
-  for (let step = 0; step < 20; step += 1) {
-    if (await page.getByText("SESSION COMPLETE", { exact: true }).isVisible()) break;
-    const title = await page.locator(".session-activity-header h1").innerText({ timeout: 30_000 });
-    const resource = (await snapshot(page)).sessions[0]!.resource as SessionResource;
-    const question = resource.activities.find(item => item.title === title && (item.type === "free_response" || item.type === "multiple_choice"));
-    const confidence = page.getByRole("button", { name: "Somewhat sure", exact: true });
-    if (await confidence.isVisible() && await confidence.isEnabled()) await confidence.click();
-    const answer = page.locator(".recall-response textarea");
-    if (await answer.isVisible() && await answer.isEnabled()) {
-      expect(question?.correctAnswer, "The visible recall must have a matching fixture answer").toBeTruthy();
-      await answer.fill(question!.correctAnswer!);
-      await page.getByRole("button", { name: "Check my answer", exact: true }).click();
-      const rating = page.getByRole("button", { name: "I got the key idea", exact: true });
-      const unscored = page.getByText("YOVA did not record a correct or incorrect result from this check. Continue after comparing with the model answer.", { exact: true });
-      await expect(rating.or(unscored)).toBeVisible({ timeout: 30_000 });
-      if (await rating.isVisible()) await rating.click();
-    } else if (question?.correctAnswer && await page.locator(".answer-grid").isVisible()) {
-      const answerIndex = question.choices.indexOf(question.correctAnswer);
-      expect(answerIndex, "The stored correct answer must be one of the displayed choices").toBeGreaterThanOrEqual(0);
-      const choice = page.locator(".answer-grid").getByRole("button").nth(answerIndex);
-      await expect(choice).toContainText(question.correctAnswer.split("→")[0]!.trim());
-      await choice.click();
+  await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click();
+  await expect(page.locator("[data-shape]")).toBeVisible({ timeout: 30_000 });
+  const clickIfVisible = async (name: string) => {
+    const button = page.getByRole("button", { name, exact: true });
+    if (await button.isVisible() && await button.isEnabled()) { await button.click(); return true; }
+    return false;
+  };
+  for (let step = 0; step < 40; step += 1) {
+    if (await page.getByRole("heading", { name: "You studied, produced and compared." }).or(page.getByRole("heading", { name: "A full round passed clean." })).isVisible()) break;
+    await page.waitForTimeout(200);
+    const choice = page.getByTestId("baseline-question").getByRole("button", { name: "Correct choice" });
+    if (await choice.isVisible() && await choice.isEnabled()) { await choice.click(); continue; }
+    const produce = page.locator("textarea").first();
+    if (await produce.isVisible() && await produce.isEnabled() && !(await produce.inputValue())) {
+      await produce.fill("Glycolysis splits glucose, the Krebs cycle releases carbon dioxide, and electron transport makes ATP.");
+      continue;
     }
-    const next = page.locator(".session-action-bar").getByRole("button");
-    await expect(next).toBeEnabled({ timeout: 30_000 });
-    await next.click();
+    for (const name of ["I'm going to study it", "Continue", "Start the questions", "Compare with the source", "Save repair", "Move on", "Next question", "Finish round", "Start round 2"]) {
+      if (await clickIfVisible(name)) break;
+    }
   }
-  await expect(page.getByText("SESSION COMPLETE", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Finish and continue", exact: true }).click();
+  await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await expect(page.locator("[data-shape]")).toHaveCount(0);
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   const openGoal = page.locator(".learning-goal-card").filter({ hasText: before.title }).getByRole("button", { name: "Open goal", exact: true });
   if (await openGoal.isVisible()) await openGoal.click();

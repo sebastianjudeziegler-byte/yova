@@ -72,7 +72,6 @@ import { routeSession, withProduceStepOverride, withStudyOutside, type ProduceSt
 import { interleavedKeyPointsForSession, routingInputForSession, sessionTopic } from "@/lib/routing/route-for-session";
 import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
 import { StudyMethodBriefing } from "@/components/study-method-briefing";
-import { StudyRouteRecipeCard } from "@/components/study-route-recipe-card";
 import {
   methodPracticeTopics,
   StudyMethodPractice,
@@ -125,13 +124,11 @@ import {
   clearCalendarPrototypeState,
   removeCalendarManualEventAfterPlanCommit,
 } from "@/lib/calendar/persistence";
-import { sessionSetupObjective } from "@/lib/session-setup/objective-copy";
 import {
   formatCharacterLimit,
   getCharacterLimitState,
 } from "@/lib/character-limit";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
-import { inferSessionFamiliarityFromText } from "@/lib/learning/learning-intent";
 import {
   buildConceptReviewSession,
   type ConceptReviewAgendaItem,
@@ -148,8 +145,7 @@ import { CORE_METHOD_IDS, type CoreMethodId } from "@/lib/learning/method-catalo
 import {
   buildCommittedRouteFallbackMethodBriefing,
   buildFallbackMethodBriefing,
-  buildGenericInsideFallbackMethodBriefing,
-  GENERIC_INSIDE_FALLBACK_METHOD_NAME,
+  GENERIC_INSIDE_FALLBACK_METHOD_NAME
 } from "@/lib/learning/fallback-method-briefing";
 import { rankPlansForHome } from "@/lib/learning/home-recommendations";
 import {
@@ -167,9 +163,6 @@ import {
   prepareConceptReviewSessionStudyRoute,
   preparePostSessionStudyRouteTransition,
 } from "@/lib/study-route/post-session-transition";
-import { createCommittedMethodChoiceSuccessor } from "@/lib/study-route/committed-method-choice";
-import { CommittedMethodChoiceResponseSchema } from "@/lib/study-route/committed-method-choice-schema";
-import { explainStudyRouteDuration } from "@/lib/study-route/duration-explanation";
 import {
   resolveExecutedStudyRouteSessionContract,
   resolveStudyRouteSessionContract,
@@ -179,11 +172,7 @@ import {
   selectSessionTerminalRouteRevisionId,
 } from "@/lib/study-route/selectors";
 import {
-  agencyModeForStudyRouteControlMode,
-  boundedOtherAgencyMethodOptions,
-  resolveBoundedOtherMethodRequest,
-  type AgencyMethodRequestResolution,
-} from "@/lib/study-route/agency-mode-controller";
+  agencyModeForStudyRouteControlMode} from "@/lib/study-route/agency-mode-controller";
 import { activeStudyRouteTargetIds } from "@/lib/study-route/targets";
 import {
   buildDeferredSessionContinuation,
@@ -192,8 +181,7 @@ import {
 import { asUnguidedPracticeCompletion } from "@/lib/learning/session-completion-provenance";
 import {
   buildUnguidedVerificationSession,
-  canLoadBuiltInFallbackWithCompletion,
-  canScheduleUnguidedVerification,
+  canScheduleUnguidedVerification
 } from "@/lib/learning/unguided-verification";
 import { buildFallbackRuntimeRepair } from "@/lib/session-repair/fallback";
 import {
@@ -202,9 +190,7 @@ import {
   type RuntimeRepairSupport,
 } from "@/lib/session-repair/schema";
 import {
-  buildScaffoldProgressionSignals,
-  buildSessionSupportPlan,
-  type SessionSupportPlan,
+  type SessionSupportPlan
 } from "@/lib/learning/scaffold-progression";
 import {
   buildImmediateRepairAfterMiss,
@@ -257,10 +243,6 @@ import {
   resumeActiveSessionClock,
   type ActiveSessionClockState,
 } from "@/lib/learning/active-session-clock";
-import {
-  restoreInterruptedLesson,
-  resumedSessionAdjustment,
-} from "@/lib/learning/session-resume";
 import { selectFreeResponseMode } from "@/lib/learning/response-mode";
 import { previewClientPlanRevision, sendPlanRevisionRequest, savedPlanAvailability } from "@/components/plan-revision/revision-client";
 import { RevisionPlanSchema } from "@/lib/plan-revision/revision-schema";
@@ -318,16 +300,6 @@ import {
   buildPersonalizationRecommendations,
 } from "@/lib/personalization/recommendations";
 import {
-  familiarityForSessionSupport,
-  SESSION_SUPPORT_OPTIONS,
-  sessionSupportExplanation,
-  type SessionSupportLevel,
-} from "@/lib/personalization/session-support";
-import {
-  buildSessionDecisionSignals,
-  buildStudyRouteMethodDecisionSignal,
-} from "@/lib/personalization/session-decision";
-import {
   buildSessionDeliveryPolicy,
   type LessonDeliveryInstructions,
   type SessionDeliveryPolicy,
@@ -360,9 +332,8 @@ import {
   SESSION_RECOVERY_CLOUD_SYNC_WARNING,
 } from "@/lib/supabase/cloud-sync-error";
 import {
-  SessionGenerationResponseSchema,
   type LessonBrief,
-  type SessionAdjustment,
+  type SessionAdjustment
 } from "@/lib/session-generation/schema";
 import { consumeLessonEventStream } from "@/lib/session-generation/lesson-stream";
 import {
@@ -387,37 +358,23 @@ import {
   builtInLessonCoversTarget,
   builtInLessonFitsTime,
   builtInSessionFallbackKind,
-  builtInTopicEvidenceId,
-  canUseBuiltInSessionFallback,
-  genericInsideFallbackCoversTarget,
-  type GenericInsideYovaFallbackLesson,
+  type GenericInsideYovaFallbackLesson
 } from "@/lib/session-generation/built-in-fallback";
-import {
-  sessionFallbackErrorCode,
-  type BuiltInFallbackOutcome,
-} from "@/lib/session-generation/fallback-observation";
 import { GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE } from "@/lib/session-generation/failure-message";
 import { guidedSessionAllowanceStateFromResponse } from "@/lib/session-generation/allowance-status";
 import {
   buildGuidedSessionFailureState,
   classifyGuidedSessionGenerationFailure,
   retryAfterResetAt as failureRetryAfterResetAt,
-  type GuidedSessionFailureState,
-  type GuidedSessionGenerationCause,
+  type GuidedSessionFailureState
 } from "@/lib/session-generation/failure-state";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
-import { toSessionResource } from "@/lib/session-generation/resource";
 import { polishActivityLabel } from "@/lib/session-generation/typography";
 import {
   AnswerEvaluationResponseSchema,
   type AnswerEvaluationResponse,
 } from "@/lib/session-evaluation/schema";
 import { semanticEvaluationEvidenceDisposition } from "@/lib/session-evaluation/evidence-authority";
-import {
-  isSessionGenerationOperationInProgress,
-  reusableSessionGenerationOperation,
-  type PendingSessionGenerationOperation,
-} from "@/lib/session-generation/operation-key";
 import { persistPlanSchedule } from "@/lib/scheduling/client";
 import type { ScheduleSessionUpdate } from "@/lib/scheduling/schema";
 import {
@@ -471,7 +428,7 @@ import {
   type TutorThreadSummary,
 } from "@/lib/tutor/schema";
 
-type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session-quota" | "session-method" | "session" | "complete" | "pre-session" | "baseline-session";
+type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-error" | "session-quota" | "session-method" | "session" | "complete" | "pre-session" | "baseline-session";
 type Tab = "Home" | "Learning" | "Calendar" | "Ask YOVA" | "You";
 type LearningPlanView = "active" | "recent" | "archive";
 type LearningSection = LearningPlanView | "methods";
@@ -486,28 +443,6 @@ function isActiveSessionCheckpointResumePoint(
 ): value is ActiveSessionCheckpointResumePoint {
   return Boolean(value && "source" in value && value.source === "active_session_checkpoint");
 }
-type ReadySessionMethodChoiceSelection = {
-  planId: string;
-  planSessionId: string;
-  expectedRouteRevisionId: string;
-} & (
-  | {
-      selectionScope?: "stored_alternative";
-      methodId: CoreMethodId;
-      requestedMethod?: never;
-    }
-  | {
-      selectionScope: "other_eligible_method";
-      requestedMethod: string;
-      methodId?: never;
-    }
-);
-
-type ReadySessionMethodChoiceResult = Readonly<{
-  status: "updated" | "unchanged" | "replayed";
-  methodRequestResolution: AgencyMethodRequestResolution | null;
-}>;
-
 function recoveryMethodContext({
   plan,
   session,
@@ -589,7 +524,6 @@ function recoveryMethodContext({
 // The server may make one bounded repair attempt after validating a lesson.
 // The client must wait long enough to receive that safe result instead of
 // aborting an otherwise healthy request halfway through the repair.
-const CLIENT_SESSION_GENERATION_TIMEOUT_MS = 110_000;
 
 const navItems: Array<{ label: Tab; icon: typeof Home }> = [
   { label: "Home", icon: Home },
@@ -720,18 +654,18 @@ export function YovaPrototype({
   const [resumedSessionEvidence, setResumedSessionEvidence] = useState<SessionEvidenceSnapshot | null>(null);
   const [answerRevealed, setAnswerRevealed] = useState(false);
   const [generatedLessonSteps, setGeneratedLessonSteps] = useState<LessonStep[] | null>(null);
-  const [generatedPlanSessionId, setGeneratedPlanSessionId] = useState<string | null>(null);
-  const [sessionLessonDeliveryInstructions, setSessionLessonDeliveryInstructions] = useState<LessonDeliveryInstructions | null>(null);
+  const [generatedPlanSessionId] = useState<string | null>(null);
+  const [sessionLessonDeliveryInstructions] = useState<LessonDeliveryInstructions | null>(null);
   const [streamedLessons, setStreamedLessons] = useState<Record<string, LessonRuntimeState>>({});
   const [sessionRationale, setSessionRationale] = useState<string | null>(null);
-  const [sessionMethodBriefing, setSessionMethodBriefing] = useState<SessionMethodBriefing | null>(null);
-  const [sessionDeliveryPolicy, setSessionDeliveryPolicy] = useState<SessionDeliveryPolicy | null>(null);
-  const [sessionCoverage, setSessionCoverage] = useState<SessionCoverage | null>(null);
+  const [sessionMethodBriefing] = useState<SessionMethodBriefing | null>(null);
+  const [sessionDeliveryPolicy] = useState<SessionDeliveryPolicy | null>(null);
+  const [sessionCoverage] = useState<SessionCoverage | null>(null);
   const [sessionSupportPlan, setSessionSupportPlan] = useState<SessionSupportPlan | null>(null);
-  const [sessionSourceGrounding, setSessionSourceGrounding] = useState<SessionSourceGrounding | null>(null);
+  const [sessionSourceGrounding] = useState<SessionSourceGrounding | null>(null);
   const [sessionGenerationIssue, setSessionGenerationIssue] = useState<string | null>(null);
-  const [sessionFailureState, setSessionFailureState] = useState<GuidedSessionFailureState | null>(null);
-  const [sessionRecoverySession, setSessionRecoverySession] = useState<LearningPlanSession | null>(null);
+  const [sessionFailureState] = useState<GuidedSessionFailureState | null>(null);
+  const [sessionRecoverySession] = useState<LearningPlanSession | null>(null);
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
   const [sessionCompletedAt, setSessionCompletedAt] = useState<string | null>(null);
   const [sessionCompletionMode, setSessionCompletionMode] = useState<SessionCompletionMode>("guided");
@@ -739,7 +673,7 @@ export function YovaPrototype({
   const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
   const [methodWorkProgress, setMethodWorkProgress] = useState<MethodWorkProgress>(emptyMethodWorkProgress);
   const [sessionActivityProgress, setSessionActivityProgress] = useState<SessionActivityProgress | null>(null);
-  const [sessionCapacityMinutes, setSessionCapacityMinutes] = useState<number | null>(null);
+  const [sessionCapacityMinutes] = useState<number | null>(null);
   const [sessionRecoveryNotice, setSessionRecoveryNotice] = useState<string | null>(null);
   const [sessionRecoveryIssue, setSessionRecoveryIssue] = useState<string | null>(null);
   const [cloudSyncIssue, setCloudSyncIssue] = useState<string | null>(null);
@@ -755,7 +689,7 @@ export function YovaPrototype({
   const [browserPreviewMode, setBrowserPreviewMode] = useState(false);
   const [tutorQuestion, setTutorQuestion] = useState("");
   const [tutorEntryKey, setTutorEntryKey] = useState(0);
-  const [pendingSessionPlan, setPendingSessionPlan] = useState<LearningPlan | null>(null);
+  const [, setPendingSessionPlan] = useState<LearningPlan | null>(null);
   const [earlySessionPlanId, setEarlySessionPlanId] = useState<string | null>(null);
   const [earlySessionPlanSessionId, setEarlySessionPlanSessionId] = useState<string | null>(null);
   const [earlySchedulePending, setEarlySchedulePending] = useState(false);
@@ -771,7 +705,6 @@ export function YovaPrototype({
   const signOutPendingRef = useRef(false);
   const retainedSignOutAccountIdRef = useRef<string | null>(null);
   const sessionGenerationAbortRef = useRef<AbortController | null>(null);
-  const pendingSessionGenerationOperationRef = useRef<PendingSessionGenerationOperation | null>(null);
   const sessionGenerationAttemptRef = useRef<{
     planSessionId: string;
     adjustment: SessionAdjustment | null;
@@ -785,7 +718,6 @@ export function YovaPrototype({
     fingerprint: string;
     generatedAt: string;
   }>());
-  const methodChoiceOperationIdsRef = useRef(new Map<string, string>());
   const checkpointSyncEpochRef = useRef(0);
   const discardedCheckpointRunIdsRef = useRef(new Set<string>());
   const writeActiveSessionCheckpointRef = useRef<(
@@ -2186,10 +2118,14 @@ export function YovaPrototype({
     if (storage) saveBaselineCheckpoint(storage, baselineCheckpointAccount, { ...checkpoint, produceStep: baselineTargetProduceStep, studyLocation: baselineTargetLocation });
   }, [baselineCheckpointAccount, baselineTargetProduceStep, baselineTargetLocation]);
 
+  /**
+   * Starts a plan block. Every start opens the pre-session card, then the hub
+   * (Brief 1.5 item 8); a block left mid-way reopens on its step instead. The
+   * old generated runtime's setup screens and loading screen are retired.
+   */
   const startSession = async (
     planId?: string,
     planOverride?: LearningPlan,
-    adjustment?: SessionAdjustment | null,
     planSessionId?: string,
     studyLocation: StudyLocation = "inside",
   ) => {
@@ -2202,649 +2138,20 @@ export function YovaPrototype({
       ))
       : storedRequestedPlan.sessions.find((session) => session.status === "ready");
     if (!storedRequestedSession) return;
-    if (baselineSessionShapes) {
-      // Baseline: the coded session shapes run the session and fill bounded
-      // AI slots as they go. Nothing is generated or validated up front.
-      sessionGenerationAbortRef.current?.abort();
-      sessionGenerationAbortRef.current = null;
-      setSelectedPlanId(storedRequestedPlan.id);
-      setPendingSessionPlan(null);
-      // Brief 1.5 item 8: a session left mid-way reopens on the same step with no setup;
-      // anything else opens the one pre-session card.
-      const storage = browserCheckpointStorage();
-      const saved = storage ? loadBaselineCheckpoint(storage, baselineCheckpointAccount, storedRequestedSession.id) : null;
-      setBaselineSessionTarget({
-        planId: storedRequestedPlan.id,
-        planSessionId: storedRequestedSession.id,
-        topicId: storedRequestedSession.topicIds?.[0] ?? null,
-        produceStep: saved?.produceStep ?? null,
-        studyLocation: saved?.studyLocation ?? studyLocation,
-      });
-      setStage(saved ? "baseline-session" : "pre-session");
-      return;
-    }
-    const plannedRouteContract = resolveStudyRouteSessionContract(
-      storedRequestedPlan,
-      storedRequestedSession,
-    );
-    const startDecision = sessionStartRecoveryDecision({
-      plan: plannedRouteContract.plan,
-      session: plannedRouteContract.session,
-      interruptions: sessionInterruptions,
-      restorableCheckpoints: recoverableSessionCheckpoints,
-      sessionAdjustment: adjustment,
-    });
-    const resumePoint = startDecision.resumePoint;
-    const checkpointResume = resumePoint;
-    const routeContract = resumePoint && storedRequestedSession.resource
-      ? resolveExecutedStudyRouteSessionContract(
-        storedRequestedPlan,
-        storedRequestedSession,
-      )
-      : plannedRouteContract;
-    const requestedPlan = routeContract.plan;
-    const requestedSession = routeContract.session;
-    const requestedPlanWasStoredAtStart = plansRef.current.some((plan) => plan.id === requestedPlan.id);
-    if (guidedSessionAllowanceBlocksNewStart(
-      guidedSessionAllowance,
-      startDecision.canStartWithoutGeneration,
-      guidedSessionAllowanceChecking,
-    )) {
-      setPendingSessionPlan(null);
-      setSelectedPlanId(requestedPlan.id);
-      setActiveTab("Home");
-      setStage("app");
-      return;
-    }
-
-    if (!resumePoint && adjustment === undefined) {
-      setSelectedPlanId(requestedPlan.id);
-      setPendingSessionPlan(requestedPlan);
-      setStage("session-setup");
-      return;
-    }
-
-    const requestedAdjustment = resumePoint && adjustment === undefined
-      ? resumedSessionAdjustment({
-        interruption: resumePoint,
-        plannedSessionMinutes: requestedSession.estimatedMinutes,
-        ...(sessionGenerationAttemptRef.current?.planSessionId === requestedSession.id
-          ? { inMemoryAdjustment: sessionGenerationAttemptRef.current.adjustment }
-          : {}),
-      })
-      : adjustment ?? null;
-    const committedStudyRoute = routeContract.resolution.source === "stored"
-      && routeContract.resolution.route?.identity.lifecycleStatus === "committed"
-      ? routeContract.resolution.route
-      : null;
-    // A committed route is the recipe the learner approved. Temporary setup
-    // context can change delivery support, but changing its duration requires
-    // a visible successor revision rather than silently mutating this one.
-    const effectiveAdjustment = committedStudyRoute && requestedAdjustment
-      ? { ...requestedAdjustment, availableMinutes: null }
-      : requestedAdjustment;
-    sessionGenerationAttemptRef.current = {
-      planSessionId: requestedSession.id,
-      adjustment: effectiveAdjustment,
-    };
-    activeSessionRunIdRef.current = checkpointResume?.runId ?? makeUuid();
-    activeSessionResourceFingerprintRef.current = checkpointResume?.resourceFingerprint ?? null;
-    activeSessionResourceGeneratedAtRef.current = checkpointResume?.resourceGeneratedAt
-      ?? requestedSession.resource?.generatedAt
-      ?? null;
-
-    setSelectedPlanId(requestedPlan.id);
-    setPendingSessionPlan(null);
-    setSessionStep(0);
-    setSelectedAnswer(null);
-    setSessionOutcomes({});
-    setSessionAttempts({});
-    setSessionConfidence({});
-    setResumedSessionEvidence(resumePoint?.evidence ?? null);
-    setAnswerRevealed(false);
-    setGeneratedLessonSteps(null);
-    setGeneratedPlanSessionId(null);
-    setSessionLessonDeliveryInstructions(null);
-    lessonStreamControllersRef.current.forEach((controller) => controller.abort());
-    lessonStreamControllersRef.current.clear();
-    lessonStreamsStartedRef.current.clear();
-    setStreamedLessons({});
-    setSessionRationale(null);
-    setSessionMethodBriefing(null);
-    setSessionDeliveryPolicy(null);
-    setSessionCoverage(null);
-    setSessionSupportPlan(null);
-    setSessionSourceGrounding(null);
-    setSessionGenerationIssue(null);
-    setSessionFailureState(null);
-    setSessionRecoverySession(null);
-    setSessionRecoveryNotice(null);
-    setSessionRecoveryIssue(null);
-    setSessionStartedAt(null);
-    setSessionCompletedAt(null);
-    setSessionCompletionMode("guided");
-    setSessionCompletionFeedback(null);
-    setSessionElapsedSeconds(0);
-    setMethodWorkProgress(checkpointResume?.methodWork ?? emptyMethodWorkProgress());
-    updateSessionActivityProgress(resumePoint?.activityProgress ?? null);
-    setSessionCapacityMinutes(effectiveAdjustment?.availableMinutes ?? requestedSession.estimatedMinutes);
-    setStage("session-loading");
     sessionGenerationAbortRef.current?.abort();
-
-    if (checkpointResume?.methodWork && !checkpointResume.resourceGeneratedAt) {
-      const methodContext = recoveryMethodContext({
-        plan: requestedPlan,
-        session: requestedSession,
-        onboardingAnswers: answers,
-        completions: sessionCompletions,
-        interruptions: sessionInterruptions,
-        adjustment: effectiveAdjustment,
-      });
-      const methodCheckpointMatches = checkpointMatchesMethodWorkSession(checkpointResume, {
-        studyMode: requestedPlan.studyMode,
-        session: methodContext.session,
-        topics: methodContext.topics,
-        sourceFirstRequired: methodContext.sourceFirstRequired,
-      });
-      if (
-        methodCheckpointMatches
-        && canScheduleUnguidedVerification(methodContext.session, requestedPlan.sessions.length)
-      ) {
-        setSessionRecoverySession(methodContext.session);
-        setSessionMethodBriefing(methodContext.briefing);
-        setSessionDeliveryPolicy(methodContext.deliveryPolicy);
-        setSessionCompletionMode(checkpointResume.completionMode);
-        activeSessionResourceFingerprintRef.current = methodContext.fingerprint;
-        activeSessionResourceGeneratedAtRef.current = null;
-        sessionGenerationAbortRef.current = null;
-        beginTimedSession(requestedPlan, true, checkpointResume, "session-method");
-        return;
-      }
-    }
-
-    const generationController = new AbortController();
-    sessionGenerationAbortRef.current = generationController;
-
-    if (
-      requestedSession.resource
-      && (
-        (checkpointResume && startDecision.advertiseContinue)
-        || (!checkpointResume && effectiveAdjustment === null && startDecision.cachedResourceRestorable)
-      )
-    ) {
-      const restoredSteps = lessonStepsFromSessionResource(requestedSession.resource);
-      const restoredLesson = checkpointResume
-        ? checkpointResume.checkpointStatus === "awaiting_finish"
-          ? { steps: restoredSteps, step: Math.max(0, restoredSteps.length - 1) }
-          : restoreInterruptedLesson(restoredSteps, checkpointResume)
-        : restoreInterruptedLesson(restoredSteps, resumePoint);
-      const supportPlan = requestedSession.resource.supportPlan ?? buildSessionSupportPlan({
-        signals: buildScaffoldProgressionSignals(
-          sessionCompletions.filter((completion) => completion.planId === requestedPlan.id),
-        ),
-        activities: requestedSession.resource.activities.map((activity) => ({
-          ...activity,
-          methodPhase: activity.methodPhase ?? "orient",
-        })),
-        learningMode: requestedSession.resource.methodBriefing?.learningMode ?? requestedSession.learningMode,
-      });
-      setGeneratedLessonSteps(restoredLesson.steps);
-      setGeneratedPlanSessionId(requestedSession.id);
-      setSessionLessonDeliveryInstructions(requestedSession.resource.deliveryInstructions ?? null);
-      setSessionStep(restoredLesson.step);
-      setSessionRationale(requestedSession.resource.rationale);
-      setSessionCoverage(requestedSession.resource.coverage ?? null);
-      setSessionRecoverySession(requestedSession);
-      setSessionMethodBriefing(requestedSession.resource.methodBriefing ?? null);
-      setSessionCompletionMode(
-        checkpointResume?.completionMode
-          ?? (requestedSession.resource.methodBriefing?.name === GENERIC_INSIDE_FALLBACK_METHOD_NAME
-            || (requestedPlan.studyMode === "outside_yova" && requestedSession.resource.origin === "built_in")
-            ? "unguided_practice"
-            : "guided"),
-      );
-      setSessionDeliveryPolicy(requestedSession.resource.deliveryPolicy ?? null);
-      setSessionSupportPlan(supportPlan);
-      setSessionSourceGrounding(requestedSession.resource.sourceGrounding ?? null);
-      activeSessionResourceFingerprintRef.current = fingerprintSessionResource(requestedSession.resource);
-      activeSessionResourceGeneratedAtRef.current = requestedSession.resource.generatedAt;
-      sessionGenerationAbortRef.current = null;
-      beginTimedSession(requestedPlan, Boolean(resumePoint), checkpointResume);
-      return;
-    }
-
-    const generationOperation = reusableSessionGenerationOperation(
-      pendingSessionGenerationOperationRef.current,
-      {
-        planId: requestedPlan.id,
-        planSessionId: requestedSession.id,
-        adjustment: effectiveAdjustment,
-      },
-      () => crypto.randomUUID(),
-    );
-    pendingSessionGenerationOperationRef.current = generationOperation;
-    const clientRequestId = generationOperation.requestId;
-    let generationOperationReachedTerminalResponse = false;
-    let generationTimedOut = false;
-    const generationTimeoutId = window.setTimeout(() => {
-      generationTimedOut = true;
-      generationController.abort();
-    }, CLIENT_SESSION_GENERATION_TIMEOUT_MS);
-    let requestId: string | null = clientRequestId;
-    let generationFailureStatus: number | null = null;
-    let generationFailureKind: typeof GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE | null = null;
-    let generationAllowanceResetAt: string | null = null;
-    let generationFailureCause: GuidedSessionGenerationCause | null = null;
-
-    try {
-      const response = await fetch("/api/sessions/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Yova-Request-Id": clientRequestId,
-          ...(browserPreviewMode ? { "X-Yova-Development-Preview": "guided-session" } : {}),
-        },
-        body: JSON.stringify({
-          planId: requestedPlan.id,
-          planSessionId: requestedSession.id,
-          ...(requestedSession.studyRoute?.identity.lifecycleStatus === "committed"
-            ? { routeRevisionId: requestedSession.studyRoute.identity.routeRevisionId }
-            : {}),
-          ...(effectiveAdjustment ? { sessionAdjustment: effectiveAdjustment } : {}),
-          ...(account?.identityMode === "preview" ? {
-            previewContext: buildPreviewSessionContext({
-              plan: requestedPlan,
-              session: requestedSession,
-              onboardingAnswers: answers,
-              completions: sessionCompletions,
-              interruptions: sessionInterruptions,
-              sessionAdjustment: effectiveAdjustment,
-            }),
-          } : {}),
-        }),
-        signal: generationController.signal,
-      });
-      requestId = response.headers.get("X-Yova-Request-Id") ?? requestId;
-      const generationLatencyMs = readBoundedIntegerHeader(response, "X-Yova-Generation-Ms", 180_000);
-      const generationAttempts = readBoundedIntegerHeader(response, "X-Yova-Generation-Attempts", 3);
-      const promptCacheHit = response.headers.get("X-Yova-Prompt-Cache-Hit") === "true";
-      const body: unknown = await response.json().catch(() => null);
-      generationOperationReachedTerminalResponse = !isSessionGenerationOperationInProgress(body);
-      void refreshGuidedSessionAllowance();
-      if (!response.ok) {
-        generationFailureStatus = response.status;
-        generationFailureCause = classifyGuidedSessionGenerationFailure({ response, body });
-        generationFailureKind = generationFailureCause.kind === "allowance_exhausted"
-          ? GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE
-          : null;
-        generationAllowanceResetAt = generationFailureCause.resetAt;
-        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
-          ? body.error
-          : "YOVA could not generate this guided session.";
-        throw new Error(message);
-      }
-
-      const parsed = SessionGenerationResponseSchema.safeParse(body);
-      if (!parsed.success) {
-        generationFailureCause = classifyGuidedSessionGenerationFailure({
-          response: { status: 502, headers: response.headers },
-          body: {
-            error: "The generated session came back in an unsafe format.",
-            retryable: false,
-          },
-        });
-        generationFailureStatus = 502;
-        throw new Error("The generated session came back in an unsafe format.");
-      }
-      const expectedRouteRevisionId = requestedSession.studyRoute?.identity.lifecycleStatus === "committed"
-        ? requestedSession.studyRoute.identity.routeRevisionId
-        : undefined;
-      if (
-        expectedRouteRevisionId
-        && parsed.data.session.routeRevisionId !== expectedRouteRevisionId
-      ) {
-        generationFailureStatus = 409;
-        throw new Error("The generated session belongs to a different study route.");
-      }
-      trackProductEvent({
-        eventName: "session_generated",
-        context: {
-          mode: parsed.data.generation.mode,
-          latencyMs: generationLatencyMs,
-          attempts: generationAttempts,
-          promptCacheHit,
-        },
-      }, analyticsEnabled);
-
-      const nextLessonSteps = parsed.data.session.activities.map((activity, sourceActivityIndex) => ({
-        sourceActivityIndex,
-        topicId: activity.topicId,
-        methodPhase: activity.methodPhase,
-        estimatedMinutes: activity.estimatedMinutes,
-        requiredForCompletion: activity.requiredForCompletion,
-        type: activity.type,
-        concept: activity.concept,
-        label: activity.label,
-        title: activity.title,
-        body: activity.body,
-        teaching: activity.teaching,
-        lessonBrief: "lessonBrief" in activity ? activity.lessonBrief : null,
-        question: activity.type === "multiple_choice" ? activity.choices : null,
-        correctAnswer: activity.correctAnswer,
-        feedback: activity.feedback,
-        practiceIntent: activity.practiceIntent,
-        misconceptionSummary: activity.misconceptionSummary ?? undefined,
-        methodRuntime: activity.methodRuntime ?? null,
-      }));
-      const supportPlan = parsed.data.session.supportPlan ?? buildSessionSupportPlan({
-        signals: buildScaffoldProgressionSignals(
-          sessionCompletions.filter((completion) => completion.planId === requestedPlan.id),
-        ),
-        activities: parsed.data.session.activities,
-        learningMode: parsed.data.session.methodBriefing.learningMode,
-      });
-      const reusableResource = { ...toSessionResource(parsed.data.session), supportPlan };
-      setPlans((current) => current.map((plan) => plan.id !== requestedPlan.id ? plan : {
-        ...plan,
-        sessions: plan.sessions.map((session) => session.id === requestedSession.id
-          ? { ...session, resource: reusableResource }
-          : session),
-      }));
-      const restoredLesson = restoreInterruptedLesson(nextLessonSteps, resumePoint);
-      setGeneratedLessonSteps(restoredLesson.steps);
-      setGeneratedPlanSessionId(parsed.data.planSessionId);
-      setSessionLessonDeliveryInstructions(parsed.data.session.schemaVersion === 16 || parsed.data.session.schemaVersion === 17
-        ? parsed.data.session.deliveryInstructions
-        : null);
-      setSessionStep(restoredLesson.step);
-      setSessionRationale(parsed.data.session.rationale);
-      setSessionCoverage(parsed.data.session.coverage);
-      setSessionMethodBriefing(parsed.data.session.methodBriefing);
-      setSessionDeliveryPolicy(parsed.data.session.deliveryPolicy);
-      setSessionSupportPlan(supportPlan);
-      setSessionSourceGrounding(parsed.data.session.sourceGrounding);
-      if (account?.identityMode === "supabase") {
-        if (parsed.data.generation.persistence === "supabase") {
-          cloudCheckpointResourceIdentitiesRef.current.set(requestedSession.id, {
-            fingerprint: fingerprintSessionResource(reusableResource),
-            generatedAt: reusableResource.generatedAt,
-          });
-        } else {
-          cloudCheckpointResourceIdentitiesRef.current.delete(requestedSession.id);
-          setSessionGenerationIssue("This session is ready, but YOVA could not cache it in your cloud account.");
-        }
-      }
-      activeSessionResourceFingerprintRef.current = fingerprintSessionResource(reusableResource);
-      activeSessionResourceGeneratedAtRef.current = reusableResource.generatedAt;
-      beginTimedSession(requestedPlan, Boolean(resumePoint), checkpointResume);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError" && !generationTimedOut) return;
-      const message = generationTimedOut
-        ? "Live lesson generation took too long."
-        : error instanceof Error
-          ? error.message
-          : "YOVA could not generate this session.";
-      const resolvedFailureCause = generationFailureCause
-        ?? classifyGuidedSessionGenerationFailure({
-          response: null,
-          body: { error: message },
-          timedOut: generationTimedOut,
-        });
-      const methodRecovery = recoveryMethodContext({
-        plan: requestedPlan,
-        session: requestedSession,
-        onboardingAnswers: answers,
-        completions: sessionCompletions,
-        interruptions: sessionInterruptions,
-        adjustment: effectiveAdjustment,
-      });
-      const fallbackAvailableMinutes = methodRecovery.availableMinutes;
-      const fallbackSession = methodRecovery.session;
-      const fallbackDeliveryPolicy = methodRecovery.deliveryPolicy;
-      const methodRecoveryCanStart = !(
-        requestedPlan.studyMode === "inside_yova"
-        && fallbackSession.learningMode === "learn"
-      ) && canScheduleUnguidedVerification(
-        fallbackSession,
-        requestedPlan.sessions.length,
-      );
-      const openMethodRecovery = (
-        fallbackOutcome: Exclude<BuiltInFallbackOutcome, "loaded">,
-      ) => {
-        const failureState = buildGuidedSessionFailureState({
-          cause: resolvedFailureCause,
-          fallbackOutcome,
-        });
-        setSessionFailureState(failureState);
-        setSessionRecoverySession(fallbackSession);
-        setSessionMethodBriefing(methodRecovery.briefing);
-        setSessionDeliveryPolicy(fallbackDeliveryPolicy);
-        if (methodRecoveryCanStart) {
-          activeSessionResourceFingerprintRef.current = methodRecovery.fingerprint;
-          activeSessionResourceGeneratedAtRef.current = null;
-          setMethodWorkProgress(emptyMethodWorkProgress());
-          updateSessionActivityProgress(null);
-          setSessionCompletionMode("unguided_practice");
-          setSessionGenerationIssue(null);
-          setSessionRecoveryIssue(null);
-          beginTimedSession(requestedPlan, false, null, "session-method");
-          const recoveryMessage = resolvedFailureCause.kind === "allowance_exhausted"
-            ? guidedSessionAllowanceFallbackNotice(
-                resolvedFailureCause.resetAt,
-                "A safe study-method workpad was loaded instead",
-              )
-            : `${message} A safe study-method workpad was loaded instead. It follows the committed method and counts as practice, not proof of mastery.`;
-          setSessionRecoveryNotice(
-            `${recoveryMessage}${requestId ? ` Reference: ${requestId}.` : ""}`,
-          );
-          return;
-        }
-        setSessionGenerationIssue(requestId ? `Reference: ${requestId}.` : null);
-        setStage(resolvedFailureCause.kind === "allowance_exhausted" ? "session-quota" : "session-error");
-      };
-      const currentRequestedPlan = plansRef.current.find((plan) => plan.id === requestedPlan.id);
-      const currentPlanStatus = currentRequestedPlan?.status
-        ?? (requestedPlanWasStoredAtStart ? undefined : requestedPlan.status);
-      const outsideFallback = requestedPlan.studyMode === "outside_yova"
-        ? buildOutsideYovaFallbackLesson({
-          topic: requestedPlan.topic,
-          objective: fallbackSession.objective,
-          method: fallbackSession.method,
-          methodReason: fallbackSession.methodReason,
-          learningMode: fallbackSession.learningMode,
-          availableMinutes: fallbackAvailableMinutes,
-        })
-        : null;
-      const insideFallbackSelection = requestedPlan.studyMode === "inside_yova"
-        ? insideBuiltInLessonSelectionFor(requestedPlan, fallbackSession)
-        : null;
-      const fallbackSelection = requestedPlan.studyMode === "outside_yova"
-        ? outsideFallback
-          ? { kind: "outside_source" as const, steps: outsideFallback.activities }
-          : null
-        : insideFallbackSelection;
-      const fallbackCanComplete = canLoadBuiltInFallbackWithCompletion({
-        fallbackKind: fallbackSelection?.kind ?? null,
-        session: fallbackSession,
-        planSessionCount: currentRequestedPlan?.sessions.length ?? requestedPlan.sessions.length,
-      });
-      const fallbackTemplate = (
-        canUseBuiltInSessionFallback({
-          planStatus: currentPlanStatus,
-          sourceMode: currentRequestedPlan?.sourceMode ?? requestedPlan.sourceMode,
-          responseStatus: generationFailureStatus,
-          failureKind: generationFailureKind,
-          adjustment: effectiveAdjustment,
-          outsideFallback,
-        })
-        && !isScheduledRetrievalSession(requestedSession)
-        && fallbackCanComplete
-      )
-        ? fallbackSelection?.steps ?? null
-        : null;
-      const fallbackSteps = fallbackTemplate
-        ? bindBuiltInLessonToSession(
-          fallbackTemplate,
-          fallbackSession,
-          requestedPlan.studyMode,
-        )
-        : null;
-      if (!fallbackSteps) {
-        if (!generationFailureKind) {
-          reportProductError({
-            surface: "session_generation",
-            errorCode: sessionFallbackErrorCode({
-              generationTimedOut,
-              fallbackAvailable: false,
-              fitsAvailableTime: false,
-              coverageAccepted: false,
-            }),
-            requestId,
-          });
-        }
-        openMethodRecovery("unavailable");
-        return;
-      }
-      if (!builtInLessonFitsTime(fallbackSteps, fallbackAvailableMinutes)) {
-        if (!generationFailureKind) {
-          reportProductError({
-            surface: "session_generation",
-            errorCode: sessionFallbackErrorCode({
-              generationTimedOut,
-              fallbackAvailable: true,
-              fitsAvailableTime: false,
-              coverageAccepted: false,
-            }),
-            requestId,
-          });
-        }
-        openMethodRecovery("time_fit_rejected");
-        return;
-      }
-      const fallbackCoverage = fallbackCoverageFor(
-        fallbackSession,
-        fallbackSteps,
-        fallbackSelection?.kind === "generic_inside"
-          ? fallbackSelection.fallback
-          : null,
-      );
-      if (
-        requestedPlan.studyMode === "inside_yova"
-        && fallbackCoverage.deferredContent.length > 0
-      ) {
-        if (!generationFailureKind) {
-          reportProductError({
-            surface: "session_generation",
-            errorCode: sessionFallbackErrorCode({
-              generationTimedOut,
-              fallbackAvailable: true,
-              fitsAvailableTime: true,
-              coverageAccepted: false,
-            }),
-            requestId,
-          });
-        }
-        openMethodRecovery("coverage_rejected");
-        return;
-      }
-      const fallbackSupportPlan = buildSessionSupportPlan({
-        signals: buildScaffoldProgressionSignals(
-          sessionCompletions.filter((completion) => completion.planId === requestedPlan.id),
-        ),
-        activities: fallbackSteps.map((step) => ({
-          methodPhase: step.methodPhase ?? "orient",
-          type: step.type,
-          concept: step.concept,
-        })),
-        learningMode: fallbackSession.learningMode,
-      });
-      const committedFallbackRoute = requestedSession.studyRoute?.identity.lifecycleStatus === "committed"
-        ? requestedSession.studyRoute
-        : null;
-      const fallbackMethodBriefing = committedFallbackRoute && fallbackSelection?.kind !== "generic_inside"
-        ? buildCommittedRouteFallbackMethodBriefing(committedFallbackRoute, fallbackDeliveryPolicy)
-        : fallbackSelection?.kind === "generic_inside"
-          ? buildGenericInsideFallbackMethodBriefing(requestedPlan, fallbackSession, fallbackDeliveryPolicy)
-          : buildFallbackMethodBriefing(requestedPlan, fallbackSession, fallbackDeliveryPolicy);
-      if (
-        committedFallbackRoute
-        && (
-          fallbackMethodBriefing.methodId !== committedFallbackRoute.approach.primaryMethodId
-          || fallbackMethodBriefing.learningMode !== (
-            committedFallbackRoute.approach.mode === "learn" ? "learn" : "study"
-          )
-        )
-      ) {
-        openMethodRecovery("unavailable");
-        return;
-      }
-      const fallbackResource = {
-        ...reusableResourceFromLessonSteps(fallbackSteps, fallbackSession.methodReason),
-        ...(requestedSession.studyRoute?.identity.lifecycleStatus === "committed"
-          ? { routeRevisionId: requestedSession.studyRoute.identity.routeRevisionId }
-          : {}),
-        coverage: fallbackCoverage,
-        methodBriefing: fallbackMethodBriefing,
-        deliveryPolicy: fallbackDeliveryPolicy,
-        supportPlan: fallbackSupportPlan,
-      };
-      if (!generationFailureKind) {
-        reportProductError({
-          surface: "session_generation",
-          errorCode: sessionFallbackErrorCode({
-            generationTimedOut,
-            fallbackAvailable: true,
-            fitsAvailableTime: true,
-            coverageAccepted: true,
-          }),
-          requestId,
-        });
-      }
-      setPlans((current) => current.map((plan) => plan.id !== requestedPlan.id ? plan : {
-        ...plan,
-        sessions: plan.sessions.map((session) => session.id === requestedSession.id
-          ? { ...session, resource: fallbackResource }
-          : session),
-      }));
-      const restoredLesson = restoreInterruptedLesson(fallbackSteps, resumePoint);
-      setGeneratedLessonSteps(restoredLesson.steps);
-      setSessionStep(restoredLesson.step);
-      setSessionRationale(fallbackSession.methodReason);
-      setSessionCoverage(fallbackCoverage);
-      setSessionMethodBriefing(fallbackMethodBriefing);
-      setSessionCompletionMode(
-        fallbackSelection?.kind === "generic_inside" || fallbackSelection?.kind === "outside_source"
-          ? "unguided_practice"
-          : "guided",
-      );
-      setSessionDeliveryPolicy(fallbackDeliveryPolicy);
-      setSessionSupportPlan(fallbackSupportPlan);
-      setSessionSourceGrounding(null);
-      if (!generationFailureKind) {
-        setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.${requestId ? ` Reference: ${requestId}.` : ""}`);
-      }
-      cloudCheckpointResourceIdentitiesRef.current.delete(requestedSession.id);
-      activeSessionResourceFingerprintRef.current = fingerprintSessionResource(fallbackResource);
-      activeSessionResourceGeneratedAtRef.current = fallbackResource.generatedAt;
-      beginTimedSession(requestedPlan, Boolean(resumePoint), checkpointResume);
-      if (generationFailureKind) {
-        // beginTimedSession restores any checkpoint notice (or clears it for a
-        // fresh run), so apply the quota recovery notice afterwards.
-        setSessionGenerationIssue(null);
-        setSessionRecoveryNotice(`${guidedSessionAllowanceFallbackNotice(generationAllowanceResetAt, "A safe built-in session was loaded instead")}${requestId ? ` Reference: ${requestId}.` : ""}`);
-      }
-    } finally {
-      window.clearTimeout(generationTimeoutId);
-      if (
-        generationOperationReachedTerminalResponse
-        && pendingSessionGenerationOperationRef.current?.requestId === clientRequestId
-      ) {
-        pendingSessionGenerationOperationRef.current = null;
-      }
-      if (sessionGenerationAbortRef.current === generationController) {
-        sessionGenerationAbortRef.current = null;
-      }
-    }
+    sessionGenerationAbortRef.current = null;
+    setSelectedPlanId(storedRequestedPlan.id);
+    setPendingSessionPlan(null);
+    const storage = browserCheckpointStorage();
+    const saved = storage ? loadBaselineCheckpoint(storage, baselineCheckpointAccount, storedRequestedSession.id) : null;
+    setBaselineSessionTarget({
+      planId: storedRequestedPlan.id,
+      planSessionId: storedRequestedSession.id,
+      topicId: storedRequestedSession.topicIds?.[0] ?? null,
+      produceStep: saved?.produceStep ?? null,
+      studyLocation: saved?.studyLocation ?? studyLocation,
+    });
+    setStage(saved ? "baseline-session" : "pre-session");
   };
 
   const requestSessionStart = (planId?: string, planSessionId?: string) => {
@@ -2880,7 +2187,7 @@ export function YovaPrototype({
       setEarlyScheduleIssue(null);
       return true;
     }
-    void startSession(requestedPlan.id, undefined, undefined, requestedSession.id);
+    void startSession(requestedPlan.id, undefined, requestedSession.id);
     return true;
   };
 
@@ -2895,7 +2202,7 @@ export function YovaPrototype({
       setEarlySessionPlanId(null);
       setEarlySessionPlanSessionId(null);
       setEarlyScheduleIssue(null);
-      await startSession(requestedPlan.id, undefined, undefined, requestedSession.id);
+      await startSession(requestedPlan.id, undefined, requestedSession.id);
       return;
     }
 
@@ -2906,7 +2213,7 @@ export function YovaPrototype({
       if (updates.length === 0) {
         setEarlySessionPlanId(null);
         setEarlySessionPlanSessionId(null);
-        await startSession(requestedPlan.id, requestedPlan, undefined, requestedSession.id);
+        await startSession(requestedPlan.id, requestedPlan, requestedSession.id);
         return;
       }
       const authoritativeUpdates = account?.identityMode === "supabase"
@@ -2943,7 +2250,7 @@ export function YovaPrototype({
       }
       setEarlySessionPlanId(null);
       setEarlySessionPlanSessionId(null);
-      await startSession(advancedPlan.id, advancedPlan, undefined, requestedSession.id);
+      await startSession(advancedPlan.id, advancedPlan, requestedSession.id);
     } catch (error) {
       setEarlyScheduleIssue(error instanceof Error ? error.message : "YOVA could not pull the plan forward.");
     } finally {
@@ -3755,161 +3062,6 @@ export function YovaPrototype({
     }
   };
 
-  const changeReadySessionMethod = async (
-    selection: ReadySessionMethodChoiceSelection,
-  ): Promise<ReadySessionMethodChoiceResult> => {
-    const requestedPlan = plansRef.current.find((plan) => plan.id === selection.planId);
-    const requestedSession = requestedPlan?.sessions.find((session) => (
-      session.id === selection.planSessionId
-    ));
-    const requestedRoute = requestedSession?.studyRoute?.identity.lifecycleStatus === "committed"
-      ? requestedSession.studyRoute
-      : null;
-    if (
-      !requestedPlan
-      || !requestedSession
-      || requestedPlan.status !== "active"
-      || requestedSession.status !== "ready"
-      || requestedSession.resource
-      || requestedRoute?.identity.routeRevisionId !== selection.expectedRouteRevisionId
-      || sessionCompletions.some((completion) => completion.planSessionId === selection.planSessionId)
-      || sessionInterruptions.some((interruption) => interruption.planSessionId === selection.planSessionId)
-      || activeSessionCheckpoints.some((checkpoint) => checkpoint.planSessionId === selection.planSessionId)
-    ) {
-      throw new Error("This session is no longer untouched and ready for a method change.");
-    }
-
-    let methodRequestResolution: AgencyMethodRequestResolution | null = null;
-    let selectedMethodId: CoreMethodId;
-    if (selection.selectionScope === "other_eligible_method") {
-      methodRequestResolution = resolveBoundedOtherMethodRequest({
-        route: requestedRoute,
-        requestedMethod: selection.requestedMethod,
-      });
-      selectedMethodId = methodRequestResolution.selectedMethodId;
-    } else {
-      selectedMethodId = selection.methodId;
-    }
-
-    const operationKey = [
-      selection.planId,
-      selection.planSessionId,
-      selection.expectedRouteRevisionId,
-      selection.selectionScope ?? "stored_alternative",
-      selection.selectionScope === "other_eligible_method"
-        ? selection.requestedMethod
-        : selection.methodId,
-    ].join(":");
-    const changeRequestId = methodChoiceOperationIdsRef.current.get(operationKey)
-      ?? makeUuid();
-    methodChoiceOperationIdsRef.current.set(operationKey, changeRequestId);
-    let authoritativeSession: {
-      id: string;
-      method: string;
-      methodReason: string;
-      estimatedMinutes: number;
-      studyRoute: NonNullable<LearningPlanSession["studyRoute"]>;
-    };
-    let choiceStatus: ReadySessionMethodChoiceResult["status"];
-
-    if (account?.identityMode === "preview" || browserPreviewMode) {
-      const result = createCommittedMethodChoiceSuccessor({
-        plan: requestedPlan,
-        session: requestedSession,
-        previousRoute: requestedRoute,
-        expectedRouteRevisionId: selection.expectedRouteRevisionId,
-        routeRevisionId: changeRequestId,
-        methodId: selectedMethodId,
-        changedAt: new Date().toISOString(),
-        choiceScope: selection.selectionScope ?? "stored_alternative",
-      });
-      authoritativeSession = result.session;
-      choiceStatus = result.status;
-    } else {
-      const response = await fetch("/api/sessions/method-choice", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...selection,
-          changeRequestId,
-        }),
-      });
-      const body: unknown = await response.json();
-      if (!response.ok) {
-        if (response.status >= 400 && response.status < 500) {
-          methodChoiceOperationIdsRef.current.delete(operationKey);
-        }
-        const message = typeof body === "object" && body && "error" in body
-          && typeof body.error === "string"
-          ? body.error
-          : "YOVA could not change this session method. The current recipe is still in place.";
-        throw new Error(message);
-      }
-      const parsed = CommittedMethodChoiceResponseSchema.safeParse(body);
-      if (!parsed.success) {
-        throw new Error("The updated session recipe came back in an unsafe format. Reload this goal before continuing.");
-      }
-      if (
-        selection.selectionScope === "other_eligible_method"
-        && !parsed.data.methodRequestResolution
-      ) {
-        throw new Error("The updated session recipe did not include its verified method mapping. Reload this goal before continuing.");
-      }
-      authoritativeSession = parsed.data.session;
-      choiceStatus = parsed.data.status;
-      methodRequestResolution = parsed.data.methodRequestResolution
-        ?? methodRequestResolution;
-    }
-
-    if (
-      methodRequestResolution
-      && authoritativeSession.studyRoute.approach.primaryMethodId
-        !== methodRequestResolution.selectedMethodId
-    ) {
-      throw new Error("The updated session recipe did not match the verified method mapping. Reload this goal before continuing.");
-    }
-
-    const currentPlan = plansRef.current.find((plan) => plan.id === selection.planId);
-    const currentSession = currentPlan?.sessions.find((session) => (
-      session.id === selection.planSessionId
-    ));
-    if (
-      !currentPlan
-      || !currentSession
-      || currentSession.studyRoute?.identity.routeRevisionId !== selection.expectedRouteRevisionId
-      || (choiceStatus === "unchanged"
-        ? authoritativeSession.studyRoute.identity.routeRevisionId
-          !== selection.expectedRouteRevisionId
-        : authoritativeSession.studyRoute.identity.supersedesRevisionId
-          !== selection.expectedRouteRevisionId)
-    ) {
-      throw new Error("This session changed while YOVA was saving your choice. Reload the goal to see its current recipe.");
-    }
-
-    const replaceMethodSession = (plan: LearningPlan) => plan.id !== selection.planId
-      ? plan
-      : {
-          ...plan,
-          sessions: plan.sessions.map((session) => session.id !== selection.planSessionId
-            ? session
-            : {
-                ...session,
-                method: authoritativeSession.method,
-                methodReason: authoritativeSession.methodReason,
-                estimatedMinutes: authoritativeSession.estimatedMinutes,
-                studyRoute: authoritativeSession.studyRoute,
-              }),
-        };
-    plansRef.current = plansRef.current.map(replaceMethodSession);
-    setPlans((current) => current.map(replaceMethodSession));
-    setPendingSessionPlan((current) => current ? replaceMethodSession(current) : current);
-    methodChoiceOperationIdsRef.current.delete(operationKey);
-    return {
-      status: choiceStatus,
-      methodRequestResolution,
-    };
-  };
-
   const revisionClient: RevisionClient = {
     launch: revisionLaunch,
     onReviewClosed: () => {
@@ -4639,7 +3791,7 @@ export function YovaPrototype({
     setPlans((current) => [...current, plan]);
     preserveSeedDeadline(plan);
     setSelectedPlanId(plan.id);
-    void startSession(plan.id, plan, null, undefined, studyLocation);
+    void startSession(plan.id, plan, undefined, studyLocation);
   }} />;
   // A target that no longer resolves (the plan changed underneath it) returns to Home; there is no loading screen.
   if (baselineStage && !baselineTarget) return <BaselineTargetGone onGone={leaveBaselineSession} />;
@@ -4681,27 +3833,6 @@ export function YovaPrototype({
       interleavedKeyPoints={route.firstPracticeRound === "interleaved_review" ? interleavedKeyPointsForSession({ plan: targetPlan, topic: targetTopic, completions: sessionCompletions }) : []}
     />;
   }
-  if (stage === "session-setup") return <SessionSetup plan={pendingSessionPlan ?? activePlan} answers={answers} completions={sessionCompletions} interruptions={sessionInterruptions} onChangeMethod={changeReadySessionMethod} onExit={() => {
-    setPendingSessionPlan(null);
-    setStage("app");
-  }} onOpenGoal={() => {
-    const plan = pendingSessionPlan ?? activePlan;
-    if (plan) {
-      setSelectedPlanId(plan.id);
-      setLearningDetailPlanId(plan.id);
-    }
-    setPendingSessionPlan(null);
-    setActiveTab("Learning");
-    setStage("app");
-  }} onStart={(adjustment) => {
-    const plan = pendingSessionPlan ?? activePlan;
-    if (plan) void startSession(plan.id, plan, adjustment);
-  }} />;
-  if (stage === "session-loading") return <SessionLoading plan={activePlan} onExit={() => {
-    sessionGenerationAbortRef.current?.abort();
-    sessionGenerationAbortRef.current = null;
-    setStage("app");
-  }} />;
   if (stage === "session-quota" || stage === "session-error") return <SessionGenerationRecovery
     plan={activePlan}
     session={sessionRecoverySession ?? activePlan?.sessions.find((session) => session.status === "ready") ?? null}
@@ -4727,18 +3858,7 @@ export function YovaPrototype({
       setStage("app");
     }}
     onStartMethod={beginRecoveryMethodPractice}
-    onRetry={() => void startSession(
-      activePlan?.id,
-      activePlan ?? undefined,
-      sessionGenerationAttemptRef.current?.planSessionId === activePlan?.sessions.find((session) => session.status === "ready")?.id
-        ? sessionGenerationAttemptRef.current?.adjustment ?? null
-        : null,
-    )}
-    onReviewSetup={() => {
-      if (!activePlan) return;
-      setPendingSessionPlan(activePlan);
-      setStage("session-setup");
-    }}
+    onRetry={() => void startSession(activePlan?.id, activePlan ?? undefined)}
   />;
   if (stage === "session-method") return <StandaloneStudyMethodSession
     plan={activePlan}
@@ -6100,98 +5220,8 @@ function browserTimeZone() {
   }
 }
 
-function reusableResourceFromLessonSteps(steps: LessonStep[], rationale: string): SessionResource {
-  return {
-    rationale,
-    coverage: undefined,
-    generatedAt: new Date().toISOString(),
-    origin: "built_in",
-    activities: steps.map((step) => ({
-      topicId: step.topicId,
-      methodPhase: step.methodPhase,
-      estimatedMinutes: step.estimatedMinutes,
-      requiredForCompletion: step.requiredForCompletion,
-      type: step.type,
-      concept: step.concept,
-      label: step.label,
-      title: step.title,
-      body: step.body,
-      teaching: step.teaching,
-      choices: step.question ?? [],
-      correctAnswer: step.correctAnswer,
-      feedback: step.feedback,
-    })),
-  };
-}
-
-function lessonStepsFromSessionResource(resource: SessionResource): LessonStep[] {
-  return resource.activities.map((activity, sourceActivityIndex) => ({
-    sourceActivityIndex,
-    topicId: activity.topicId,
-    methodPhase: activity.methodPhase,
-    estimatedMinutes: activity.estimatedMinutes,
-    requiredForCompletion: activity.requiredForCompletion,
-    type: activity.type,
-    concept: activity.concept,
-    label: activity.label,
-    title: activity.title,
-    body: activity.body,
-    teaching: activity.teaching,
-    lessonBrief: activity.lessonBrief,
-    question: activity.type === "multiple_choice" ? activity.choices : null,
-    correctAnswer: activity.correctAnswer,
-    feedback: activity.feedback,
-    practiceIntent: activity.practiceIntent,
-    misconceptionSummary: activity.misconceptionSummary ?? undefined,
-    methodRuntime: activity.methodRuntime ?? null,
-  }));
-}
-
-function fallbackCoverageFor(
-  session: LearningPlanSession,
-  steps: LessonStep[],
-  genericFallback: GenericInsideYovaFallbackLesson | null = null,
-): SessionCoverage {
-  const evidence = steps.flatMap((step) => (
-    (step.type === "multiple_choice" || step.type === "free_response")
-      && step.concept
-      && step.correctAnswer
-      ? [{
-        essentialIdea: boundedFallbackIdea(step.correctAnswer),
-        activityConcept: step.concept,
-      }]
-      : []
-  )).slice(0, 4);
-  const resolvedEvidence = evidence.length > 0
-    ? evidence
-    : [{
-      essentialIdea: boundedFallbackIdea(session.objective),
-      activityConcept: session.objective,
-    }];
-  return {
-    focus: session.objective,
-    essentialIdeas: resolvedEvidence.map((item) => item.essentialIdea),
-    completionEvidence: resolvedEvidence.slice(0, 3)
-      .map((item) => `Demonstrate ${item.activityConcept}`),
-    evidenceMap: resolvedEvidence,
-    deferredContent: (session.contentTargets ?? [])
-      .filter((target) => genericFallback
-        ? !genericInsideFallbackCoversTarget(genericFallback, target)
-        : !fallbackLessonCoversTarget(steps, target))
-      .slice(0, 4),
-  };
-}
-
 function fallbackLessonCoversTarget(steps: LessonStep[], target: string) {
   return builtInLessonCoversTarget(steps, target);
-}
-
-function boundedFallbackIdea(value: string) {
-  const normalized = value.trim();
-  if (normalized.length <= 180) return normalized;
-  const slice = normalized.slice(0, 180);
-  const lastSpace = slice.lastIndexOf(" ");
-  return slice.slice(0, lastSpace > 120 ? lastSpace : 180).trimEnd();
 }
 
 function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
@@ -6211,28 +5241,6 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
     correctAnswer: null,
     feedback: null,
   }];
-}
-
-function bindBuiltInLessonToSession(
-  steps: LessonStep[],
-  session: LearningPlanSession,
-  studyMode: LearningPlan["studyMode"],
-): LessonStep[] {
-  // Only bind evidence when the session has one unambiguous topic. For a
-  // multi-topic fallback, leaving the ID unset is safer than crediting every
-  // answer to whichever topic happens to appear first.
-  const coversEntireScope = Boolean(session.contentTargets?.length)
-    && (session.contentTargets ?? []).every((target) => fallbackLessonCoversTarget(steps, target));
-  const primaryTopicId = builtInTopicEvidenceId({
-    studyMode,
-    topicIds: session.topicIds ?? [],
-    coversEntireScope,
-  });
-  return steps.map((step) => ({
-    ...step,
-    topicId: step.topicId
-      ?? (step.type === "multiple_choice" || step.type === "free_response" ? primaryTopicId : null),
-  }));
 }
 
 function insideBuiltInLessonSelectionFor(
@@ -6496,434 +5504,7 @@ function normalizeConceptName(value: string) {
   return value.trim().replace(/\s+/g, " ").slice(0, 120) || "Session concept";
 }
 
-function isVerifiableKnownTarget(value: string) {
-  const normalized = value.trim().replace(/\s+/g, " ");
-  if (normalized.length < 3) return false;
-  return ![
-    /^the (?:current|first|next) (?:starting )?(?:gap|gaps|concept|content|target)/i,
-    /\b(?:gaps? revealed|starting gaps?|first concept listed|current starting point)\b/i,
-    /\bwhat (?:you|the learner) (?:already )?(?:know|remember)\b/i,
-  ].some((pattern) => pattern.test(normalized));
-}
-
-function SessionSetup({ plan: storedPlan, answers, completions, interruptions, onExit, onOpenGoal, onChangeMethod, onStart }: { plan: LearningPlan | null; answers: string[]; completions: SessionCompletion[]; interruptions: SessionInterruption[]; onExit: () => void; onOpenGoal: () => void; onChangeMethod: (selection: ReadySessionMethodChoiceSelection) => Promise<ReadySessionMethodChoiceResult>; onStart: (adjustment: SessionAdjustment | null) => void }) {
-  const storedSession = storedPlan?.sessions.find((item) => item.status === "ready") ?? null;
-  const routeContract = storedPlan && storedSession
-    ? resolveStudyRouteSessionContract(storedPlan, storedSession)
-    : null;
-  const plan = routeContract?.plan ?? storedPlan;
-  const session = routeContract?.session ?? storedSession;
-  const committedStudyRoute = routeContract?.resolution.source === "stored"
-    && routeContract.resolution.route?.identity.lifecycleStatus === "committed"
-    ? routeContract.resolution.route
-    : null;
-  const [setupPage, setSetupPage] = useState(0);
-  const [familiarity, setFamiliarity] = useState<SessionAdjustment["familiarity"]>("as_planned");
-  const [supportLevel, setSupportLevel] = useState<SessionSupportLevel>("usual");
-  const [availableMinutes, setAvailableMinutes] = useState<number | null>(null);
-  const [selectedKnownTargets, setSelectedKnownTargets] = useState<string[]>([]);
-  const [note, setNote] = useState("");
-  const [methodChoicesOpen, setMethodChoicesOpen] = useState(false);
-  const [pendingMethodId, setPendingMethodId] = useState<string | null>(null);
-  const [methodChoiceStatus, setMethodChoiceStatus] = useState<string | null>(null);
-  const [methodChoiceError, setMethodChoiceError] = useState<string | null>(null);
-  const [otherMethodRequest, setOtherMethodRequest] = useState("");
-  const [otherMethodPreview, setOtherMethodPreview] = useState<AgencyMethodRequestResolution | null>(null);
-  const methodChoiceTriggerRef = useRef<HTMLButtonElement>(null);
-  const noteLimit = getCharacterLimitState(note);
-  const options: Array<{
-    value: SessionAdjustment["familiarity"];
-    title: string;
-    description: string;
-  }> = [
-    {
-      value: "as_planned",
-      title: "The plan still fits",
-      description: "Use the current teaching or practice starting point.",
-    },
-    {
-      value: "already_know",
-      title: "I already know some of this",
-      description: committedStudyRoute
-        ? "Use less help inside the planned method and verify what you can do."
-        : "Start with a quick unsupported check and skip only what you demonstrate.",
-    },
-    {
-      value: "need_teaching",
-      title: committedStudyRoute ? "I need more support first" : "I need this taught first",
-      description: committedStudyRoute
-        ? "Keep the planned method, but make its opening steps more guided."
-        : "Build the idea accurately before reducing support.",
-    },
-    {
-      value: "challenge_me",
-      title: "Give me a harder check",
-      description: "Reduce introductory review and emphasize application or transfer.",
-    },
-  ];
-
-  if (!plan || !session) {
-    return <main className="centered-shell"><BrandMark /><section className="plan-error-state"><span><AlertCircle /></span><h1>No unfinished session was found.</h1><p>Return to Learning and choose an active goal with unfinished content.</p><button className="button primary" onClick={onExit}>Return to YOVA</button></section></main>;
-  }
-
-  const scheduledReview = isScheduledRetrievalSession(session);
-  const routeAgencyMode = committedStudyRoute
-    ? agencyModeForStudyRouteControlMode(committedStudyRoute.agency.controlMode).mode
-    : null;
-  const methodChoiceRoute = (
-    !scheduledReview
-    && routeAgencyMode !== "yova_decides"
-    && storedSession?.status === "ready"
-    && committedStudyRoute
-    && committedStudyRoute.identity.planId === plan.id
-    && committedStudyRoute.identity.sessionId === session.id
-    && !storedSession.resource
-  ) ? committedStudyRoute : null;
-  const methodAlternatives = methodChoiceRoute
-    ? methodChoiceRoute.agency.alternatives.filter((alternative) => (
-      alternative.primaryMethodId !== methodChoiceRoute.approach.primaryMethodId
-      && alternative.mode === methodChoiceRoute.approach.mode
-      && alternative.executionEnvironment === methodChoiceRoute.approach.executionEnvironment
-      && alternative.activeMinutes === methodChoiceRoute.timing.activeMinutes
-    )).slice(0, 2)
-    : [];
-  const canChooseOtherMethods = Boolean(
-    methodChoiceRoute && routeAgencyMode === "ill_customize",
-  );
-  let otherMethodsUnavailable = false;
-  let otherMethodOptions: ReturnType<typeof boundedOtherAgencyMethodOptions> = [];
-  if (methodChoiceRoute && canChooseOtherMethods) {
-    try {
-      otherMethodOptions = boundedOtherAgencyMethodOptions(methodChoiceRoute);
-    } catch {
-      otherMethodsUnavailable = true;
-    }
-  }
-  const hasMethodChoices = methodAlternatives.length > 0 || canChooseOtherMethods;
-  const methodChoicePending = pendingMethodId !== null;
-  const methodChoiceControlId = `session-method-choices-${session.id}`;
-  const hasOrdinaryUnfinishedWork = plan.sessions.some((candidate) => (
-    (candidate.status === "ready" || candidate.status === "upcoming")
-    && !isScheduledRetrievalSession(candidate)
-  ));
-  const setupSteps = scheduledReview
-    ? ["Review", "Confirm"]
-    : ["Direction", "Starting point", "Today"];
-  const finalSetupPage = setupSteps.length - 1;
-
-  const targetChoices = (session.contentTargets ?? [])
-    .filter(isVerifiableKnownTarget)
-    .filter((target, index, targets) => targets.indexOf(target) === index)
-    .slice(0, 4);
-  const decisionSignals = buildSessionDecisionSignals({
-    plan,
-    session,
-    answers,
-    completions: completions.filter((completion) => completion.planId === plan.id),
-    interruptions: interruptions.filter((interruption) => interruption.planId === plan.id),
-  });
-  const taskDecision = decisionSignals.find((signal) => signal.kind === "task") ?? decisionSignals[0];
-  const personalDecision = committedStudyRoute
-    ? buildStudyRouteMethodDecisionSignal(committedStudyRoute)
-    : decisionSignals.find((signal) => signal.strength === "observed")
-      ?? decisionSignals.find((signal) => signal.kind === "learner")
-      ?? null;
-  const durationExplanation = committedStudyRoute
-    ? explainStudyRouteDuration(committedStudyRoute.timing)
-    : null;
-  const visibleMethodName = committedStudyRoute?.approach.visibleMethodName
-    ?? taskDecision?.title
-    ?? session.method;
-  const visibleMethodReason = committedStudyRoute?.explanation.shortReason
-    ?? taskDecision?.detail
-    ?? session.methodReason;
-
-  const changeMethod = async (alternative: (typeof methodAlternatives)[number]) => {
-    if (!methodChoiceRoute || methodChoicePending) return;
-    let methodChanged = false;
-    setPendingMethodId(alternative.primaryMethodId);
-    setMethodChoiceError(null);
-    setMethodChoiceStatus(null);
-    try {
-      await onChangeMethod({
-        planId: plan.id,
-        planSessionId: session.id,
-        expectedRouteRevisionId: methodChoiceRoute.identity.routeRevisionId,
-        selectionScope: "stored_alternative",
-        methodId: alternative.primaryMethodId,
-      });
-      methodChanged = true;
-      setMethodChoicesOpen(false);
-      setMethodChoiceStatus(`${alternative.visibleMethodName} is now the method for this session.`);
-    } catch (error) {
-      setMethodChoiceError(error instanceof Error
-        ? error.message
-        : "YOVA could not change this session method. The current method is still in place.");
-    } finally {
-      setPendingMethodId(null);
-      if (methodChanged) {
-        window.requestAnimationFrame(() => methodChoiceTriggerRef.current?.focus());
-      }
-    }
-  };
-
-  const applyOtherMethod = async (
-    requestedMethod: string,
-    checkedResolution?: AgencyMethodRequestResolution,
-  ) => {
-    if (!methodChoiceRoute || !canChooseOtherMethods || methodChoicePending) return;
-    let requestApplied = false;
-    setPendingMethodId(`other:${requestedMethod}`);
-    setMethodChoiceError(null);
-    setMethodChoiceStatus(null);
-    try {
-      const result = await onChangeMethod({
-        planId: plan.id,
-        planSessionId: session.id,
-        expectedRouteRevisionId: methodChoiceRoute.identity.routeRevisionId,
-        selectionScope: "other_eligible_method",
-        requestedMethod,
-      });
-      const resolution = result.methodRequestResolution ?? checkedResolution;
-      if (!resolution) {
-        throw new Error("YOVA could not verify the requested method mapping. The current recipe is still in place.");
-      }
-      requestApplied = true;
-      setMethodChoicesOpen(false);
-      setOtherMethodRequest("");
-      setOtherMethodPreview(null);
-      const outcome = result.status === "unchanged"
-        ? `${resolution.selectedMethodName} was already the method for this session.`
-        : `${resolution.selectedMethodName} is now the method for this session.`;
-      setMethodChoiceStatus(resolution.conflictExplanation
-        ? `${resolution.conflictExplanation} ${outcome}`
-        : outcome);
-    } catch (error) {
-      // A checked mapping belongs to one exact predecessor route. Discard it
-      // after any failure so a retry must be checked against current state.
-      setOtherMethodPreview(null);
-      setMethodChoiceError(error instanceof Error
-        ? error.message
-        : "YOVA could not change this session method. The current method is still in place.");
-    } finally {
-      setPendingMethodId(null);
-      if (requestApplied) {
-        window.requestAnimationFrame(() => methodChoiceTriggerRef.current?.focus());
-      }
-    }
-  };
-
-  const checkOtherMethodRequest = () => {
-    if (!methodChoiceRoute || !canChooseOtherMethods || methodChoicePending) return;
-    setMethodChoiceError(null);
-    setMethodChoiceStatus(null);
-    const requestedMethod = otherMethodRequest.trim();
-    if (!requestedMethod) {
-      setOtherMethodPreview(null);
-      setMethodChoiceError("Enter a method name for YOVA to check.");
-      return;
-    }
-    try {
-      const resolution = resolveBoundedOtherMethodRequest({
-        route: methodChoiceRoute,
-        requestedMethod,
-      });
-      if (resolution.status === "mapped") {
-        setOtherMethodPreview(resolution);
-        return;
-      }
-      setOtherMethodPreview(null);
-      void applyOtherMethod(requestedMethod, resolution);
-    } catch (error) {
-      setOtherMethodPreview(null);
-      setMethodChoiceError(error instanceof Error
-        ? error.message
-        : "YOVA could not check that method against this session recipe.");
-    }
-  };
-
-  const toggleKnownTarget = (target: string) => {
-    setSelectedKnownTargets((current) => current.includes(target)
-      ? current.filter((item) => item !== target)
-      : current.length < 4 ? [...current, target] : current);
-  };
-
-  const start = () => {
-    if (noteLimit.isOverLimit) return;
-    if (scheduledReview) {
-      onStart(null);
-      return;
-    }
-    const trimmedNote = note.trim();
-    const inferredFamiliarity = familiarity === "as_planned"
-      ? inferSessionFamiliarityFromText(trimmedNote) ?? familiarity
-      : familiarity;
-    const effectiveFamiliarity = familiarityForSessionSupport({
-      level: supportLevel,
-      selectedFamiliarity: inferredFamiliarity,
-    });
-    if (familiarity === "as_planned" && supportLevel === "usual" && availableMinutes === null && !trimmedNote) {
-      onStart(null);
-      return;
-    }
-    onStart({
-      familiarity: effectiveFamiliarity,
-      availableMinutes: committedStudyRoute ? null : availableMinutes,
-      knownTargets: effectiveFamiliarity === "already_know" ? selectedKnownTargets : [],
-      note: trimmedNote,
-    });
-  };
-
-  const explainedFamiliarity = familiarityForSessionSupport({
-    level: supportLevel,
-    selectedFamiliarity: familiarity === "as_planned"
-      ? inferSessionFamiliarityFromText(note) ?? familiarity
-      : familiarity,
-  });
-  const adjustmentExplanation = committedStudyRoute
-    ? explainedFamiliarity === "already_know"
-      ? "YOVA will reduce help where appropriate, while keeping the method, sequence, and time shown in your recipe."
-      : explainedFamiliarity === "need_teaching"
-        ? "YOVA will add more guidance inside the planned method. The method, sequence, and time stay fixed unless you visibly adjust the plan."
-        : explainedFamiliarity === "challenge_me"
-          ? "YOVA will reduce scaffolding and emphasize independent application inside the planned recipe."
-          : "YOVA will keep your chosen method and use today’s update to adjust the support."
-    : explainedFamiliarity === "already_know"
-    ? selectedKnownTargets.length
-      ? `YOVA will verify ${selectedKnownTargets.length === 1 ? "the concept you selected" : `the ${selectedKnownTargets.length} concepts you selected`} without support, then avoid reteaching only what you demonstrate.`
-      : "YOVA will begin with evidence, then avoid reteaching anything you can demonstrate."
-    : explainedFamiliarity === "need_teaching"
-      ? "YOVA will switch this session to teaching first. The result will inform later sessions, while larger plan changes remain visible for your approval."
-      : explainedFamiliarity === "challenge_me"
-        ? "YOVA will emphasize independent application and transfer rather than introductory review."
-        : "YOVA will keep the plan's current starting point and still adapt future sessions from the result.";
-
-  return <main className="session-setup-shell">
-    <header><BrandMark /><button className="button ghost" disabled={methodChoicePending} onClick={onExit}>Cancel</button></header>
-    <section className="session-setup-card">
-      <nav className="session-setup-progress" aria-label="Session setup progress">
-        {setupSteps.map((label, index) => <div aria-current={index === setupPage ? "step" : undefined} className={index === setupPage ? "current" : index < setupPage ? "complete" : ""} key={label}><span>{index < setupPage ? <Check size={13} /> : index + 1}</span><strong>{label}</strong></div>)}
-      </nav>
-
-      {setupPage === 0 && <>
-        <div className="session-setup-copy"><span className="step-label">{scheduledReview ? "SCHEDULED RETURN" : "SESSION DIRECTION"}</span><h1>{scheduledReview ? "Confirm this quick verification." : "Here is how YOVA plans to start."}</h1><p>{scheduledReview ? "This return has one fixed purpose: check what is available after time has passed without turning it into another lesson." : "First see the target and method. You can correct the starting point on the next page."}</p></div>
-        <section className="session-current-assumption"><div><span>CURRENT TARGET</span><strong>{session.title}</strong><p>{sessionSetupObjective(plan.studyMode, session)}</p></div><div><span>PLANNED APPROACH</span><strong>{scheduledReview ? "Short scheduled verification" : session.learningMode === "learn" ? "Teaching before independent work" : "Independent attempt before repair"}</strong><p>{scheduledReview ? `Exactly 3 multiple-choice questions, about ${session.estimatedMinutes} minutes, with no teaching before the first answer.` : `${session.method}, about ${session.estimatedMinutes} minutes.${durationExplanation ? ` ${durationExplanation}` : ""}`}</p></div></section>
-        {committedStudyRoute && <StudyRouteRecipeCard route={committedStudyRoute} showAlternatives={false} />}
-        {!scheduledReview && <section className="session-decision-spotlight" aria-label="Why YOVA chose this approach">
-          <div className="session-decision-icon"><Sparkles size={19} /></div>
-          <div>
-            <span>METHOD FOR THIS TASK</span>
-            <h2>{visibleMethodName}</h2>
-            <p>{visibleMethodReason}</p>
-            {personalDecision && <aside><strong>HOW YOVA CHANGED IT FOR YOU</strong><span>{personalDecision.title}</span><small>{personalDecision.strength === "observed" ? "Evidence: prior checked work" : "Evidence: you told YOVA"}</small></aside>}
-            {hasMethodChoices && <div className="session-method-choice">
-              <button ref={methodChoiceTriggerRef} className="session-method-choice-trigger" type="button" aria-expanded={methodChoicesOpen} aria-controls={methodChoiceControlId} aria-label={`${methodChoicesOpen ? "Close method choices" : "Change method"} for ${session.title}`} disabled={methodChoicePending} onClick={() => {
-                setMethodChoiceError(null);
-                setMethodChoiceStatus(null);
-                setOtherMethodPreview(null);
-                setMethodChoicesOpen((current) => !current);
-              }}>{methodChoicesOpen ? "Close method choices" : "Change method"}</button>
-              {methodChoicesOpen && <div id={methodChoiceControlId} className="session-method-options" role="group" aria-label={`Other methods that also fit for ${session.title}`} aria-busy={methodChoicePending}>
-                <small>Only the method changes. The target, {session.learningMode === "learn" ? "Learn" : "Practice"} mode, and {session.estimatedMinutes}-minute session stay the same.</small>
-                {methodAlternatives.map((alternative) => <button type="button" key={alternative.alternativeId} aria-pressed={false} aria-label={`Use ${alternative.visibleMethodName}. ${alternative.tradeoff}`} disabled={methodChoicePending} onClick={() => void changeMethod(alternative)}><strong>{alternative.visibleMethodName}</strong><span>{alternative.tradeoff}</span></button>)}
-                {canChooseOtherMethods && <section className="session-other-methods" aria-label="Other eligible methods">
-                  <div className="session-other-methods-heading">
-                    <strong>Other methods</strong>
-                    <small>Available only because this route uses I&apos;ll Customize.</small>
-                  </div>
-                  {otherMethodsUnavailable
-                    ? <p className="session-other-methods-unavailable" role="alert">This recipe&apos;s eligible-method decision is no longer current. Reload or regenerate the plan before choosing another method.</p>
-                    : <>
-                        {otherMethodOptions.length > 0 && <div className="session-other-method-list" aria-label="Eligible methods not shown above">
-                          {otherMethodOptions.map((option) => <button type="button" key={option.methodId} data-method-id={option.methodId} disabled={methodChoicePending} onClick={() => void applyOtherMethod(option.visibleMethodName)}>{option.visibleMethodName}</button>)}
-                        </div>}
-                        <form className="session-other-method-request" onSubmit={(event) => {
-                          event.preventDefault();
-                          checkOtherMethodRequest();
-                        }}>
-                          <label htmlFor={`session-other-method-${session.id}`}>Looking for a different method?</label>
-                          <small>YOVA will check the name against this exact recipe. Questionable or incompatible methods are explained and mapped before anything changes.</small>
-                          <div>
-                            <input id={`session-other-method-${session.id}`} type="text" maxLength={100} value={otherMethodRequest} disabled={methodChoicePending} placeholder="For example, Pomodoro or interleaving" onChange={(event) => {
-                              setOtherMethodRequest(event.target.value);
-                              setOtherMethodPreview(null);
-                              setMethodChoiceError(null);
-                            }} />
-                            <button type="submit" disabled={methodChoicePending || !otherMethodRequest.trim()}>Check and use</button>
-                          </div>
-                        </form>
-                        {otherMethodPreview && <div className="session-other-method-mapping" role="status" aria-live="polite">
-                          <p>{otherMethodPreview.conflictExplanation}</p>
-                          <button type="button" disabled={methodChoicePending} onClick={() => void applyOtherMethod(otherMethodPreview.requestedLabel, otherMethodPreview)}>Use {otherMethodPreview.selectedMethodName} instead</button>
-                        </div>}
-                      </>}
-                </section>}
-              </div>}
-              {methodChoicePending && <p className="session-method-choice-status" role="status" aria-live="polite"><span className="button-spinner" aria-hidden="true" /> Updating this session recipe…</p>}
-              {methodChoiceError && <p className="session-method-choice-error" role="alert">{methodChoiceError}</p>}
-              {methodChoiceStatus && <p className="session-method-choice-status" role="status" aria-live="polite">{methodChoiceStatus}</p>}
-            </div>}
-          </div>
-        </section>}
-      </>}
-
-      {setupPage === 1 && scheduledReview && <>
-        <div className="session-setup-copy"><span className="step-label">VERIFICATION CONTRACT</span><h1>This return check has a fixed starting point.</h1><p>YOVA will ask exactly three multiple-choice questions without teaching first. Changing the mode, support, time, or notes here would no longer be the delayed check the plan scheduled.</p></div>
-        <section className="session-current-assumption" aria-label="Scheduled review contract"><div><span>WHAT STAYS FIXED</span><strong>Practice first · exactly 3 questions</strong><p>No typed response, confidence rating, or hidden prerequisite reading.</p></div><div><span>WHAT THE RESULT MEANS</span><strong>A lightweight return signal</strong><p>It can reveal a gap, but it is not proof of permanent mastery.</p></div></section>
-        <section className="session-teaching-unavailable"><BookOpen size={18} /><div><strong>Need the idea taught again?</strong><p>Open the goal instead. This scheduled review will stay ready, and leaving setup will not count as an attempt. {hasOrdinaryUnfinishedWork ? "Review or add a trusted source, or adjust ordinary unfinished work before returning." : "Review an existing resource or add a trusted source before returning."}</p><button className="button secondary" type="button" onClick={onOpenGoal}>Open the goal instead</button></div></section>
-      </>}
-
-      {setupPage === 1 && !scheduledReview && <>
-        <div className="session-setup-copy"><span className="step-label">STARTING POINT</span><h1>Has anything changed?</h1><p>Choose the closest answer. YOVA will still verify knowledge through the session.</p></div>
-        <fieldset className="session-readiness-options"><legend>Where should this session begin?</legend><div>{options.map((option) => <button type="button" aria-pressed={familiarity === option.value} key={option.value} className={familiarity === option.value ? "selected" : ""} onClick={() => setFamiliarity(option.value)}><span>{familiarity === option.value ? <Check size={16} /> : <Target size={16} />}</span><div><strong>{option.title}</strong><small>{option.description}</small></div></button>)}</div></fieldset>
-        {familiarity === "already_know" && <fieldset className="known-targets"><legend>Which parts should YOVA verify first?</legend>{targetChoices.length ? <><p>Select any that may already be familiar. YOVA will skip them only after you demonstrate them.</p><div>{targetChoices.map((target) => <button type="button" aria-pressed={selectedKnownTargets.includes(target)} className={selectedKnownTargets.includes(target) ? "selected" : ""} key={target} onClick={() => toggleKnownTarget(target)}><span>{selectedKnownTargets.includes(target) ? <Check size={15} /> : null}</span>{target}</button>)}</div></> : <p>Name the concepts on the next page. YOVA will check them before deciding what to omit.</p>}</fieldset>}
-      </>}
-
-      {setupPage === 2 && !scheduledReview && <>
-        <div className="session-setup-copy"><span className="step-label">TODAY&apos;S CONTEXT</span><h1>Set the pace for today.</h1><p>Only add what changed or what YOVA could not know from the plan.</p></div>
-        <fieldset className="session-support-dial"><legend>Support for this session</legend><p>This choice applies only today. It will not change your usual profile.</p><div>{SESSION_SUPPORT_OPTIONS.map((option) => <button type="button" key={option.value} aria-pressed={supportLevel === option.value} className={supportLevel === option.value ? "selected" : ""} onClick={() => setSupportLevel(option.value)}><span>{supportLevel === option.value ? <Check size={15} /> : <Settings2 size={15} />}</span><strong>{option.title}</strong><small>{option.description}</small></button>)}</div><small className="session-support-expiry">For today · {sessionSupportExplanation(supportLevel)}</small></fieldset>
-        <div className="session-context-row"><label><span>{committedStudyRoute ? "Time in this recipe" : "Time available right now"}</span>{committedStudyRoute ? <strong>{session.estimatedMinutes} minutes</strong> : <select value={availableMinutes ?? ""} onChange={(event) => setAvailableMinutes(event.target.value ? Number(event.target.value) : null)}><option value="">Keep the planned {session.estimatedMinutes} minutes</option>{[10, 15, 20, 25, 30, 45, 60].filter((minutes) => minutes !== session.estimatedMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select>}<small>{committedStudyRoute ? "To change this time, cancel and choose Adjust on the goal before starting." : "Shorter time changes today’s content slice, not what counts as learned."}</small></label><label className={noteLimit.isOverLimit ? "field-over-limit" : undefined}><span>Anything YOVA should account for?</span><textarea rows={4} value={note} aria-invalid={noteLimit.isOverLimit || undefined} aria-describedby="session-context-note-limit" placeholder="Optional: what you already know, what was confusing, or what this session must cover." onChange={(event) => setNote(event.target.value)} /><small id="session-context-note-limit" className={`character-limit-feedback ${noteLimit.isOverLimit ? "over-limit" : ""}`} role={noteLimit.isOverLimit ? "alert" : undefined}>{formatCharacterLimit(noteLimit)}</small></label></div>
-        <div className="session-setup-proof"><Sparkles size={19} /><div><strong>How YOVA will begin</strong><p>{adjustmentExplanation}</p></div></div>
-      </>}
-
-      <footer>
-        <button className="button ghost" disabled={methodChoicePending} onClick={setupPage === 0 ? onExit : () => setSetupPage((current) => Math.max(0, current - 1))}>{setupPage === 0 ? "Not now" : <><ArrowLeft size={17} /> Back</>}</button>
-        {setupPage < finalSetupPage
-          ? <button className="button primary large" disabled={methodChoicePending} onClick={() => setSetupPage((current) => Math.min(finalSetupPage, current + 1))}>Continue <ArrowRight size={18} /></button>
-          : <button className="button primary large" disabled={methodChoicePending || noteLimit.isOverLimit} onClick={start}>{scheduledReview ? "Prepare scheduled review" : "Prepare this session"} <ArrowRight size={18} /></button>}
-      </footer>
-    </section>
-  </main>;
-}
-
-export function formatSessionPreparationTopic(topic: string | null | undefined) {
-  // COPY CONTRACT (docs/COPY-CONTRACT.md): goals are sentences; labels are
-  // noun phrases. Normalize before display — never interpolate raw goal
-  // prose into template copy.
-  return topicDisplayLabel(topic);
-}
-
-export function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; onExit: () => void }) {
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-  useEffect(() => {
-    const startedAt = Date.now();
-    const timer = window.setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000));
-    }, 1_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const status = elapsedSeconds < 20
-    ? "Preparing the content and activity sequence."
-    : elapsedSeconds < 45
-      ? "Building and checking the guided lesson."
-      : "This is taking longer than usual. Keep this page open while YOVA finishes the lesson.";
-
-  return <main className="centered-shell session-loading"><BrandMark /><section><div className="session-loading-orbit" aria-hidden="true"><span className="button-spinner dark" /><Target size={22} /></div><span className="step-label">PREPARING YOUR SESSION</span><h1>Preparing your next section: <em>{formatSessionPreparationTopic(plan?.topic)}</em></h1><p>YOVA is choosing a focused objective, the right amount of support, and a clear way to show what you understood.</p><div className="session-building-list" aria-label="What YOVA is preparing"><article><Target size={18} /><div><strong>Focused content</strong><span>Only the ideas that fit this session</span></div></article><article><Settings2 size={18} /><div><strong>Delivery</strong><span>The task selects the method; your context adjusts the support</span></div></article><article><BookOpen size={18} /><div><strong>Teaching and practice</strong><span>Explanation first when the topic is new</span></div></article><article><Check size={18} /><div><strong>Completion evidence</strong><span>Finished work, not elapsed time</span></div></article></div><div className="session-building-status" role="status" aria-live="polite"><Clock3 size={17} /><div><strong>{status}</strong><span>{formatElapsedDuration(elapsedSeconds)} elapsed</span></div></div><button className="button ghost" onClick={onExit}>Cancel</button></section></main>;
-}
-
-export function SessionGenerationRecovery({ plan, session, briefing, coverage, failureState, issue, canStartMethod, onExit, onOpenGoal, onStartMethod, onRetry, onReviewSetup }: {
+export function SessionGenerationRecovery({ plan, session, briefing, coverage, failureState, issue, canStartMethod, onExit, onOpenGoal, onStartMethod, onRetry }: {
   plan: LearningPlan | null;
   session: LearningPlanSession | null;
   briefing: SessionMethodBriefing | null;
@@ -6935,7 +5516,6 @@ export function SessionGenerationRecovery({ plan, session, briefing, coverage, f
   onOpenGoal: () => void;
   onStartMethod: () => void;
   onRetry: () => void;
-  onReviewSetup: () => void;
 }) {
   const fallbackState = failureState ?? buildGuidedSessionFailureState({
     cause: classifyGuidedSessionGenerationFailure({
@@ -6947,14 +5527,14 @@ export function SessionGenerationRecovery({ plan, session, briefing, coverage, f
   const resetLabel = formatGuidedSessionAllowanceReset(fallbackState.resetAt);
   const quotaClass = fallbackState.kind === "allowance_exhausted" ? "session-quota-state" : "";
   const teachingUnavailable = plan?.studyMode === "inside_yova" && session?.learningMode === "learn";
+  // Session setup is retired (Brief 1.5 item 8), so its review action is never offered.
   const visibleActions = fallbackState.actions.filter((action) => (
-    action.id !== "start_method_work" || canStartMethod
+    action.id !== "review_session_setup" && (action.id !== "start_method_work" || canStartMethod)
   ));
   const hasPrimaryAction = visibleActions.some((action) => action.emphasis === "primary");
   const actionHandler = (actionId: (typeof visibleActions)[number]["id"]) => {
     if (actionId === "start_method_work") return onStartMethod;
     if (actionId === "retry_generation") return onRetry;
-    if (actionId === "review_session_setup") return onReviewSetup;
     if (actionId === "open_goal") return onOpenGoal;
     return onExit;
   };
@@ -6990,11 +5570,9 @@ export function SessionGenerationRecovery({ plan, session, briefing, coverage, f
               : "ghost";
           const icon = action.id === "start_method_work"
             ? <FileText size={17} />
-            : action.id === "review_session_setup"
-              ? <Settings2 size={17} />
-              : action.id === "return_home"
-                ? <ArrowLeft size={17} />
-                : null;
+            : action.id === "return_home"
+              ? <ArrowLeft size={17} />
+              : null;
           return <button className={`button ${emphasis}`} key={action.id} onClick={actionHandler(action.id)}>{icon}{action.label}{action.id === "retry_generation" || action.id === "open_goal" ? <ArrowRight size={17} /> : null}</button>;
         })}
       </div>
@@ -8201,12 +6779,6 @@ function nextUnfinishedSessionAfter(
       && (session.status === "ready" || session.status === "upcoming")
     ))
     .sort((left, right) => left.sequence - right.sequence)[0] ?? null;
-}
-
-function readBoundedIntegerHeader(response: Response, name: string, maximum: number) {
-  const parsed = Number(response.headers.get(name));
-  if (!Number.isInteger(parsed) || parsed < 0 || parsed > maximum) return 0;
-  return parsed;
 }
 
 export function retryAfterResetAt(retryAfter: string | null, now = Date.now()) {

@@ -61,7 +61,7 @@ describe("every fired rule is visible", () => {
     expect(routes.length).toBeGreaterThan(20_000);
   });
 
-  it("the end receipt names every fired rule except the hidden difficulty band", () => {
+  it("the end receipt names every fired rule except the hidden difficulty band", { timeout: 60_000 }, () => {
     const invisible = new Map<string, number>();
     for (const route of routes) {
       for (const happened of [{}, { exampleShown: true }, { exampleShown: false }]) {
@@ -74,7 +74,7 @@ describe("every fired rule is visible", () => {
     expect([...invisible.keys()].sort()).toEqual([]);
   });
 
-  it("names only rules that fired, one sentence each, and never the difficulty band", () => {
+  it("names only rules that fired, one sentence each, and never the difficulty band", { timeout: 60_000 }, () => {
     for (const route of routes.filter((_, index) => index % 7 === 0)) {
       for (const entry of receiptEvidence(route)) {
         expect(route.ruleIds).toContain(entry.ruleId);

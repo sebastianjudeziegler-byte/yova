@@ -94,9 +94,9 @@ test("an outside assignment routes to one outside-YOVA session", async ({ page }
   await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await page.getByRole("button", { name: /Create one session/ }).click();
 
-  const outside = page.getByRole("button", { name: /Guide me outside YOVA/ });
-  await expect(outside).toHaveClass(/selected/);
-  await expect(page.getByRole("button", { name: /Build and start session/ })).toBeEnabled();
+  // Brief 1.5 item 8: Study Now's one screen carries the inside/outside choice.
+  await expect(page.getByRole("radio", { name: "Outside YOVA" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeEnabled();
 });
 
 test("a multi-session assignment skips an irrelevant knowledge quiz", async ({ page }) => {
@@ -206,17 +206,9 @@ test("an unfinished one-off session stays out of ongoing Learning goals", async 
   await openAdd(page, "I need to understand the product rule in 20 minutes");
   await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await page.getByRole("button", { name: /Create one session/ }).click();
-  await page.getByRole("button", { name: /Build and start session/ }).click();
-
-  const unavailableSessionReturn = page.getByRole("button", { name: "Return to YOVA", exact: true });
-  await expect(page.locator(".session-shell, .method-session-shell").or(unavailableSessionReturn))
-    .toBeVisible({ timeout: 20_000 });
-  if (await unavailableSessionReturn.isVisible()) {
-    await unavailableSessionReturn.click();
-  } else {
-    await page.getByRole("button", { name: "Exit", exact: true }).click();
-    await page.getByRole("button", { name: "Save progress and leave", exact: true }).click();
-  }
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  // Brief 1.5 item 8: the one-off session opens on the pre-session card; leave without starting.
+  await page.getByTestId("pre-session-card").getByRole("button", { name: "Close" }).click({ timeout: 30_000 });
   await page.goto("/?qa=preview");
   await page.getByRole("button", { name: "Learning", exact: true }).click();
 

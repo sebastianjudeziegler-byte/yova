@@ -85,3 +85,13 @@ test("no outcome that blocks can report a zero exit code", () => {
     assert.ok(["passed", "blocked", "inconclusive"].includes(result.outcome));
   }
 });
+test("a case retired on purpose may be absent, but only if it is named, and never hides a failure", () => {
+  const passed = { rows: [{ id: "case", state: "passed", status: "pass" }] };
+  const absent = { exitCode: 0, rows: [] };
+  assert.equal(compareLiveReports(passed, absent).exitCode, 1);
+  const retired = compareLiveReports(passed, absent, { retired: ["case"] });
+  assert.equal(retired.exitCode, 0);
+  assert.match(retired.rows[0].reason, /Retired/);
+  assert.equal(compareLiveReports(passed, report(["fail"]), { retired: ["case"] }).exitCode, 1);
+  assert.equal(compareLiveReports(passed, absent, { retired: ["another case"] }).exitCode, 1);
+});

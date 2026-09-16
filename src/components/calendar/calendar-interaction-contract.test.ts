@@ -130,7 +130,7 @@ describe("Calendar outcome inspection and session-order controls", () => {
     expect(requestStart).toContain("activePlans.find((plan) => plan.id === planId) ?? null");
     expect(requestStart).toContain("session.id === planSessionId");
     expect(requestStart).toContain("if (planSessionId && readySessions.length !== 1) return false;");
-    expect(requestStart).toContain("startSession(requestedPlan.id, undefined, undefined, requestedSession.id)");
+    expect(requestStart).toContain("startSession(requestedPlan.id, undefined, requestedSession.id)");
   });
 
   it("does not offer a drag resize handle for plan-wide learning adjustments", () => {
