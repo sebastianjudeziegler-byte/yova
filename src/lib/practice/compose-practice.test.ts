@@ -79,10 +79,20 @@ describe("composing a round from generated questions", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("round 2 accepts fewer questions when only one key point is outstanding", () => {
+  // Brief 1.5 item 1. A retry asks for one question per missed point, the same
+  // standard as round 1. It must not demand three questions from one point.
+  it("round 2 accepts one question when one key point is outstanding", () => {
     const result = composePracticeRound({ keyPoints, questions: [question("q9", "k4")], route: baseRoute, round: 2, outstandingKeyPointIds: ["k4"] });
+    expect(result.ok && result.questions.map((item) => item.keyPointId)).toEqual(["k4"]);
+  });
+
+  it("round 2 accepts two questions when two key points are outstanding", () => {
+    const result = composePracticeRound({ keyPoints, questions: [question("q9", "k2"), question("q10", "k4")], route: baseRoute, round: 2, outstandingKeyPointIds: ["k2", "k4"] });
+    expect(result.ok && result.questions.map((item) => item.keyPointId).sort()).toEqual(["k2", "k4"]);
+  });
+
+  it("round 2 still refuses a set that leaves a missed point unchecked", () => {
+    const result = composePracticeRound({ keyPoints, questions: [question("q9", "k2"), question("q10", "k2")], route: baseRoute, round: 2, outstandingKeyPointIds: ["k2", "k4"] });
     expect(result.ok).toBe(false);
-    const enough = composePracticeRound({ keyPoints, questions: [question("q9", "k4"), question("q10", "k4"), question("q11", "k4")], route: baseRoute, round: 2, outstandingKeyPointIds: ["k4"] });
-    expect(enough.ok && enough.questions).toHaveLength(3);
   });
 });

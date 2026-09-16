@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
-import { composePracticeRound, KeyPointSchema, PracticeQuestionSchema, type KeyPoint, type PracticeQuestion } from "@/lib/practice/compose-practice";
+import { composePracticeRound, KeyPointSchema, practiceQuestionCount, PracticeQuestionSchema, type KeyPoint, type PracticeQuestion } from "@/lib/practice/compose-practice";
 import {
   SHAPE_SLOT_HONEST_ERROR,
   type CompareRequest,
@@ -253,7 +253,9 @@ async function fillPractice(request: PracticeRequest, provider: SlotProvider | n
   return withOneRetry(async () => {
     const draft = await provider!({
       instructions: `You write fresh closed-book multiple-choice practice for one topic in YOVA. ${providedKeyPoints.length
-        ? "Use ONLY the supplied key points; keep their ids exactly and return them unchanged in keyPoints. Write one question per key point."
+        ? `Use ONLY the supplied key points; keep their ids exactly and return them unchanged in keyPoints. ${request.round > 1
+          ? (() => { const count = practiceQuestionCount(targetKeyPoints.length, { questionCap: request.modifiers.questionCap, questionMinimum: 1 }, request.round); return `Write exactly ${count} ${count === 1 ? "question" : "questions"}: one per supplied key point.`; })()
+          : "Write one question per key point."}`
         : request.excerpts.length
           ? "Derive 3–5 key points from the supplied source excerpts (ids k1, k2, ...), then one question per key point that the excerpts can answer."
           : "Derive 3–5 key points about the topic (ids k1, k2, ...), then one question per key point."} Each question has exactly four distinct choices, correctChoiceIndex, a kind, keyPointId, and a one-sentence explanation of the correct choice. ${weighting} Do not repeat questions from earlier attempts; this attempt id is ${request.attempt}. Write at most ${request.modifiers.questionCap} questions. ${UNTRUSTED}`,
