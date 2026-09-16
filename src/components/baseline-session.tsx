@@ -124,7 +124,8 @@ export function BaselineSession(props: BaselineSessionProps) {
     produceStep: route.produceStep,
     explanationFocus: route.explanationFocus,
     questionCap: route.questionCap,
-  }), [route.explanationFocus, route.instructionStyle, route.produceStep, route.questionCap, route.questionMix]);
+    questionTarget: route.questionTarget,
+  }), [route.explanationFocus, route.instructionStyle, route.produceStep, route.questionCap, route.questionMix, route.questionTarget]);
   const note = useMemo(() => personalizationNote(route), [route]);
 
   // ---------------------------------------------------------------- timer

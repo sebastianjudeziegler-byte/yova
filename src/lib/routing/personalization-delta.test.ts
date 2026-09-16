@@ -125,7 +125,7 @@ describe("Brief 1 permanent personalization delta", () => {
       "L5.q4.learner_choice",
     ]));
     const shared = first.ruleIds.filter((id) => second.ruleIds.includes(id));
-    expect(shared).toEqual(["L1.conceptual_learning.learn", "L2.not_assessed", "L4.timer_resolved", "L4.mix.conceptual_learning", "C6.rule_ids_recorded"]);
+    expect(shared).toEqual(["L1.conceptual_learning.learn", "L2.not_assessed", "L4.timer_resolved", "L4.difficulty.low", "L4.mix.conceptual_learning", "C6.rule_ids_recorded"]);
   });
 
   it("the learner-visible session differs: steps, method, timer, questions, note", () => {

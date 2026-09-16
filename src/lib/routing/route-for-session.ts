@@ -1,5 +1,6 @@
 import type { LearningPlan, LearningPlanSession, SessionCompletion } from "@/lib/domain";
 import type { KeyPoint } from "@/lib/practice/compose-practice";
+import { prerequisiteDepth } from "@/lib/practice/topic-difficulty";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import { learnerReportedCoverage, measuredPlacementEvidence } from "@/lib/knowledge-map/topic-evidence";
 import { classifyLearningTask } from "@/lib/learning/method-router";
@@ -64,6 +65,8 @@ export function routingInputForSession({ plan, session, topic, answers, completi
     topicHasProblems: taskType === "mixed_assessment" && isProceduralTaskType(topicOwnType),
     answers,
     daysToDeadline: daysUntil(plan.deadline ?? null, now),
+    subtopicCount: topic?.subtopics.length ?? 0,
+    prerequisiteDepth: topic ? prerequisiteDepth(topic.id, plan.knowledgeMap?.topics ?? []) : 0,
     passedRelatedTopicIds: passedRelatedTopicIds({ plan, topic, completions }),
   };
 }

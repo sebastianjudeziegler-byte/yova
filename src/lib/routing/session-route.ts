@@ -1,5 +1,6 @@
 import { CORE_METHOD_CATALOG, type CoreMethodId, type LearningTaskType } from "@/lib/learning/method-catalog";
-import { questionMixFor, QUESTION_TYPES, TASK_TYPE_QUESTION_MIX, type QuestionMix } from "@/lib/practice/question-mix";
+import { BASE_MIX_SIZE, questionMixFor, QUESTION_TYPES, TASK_TYPE_QUESTION_MIX, type QuestionMix } from "@/lib/practice/question-mix";
+import { difficultyBand, HIGH_BAND_QUESTION_COUNT } from "@/lib/practice/topic-difficulty";
 import { INTERLEAVED_MINIMUM_PASSED_TOPICS, PRACTICE_ROUND_LABEL, PRACTICE_ROUND_METHOD, PRACTICE_ROUND_RULE_ID, PRACTICE_TEST_DEADLINE_DAYS, type FirstPracticeRoundKind } from "@/lib/practice/practice-rounds";
 import {
   onboardingAnswerId,
@@ -39,6 +40,9 @@ export type RoutingInput = {
   daysToDeadline?: number | null;
   /** Prerequisite-linked topics, this one included, that have each passed a practice round clean at least once. */
   passedRelatedTopicIds?: string[];
+  /** Topic difficulty inputs from the knowledge map (Brief 1.5 item 4). */
+  subtopicCount?: number;
+  prerequisiteDepth?: number;
 };
 
 export type SessionShape = "A" | "C";
@@ -85,6 +89,8 @@ export type SessionRoute = {
   /** Maximum questions per practice round (3–8). */
   questionCap: number;
   questionMinimum: number;
+  /** Questions a first round aims for: five, or eight for a high-difficulty topic (Brief 1.5 item 4). */
+  questionTarget: number;
   /** Question-type counts for a five-question round (Brief 1.5 item 2); scaled to the round size in code. */
   questionMix: QuestionMix;
   practiceRoundCeiling: number;
@@ -319,6 +325,19 @@ export function routeSession(input: RoutingInput): SessionRoute {
   timerMinutes = clamped;
   decide({ layer: 4, ruleId: "L4.timer_resolved", field: "timerMinutes", value: timerMinutes, reason: "The session timer is a nudge from your profile, not a boundary." });
 
+  // Topic difficulty (Brief 1.5 item 4): deterministic, never shown to the learner.
+  const difficulty = difficultyBand({ subtopicCount: input.subtopicCount ?? 0, prerequisiteDepth: input.prerequisiteDepth ?? 0 });
+  decide({ layer: 4, ruleId: `L4.difficulty.${difficulty}`, field: "difficulty", value: difficulty, reason: "Topic difficulty comes from its subtopic count and how many topics must come before it." });
+  let questionTarget = BASE_MIX_SIZE;
+  if (difficulty === "high") {
+    if (questionCap < HIGH_BAND_QUESTION_COUNT) {
+      decide({ layer: "conflict", ruleId: "C8.difficulty_over_question_clamp", field: "questionCap", value: HIGH_BAND_QUESTION_COUNT, reason: "A high-difficulty topic needs more questions, so its cap rises past the session-length clamp." });
+    }
+    questionCap = HIGH_BAND_QUESTION_COUNT;
+    questionTarget = HIGH_BAND_QUESTION_COUNT;
+    decide({ layer: 4, ruleId: "L4.difficulty.high.more_questions", field: "questionTarget", value: questionTarget, reason: "A high-difficulty topic asks eight questions per round." });
+  }
+
   // Question-type mix: task type first, then Q7 shifts one item.
   const mixed = questionMixFor({ taskType: input.taskType, q7: q7 === "gist_leaning" || q7 === "detail_leaning" || q7 === "balanced" ? q7 : null });
   const questionMix = { ...mixed.mix };
@@ -388,6 +407,7 @@ export function routeSession(input: RoutingInput): SessionRoute {
     timerMinutes,
     questionCap,
     questionMinimum: PRACTICE_QUESTION_MINIMUM,
+    questionTarget,
     questionMix,
     practiceRoundCeiling,
     firstPracticeRound,

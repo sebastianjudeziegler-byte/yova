@@ -47,6 +47,8 @@ export const ShapeProfileModifiersSchema = z.object({
   produceStep: z.enum(["typed_explanation", "concept_map", "outline", "retrieval_questions", "worked_solution"]).nullable(),
   explanationFocus: z.enum(["concept", "worked_example"]).nullable(),
   questionCap: z.number().int().min(3).max(8),
+  /** Questions a first round aims for: route.questionTarget (Brief 1.5 item 4). */
+  questionTarget: z.number().int().min(3).max(8),
 }).strict();
 
 /** Bounded excerpts of the learner's material for Slot 3 and Slot 4. */

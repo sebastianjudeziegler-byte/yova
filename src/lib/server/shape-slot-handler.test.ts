@@ -17,7 +17,7 @@ const base = {
   planId: "33333333-3333-4333-8333-333333333333",
   planSessionId: "44444444-4444-4444-8444-444444444444",
   topic: { id: "55555555-5555-4555-8555-555555555555", title: "Glycolysis", description: "How glucose becomes pyruvate.", subtopics: [], taskType: "conceptual_learning" },
-  modifiers: { instructionStyle: "standard", questionMix: { recall: 1, application: 2, compare_contrast: 1, prediction: 0, misconception: 1 }, produceStep: "typed_explanation", explanationFocus: "concept", questionCap: 8 },
+  modifiers: { instructionStyle: "standard", questionMix: { recall: 1, application: 2, compare_contrast: 1, prediction: 0, misconception: 1 }, produceStep: "typed_explanation", explanationFocus: "concept", questionCap: 8, questionTarget: 5 },
 };
 
 function post(body: unknown, ip = "10.0.0.1") {

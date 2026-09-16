@@ -22,7 +22,7 @@ const topic = {
   subtopics: ["Water potential", "Hypotonic, isotonic and hypertonic solutions", "Turgor and plasmolysis"],
   taskType: "conceptual_learning" as const,
 };
-const modifiers = { instructionStyle: "standard" as const, questionMix: TASK_TYPE_QUESTION_MIX.conceptual_learning, produceStep: "typed_explanation" as const, explanationFocus: "concept" as const, questionCap: 8 };
+const modifiers = { instructionStyle: "standard" as const, questionMix: TASK_TYPE_QUESTION_MIX.conceptual_learning, produceStep: "typed_explanation" as const, explanationFocus: "concept" as const, questionCap: 8, questionTarget: 5 };
 const ids = () => ({ requestId: randomUUID(), recoveryKey: randomUUID(), planId: randomUUID(), planSessionId: randomUUID() });
 const studyGuideExcerpt = {
   label: "Unit 2 study guide, osmosis",

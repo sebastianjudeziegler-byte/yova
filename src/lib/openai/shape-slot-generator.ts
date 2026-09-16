@@ -208,7 +208,7 @@ ${UNTRUSTED}`;
 }
 
 async function fillLearnBlock(request: LearnBlockRequest, provider: SlotProvider | null): Promise<LearnBlockResponse> {
-  const plan = firstRoundPlan(request.modifiers.questionMix, request.modifiers.questionCap);
+  const plan = firstRoundPlan(request.modifiers.questionMix, request.modifiers.questionCap, request.modifiers.questionTarget);
   return withOneRetry(async () => {
     const draft = await provider!({
       instructions: learnBlockInstructions(request, plan),
@@ -270,7 +270,7 @@ async function fillPractice(request: PracticeRequest, provider: SlotProvider | n
   // A practice test is a longer set: eight questions regardless of the profile's usual cap.
   const longer = request.roundKind === "practice_test";
   const questionCap = longer ? PRACTICE_TEST_QUESTION_COUNT : request.modifiers.questionCap;
-  const baseSize = longer ? PRACTICE_TEST_QUESTION_COUNT : undefined;
+  const baseSize = longer ? PRACTICE_TEST_QUESTION_COUNT : request.modifiers.questionTarget;
   const plan = provided.length
     ? (() => {
       const keyPointIds = roundKeyPoints.map((keyPoint) => keyPoint.id);

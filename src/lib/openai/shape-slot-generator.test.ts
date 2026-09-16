@@ -9,7 +9,7 @@ const { fillShapeSlot, ShapeSlotGenerationError, templateDirection } = await imp
 
 const ids = { requestId: "11111111-1111-4111-8111-111111111111", recoveryKey: "22222222-2222-4222-8222-222222222222", planId: "33333333-3333-4333-8333-333333333333", planSessionId: "44444444-4444-4444-8444-444444444444" };
 const topic = { id: "55555555-5555-4555-8555-555555555555", title: "Glycolysis", description: "How glucose is split into pyruvate with a net gain of ATP and NADH.", subtopics: [], taskType: "conceptual_learning" as const };
-const modifiers = { instructionStyle: "standard" as const, questionMix: { recall: 1, application: 2, compare_contrast: 1, prediction: 0, misconception: 1 }, produceStep: "typed_explanation" as const, explanationFocus: "concept" as const, questionCap: 8 };
+const modifiers = { instructionStyle: "standard" as const, questionMix: { recall: 1, application: 2, compare_contrast: 1, prediction: 0, misconception: 1 }, produceStep: "typed_explanation" as const, explanationFocus: "concept" as const, questionCap: 8, questionTarget: 5 };
 
 type Slot = { slotId: string; type: string; keyPointIds: string[] };
 type ProviderCall = { instructions: string; input: string };
@@ -237,6 +237,22 @@ describe("Slot 4 — practice round kinds", () => {
     const { provider, calls } = followingPrompt(answer(supplied));
     await fillShapeSlot(base, provider as never);
     expect(calls[0]!.instructions).not.toMatch(/exam|same reasoning error|which idea applies/i);
+  });
+});
+
+// Brief 1.5 item 4: a high-difficulty topic asks more questions.
+describe("Slot 2 and Slot 4 — question target", () => {
+  it("a learn block for a high-difficulty topic plans eight questions", async () => {
+    const { provider, calls } = followingPrompt((slots) => ({ explanation, structure, keyPoints, questions: slots.map((slot) => draft(slot.slotId)) }));
+    const result = await fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers: { ...modifiers, questionCap: 8, questionTarget: 8 } }, provider as never);
+    expect(result.action === "learn_block" && result.questions).toHaveLength(8);
+    expect(slotsOf(calls[0]!)).toHaveLength(8);
+  });
+
+  it("an ordinary topic keeps five", async () => {
+    const { provider, calls } = followingPrompt((slots) => ({ explanation, structure, keyPoints, questions: slots.map((slot) => draft(slot.slotId)) }));
+    await fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers: { ...modifiers, questionTarget: 5 } }, provider as never);
+    expect(slotsOf(calls[0]!)).toHaveLength(5);
   });
 });
 

@@ -384,6 +384,27 @@ describe("Layer 4 — modifiers never change the shape", () => {
     expect(route.ruleIds).not.toContain("L4.practice.practice_test.deadline_within_3_days");
   });
 
+  // Brief 1.5 item 4: deterministic topic difficulty; only the high band changes anything.
+  it("low and medium difficulty keep a five-question round and record the band", () => {
+    const low = routeSession(input({ subtopicCount: 1, prerequisiteDepth: 0 }));
+    expect(low.questionTarget).toBe(5);
+    expect(low.ruleIds).toContain("L4.difficulty.low");
+    expect(routeSession(input({ subtopicCount: 3, prerequisiteDepth: 1 })).ruleIds).toContain("L4.difficulty.medium");
+  });
+
+  it("high difficulty asks eight questions, raising the cap past a shorter-sections clamp", () => {
+    const route = routeSession(input({ subtopicCount: 4, prerequisiteDepth: 3, answers: answersOf({ support_needs: ["shorter_sections"] }) }));
+    expect(route.questionTarget).toBe(8);
+    expect(route.questionCap).toBe(8);
+    expect(route.ruleIds).toEqual(expect.arrayContaining(["L4.difficulty.high", "L4.difficulty.high.more_questions", "C8.difficulty_over_question_clamp"]));
+  });
+
+  it("high difficulty without a clamp records no conflict", () => {
+    const route = routeSession(input({ subtopicCount: 6, prerequisiteDepth: 0, answers: answersOf({ session_length: "minutes_45_60" }) }));
+    expect(route.questionCap).toBe(8);
+    expect(route.ruleIds).not.toContain("C8.difficulty_over_question_clamp");
+  });
+
   it("Q9 shorter_sections trims the timer and caps questions at five", () => {
     const route = routeSession(input({ answers: answersOf({ session_length: "minutes_45_60", support_needs: ["shorter_sections"] }) }));
     expect(route.timerMinutes).toBe(41);

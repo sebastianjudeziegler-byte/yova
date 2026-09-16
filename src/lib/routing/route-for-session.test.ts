@@ -102,3 +102,14 @@ describe("practice label inputs", () => {
   });
 });
 
+// Brief 1.5 item 4: difficulty inputs come from the knowledge map, not the model.
+describe("difficulty inputs", () => {
+  it("passes the topic's subtopic count and prerequisite depth to routing", () => {
+    const first = topic({ subtopics: ["Investment phase", "Payoff phase"] });
+    const second = topic({ id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", title: "Link reaction", description: "Explain how pyruvate becomes acetyl-CoA before the Krebs cycle.", subtopics: ["Decarboxylation"], prerequisiteTopicIds: [topicId] });
+    const input = routingInputForSession({ plan: plan([first, second]), session: session({ topicIds: [second.id] }), topic: second, answers: emptyOnboardingAnswers() });
+    expect(input.subtopicCount).toBe(1);
+    expect(input.prerequisiteDepth).toBe(1);
+  });
+});
+

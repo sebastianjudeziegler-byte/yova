@@ -299,3 +299,41 @@ screenshot per label:
 
 **Not yet run.** CI runs them on this push.
 
+## Item 4 — Topic difficulty
+
+### What changed
+
+- `topic-difficulty.ts`: **prerequisite depth** is the number of distinct
+  topics that must precede this one, transitively, ignoring removed topics and
+  surviving a cycle. **Score** is subtopic count plus prerequisite depth.
+  **Bands:** low ≤ 2, medium 3–5, high ≥ 6. It is never a model rating and never
+  description length.
+- **Routing** records `L4.difficulty.<band>` for every session. The high band
+  sets `questionTarget` and `questionCap` to 8
+  (`L4.difficulty.high.more_questions`). When that raises a session-length or
+  shorter-sections clamp, it records `C8.difficulty_over_question_clamp`.
+- **Round size:** the first round's question count and derived key points come
+  from `questionTarget`. A Practice Test still asks eight.
+- **Routing input:** `routingInputForSession` passes the topic's subtopic count
+  and its prerequisite depth from the knowledge map.
+- **Not shown to the learner** (founder decision). The band appears only as the
+  number of questions.
+
+### Decisions taken
+
+| Question | Decision |
+|---|---|
+| The function | `subtopicCount + prerequisiteDepth`, bands at 3 and 6. In the fixture plan's ten-topic chain, depth alone makes the seventh topic onward high. |
+| High band vs a shorter-sections clamp | The brief says "cap raised from clamp to 8", so the high band wins, and the conflict is recorded (`C8`). |
+| Item 7 tension | Item 7 says every fired rule is visible somewhere; item 4 says difficulty is not shown. The visible effect is the longer round. The band and its rule stay hidden, per the founder decision. Raised for the founder. |
+
+### Red — before
+
+`topic-difficulty.test.ts` failed to import. **5 failed** in routing,
+route-for-session and the generator: no band, no difficulty input, no
+eight-question round.
+
+### Green — after
+
+- Full unit suite: **4246 passed**, 93 skipped. `tsc` and `lint` clean.
+
