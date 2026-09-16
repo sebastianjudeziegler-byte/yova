@@ -384,7 +384,8 @@ export function routeSession(input: RoutingInput): SessionRoute {
   }
 
   // ---------------------------------------------------------------- Output
-  const briefStudyStepActive = shape === "C" && input.blockKind === "learn" && briefStudyStep;
+  // A learner who reports the topic covered goes straight to practice (Brief 1.5 item 8).
+  const briefStudyStepActive = shape === "C" && input.blockKind === "learn" && briefStudyStep && input.evidence !== "learner_reported_covered";
   const method = resolveMethod({ shape, shapeVariant, produceStep, layer1, firstPracticeRound });
   decide({ layer: "conflict", ruleId: "C6.rule_ids_recorded", field: "methodId", value: method.id, reason: `Every decision above is recorded; the session runs ${method.name}.` });
 

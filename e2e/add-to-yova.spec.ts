@@ -197,8 +197,9 @@ test("a timed product-rule request becomes a specific one-off session", async ({
   await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await expect(page.getByText("20 minutes requested")).toBeVisible();
   await page.getByRole("button", { name: /Create one session/ }).click();
-  await expect(page.getByText(/Understand the Product Rule/).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: /Create it for me/ })).toHaveClass(/selected/);
+  // Brief 1.5 item 8: Study Now's one screen, prefilled from the request, studying inside YOVA.
+  await expect(page.getByLabel("Study Now topic or result")).toHaveValue(/Understand the Product Rule/);
+  await expect(page.getByRole("radio", { name: "Inside YOVA" })).toHaveAttribute("aria-checked", "true");
 });
 
 test("an unfinished one-off session stays out of ongoing Learning goals", async ({ page }) => {

@@ -530,3 +530,15 @@ describe("studying outside YOVA", () => {
   });
 });
 
+// Brief 1.5 item 8: "I've already covered this" makes the block practice, for every shape.
+describe("a covered memorization learn block", () => {
+  it("skips the brief study step and goes straight to closed-book practice", () => {
+    const covered = routeSession(input({ taskType: "memorization", evidence: "learner_reported_covered" }));
+    expect(covered.shape).toBe("C");
+    expect(covered.briefStudyStep).toBe(false);
+    expect(covered.learnPath).toBeNull();
+    const notCovered = routeSession(input({ taskType: "memorization" }));
+    expect(notCovered.briefStudyStep).toBe(true);
+  });
+});
+

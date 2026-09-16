@@ -55,7 +55,8 @@ export function PreSessionCard({ plan, session, topic, insideRoute, route, sourc
   const alternatives = studyLocation === "inside" ? alternativeProduceSteps(insideRoute) : [];
   const methodChanged = insideRoute.ruleIds.some((ruleId) => ruleId.startsWith("L5.learner_change_method."));
   const covered = topic?.initialEvidence?.source === "learner_report";
-  const blockKind = route.input.blockKind === "practice" || (route.entry === "skip_to_practice" && !route.briefStudyStep) ? "Practice block" : "Learn block";
+  // A block with no study step is practice, whatever the plan called it (a covered topic, a practice block).
+  const blockKind = route.learnPath === null ? "Practice block" : "Learn block";
   const canRevise = Boolean(revisionClient && topic && plan.status === "active" && !topic.removed);
   const sourceText = source
     ? sourceLine(source)

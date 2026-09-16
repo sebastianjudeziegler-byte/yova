@@ -1105,7 +1105,9 @@ export function YovaPrototype({
   }, [plans]);
 
   useEffect(() => {
-    if (!ready || !signedIn || stage !== "app") return;
+    // The pre-session card enforces the allowance, so it checks too: leaving Home before
+    // the first check answers must not leave the card's Start held forever.
+    if (!ready || !signedIn || (stage !== "app" && stage !== "pre-session")) return;
     const controller = new AbortController();
     void refreshGuidedSessionAllowance(controller.signal).finally(() => {
       if (!controller.signal.aborted) setGuidedSessionAllowanceChecking(false);

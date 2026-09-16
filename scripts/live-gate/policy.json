@@ -741,6 +741,14 @@
       "semanticFailures": 1,
       "unavailable": 0,
       "evidence": "Pre-existing osmosis scope/missing-target rejection explicitly deferred by the founder. Brief B full run repeats it. See docs/audits/brief-b/EVIDENCE.md and BACKLOG.md."
+    },
+    "src/evals/streamed-world-war-one-skeleton.live.test.ts::live streamed World War I session skeleton > reliably creates a valid subject-specific session outline": {
+      "classification": "FLAKY",
+      "passRate": "1/2",
+      "semanticFailures": 1,
+      "unavailable": 0,
+      "auditId": "X08",
+      "evidence": "Passed on retained main run 35098660639 and failed on Brief 1.5 runs 35110929012 and 35147460282; its import graph reaches none of the files Brief 1.5 changed (docs/audits/BACKLOG.md)."
     }
   },
   "releaseRule": {

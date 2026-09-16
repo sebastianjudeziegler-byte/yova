@@ -297,7 +297,7 @@ test("the product shell keeps every core destination and creation path usable", 
   await page.getByRole("button", { name: "Home", exact: true }).click();
 
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
-  await expect(page.getByRole("heading", { name: "What do you want help with?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What do you want to study?" })).toBeVisible();
 });
 
 test("Ask YOVA turns structured explanations and math into readable interface content", async ({ page }) => {
@@ -488,9 +488,10 @@ test("legacy split work reopens as an active plan with runnable ten-minute sessi
   if (await earlyStartDialog.isVisible()) {
     await earlyStartDialog.getByRole("button", { name: "Start now, keep dates" }).click();
   }
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
-  await expect(page.locator(".session-current-assumption")).toContainText("about 10 minutes");
-  await expect(page.locator(".session-current-assumption")).not.toContainText("about 8 minutes");
+  // Brief 1.5 item 8: the runnable part opens its pre-session card at ten minutes.
+  const card = page.getByTestId("pre-session-card");
+  await expect(card).toContainText("· 10 min");
+  await expect(card).not.toContainText("8 min");
 });
 
 test("adjusting ordinary future work preserves the exact scheduled review contract", async ({ page }) => {

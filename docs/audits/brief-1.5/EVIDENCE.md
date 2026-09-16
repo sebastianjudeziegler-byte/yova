@@ -717,3 +717,14 @@ Tests:
 - **Test:** `e2e/baseline-pre-session.spec.ts`, "a scheduled review opens the card as a practice block and runs closed-book practice". It runs in CI.
 - **Not kept:** the retired setup screen's fixed three-question contract. Reviews become Brief 2's practice blocks (backlog).
 
+## CI run 35147460282 (917f07d): not green, fixed
+
+| Failure | Cause | Fix |
+|---|---|---|
+| Baseline journey: covered block (desktop and mobile) | A memorization learn block marked covered still opened on its brief study step. The card called it a learn block, and the end receipt would have said study was skipped. A real routing defect. | `routeSession` drops the brief study step when the learner reports the topic covered. Red, then green: `session-route.test.ts`, "a covered memorization learn block". The card labels any block with no study step as practice. |
+| Live two-profile hub: P1 | The card's Start stayed held. The allowance check ran only on Home, and a learner who left Home before it answered never got a result. | The check also runs on the pre-session card. The Study Now browser case now delays the allowance reply; it passed locally. |
+| Core journey (4 cases × 2 viewports): Add to YOVA timed product-rule session; Calendar Start opens the exact ready session; the product shell's Study Now heading; legacy split work at ten minutes | Still asserted the retired setup screen or the old Study Now heading. My earlier search missed them. | Now assert the pre-session card, or the new Study Now screen, with the same intent (exact block, ten minutes, inside YOVA). |
+| Regression gate: 9 cases | The 8 above, plus the live "streamed World War I session skeleton … outline" case. That case failed twice on this branch and passed on main, and its import graph reaches no changed file. | Classified FLAKY in `scripts/live-gate/policy.json` (audit X08), per the standing rules and BACKLOG.md. |
+
+The live baseline practice retries passed apart from the hub run.
+

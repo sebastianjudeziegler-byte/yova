@@ -163,6 +163,11 @@ test("outside YOVA: directions, I'm back, then straight to practice with no prod
 test("Study Now is two screens, then the hub", async ({ page }) => {
   const calls: string[] = [];
   await mockShapeSlots(page, calls);
+  // A slow allowance check that Home abandons: the card must check again rather than hold Start forever.
+  await page.route("**/api/sessions/allowance", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "available", remainingToday: 3, retryAfterSeconds: 0, resetAt: null }) }).catch(() => undefined);
+  });
   await openWithPlan(page, []);
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "What do you want to study?" })).toBeVisible();
@@ -171,6 +176,7 @@ test("Study Now is two screens, then the hub", async ({ page }) => {
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const card = page.getByTestId("pre-session-card");
   await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(card.getByRole("button", { name: "Start", exact: true })).toBeEnabled({ timeout: 10_000 });
   await card.getByRole("button", { name: "Start", exact: true }).click();
   await expect(page.locator("[data-shape]")).toBeVisible();
 });
