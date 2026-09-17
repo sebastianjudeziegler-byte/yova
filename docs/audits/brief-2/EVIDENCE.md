@@ -263,6 +263,16 @@ A rebuilt session omits `revisionEditedFields` when its list is empty (`build-pl
 
 The previous migrated test shared a plan across cases. The legacy-row test changed all lists to JSON `null`; the reader strips those null fields, so the later Undo case did not exercise fresh `[]` rows. Each case now activates a fresh plan for a fresh signed-in learner. The regression checks the actual changed row before and after Apply, and verifies that the corresponding session in the persisted proposal omits the field. It then requires Undo and a subsequent database reload to restore the plan. A second real-database case changes the stored list to `["title"]` and requires refusal with the plan and revision history unchanged.
 
-Red-first status: the unchanged production comparator fails three new local unit assertions (omitted/empty in both directions, plus spurious patch creation); twelve checks still pass, including genuine edit protection and #94 timestamps. The test-only commit will run the migrated database reproduction in CI before implementation changes.
+### Red before implementation
+
+Test-only commit `e5c78e8f191438c6a037329df178ef4f10e61100`, [CI411](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35241438310), [database step](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35241438310/job/105270591197#step:12:30): **5 passed, 1 failed**. The positive case passed preview, Apply, changed-row `[]`, and persisted-proposal omission assertions, then failed at Undo with `A changed session no longer matches this preview. Review its latest version.` The genuine `["title"]` change case passed. This is real migrated Supabase, authenticated RPCs and persisted revision history, not the browser preview path.
+
+The unchanged comparator also failed three new local unit assertions (omitted/empty in both directions, plus spurious patch creation); twelve checks passed, including genuine edit protection and #94 timestamps.
+
+### Narrow fix and verification
+
+`revision-patch.ts` normalizes an empty top-level session `revisionEditedFields` to omission only for session comparisons. It does not change stored sessions, the revision builder, SQL, the shared map comparator, nonempty lists, other arrays, or the #94 timestamp behavior. Actual edits and saved work still refuse stale Undo.
+
+After the fix: **65 scoped tests passed, 1 existing gated case skipped**, including all 15 comparison tests; TypeScript and scoped ESLint passed. The full unchanged CI workflow and migrated database regression run on [PR98](https://github.com/sebastianjudeziegler-byte/yova/pull/98); final run results are linked from the PR description. No CI policy or workflow changes are part of this PR.
 
 After the fix, run the full existing CI suite. The founder merges and deploys. Only after that deployment, use a fresh test topic for change → confirm → receipt → Undo → reload, and verify the restoration persisted. Do not reuse `Water Cycle Quiz Foundations`, which the founder reports has three stuck revisions. No production Undo success is claimed by this branch's database tests.

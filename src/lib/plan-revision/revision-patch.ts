@@ -15,6 +15,11 @@ export type SessionRevisionPatch = Readonly<{
 }>;
 
 const pendingProjection = (session: LearningPlanSession | null) => session && ["ready", "upcoming"].includes(session.status) ? { ...session, status: "unstarted" } : session;
+/** The writer stores [] for no reviewed edits; a rebuilt proposal omits it.
+ * Normalize only this top-level session field, without altering stored work. */
+const sessionComparisonProjection = (session: LearningPlanSession | null) => session && Array.isArray(session.revisionEditedFields) && session.revisionEditedFields.length === 0
+  ? { ...session, revisionEditedFields: undefined }
+  : session;
 const same = (left: unknown, right: unknown) => canonical(left) === canonical(right);
 /** A full ISO 8601 timestamp with a zone. The database returns "+00:00" where a stored proposal holds ".000Z". */
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -35,7 +40,7 @@ export function sessionRevisionPatches(before: LearningPlan, after: LearningPlan
   return [...new Set([...previous.keys(), ...next.keys()])].flatMap(id => {
     const left = previous.get(id) ?? null;
     const right = next.get(id) ?? null;
-    return same(left, right) ? [] : [{ id, before: left, after: right }];
+    return same(sessionComparisonProjection(left), sessionComparisonProjection(right)) ? [] : [{ id, before: left, after: right }];
   });
 }
 
@@ -56,7 +61,7 @@ export function applySessionRevisionPatches({ current, patches, protectedSession
     if (existing && (protectedSessionIds.has(patch.id) || existing.status === "complete" || existing.resource)) {
       throw new RevisionConflict("saved_work", "A changed session now has saved work. Review a new preview; that work has been kept.");
     }
-    if (!same(pendingProjection(existing), pendingProjection(patch.before))) {
+    if (!same(pendingProjection(sessionComparisonProjection(existing)), pendingProjection(sessionComparisonProjection(patch.before)))) {
       throw new RevisionConflict("stale_session", "A changed session no longer matches this preview. Review its latest version.");
     }
   }
