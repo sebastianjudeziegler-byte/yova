@@ -33,6 +33,8 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
   let offline = false;
   let dropReply = false;
   let writes = 0;
+  let inspectingReload = false;
+  const reloadFailures: Array<{ path: string; status: number; code: string | null; message: string | null }> = [];
   const uuidMap = new Map<string, string>();
   const fresh = <T,>(value: T): T => JSON.parse(JSON.stringify(value).replace(/[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}/gi, id => {
     if (!uuidMap.has(id)) uuidMap.set(id, randomUUID());
@@ -62,6 +64,20 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
       const isFinish = String(input).includes("/rpc/complete_plan_session");
       if (isFinish) writes += 1;
       const response = await fetch(input, init);
+      if (inspectingReload && !response.ok) {
+        const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
+        if (path.startsWith("/rest/v1/")) {
+          // Only the synthetic fixture's failed PostgREST error is recorded.
+          // Never log request headers, credentials, query values, or row data.
+          const body: unknown = await response.clone().json().catch(() => null);
+          const error = body && typeof body === "object" ? body as Record<string, unknown> : {};
+          const diagnostic = { path, status: response.status,
+            code: typeof error.code === "string" ? error.code.slice(0, 120) : null,
+            message: typeof error.message === "string" ? error.message.slice(0, 800) : null };
+          reloadFailures.push(diagnostic);
+          console.error("Migrated completion reload PostgREST failure", JSON.stringify(diagnostic));
+        }
+      }
       if (isFinish && dropReply && response.ok) {
         dropReply = false;
         // The real server has committed. Only the reply is delayed beyond the
@@ -86,8 +102,16 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
     expect(rows(event.id)).toBe("1");
     expect(writes).toBe(1);
     expect(loadQueuedSessionCompletions(userId)).toHaveLength(0);
-    const reloaded = await loadAuthenticatedLearningState();
-    expect(reloaded?.plans.find(item => item.id === plan.id)?.sessions.find(item => item.id === event.planSessionId)?.status).toBe("complete");
+    reloadFailures.length = 0;
+    inspectingReload = true;
+    try {
+      const reloaded = await loadAuthenticatedLearningState();
+      expect(reloaded?.plans.find(item => item.id === plan.id)?.sessions.find(item => item.id === event.planSessionId)?.status).toBe("complete");
+    } catch (error) {
+      throw new Error(`Migrated completion reload failed. PostgREST diagnostics: ${JSON.stringify(reloadFailures)}`, { cause: error });
+    } finally {
+      inspectingReload = false;
+    }
   }, 35_000);
 
   it("keeps the exact queued event across a reload-style retry and reconnect", async () => {

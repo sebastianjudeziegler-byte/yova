@@ -131,6 +131,7 @@ jobs:
         run: pnpm exec supabase stop --no-backup
 
       - name: Install isolated browser
+        if: ${{ !cancelled() }}
         run: |
           # The hosted image includes a Google Chrome apt source unrelated to
           # Playwright's pinned Chromium download. Its inconsistent metadata
