@@ -5,18 +5,6 @@ import { describe, expect, it } from "vitest";
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("YOVA prototype UI contracts", () => {
-  it("keeps every session setup step label visible at small viewports", () => {
-    const component = readSource("src/components/yova-prototype.tsx");
-    const styles = [
-      readSource("src/app/globals.css"),
-      readSource("src/app/polish.css"),
-    ].join("\n");
-
-    expect(component).toContain('["Direction", "Starting point", "Today"]');
-    expect(styles).not.toMatch(/\.session-setup-progress strong\s*\{[^}]*display:\s*none/);
-    expect(styles).toMatch(/\.session-setup-progress strong\s*\{[^}]*display:\s*block/);
-  });
-
   it("renders every dedicated method runtime without disabling its answer surface", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const guidedStart = component.indexOf("function GuidedSession(");
@@ -143,98 +131,6 @@ describe("YOVA prototype UI contracts", () => {
     expect(previewBoundary).toContain("previewCanonicalProfile: CanonicalLearnerProfileSchema.parse");
   });
 
-  it("locks scheduled-review setup to the backend verification contract", () => {
-    const component = readSource("src/components/yova-prototype.tsx");
-    const setupStart = component.indexOf("function SessionSetup");
-    const setupEnd = component.indexOf("export function formatSessionPreparationTopic", setupStart);
-    const setup = component.slice(setupStart, setupEnd);
-
-    expect(setup).toContain("const scheduledReview = isScheduledRetrievalSession(session)");
-    expect(setup).toContain("if (scheduledReview)");
-    expect(setup).toContain("onStart(null)");
-    expect(setup).toContain("Exactly 3 multiple-choice questions");
-    expect(setup).toContain("This return check has a fixed starting point.");
-    expect(setup).toContain("Open the goal instead");
-    expect(setup).toContain("setupPage === 2 && !scheduledReview");
-    expect(component).toContain('requestedPlan.creationIntent === "study_now"');
-    expect(component).toContain('if (requestedPlan?.status === "archived") return "archive"');
-    expect(component).toContain("if (!resumePoint && adjustment === undefined)");
-    expect(component).not.toContain("adjustment === undefined && !isScheduledRetrievalSession(requestedSession)");
-  });
-
-  it("does not offer controls that silently mutate a committed StudyRoute", () => {
-    const component = readSource("src/components/yova-prototype.tsx");
-    const setupStart = component.indexOf("function SessionSetup");
-    const setupEnd = component.indexOf("export function formatSessionPreparationTopic", setupStart);
-    const setup = component.slice(setupStart, setupEnd);
-    const sourcesStart = component.indexOf("function PlanSources");
-    const sourcesEnd = component.indexOf("function AskScreen", sourcesStart);
-    const sources = component.slice(sourcesStart, sourcesEnd);
-
-    expect(setup).toContain('routeContract?.resolution.source === "stored"');
-    expect(setup).toContain("Time in this recipe");
-    expect(setup).toContain("To change this time, cancel and choose Adjust on the goal before starting.");
-    expect(setup).toContain("availableMinutes: committedStudyRoute ? null : availableMinutes");
-    expect(sources).toContain("onClick={onReview}");
-    expect(sources).toContain("Add file or link");
-    expect(sources).not.toContain("/api/materials/attach");
-    expect(readSource("src/lib/plan-revision/apply-service.ts")).toContain("applySessionRevisionPatches");
-  });
-
-  it("keeps ready-session method control bounded, visible, and server-authoritative", () => {
-    const component = readSource("src/components/yova-prototype.tsx");
-    const styles = readSource("src/app/globals.css");
-    const setupStart = component.indexOf("function SessionSetup");
-    const setupEnd = component.indexOf("export function formatSessionPreparationTopic", setupStart);
-    const setup = component.slice(setupStart, setupEnd);
-
-    expect(setup).toContain("onChangeMethod: (selection:");
-    expect(setup).toContain('storedSession?.status === "ready"');
-    expect(setup).toContain("committedStudyRoute.identity.planId === plan.id");
-    expect(setup).toContain("committedStudyRoute.identity.sessionId === session.id");
-    expect(setup).toContain("!storedSession.resource");
-    expect(setup).toContain(").slice(0, 2)");
-    expect(setup).toContain('routeAgencyMode === "ill_customize"');
-    expect(setup).toContain("boundedOtherAgencyMethodOptions(methodChoiceRoute)");
-    expect(setup).toContain("otherMethodOptions.map((option)");
-    expect(setup).toContain('selectionScope: "other_eligible_method"');
-    expect(setup).toContain("requestedMethod,");
-    expect(setup).toContain("resolveBoundedOtherMethodRequest({");
-    expect(setup).toContain('resolution.status === "mapped"');
-    expect(setup).toContain("setOtherMethodPreview(null)");
-    expect(setup).toContain("committedStudyRoute?.approach.visibleMethodName");
-    expect(setup).toContain("committedStudyRoute?.explanation.shortReason");
-    expect(setup).toContain("expectedRouteRevisionId: methodChoiceRoute.identity.routeRevisionId");
-    expect(setup).toContain("aria-expanded={methodChoicesOpen}");
-    expect(setup).toContain("Other methods that also fit for ${session.title}");
-    expect(setup).toContain("Other eligible methods");
-    expect(setup).toContain("Questionable or incompatible methods are explained and mapped before anything changes.");
-    expect(setup).toContain("Use {otherMethodPreview.selectedMethodName} instead");
-    expect(setup).toContain("This recipe&apos;s eligible-method decision is no longer current.");
-    expect(setup).toContain("Only the method changes. The target,");
-    expect(setup).toContain('role="status" aria-live="polite"');
-    expect(setup).toContain('role="alert"');
-    expect(styles).toContain(".session-method-choice-trigger:focus-visible");
-    expect(styles).toContain(".session-method-options > button:focus-visible");
-    expect(styles).toContain(".session-other-method-request input:focus-visible");
-    expect(styles).toContain(".session-other-method-mapping button:focus-visible");
-  });
-
-  it("shows the route-owned agency mode and complete recipe before a session starts", () => {
-    const component = readSource("src/components/yova-prototype.tsx");
-    const setupStart = component.indexOf("function SessionSetup");
-    const setupEnd = component.indexOf("export function formatSessionPreparationTopic", setupStart);
-    const setup = component.slice(setupStart, setupEnd);
-    const recipeCard = readSource("src/components/study-route-recipe-card.tsx");
-
-    expect(setup).toContain("<StudyRouteRecipeCard route={committedStudyRoute}");
-    expect(recipeCard).toContain('label: "YOVA Decides"');
-    expect(recipeCard).toContain('label: "Help Me Choose"');
-    expect(recipeCard).toContain('label: "I’ll Customize"');
-    expect(recipeCard).toContain("See the complete recipe");
-    expect(recipeCard).toContain("changedSincePrevious.summary");
-  });
-
   it("uses one return label throughout the lesson review dialog", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const dialogStart = component.indexOf('{reviewingModel &&');
@@ -270,13 +166,10 @@ describe("YOVA prototype UI contracts", () => {
     const guidedEnd = component.indexOf("function SessionGuidePanel", guidedStart);
     const guidedSession = component.slice(guidedStart, guidedEnd);
 
-    expect(component).toContain("&& !isScheduledRetrievalSession(requestedSession)");
     expect(component).toContain("canScheduleUnguidedVerification(sessionRecoverySession, activePlan.sessions.length)");
     expect(component).toContain("allowUnguidedCompletion={canScheduleUnguidedVerification(outsideMethodSession, plan?.sessions.length ?? 0)}");
     expect(component).toContain("hasGuidedQuestionsBelow={false}");
-    expect(component).toContain("startDecision.cachedResourceRestorable");
     expect(startRecovery).toContain("canLoadBuiltInFallbackWithCompletion({");
-    expect(component).toContain("&& fallbackCanComplete");
     expect(guidedStart).toBeGreaterThan(-1);
     expect(guidedEnd).toBeGreaterThan(guidedStart);
     expect(guidedSession).toContain("const quickScheduledReview = isScheduledRetrievalSession(currentSession)");
@@ -319,18 +212,10 @@ describe("YOVA prototype UI contracts", () => {
   it("uses one fail-closed recovery decision for labels, allowance, and launch", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const calendar = readSource("src/components/calendar/calendar-screen.tsx");
-    const startSessionStart = component.indexOf("const startSession = async");
-    const startSessionEnd = component.indexOf("const requestSessionStart", startSessionStart);
-    const startSession = component.slice(startSessionStart, startSessionEnd);
     const homeStart = component.indexOf("function HomeScreen");
     const homeEnd = component.indexOf("function formatHomeDate", homeStart);
     const home = component.slice(homeStart, homeEnd);
 
-    expect(startSession).toContain("sessionStartRecoveryDecision({");
-    expect(startSession).toContain("startDecision.canStartWithoutGeneration");
-    expect(startSession).toContain("startDecision.advertiseContinue");
-    expect(startSession).toContain("resumePoint && storedRequestedSession.resource");
-    expect(startSession).toContain("resolveExecutedStudyRouteSessionContract(");
     expect(home).toContain("sessionStartRecoveryDecision({");
     expect(home).toContain("startDecision?.resumePoint");
     expect(home).toContain("resolveExecutedStudyRouteSessionContract(");
@@ -620,29 +505,6 @@ describe("YOVA prototype UI contracts", () => {
     expect(repository).toContain(
       "...(checkpoint.activityProgress ? { activityProgress: checkpoint.activityProgress } : {})",
     );
-  });
-
-  it("classifies topic-agnostic outside built-in work as unguided practice", () => {
-    const component = readSource("src/components/yova-prototype.tsx");
-
-    expect(component).toContain('fallbackSelection?.kind === "generic_inside" || fallbackSelection?.kind === "outside_source"');
-    expect(component).toContain('requestedPlan.studyMode === "outside_yova" && requestedSession.resource.origin === "built_in"');
-  });
-
-  it("reuses one guided-session operation id after an ambiguous browser timeout", () => {
-    const component = readSource("src/components/yova-prototype.tsx");
-    const operation = component.indexOf("reusableSessionGenerationOperation(");
-    const header = component.indexOf('"X-Yova-Request-Id": clientRequestId', operation);
-    const terminal = component.indexOf(
-      "generationOperationReachedTerminalResponse = !isSessionGenerationOperationInProgress(body)",
-      header,
-    );
-    const clear = component.indexOf("pendingSessionGenerationOperationRef.current = null", terminal);
-
-    expect(operation).toBeGreaterThan(-1);
-    expect(header).toBeGreaterThan(operation);
-    expect(terminal).toBeGreaterThan(header);
-    expect(clear).toBeGreaterThan(terminal);
   });
 
   it("keeps a paused canonical profile stored but out of workspace decisions", () => {

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { LearningMaterial, LearningPlanSession } from "@/lib/domain";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import { emptyOnboardingAnswers } from "@/lib/onboarding/answers";
-import { routingEvidenceForTopic, routingInputForSession, sessionTopic } from "./route-for-session";
+import type { SessionCompletion } from "@/lib/domain";
+import { interleavedKeyPointsForSession, passedRelatedTopicIds, routingEvidenceForTopic, routingInputForSession, sessionTopic } from "./route-for-session";
 
 const topicId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const materialId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -61,3 +62,54 @@ describe("routing input for a plan session", () => {
     expect(routingInputForSession({ plan: plan([topic()]), session: mixed, topic: topic(), answers: emptyOnboardingAnswers() }).topicHasProblems).toBe(false);
   });
 });
+
+// Brief 1.5 item 3: routing input for practice labels.
+describe("practice label inputs", () => {
+  const second = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const unrelated = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  const topics = [
+    topic(),
+    topic({ id: second, title: "Link reaction", description: "Explain how pyruvate becomes acetyl-CoA before the Krebs cycle.", prerequisiteTopicIds: [topicId] }),
+    topic({ id: unrelated, title: "Photosynthesis", description: "Explain how light energy is captured as chemical energy in chloroplasts." }),
+  ];
+  function completion(forTopic: string, outcomes: Array<"secure" | "needs_review">, concepts = outcomes.map((_, index) => `Key idea number ${index + 1} for ${forTopic.slice(0, 4)}.`)): SessionCompletion {
+    return {
+      id: crypto.randomUUID(), planId: "p", planSessionId: crypto.randomUUID(), startedAt: "2026-09-10T10:00:00.000Z", completedAt: "2026-09-10T10:20:00.000Z",
+      plannedMinutes: 20, actualMinutes: 20, correctAnswers: outcomes.filter((outcome) => outcome === "secure").length, totalAnswers: outcomes.length,
+      feedback: null, observedGap: "", completionMode: "guided", confidenceEvidence: [],
+      conceptEvidence: outcomes.map((outcome, index) => ({ topicId: forTopic, concept: concepts[index]!, outcome, activityType: "multiple_choice" as const })),
+    } as SessionCompletion;
+  }
+
+  it("counts days to the plan deadline from now", () => {
+    const input = routingInputForSession({ plan: { ...plan(topics), deadline: "2026-09-13T12:00:00.000Z" }, session: session({ learningMode: "study" }), topic: topics[0]!, answers: emptyOnboardingAnswers(), now: new Date("2026-09-11T12:00:00.000Z") });
+    expect(input.daysToDeadline).toBe(2);
+    expect(routingInputForSession({ plan: { ...plan(topics), deadline: null }, session: session(), topic: topics[0]!, answers: emptyOnboardingAnswers(), now: new Date() }).daysToDeadline).toBeNull();
+  });
+
+  it("finds prerequisite-linked topics that each passed a practice round clean at least once", () => {
+    const completions = [completion(topicId, ["secure", "secure"]), completion(second, ["secure", "needs_review"]), completion(second, ["secure", "secure"]), completion(unrelated, ["secure"])];
+    expect(passedRelatedTopicIds({ plan: plan(topics), topic: topics[0]!, completions }).sort()).toEqual([topicId, second].sort());
+    expect(passedRelatedTopicIds({ plan: plan(topics), topic: topics[0]!, completions: [completion(second, ["secure", "needs_review"])] })).toEqual([]);
+  });
+
+  it("sweeps the passed related topics' key points for an Interleaved Review, with unique ids", () => {
+    const completions = [completion(topicId, ["secure", "secure"]), completion(second, ["secure", "secure"])];
+    const keyPoints = interleavedKeyPointsForSession({ plan: plan(topics), topic: topics[0]!, completions });
+    expect(keyPoints).toHaveLength(4);
+    expect(new Set(keyPoints.map((keyPoint) => keyPoint.id)).size).toBe(4);
+    expect(keyPoints.map((keyPoint) => keyPoint.text)).toEqual(expect.arrayContaining(["Key idea number 1 for cccc.", "Key idea number 1 for dddd."]));
+  });
+});
+
+// Brief 1.5 item 4: difficulty inputs come from the knowledge map, not the model.
+describe("difficulty inputs", () => {
+  it("passes the topic's subtopic count and prerequisite depth to routing", () => {
+    const first = topic({ subtopics: ["Investment phase", "Payoff phase"] });
+    const second = topic({ id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", title: "Link reaction", description: "Explain how pyruvate becomes acetyl-CoA before the Krebs cycle.", subtopics: ["Decarboxylation"], prerequisiteTopicIds: [topicId] });
+    const input = routingInputForSession({ plan: plan([first, second]), session: session({ topicIds: [second.id] }), topic: second, answers: emptyOnboardingAnswers() });
+    expect(input.subtopicCount).toBe(1);
+    expect(input.prerequisiteDepth).toBe(1);
+  });
+});
+

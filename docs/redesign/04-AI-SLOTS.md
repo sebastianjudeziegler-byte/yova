@@ -66,6 +66,8 @@ otherwise. Generated in the same call as any explanation they accompany.
 
 One question per key point, clamped **3–8**.
 
+> Superseded by Brief 1.5 items 1–2: a first round asks a five-question type mix (within the route cap) over 3–5 key points, with question types and the key points each question may draw on assigned in code; a retry asks one question per missed point.
+
 Clamps: Q9 `shorter_sections` → max 5. Q2 timer band 10–15 min → max 5.
 
 ## Weighting

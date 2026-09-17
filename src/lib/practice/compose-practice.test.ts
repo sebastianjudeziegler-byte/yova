@@ -1,98 +1,92 @@
 import { describe, expect, it } from "vitest";
 import {
   composePracticeRound,
+  firstRoundKeyPointCount,
   keyPointsForRound,
-  orderQuestionsByWeighting,
-  practiceQuestionCount,
+  roundQuestionCount,
   type KeyPoint,
-  type PracticeQuestion,
+  type QuestionDraft,
 } from "./compose-practice";
+import { planQuestionSlots, type QuestionMix, type QuestionSlot } from "./question-mix";
 
 const keyPoints: KeyPoint[] = Array.from({ length: 6 }, (_, index) => ({ id: `k${index + 1}`, text: `Key point number ${index + 1} about the topic.` }));
+const conceptual: QuestionMix = { recall: 1, application: 2, compare_contrast: 1, prediction: 0, misconception: 1 };
 
-function question(id: string, keyPointId: string, kind: PracticeQuestion["kind"] = "relationship", overrides: Partial<PracticeQuestion> = {}): PracticeQuestion {
-  return { id, keyPointId, kind, prompt: `What about ${keyPointId}?`, choices: ["Alpha", "Beta", "Gamma", "Delta"], correctChoiceIndex: 0, explanation: "Alpha is the defined answer here.", ...overrides };
+function draft(slotId: string, overrides: Partial<QuestionDraft> = {}): QuestionDraft {
+  return { slotId, prompt: `What does slot ${slotId} ask?`, choices: ["Alpha", "Beta", "Gamma", "Delta"], correctChoiceIndex: 0, explanation: "Alpha is the defined answer here.", ...overrides };
 }
-
-const baseRoute = { questionCap: 8, questionMinimum: 3, weighting: "relationships_first" as const };
+const fill = (slots: QuestionSlot[]) => slots.map((slot) => draft(slot.slotId));
 
 describe("practice question count", () => {
-  it("is one per key point clamped to 3–8", () => {
-    expect(practiceQuestionCount(1, baseRoute)).toBe(3);
-    expect(practiceQuestionCount(5, baseRoute)).toBe(5);
-    expect(practiceQuestionCount(12, baseRoute)).toBe(8);
+  it("a first round asks five questions, within the route cap", () => {
+    expect(roundQuestionCount({ round: 1, keyPointCount: 3, questionCap: 8 })).toBe(5);
+    expect(roundQuestionCount({ round: 1, keyPointCount: 5, questionCap: 5 })).toBe(5);
+    expect(roundQuestionCount({ round: 1, keyPointCount: 4, questionCap: 3 })).toBe(3);
   });
 
-  it("honours the route cap for shorter sections and the shortest timer band", () => {
-    expect(practiceQuestionCount(8, { ...baseRoute, questionCap: 5 })).toBe(5);
-    expect(practiceQuestionCount(2, { ...baseRoute, questionCap: 5 })).toBe(3);
-  });
-});
-
-describe("weighting", () => {
-  const set = [question("a", "k1", "relationship"), question("b", "k2", "definition"), question("c", "k3", "compare_contrast"), question("d", "k4", "term")];
-
-  it("gist-leaning puts definitions and terms first, keeping original order inside each group", () => {
-    expect(orderQuestionsByWeighting(set, "terms_first").map((item) => item.id)).toEqual(["b", "d", "a", "c"]);
+  it("a first round derives between three and five key points to match its question count", () => {
+    expect(firstRoundKeyPointCount(3)).toBe(3);
+    expect(firstRoundKeyPointCount(5)).toBe(5);
+    expect(firstRoundKeyPointCount(8)).toBe(5);
   });
 
-  it("detail-leaning puts compare-contrast and relationship items first", () => {
-    expect(orderQuestionsByWeighting(set, "relationships_first").map((item) => item.id)).toEqual(["a", "c", "b", "d"]);
+  // Brief 1.5 item 1: a retry checks each missed point once, never three questions on one point.
+  it("a retry asks one question per missed point, within the cap", () => {
+    expect(roundQuestionCount({ round: 2, keyPointCount: 1, questionCap: 8 })).toBe(1);
+    expect(roundQuestionCount({ round: 2, keyPointCount: 2, questionCap: 8 })).toBe(2);
+    expect(roundQuestionCount({ round: 3, keyPointCount: 6, questionCap: 5 })).toBe(5);
   });
 });
 
 describe("rounds", () => {
-  it("round 1 covers every key point and later rounds only the outstanding ones", () => {
-    expect(keyPointsForRound(keyPoints, 1, []).map((item) => item.id)).toEqual(["k1", "k2", "k3", "k4", "k5", "k6"]);
-    expect(keyPointsForRound(keyPoints, 2, ["k2", "k5"]).map((item) => item.id)).toEqual(["k2", "k5"]);
+  it("round 1 covers every key point; later rounds only what was missed", () => {
+    expect(keyPointsForRound(keyPoints, 1, [])).toHaveLength(6);
+    expect(keyPointsForRound(keyPoints, 2, ["k2", "k5"]).map((keyPoint) => keyPoint.id)).toEqual(["k2", "k5"]);
   });
 });
 
-describe("composing a round from generated questions", () => {
-  it("accepts a valid set, one per key point, ordered by weighting", () => {
-    const result = composePracticeRound({ keyPoints, questions: keyPoints.map((keyPoint, index) => question(`q${index}`, keyPoint.id, index % 2 ? "term" : "relationship")), route: baseRoute });
+describe("composing a round from code-planned slots", () => {
+  const slots = planQuestionSlots({ keyPointIds: ["k1", "k2", "k3", "k4", "k5"], mix: conceptual, count: 5 });
+
+  it("takes each question's type and key points from its slot, in slot order", () => {
+    const result = composePracticeRound({ keyPoints, slots, drafts: [...fill(slots)].reverse() });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.questions).toHaveLength(6);
-    expect(result.questions.slice(0, 3).every((item) => item.kind === "relationship")).toBe(true);
+    expect(result.questions.map((question) => question.slotId)).toEqual(slots.map((slot) => slot.slotId));
+    expect(result.questions.map((question) => question.kind)).toEqual(slots.map((slot) => slot.type));
+    expect(result.questions.map((question) => question.keyPointIds)).toEqual(slots.map((slot) => slot.keyPointIds));
   });
 
-  it("trims to the cap while keeping one question per key point before any second", () => {
-    const questions = [...keyPoints.map((keyPoint, index) => question(`q${index}`, keyPoint.id)), question("extra", "k1")];
-    const result = composePracticeRound({ keyPoints, questions, route: { ...baseRoute, questionCap: 5 } });
-    expect(result.ok && result.questions.map((item) => item.keyPointId)).toEqual(["k1", "k2", "k3", "k4", "k5"]);
+  it("refuses a round that leaves a slot unfilled", () => {
+    expect(composePracticeRound({ keyPoints, slots, drafts: fill(slots).slice(1) }).ok).toBe(false);
   });
 
-  it("rejects a question that tests something outside the round's key points", () => {
-    const result = composePracticeRound({ keyPoints, questions: [question("q1", "k1"), question("q2", "k2"), question("q3", "not-a-key-point")], route: baseRoute });
-    expect(result).toEqual({ ok: false, reason: "A question tested something outside this round's key points." });
+  it("refuses a question for a slot that was not planned", () => {
+    expect(composePracticeRound({ keyPoints, slots, drafts: [...fill(slots), draft("s9")] }).ok).toBe(false);
   });
 
-  it("rejects repeated choices, duplicate ids, and a correct index off the choices", () => {
-    expect(composePracticeRound({ keyPoints, questions: [question("q1", "k1", "term", { choices: ["Same", "same", "Other", "More"] }), question("q2", "k2"), question("q3", "k3")], route: baseRoute })).toMatchObject({ ok: false, reason: "A question repeated a choice." });
-    expect(composePracticeRound({ keyPoints, questions: [question("q1", "k1"), question("q1", "k2"), question("q3", "k3")], route: baseRoute })).toMatchObject({ ok: false, reason: "Two questions shared an id." });
-    expect(composePracticeRound({ keyPoints, questions: [question("q1", "k1", "term", { correctChoiceIndex: 4 }), question("q2", "k2"), question("q3", "k3")], route: baseRoute }).ok).toBe(false);
+  it("refuses two questions for one slot", () => {
+    expect(composePracticeRound({ keyPoints, slots, drafts: [...fill(slots), draft("s1", { prompt: "A second question on the first slot?" })] }).ok).toBe(false);
   });
 
-  it("refuses a round with fewer than three usable questions when three are needed", () => {
-    const result = composePracticeRound({ keyPoints, questions: [question("q1", "k1"), question("q2", "k2")], route: baseRoute });
-    expect(result.ok).toBe(false);
+  it("refuses repeated choices", () => {
+    expect(composePracticeRound({ keyPoints, slots, drafts: [draft("s1", { choices: ["Alpha", "alpha", "Gamma", "Delta"] }), ...fill(slots).slice(1)] }).ok).toBe(false);
   });
 
-  // Brief 1.5 item 1. A retry asks for one question per missed point, the same
-  // standard as round 1. It must not demand three questions from one point.
   it("round 2 accepts one question when one key point is outstanding", () => {
-    const result = composePracticeRound({ keyPoints, questions: [question("q9", "k4")], route: baseRoute, round: 2, outstandingKeyPointIds: ["k4"] });
-    expect(result.ok && result.questions.map((item) => item.keyPointId)).toEqual(["k4"]);
+    const retry = planQuestionSlots({ keyPointIds: ["k4"], mix: conceptual, count: roundQuestionCount({ round: 2, keyPointCount: 1, questionCap: 8 }) });
+    const result = composePracticeRound({ keyPoints, slots: retry, drafts: fill(retry) });
+    expect(result.ok && result.questions.flatMap((question) => question.keyPointIds)).toEqual(["k4"]);
   });
 
-  it("round 2 accepts two questions when two key points are outstanding", () => {
-    const result = composePracticeRound({ keyPoints, questions: [question("q9", "k2"), question("q10", "k4")], route: baseRoute, round: 2, outstandingKeyPointIds: ["k2", "k4"] });
-    expect(result.ok && result.questions.map((item) => item.keyPointId).sort()).toEqual(["k2", "k4"]);
+  it("round 2 accepts two questions when two key points are outstanding, and checks both", () => {
+    const retry = planQuestionSlots({ keyPointIds: ["k2", "k4"], mix: conceptual, count: roundQuestionCount({ round: 2, keyPointCount: 2, questionCap: 8 }) });
+    const result = composePracticeRound({ keyPoints, slots: retry, drafts: fill(retry) });
+    expect(result.ok && new Set(result.questions.flatMap((question) => question.keyPointIds))).toEqual(new Set(["k2", "k4"]));
   });
 
   it("round 2 still refuses a set that leaves a missed point unchecked", () => {
-    const result = composePracticeRound({ keyPoints, questions: [question("q9", "k2"), question("q10", "k2")], route: baseRoute, round: 2, outstandingKeyPointIds: ["k2", "k4"] });
-    expect(result.ok).toBe(false);
+    const retry = planQuestionSlots({ keyPointIds: ["k2", "k4"], mix: { recall: 1, application: 0, compare_contrast: 0, prediction: 0, misconception: 0 }, count: 2 });
+    expect(composePracticeRound({ keyPoints, slots: retry, drafts: fill(retry).slice(0, 1) }).ok).toBe(false);
   });
 });

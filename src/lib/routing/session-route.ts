@@ -1,4 +1,7 @@
 import { CORE_METHOD_CATALOG, type CoreMethodId, type LearningTaskType } from "@/lib/learning/method-catalog";
+import { BASE_MIX_SIZE, questionMixFor, QUESTION_TYPES, TASK_TYPE_QUESTION_MIX, type QuestionMix } from "@/lib/practice/question-mix";
+import { difficultyBand, HIGH_BAND_QUESTION_COUNT } from "@/lib/practice/topic-difficulty";
+import { INTERLEAVED_MINIMUM_PASSED_TOPICS, PRACTICE_ROUND_LABEL, PRACTICE_ROUND_METHOD, PRACTICE_ROUND_RULE_ID, PRACTICE_TEST_DEADLINE_DAYS, type FirstPracticeRoundKind } from "@/lib/practice/practice-rounds";
 import {
   onboardingAnswerId,
   onboardingSupportNeeds,
@@ -33,6 +36,13 @@ export type RoutingInput = {
   /** Only consulted for `mixed_assessment`: whether the topic contains problems. */
   topicHasProblems: boolean;
   answers: OnboardingAnswers;
+  /** Days until the plan deadline (fractional); null when there is no future deadline. Brief 1.5 item 3. */
+  daysToDeadline?: number | null;
+  /** Prerequisite-linked topics, this one included, that have each passed a practice round clean at least once. */
+  passedRelatedTopicIds?: string[];
+  /** Topic difficulty inputs from the knowledge map (Brief 1.5 item 4). */
+  subtopicCount?: number;
+  prerequisiteDepth?: number;
 };
 
 export type SessionShape = "A" | "C";
@@ -41,7 +51,6 @@ export type ShapeAVariant = "standard" | "sq3r" | "outline_from_memory" | "worke
 export const SHAPE_A_ENTRY_LEVELS = ["study_full", "brief_review", "skip_to_practice"] as const;
 export type ShapeAEntry = (typeof SHAPE_A_ENTRY_LEVELS)[number];
 export type ProduceStep = "typed_explanation" | "concept_map" | "outline" | "retrieval_questions" | "worked_solution";
-export type QuestionWeighting = "terms_first" | "relationships_first";
 export type InstructionStyle = "standard" | "numbered_steps" | "plain_restated";
 export type StoppingPoints = "standard" | "after_each_step";
 export type MethodVisibility = "silent" | "change_link" | "chooser";
@@ -64,8 +73,8 @@ export type SessionRoute = {
   input: RoutingInput;
   shape: SessionShape;
   shapeVariant: ShapeAVariant | null;
-  /** Shape A only: study the learner's material (A1) or an AI explanation (A2). */
-  learnPath: "source" | "ai_explanation" | null;
+  /** Shape A only: study the learner's material (A1), an AI explanation (A2), or outside YOVA with directions (Brief 1.5 item 8). */
+  learnPath: "source" | "ai_explanation" | "outside" | null;
   /** Shape A only: what the AI explanation must centre on when there is no source. */
   explanationFocus: "concept" | "worked_example" | null;
   entry: ShapeAEntry;
@@ -80,8 +89,13 @@ export type SessionRoute = {
   /** Maximum questions per practice round (3–8). */
   questionCap: number;
   questionMinimum: number;
-  weighting: QuestionWeighting;
+  /** Questions a first round aims for: five, or eight for a high-difficulty topic (Brief 1.5 item 4). */
+  questionTarget: number;
+  /** Question-type counts for a five-question round (Brief 1.5 item 2); scaled to the round size in code. */
+  questionMix: QuestionMix;
   practiceRoundCeiling: number;
+  /** Which practice round a Shape C block opens with; later rounds are Error Repair (Brief 1.5 item 3). */
+  firstPracticeRound: FirstPracticeRoundKind;
   instructionStyle: InstructionStyle;
   stoppingPoints: StoppingPoints;
   pacePrompts: boolean;
@@ -256,16 +270,7 @@ export function routeSession(input: RoutingInput): SessionRoute {
   let timerMinutes: number = TIMER_BANDS[timerBand];
   let pacePrompts = true;
   let practiceRoundCeiling = PRACTICE_ROUND_CEILING;
-  let weighting: QuestionWeighting | null = null;
   let homeQueueCollapsed = false;
-
-  if (q7 === "gist_leaning") {
-    weighting = "terms_first";
-    decide({ layer: 4, ruleId: "L4.q7.gist_leaning", field: "weighting", value: weighting, reason: "You catch the big picture but miss specifics, so definition and term items come first." });
-  } else if (q7 === "detail_leaning") {
-    weighting = "relationships_first";
-    decide({ layer: 4, ruleId: "L4.q7.detail_leaning", field: "weighting", value: weighting, reason: "You know details but lose how they fit, so compare-contrast and structure items come first." });
-  }
 
   for (const support of q9) {
     switch (support) {
@@ -320,9 +325,49 @@ export function routeSession(input: RoutingInput): SessionRoute {
   timerMinutes = clamped;
   decide({ layer: 4, ruleId: "L4.timer_resolved", field: "timerMinutes", value: timerMinutes, reason: "The session timer is a nudge from your profile, not a boundary." });
 
-  if (!weighting) {
-    weighting = input.taskType === "memorization" ? "terms_first" : "relationships_first";
-    decide({ layer: 4, ruleId: `L4.q7.${q7 ?? "unanswered"}.task_default`, field: "weighting", value: weighting, reason: input.taskType === "memorization" ? "Memorization defaults to term items first." : "Conceptual work defaults to relationship items first." });
+  // Topic difficulty (Brief 1.5 item 4): deterministic, never shown to the learner.
+  const difficulty = difficultyBand({ subtopicCount: input.subtopicCount ?? 0, prerequisiteDepth: input.prerequisiteDepth ?? 0 });
+  decide({ layer: 4, ruleId: `L4.difficulty.${difficulty}`, field: "difficulty", value: difficulty, reason: "Topic difficulty comes from its subtopic count and how many topics must come before it." });
+  let questionTarget = BASE_MIX_SIZE;
+  if (difficulty === "high") {
+    if (questionCap < HIGH_BAND_QUESTION_COUNT) {
+      decide({ layer: "conflict", ruleId: "C8.difficulty_over_question_clamp", field: "questionCap", value: HIGH_BAND_QUESTION_COUNT, reason: "A high-difficulty topic needs more questions, so its cap rises past the session-length clamp." });
+    }
+    questionCap = HIGH_BAND_QUESTION_COUNT;
+    questionTarget = HIGH_BAND_QUESTION_COUNT;
+    decide({ layer: 4, ruleId: "L4.difficulty.high.more_questions", field: "questionTarget", value: questionTarget, reason: "A high-difficulty topic asks eight questions per round." });
+  }
+
+  // Question-type mix: task type first, then Q7 shifts one item.
+  const mixed = questionMixFor({ taskType: input.taskType, q7: q7 === "gist_leaning" || q7 === "detail_leaning" || q7 === "balanced" ? q7 : null });
+  const questionMix = { ...mixed.mix };
+  const taskMix = TASK_TYPE_QUESTION_MIX[input.taskType];
+  decide({ layer: 4, ruleId: `L4.mix.${input.taskType}`, field: "questionMix", value: formatMix(taskMix), reason: "Your task type sets which kinds of question a practice round asks." });
+  if (mixed.ruleIds.includes("L4.q7.gist_leaning.mix_recall")) {
+    decide({ layer: 4, ruleId: "L4.q7.gist_leaning.mix_recall", field: "questionMix", value: formatMix(questionMix), reason: "You catch the big picture but miss specifics, so one more question asks you to recall a specific." });
+  } else if (mixed.ruleIds.includes("L4.q7.detail_leaning.mix_compare_contrast")) {
+    decide({ layer: 4, ruleId: "L4.q7.detail_leaning.mix_compare_contrast", field: "questionMix", value: formatMix(questionMix), reason: "You know details but lose how they fit, so one more question asks you to compare two ideas." });
+  }
+
+  // Practice rounds (Brief 1.5 item 3): which round a Shape C practice block
+  // opens with. A learn block's questions come with its explanation and stay
+  // Active Recall. Any later round follows a miss and is Error Repair.
+  let firstPracticeRound: FirstPracticeRoundKind = "active_recall";
+  if (shape === "C") {
+    const daysToDeadline = input.daysToDeadline ?? null;
+    const deadlineSoon = input.blockKind === "practice" && daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= PRACTICE_TEST_DEADLINE_DAYS;
+    const interleavable = input.blockKind === "practice" && (input.passedRelatedTopicIds?.length ?? 0) >= INTERLEAVED_MINIMUM_PASSED_TOPICS;
+    if (deadlineSoon) {
+      firstPracticeRound = "practice_test";
+      decide({ layer: 4, ruleId: PRACTICE_ROUND_RULE_ID.practice_test, field: "firstPracticeRound", value: firstPracticeRound, reason: "Your deadline is within three days, so practice runs as a longer exam-style practice test." });
+      if (interleavable) decide({ layer: "conflict", ruleId: "C7.practice_test_over_interleaved", field: "firstPracticeRound", value: firstPracticeRound, reason: "Related topics could be interleaved, but the exam is close, so the practice test comes first." });
+    } else if (interleavable) {
+      firstPracticeRound = "interleaved_review";
+      decide({ layer: 4, ruleId: PRACTICE_ROUND_RULE_ID.interleaved_review, field: "firstPracticeRound", value: firstPracticeRound, reason: "You have passed related topics once each, so practice mixes them and asks which idea applies." });
+    } else {
+      decide({ layer: 4, ruleId: PRACTICE_ROUND_RULE_ID.active_recall, field: "firstPracticeRound", value: firstPracticeRound, reason: "Practice opens with closed-book recall of this topic." });
+    }
+    decide({ layer: 4, ruleId: PRACTICE_ROUND_RULE_ID.error_repair, field: "retryRound", value: "error_repair", reason: "A round after a miss is built only from what you missed and targets the reasoning error behind it." });
   }
 
   // ---------------------------------------------------------------- Layer 5
@@ -339,8 +384,9 @@ export function routeSession(input: RoutingInput): SessionRoute {
   }
 
   // ---------------------------------------------------------------- Output
-  const briefStudyStepActive = shape === "C" && input.blockKind === "learn" && briefStudyStep;
-  const method = resolveMethod({ shape, shapeVariant, produceStep, layer1 });
+  // A learner who reports the topic covered goes straight to practice (Brief 1.5 item 8).
+  const briefStudyStepActive = shape === "C" && input.blockKind === "learn" && briefStudyStep && input.evidence !== "learner_reported_covered";
+  const method = resolveMethod({ shape, shapeVariant, produceStep, layer1, firstPracticeRound });
   decide({ layer: "conflict", ruleId: "C6.rule_ids_recorded", field: "methodId", value: method.id, reason: `Every decision above is recorded; the session runs ${method.name}.` });
 
   return {
@@ -362,8 +408,10 @@ export function routeSession(input: RoutingInput): SessionRoute {
     timerMinutes,
     questionCap,
     questionMinimum: PRACTICE_QUESTION_MINIMUM,
-    weighting,
+    questionTarget,
+    questionMix,
     practiceRoundCeiling,
+    firstPracticeRound,
     instructionStyle,
     stoppingPoints,
     pacePrompts,
@@ -416,10 +464,11 @@ function layerOneShape(input: RoutingInput): LayerOneResult {
   }
 }
 
-function resolveMethod({ shape, shapeVariant, produceStep, layer1 }: { shape: SessionShape; shapeVariant: ShapeAVariant; produceStep: ProduceStep | null; layer1: LayerOneResult }): { id: CoreMethodId; name: string } {
+function resolveMethod({ shape, shapeVariant, produceStep, layer1, firstPracticeRound }: { shape: SessionShape; shapeVariant: ShapeAVariant; produceStep: ProduceStep | null; layer1: LayerOneResult; firstPracticeRound: FirstPracticeRoundKind }): { id: CoreMethodId; name: string } {
+  // Shape C names the practice round it opens with (Brief 1.5 item 3).
+  if (shape === "C") return { id: PRACTICE_ROUND_METHOD[firstPracticeRound], name: PRACTICE_ROUND_LABEL[firstPracticeRound] };
   let id: CoreMethodId;
-  if (shape === "C") id = "retrieval_practice";
-  else if (shapeVariant === "sq3r") id = "read_recall_review";
+  if (shapeVariant === "sq3r") id = "read_recall_review";
   else if (shapeVariant === "outline_from_memory") id = "retrieval_based_outlining";
   else if (shapeVariant === "worked_example_source") id = produceStep === "worked_solution" ? "practice_problems" : "worked_example_fading";
   else id = METHOD_FOR_PRODUCE_STEP[produceStep ?? layer1.defaultProduceStep];
@@ -432,7 +481,7 @@ export function isProceduralTaskType(taskType: LearningTaskType) {
 
 /** The Shape A produce steps a learner may switch to for this route without changing the shape. */
 export function alternativeProduceSteps(route: SessionRoute): ProduceStep[] {
-  if (route.shape !== "A" || !route.produceStep) return [];
+  if (route.shape !== "A" || !route.produceStep || route.learnPath === "outside") return [];
   if (route.shapeVariant === "outline_from_memory") return [];
   const candidates: ProduceStep[] = ["typed_explanation", "concept_map", "retrieval_questions"];
   if (route.shapeVariant === "worked_example_source") candidates.push("worked_solution");
@@ -465,4 +514,46 @@ export function withProduceStepOverride(route: SessionRoute, produceStep: Produc
     decisions,
     ruleIds: decisions.map((entry) => entry.ruleId),
   };
+}
+
+/** Decisions about how the in-app study and produce steps run; studying outside YOVA carries none of them out. */
+const INSIDE_ONLY_FIELDS = new Set(["produceStep", "produceBeforeStudy", "workedStructureBeforeProduce", "temporaryRoute"]);
+
+/**
+ * Study outside YOVA (Brief 1.5 item 8, a learner choice on the pre-session
+ * card): YOVA gives directions, the learner studies wherever they like, and
+ * "I'm back" goes straight to closed-book practice. No produce step and no AI
+ * explanation. Decisions only the inside path would carry out are dropped, so
+ * no note, tip or receipt claims them. Practice blocks and learn blocks that
+ * already skip to practice are unchanged.
+ */
+export function withStudyOutside(route: SessionRoute): SessionRoute {
+  const studies = route.input.blockKind === "learn" && ((route.shape === "A" && route.entry !== "skip_to_practice") || (route.shape === "C" && route.briefStudyStep));
+  if (!studies) return route;
+  const method = CORE_METHOD_CATALOG.retrieval_practice;
+  const decisions: RoutingDecision[] = [
+    ...route.decisions.filter((decision) => !INSIDE_ONLY_FIELDS.has(decision.field)),
+    { layer: 5, ruleId: "L5.learner_study_outside", field: "learnPath", value: "outside", reason: "You chose to study outside YOVA, so YOVA gives directions and then goes straight to practice." },
+  ];
+  return {
+    ...route,
+    shape: "A",
+    entry: route.shape === "C" ? "study_full" : route.entry,
+    learnPath: "outside",
+    explanationFocus: null,
+    produceStep: "retrieval_questions",
+    produceBeforeStudy: false,
+    workedStructureBeforeProduce: false,
+    briefStudyStep: false,
+    temporaryRoute: null,
+    methodId: method.id,
+    methodName: method.name,
+    firstPracticeRound: "active_recall",
+    decisions,
+    ruleIds: decisions.map((entry) => entry.ruleId),
+  };
+}
+
+function formatMix(mix: QuestionMix) {
+  return QUESTION_TYPES.filter((type) => mix[type] > 0).map((type) => `${mix[type]} ${type}`).join(", ");
 }

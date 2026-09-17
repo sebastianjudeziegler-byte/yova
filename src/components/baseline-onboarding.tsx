@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
+import { describeQuestionMix } from "@/lib/practice/question-mix";
 import { BrandMark } from "@/components/brand-mark";
 import {
   onboardingAnswerId,
@@ -73,7 +74,7 @@ export function BaselineProfileSummary({ answers, onContinue }: { answers: Onboa
   const note = personalizationNote(learn);
   const items = [
     { title: "Learn blocks", value: `${learn.methodName}: ${learn.entry === "study_full" ? "study, then produce" : "brief review, then produce"}${learn.produceBeforeStudy ? " (you try first)" : ""}${learn.workedStructureBeforeProduce ? " with the structure shown first" : ""}` },
-    { title: "Practice blocks", value: `Closed-book questions, up to ${practice.questionCap} per round, ${practice.weighting === "terms_first" ? "definitions first" : "relationships first"}` },
+    { title: "Practice blocks", value: `Closed-book questions, up to ${practice.questionCap} per round. In a five-question round: ${describeQuestionMix(practice.questionMix)}` },
     { title: "Timer", value: `${learn.timerMinutes} minutes as a nudge, not a boundary${learn.stoppingPoints === "after_each_step" ? ", with a stopping point after each step" : ""}` },
     { title: "Method choice", value: learn.visibility === "silent" ? "Applied for you, with detailed steps" : learn.visibility === "chooser" ? "Offered at the start with YOVA's pick pre-selected" : "Applied, with a Change method link and the reason" },
   ];

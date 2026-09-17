@@ -261,9 +261,10 @@ test("Calendar Start opens the exact ready session and fails closed on an ambigu
 
   await page.getByRole("button", { name: /^Causal map review, / }).click();
   await page.locator(".calendar-block-detail").getByRole("button", { name: "Start", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
-  await expect(page.locator(".session-current-assumption")).toContainText("Causal map review");
-  await page.getByRole("button", { name: "Not now", exact: true }).click();
+  // Brief 1.5 item 8: Start opens the pre-session card for exactly this block.
+  const card = page.getByTestId("pre-session-card");
+  await expect(card).toContainText("Causal map review");
+  await card.getByRole("button", { name: "Close" }).click();
   await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
 
   await seedSecondReadySession(page);
@@ -275,7 +276,7 @@ test("Calendar Start opens the exact ready session and fails closed on an ambigu
   await expect(page.locator(".calendar-inspector").getByRole("alert")).toContainText(
     "That exact learning block is no longer ready. Reload Calendar to use the current plan order.",
   );
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toHaveCount(0);
+  await expect(page.getByTestId("pre-session-card")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
 });
 

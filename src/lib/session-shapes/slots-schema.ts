@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { PRACTICE_ROUND_KINDS } from "@/lib/practice/practice-rounds";
 import { LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import { KeyPointSchema, PracticeQuestionSchema } from "@/lib/practice/compose-practice";
+import { SessionTipSchema, TipRequestSchema } from "@/lib/session-shapes/session-tips";
 
 /**
  * The AI generation contract for the baseline session shapes
@@ -35,10 +37,19 @@ export const ShapeTopicSchema = z.object({
 /** Profile modifiers that shape wording. IDs only, never labels or prose. */
 export const ShapeProfileModifiersSchema = z.object({
   instructionStyle: z.enum(["standard", "numbered_steps", "plain_restated"]),
-  weighting: z.enum(["terms_first", "relationships_first"]),
+  /** Question-type counts for a five-question round (route.questionMix); code scales and plans slots from it. */
+  questionMix: z.object({
+    recall: z.number().int().min(0).max(8),
+    application: z.number().int().min(0).max(8),
+    compare_contrast: z.number().int().min(0).max(8),
+    prediction: z.number().int().min(0).max(8),
+    misconception: z.number().int().min(0).max(8),
+  }).strict(),
   produceStep: z.enum(["typed_explanation", "concept_map", "outline", "retrieval_questions", "worked_solution"]).nullable(),
   explanationFocus: z.enum(["concept", "worked_example"]).nullable(),
   questionCap: z.number().int().min(3).max(8),
+  /** Questions a first round aims for: route.questionTarget (Brief 1.5 item 4). */
+  questionTarget: z.number().int().min(3).max(8),
 }).strict();
 
 /** Bounded excerpts of the learner's material for Slot 3 and Slot 4. */
@@ -57,13 +68,32 @@ const RequestBase = {
   planSessionId: z.string().uuid(),
   topic: ShapeTopicSchema,
   modifiers: ShapeProfileModifiersSchema,
+  /** The hub tips this call writes, with the fired-rule reasons each may draw on (Brief 1.5 item 6). */
+  tips: TipRequestSchema,
 };
+
+/** Tips written in this call, each on a reason it was offered. */
+const ResponseTips = z.array(SessionTipSchema).max(5).default([]);
+
+/** A concrete worked example: a title and its steps (Brief 1.5 item 5). */
+export const WorkedExampleSchema = z.object({
+  title: z.string().trim().min(8).max(160),
+  steps: z.array(z.string().trim().min(8).max(300)).min(2).max(6),
+}).strict();
+export type WorkedExample = z.infer<typeof WorkedExampleSchema>;
 
 export const DirectionRequestSchema = z.object({
   ...RequestBase,
   action: z.literal("direction"),
-  source: SourceDescriptionSchema,
+  /** null only when the learner studies outside YOVA with no material added. */
+  source: SourceDescriptionSchema.nullable(),
+  /** Inside: point at material before producing in-app. Outside: directions, then practice (Brief 1.5 item 8). */
+  purpose: z.enum(["study_inside", "study_outside"]).default("study_inside"),
   entry: z.enum(["study_full", "brief_review"]),
+  /** The learner's material, when an example should be drawn from it. */
+  excerpts: z.array(SourceExcerptSchema).max(8).default([]),
+  /** Examples-first learners (Q5 concrete_example / Q10 examples_before_ready). */
+  wantsExample: z.boolean().default(false),
 }).strict();
 
 export const LearnBlockRequestSchema = z.object({
@@ -93,6 +123,15 @@ export const PracticeRequestSchema = z.object({
   excerpts: z.array(SourceExcerptSchema).max(8).default([]),
   /** A nonce so every attempt gets fresh questions rather than a cached bank. */
   attempt: z.string().uuid(),
+  /** Which practice round this is (Brief 1.5 item 3); decided in code from the route and the round number. */
+  roundKind: z.enum(PRACTICE_ROUND_KINDS).default("active_recall"),
+  /** Error Repair only: each missed question, the answer chosen and the correct answer. */
+  repairTargets: z.array(z.object({
+    keyPointId: z.string().trim().min(1).max(40),
+    question: z.string().trim().min(8).max(500),
+    chosenAnswer: z.string().trim().min(1).max(240),
+    correctAnswer: z.string().trim().min(1).max(240),
+  }).strict()).max(8).default([]),
 }).strict();
 
 export const ShapeSlotRequestSchema = z.discriminatedUnion("action", [
@@ -114,6 +153,9 @@ export const DirectionResponseSchema = z.object({
   whatToLookAt: z.string().trim().min(8).max(300),
   howToApproach: z.string().trim().min(8).max(300),
   origin: z.enum(["generated", "template"]),
+  /** A worked example drawn only from the learner's material; null when none could be shown. */
+  example: WorkedExampleSchema.nullable(),
+  tips: ResponseTips,
 }).strict();
 
 /**
@@ -128,6 +170,9 @@ export const LearnBlockResponseSchema = z.object({
   questions: z.array(PracticeQuestionSchema).min(3).max(8),
   /** The worked structure shown before producing, when the profile asks for one. */
   structure: z.array(z.string().trim().min(2).max(200)).min(2).max(8),
+  /** The explanation's own concrete example, restated as steps (Brief 1.5 item 5). */
+  example: WorkedExampleSchema,
+  tips: ResponseTips,
 }).strict();
 
 /** Slot 3 — what is missing or wrong. Feedback, never a verdict. */
@@ -136,6 +181,7 @@ export const CompareResponseSchema = z.object({
   feedback: z.string().trim().min(20).max(1_200),
   missing: z.array(z.string().trim().min(2).max(240)).max(6),
   incorrect: z.array(z.string().trim().min(2).max(240)).max(6),
+  tips: ResponseTips,
 }).strict();
 
 /** Slot 4 — fresh questions per attempt, checked in code. */
@@ -143,6 +189,7 @@ export const PracticeResponseSchema = z.object({
   action: z.literal("practice"),
   keyPoints: z.array(KeyPointSchema).min(1).max(8),
   questions: z.array(PracticeQuestionSchema).min(1).max(8),
+  tips: ResponseTips,
 }).strict();
 
 export const ShapeSlotResponseSchema = z.discriminatedUnion("action", [

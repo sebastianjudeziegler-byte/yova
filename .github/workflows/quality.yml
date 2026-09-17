@@ -217,6 +217,15 @@ jobs:
         run: |
           test -n "$OPENAI_API_KEY" || { echo "::error::OPENAI_API_KEY is missing; the live retry cases cannot run."; exit 1; }
           pnpm test:e2e:baseline:live --reporter=list,json
+          # Put the counts on the run page, and fail if any live case was skipped:
+          # a skipped live case is not evidence.
+          node -e '
+            const stats = require("./artifacts/quality/baseline-live-practice.json").stats;
+            const line = `Live baseline practice: ${stats.expected} passed, ${stats.unexpected} failed, ${stats.flaky} flaky, ${stats.skipped} skipped`;
+            console.log(line);
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n### ${line}\n`);
+            if (stats.skipped > 0) { console.error("::error::A live baseline practice case was skipped."); process.exit(1); }
+          '
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/baseline-live-practice.json
@@ -271,6 +280,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YOVA_DELTA_PRINTOUT: ${{ github.workspace }}/test-results/live-gate/profile-plans.json
+          YOVA_QUESTION_MIX_PRINTOUT: ${{ github.workspace }}/test-results/live-gate/question-mix.json
           # Three serial release samples; ordinary main/PR gates retain one.
           LIVE_GATE_RUNS: ${{ github.head_ref == 'codex/brief-0-5-grader-and-validators' && '3' || '1' }}
 

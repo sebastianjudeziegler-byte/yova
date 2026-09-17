@@ -65,7 +65,7 @@ describe("SessionGenerationRecovery", () => {
     expect(html).toContain("LESSON QUALITY CHECK");
     expect(html).toContain("did not pass YOVA&#x27;s quality checks");
     expect(html).not.toContain("Try preparing the guided lesson again");
-    expect(html).toContain("Review session setup");
+    expect(html).not.toContain("Review session setup");
     expect(html).toContain("Open the goal");
   });
 
@@ -80,7 +80,7 @@ describe("SessionGenerationRecovery", () => {
     expect(html).toContain("subject-specific offline lesson is not available for this session configuration");
     expect(html).not.toContain("topic-scoped study-method guide is available below");
     expect(html).toContain("Try preparing the guided lesson again");
-    expect(html).toContain("Review session setup");
+    expect(html).not.toContain("Review session setup");
     expect(html).toContain("Open the goal");
   });
 
@@ -125,7 +125,7 @@ describe("SessionGenerationRecovery", () => {
 
     expect(html).toContain("YOVA could not reach the guided-lesson service");
     expect(html).toContain("offline lesson needs more time than this session allows");
-    expect(html).toContain("Review session setup");
+    expect(html).not.toContain("Review session setup");
   });
 
   it("distinguishes an unavailable subject lesson from the ungraded method guide it renders", () => {
@@ -237,7 +237,7 @@ describe("SessionGenerationRecovery", () => {
     expect(html).not.toContain("METHOD WORKPAD");
     expect(html).not.toContain("Use the study method");
     expect(html).not.toContain("topic-scoped study-method guide is available below");
-    expect(html).toContain("Review session setup");
+    expect(html).not.toContain("Review session setup");
   });
 });
 

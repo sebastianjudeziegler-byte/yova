@@ -16,7 +16,8 @@ export type ShapeCPhase = "brief_study" | "loading" | "question" | "revealed" | 
 
 export type ShapeCAnswer = {
   questionId: string;
-  keyPointId: string;
+  /** Every key point the question tested; a two-point question passes or misses both. */
+  keyPointIds: string[];
   choiceIndex: number;
   correct: boolean;
 };
@@ -94,7 +95,7 @@ export function shapeCReducer(state: ShapeCState, event: ShapeCEvent): ShapeCSta
       if (questions.length === 0) return { ...state, phase: "failed", error: "YOVA couldn't build this. Try again, or add material for this topic." };
       const number = state.rounds.length + 1;
       const outstanding = number === 1
-        ? [...new Set(questions.map((question) => question.keyPointId))]
+        ? [...new Set(questions.flatMap((question) => question.keyPointIds))]
         : state.outstandingKeyPointIds;
       return {
         ...state,
@@ -112,7 +113,7 @@ export function shapeCReducer(state: ShapeCState, event: ShapeCEvent): ShapeCSta
       if (!Number.isInteger(event.choiceIndex) || event.choiceIndex < 0 || event.choiceIndex >= question.choices.length) return state;
       // Checked in code, not by a model.
       const correct = event.choiceIndex === question.correctChoiceIndex;
-      const answer: ShapeCAnswer = { questionId: question.id, keyPointId: question.keyPointId, choiceIndex: event.choiceIndex, correct };
+      const answer: ShapeCAnswer = { questionId: question.id, keyPointIds: [...question.keyPointIds], choiceIndex: event.choiceIndex, correct };
       const rounds = [...state.rounds.slice(0, -1), { ...round, answers: [...round.answers, answer] }];
       return { ...state, phase: "revealed", rounds };
     }
@@ -140,8 +141,8 @@ export function shapeCReducer(state: ShapeCState, event: ShapeCEvent): ShapeCSta
 function finishRound(state: ShapeCState): ShapeCState {
   const round = currentShapeCRound(state);
   if (!round) return state;
-  const missed = new Set(round.answers.filter((answer) => !answer.correct).map((answer) => answer.keyPointId));
-  const passedThisRound = round.answers.filter((answer) => answer.correct).map((answer) => answer.keyPointId);
+  const missed = new Set(round.answers.filter((answer) => !answer.correct).flatMap((answer) => answer.keyPointIds));
+  const passedThisRound = round.answers.filter((answer) => answer.correct).flatMap((answer) => answer.keyPointIds);
   // A key point passes when every question on it in this round was correct.
   const outstanding = state.outstandingKeyPointIds.filter((id) => missed.has(id) || !passedThisRound.includes(id));
   if (outstanding.length === 0) return { ...state, phase: "done", outstandingKeyPointIds: [] };

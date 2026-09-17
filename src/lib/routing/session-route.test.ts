@@ -12,6 +12,7 @@ import {
   SHAPE_A_ENTRY_LEVELS,
   TIMER_MAXIMUM_MINUTES,
   TIMER_MINIMUM_MINUTES,
+  withStudyOutside,
   type RoutingInput,
 } from "./session-route";
 
@@ -326,19 +327,83 @@ describe("Layer 4 — modifiers never change the shape", () => {
     expect(steady.stoppingPoints).toBe("standard");
   });
 
+  // Brief 1.5 item 2: task type decides the question-type mix, Q7 shifts one item.
   it.each([
-    ["gist_leaning", "terms_first"],
-    ["detail_leaning", "relationships_first"],
-  ] as const)("Q7 %s → %s", (answer, weighting) => {
-    const route = routeSession(input({ answers: answersOf({ gist_detail: answer }) }));
-    expect(route.weighting).toBe(weighting);
-    expect(route.ruleIds).toContain(`L4.q7.${answer}`);
+    ["gist_leaning", "L4.q7.gist_leaning.mix_recall", { recall: 2, application: 1, compare_contrast: 1, prediction: 0, misconception: 1 }],
+    ["detail_leaning", "L4.q7.detail_leaning.mix_compare_contrast", { recall: 1, application: 1, compare_contrast: 2, prediction: 0, misconception: 1 }],
+  ] as const)("Q7 %s shifts the conceptual question mix (%s)", (answer, ruleId, mix) => {
+    const route = routeSession(input({ taskType: "conceptual_learning", answers: answersOf({ gist_detail: answer }) }));
+    expect(route.questionMix).toEqual(mix);
+    expect(route.ruleIds).toEqual(expect.arrayContaining(["L4.mix.conceptual_learning", ruleId]));
   });
 
-  it("Q7 balanced or unanswered uses the task default", () => {
-    expect(routeSession(input({ answers: answersOf({ gist_detail: "balanced" }) })).weighting).toBe("relationships_first");
-    expect(routeSession(input({ taskType: "memorization", answers: answersOf({ gist_detail: "balanced" }) })).weighting).toBe("terms_first");
-    expect(routeSession(input()).ruleIds).toContain("L4.q7.unanswered.task_default");
+  it("Q7 balanced or unanswered keeps the task type's mix", () => {
+    const balanced = routeSession(input({ taskType: "memorization", answers: answersOf({ gist_detail: "balanced" }) }));
+    expect(balanced.questionMix).toEqual({ recall: 4, application: 0, compare_contrast: 0, prediction: 0, misconception: 1 });
+    expect(balanced.ruleIds).toContain("L4.mix.memorization");
+    expect(routeSession(input()).ruleIds.filter((id) => id.includes(".mix_"))).toEqual([]);
+  });
+
+  // Brief 1.5 item 3: which practice round a practice block opens with, by rule.
+  it("a practice block opens with Active Recall by default and records the Error Repair rule", () => {
+    const route = routeSession(input({ blockKind: "practice" }));
+    expect(route.firstPracticeRound).toBe("active_recall");
+    expect(route.methodName).toBe("Active Recall");
+    expect(route.ruleIds).toEqual(expect.arrayContaining(["L4.practice.active_recall.default", "L4.practice.error_repair.after_missed_round"]));
+  });
+
+  it("a deadline within three days makes it a Practice Test", () => {
+    const route = routeSession(input({ blockKind: "practice", daysToDeadline: 2.5 }));
+    expect(route.firstPracticeRound).toBe("practice_test");
+    expect(route.methodId).toBe("practice_test_error_repair");
+    expect(route.methodName).toBe("Practice Test");
+    expect(route.ruleIds).toContain("L4.practice.practice_test.deadline_within_3_days");
+    expect(routeSession(input({ blockKind: "practice", daysToDeadline: 3.5 })).firstPracticeRound).toBe("active_recall");
+    expect(routeSession(input({ blockKind: "practice", daysToDeadline: -1 })).firstPracticeRound).toBe("active_recall");
+  });
+
+  it("two or more related topics that each passed once make it an Interleaved Review", () => {
+    const route = routeSession(input({ blockKind: "practice", passedRelatedTopicIds: ["t1", "t2"] }));
+    expect(route.firstPracticeRound).toBe("interleaved_review");
+    expect(route.methodId).toBe("interleaved_practice");
+    expect(route.methodName).toBe("Interleaved Review");
+    expect(route.ruleIds).toContain("L4.practice.interleaved_review.related_topics_passed");
+    expect(routeSession(input({ blockKind: "practice", passedRelatedTopicIds: ["t1"] })).firstPracticeRound).toBe("active_recall");
+  });
+
+  it("the Practice Test wins when both could fire, and says so", () => {
+    const route = routeSession(input({ blockKind: "practice", daysToDeadline: 1, passedRelatedTopicIds: ["t1", "t2"] }));
+    expect(route.firstPracticeRound).toBe("practice_test");
+    expect(route.ruleIds).toEqual(expect.arrayContaining(["L4.practice.practice_test.deadline_within_3_days", "C7.practice_test_over_interleaved"]));
+    expect(route.ruleIds).not.toContain("L4.practice.interleaved_review.related_topics_passed");
+  });
+
+  it("a learn block's questions stay Active Recall", () => {
+    const route = routeSession(input({ taskType: "memorization", blockKind: "learn", daysToDeadline: 1, passedRelatedTopicIds: ["t1", "t2"] }));
+    expect(route.shape).toBe("C");
+    expect(route.firstPracticeRound).toBe("active_recall");
+    expect(route.ruleIds).not.toContain("L4.practice.practice_test.deadline_within_3_days");
+  });
+
+  // Brief 1.5 item 4: deterministic topic difficulty; only the high band changes anything.
+  it("low and medium difficulty keep a five-question round and record the band", () => {
+    const low = routeSession(input({ subtopicCount: 1, prerequisiteDepth: 0 }));
+    expect(low.questionTarget).toBe(5);
+    expect(low.ruleIds).toContain("L4.difficulty.low");
+    expect(routeSession(input({ subtopicCount: 3, prerequisiteDepth: 1 })).ruleIds).toContain("L4.difficulty.medium");
+  });
+
+  it("high difficulty asks eight questions, raising the cap past a shorter-sections clamp", () => {
+    const route = routeSession(input({ subtopicCount: 4, prerequisiteDepth: 3, answers: answersOf({ support_needs: ["shorter_sections"] }) }));
+    expect(route.questionTarget).toBe(8);
+    expect(route.questionCap).toBe(8);
+    expect(route.ruleIds).toEqual(expect.arrayContaining(["L4.difficulty.high", "L4.difficulty.high.more_questions", "C8.difficulty_over_question_clamp"]));
+  });
+
+  it("high difficulty without a clamp records no conflict", () => {
+    const route = routeSession(input({ subtopicCount: 6, prerequisiteDepth: 0, answers: answersOf({ session_length: "minutes_45_60" }) }));
+    expect(route.questionCap).toBe(8);
+    expect(route.ruleIds).not.toContain("C8.difficulty_over_question_clamp");
   });
 
   it("Q9 shorter_sections trims the timer and caps questions at five", () => {
@@ -428,3 +493,52 @@ describe("Change method alternatives", () => {
     expect(alternativeProduceSteps(routeSession(input({ blockKind: "practice" })))).toEqual([]);
   });
 });
+
+// Brief 1.5 item 8: outside YOVA is directions, then "I'm back", then straight to practice.
+describe("studying outside YOVA", () => {
+  it("turns a learn block into directions then closed-book practice, with no produce step or explanation", () => {
+    const inside = routeSession(input({ hasSource: false, answers: answersOf({ prove_knowing: "map_it", difficulty_help: "concrete_example" }) }));
+    const outside = withStudyOutside(inside);
+    expect(outside.learnPath).toBe("outside");
+    expect(outside.produceStep).toBe("retrieval_questions");
+    expect(outside.workedStructureBeforeProduce).toBe(false);
+    expect(outside.produceBeforeStudy).toBe(false);
+    expect(outside.explanationFocus).toBeNull();
+    expect(outside.methodName).toBe(CORE_METHOD_CATALOG.retrieval_practice.name);
+    expect(outside.ruleIds).toContain("L5.learner_study_outside");
+    expect(alternativeProduceSteps(outside)).toEqual([]);
+  });
+
+  it("drops the decisions the outside path no longer carries out, so nothing claims them", () => {
+    const outside = withStudyOutside(routeSession(input({ answers: answersOf({ prove_knowing: "map_it", difficulty_help: "concrete_example", support_needs: ["reduced_text_visual_structure"] }) })));
+    for (const gone of ["L3.q6.map_it", "L3.q5.concrete_example", "C2.q9_visual_overrides_q6"]) expect(outside.ruleIds).not.toContain(gone);
+    expect(outside.ruleIds).toContain("L4.q2.unanswered");
+  });
+
+  it("a memorization learn block's brief study step also becomes outside directions", () => {
+    const outside = withStudyOutside(routeSession(input({ taskType: "memorization" })));
+    expect(outside.shape).toBe("A");
+    expect(outside.briefStudyStep).toBe(false);
+    expect(outside.learnPath).toBe("outside");
+  });
+
+  it("leaves practice blocks and skipped learn blocks alone", () => {
+    const practice = routeSession(input({ blockKind: "practice" }));
+    expect(withStudyOutside(practice)).toBe(practice);
+    const covered = routeSession(input({ evidence: "learner_reported_covered" }));
+    expect(withStudyOutside(covered)).toBe(covered);
+  });
+});
+
+// Brief 1.5 item 8: "I've already covered this" makes the block practice, for every shape.
+describe("a covered memorization learn block", () => {
+  it("skips the brief study step and goes straight to closed-book practice", () => {
+    const covered = routeSession(input({ taskType: "memorization", evidence: "learner_reported_covered" }));
+    expect(covered.shape).toBe("C");
+    expect(covered.briefStudyStep).toBe(false);
+    expect(covered.learnPath).toBeNull();
+    const notCovered = routeSession(input({ taskType: "memorization" }));
+    expect(notCovered.briefStudyStep).toBe(true);
+  });
+});
+

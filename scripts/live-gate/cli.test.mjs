@@ -26,10 +26,14 @@ test("the audit pins all original canaries so deletion cannot silently shrink th
   assert.ok(existsSync("scripts/live-gate/policy.json"));
   const policy = JSON.parse(readFileSync("scripts/live-gate/policy.json", "utf8"));
   assert.equal(policy.baselineCommit, "e03a082659f51172c0b06bf84daffdd5599ac773");
-  assert.equal(policy.requiredCases.length, 75);
-  assert.equal(policy.requiredCases.filter(test => test.file !== "src/evals/grader-calibration.live.test.ts").length, 66);
+  // Brief 1.5 item 8 retired the two live browser canaries with the generated
+  // session runtime they drove; they are named in retired-cases.json, never dropped silently.
+  const retired = JSON.parse(readFileSync("scripts/live-gate/retired-cases.json", "utf8")).cases;
+  assert.ok(retired.some((entry) => entry.file === "plan-launch-live.spec.ts"));
+  assert.equal(policy.requiredCases.length, 73);
+  assert.equal(policy.requiredCases.filter(test => test.file !== "src/evals/grader-calibration.live.test.ts").length, 64);
   assert.equal(policy.requiredCases.filter(test => test.file === "src/evals/grader-calibration.live.test.ts").length, 9);
-  assert.equal(new Set(policy.requiredCases.map((test) => test.id)).size, 75);
-  assert.equal(policy.requiredCases.filter((test) => test.file.startsWith("e2e/")).length, 2);
+  assert.equal(new Set(policy.requiredCases.map((test) => test.id)).size, 73);
+  assert.equal(policy.requiredCases.filter((test) => test.file.startsWith("e2e/")).length, 0);
   for (const entry of policy.requiredCases) assert.ok(existsSync(entry.file), entry.file);
 });

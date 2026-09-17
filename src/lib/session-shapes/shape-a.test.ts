@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { emptyOnboardingAnswers, withOnboardingAnswer } from "@/lib/onboarding/answers";
-import { routeSession, type RoutingInput } from "@/lib/routing/session-route";
+import { routeSession, withStudyOutside, type RoutingInput } from "@/lib/routing/session-route";
 import {
   currentShapeAStep,
+  entersCompare,
   initialShapeAState,
   isShapeAComplete,
   produceAsText,
@@ -115,3 +116,45 @@ describe("Shape A reducer", () => {
     expect(nudged.index).toBe(state.index);
   });
 });
+
+// Brief 1.5 follow-up: a try-it-first learner reaches Compare from the study step, not from produce.
+describe("when to request the comparison", () => {
+  const produce = { kind: "typed_explanation" as const, text: "Light splits water and powers the Calvin cycle." };
+
+  it("requests it on arriving at Compare after produce-then-study", () => {
+    const tryFirst = route({}, { difficulty_help: "try_then_feedback" });
+    let state = initialShapeAState(tryFirst);
+    const produced = shapeAReducer(state, { type: "submit_produce", produce });
+    expect(currentShapeAStep(produced)?.kind).toBe("direct");
+    expect(entersCompare(state, produced)).toBe(false);
+    state = shapeAReducer(produced, { type: "continue" });
+    expect(entersCompare(produced, state)).toBe(false);
+    const atCompare = shapeAReducer(state, { type: "continue" });
+    expect(currentShapeAStep(atCompare)?.kind).toBe("compare");
+    expect(entersCompare(state, atCompare)).toBe(true);
+  });
+
+  it("requests it on submitting produce when Compare comes next", () => {
+    const standard = route({ hasSource: false });
+    const atProduce = shapeAReducer(initialShapeAState(standard), { type: "continue" });
+    const atCompare = shapeAReducer(atProduce, { type: "submit_produce", produce });
+    expect(entersCompare(atProduce, atCompare)).toBe(true);
+  });
+
+  it("does not request it again once a comparison is in, or for an ignored event", () => {
+    const standard = route({ hasSource: false });
+    const atProduce = shapeAReducer(initialShapeAState(standard), { type: "continue" });
+    const atCompare = shapeAReducer(atProduce, { type: "submit_produce", produce });
+    const compared = shapeAReducer(atCompare, { type: "comparison_ready", comparison: { feedback: "You named the light reactions.", missing: [], incorrect: [] } });
+    expect(entersCompare(atCompare, compared)).toBe(false);
+    expect(entersCompare(atCompare, shapeAReducer(atCompare, { type: "skip_repair" }))).toBe(false);
+  });
+});
+
+describe("outside YOVA", () => {
+  it("is directions and then the practice hand-off: no away step, no produce, no explanation", () => {
+    expect(shapeASteps(withStudyOutside(route({ hasSource: false }))).map((step) => step.kind)).toEqual(["direct", "end"]);
+    expect(shapeASteps(withStudyOutside(route())).map((step) => step.kind)).toEqual(["direct", "end"]);
+  });
+});
+

@@ -10,9 +10,14 @@ const server = baseline.webServer && !Array.isArray(baseline.webServer) ? baseli
 
 export default defineConfig({
   ...baseline,
-  testMatch: /(^|\/)baseline-practice-retry\.live\.spec\.ts$/,
+  testMatch: /(^|\/)baseline-(practice-retry|hub-profiles|outside)\.live\.spec\.ts$/,
   retries: 0,
   workers: 1,
+  // The two-profile hub sessions are captured at desktop width only. Leaving them out of the
+  // phone project, rather than skipping inside the test, keeps "no live case skipped" meaningful.
+  projects: (baseline.projects ?? []).map((project) => (
+    project.name?.includes("mobile") ? { ...project, testIgnore: /(^|\/)baseline-hub-profiles\.live\.spec\.ts$/ } : project
+  )),
   webServer: server && {
     ...server,
     // Reuses the baseline build directory, which tsconfig.json already lists.

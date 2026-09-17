@@ -8,7 +8,13 @@ export function canonicalBrowserCaseName(name) {
 }
 
 /** Compare recorded observations; never relabel a failure as a passing run. */
-export function compareLiveReports(before, after, { scoped = [], quarantined = [] } = {}) {
+/**
+ * `retired`: exact case ids deliberately removed with the feature they tested,
+ * each listed in scripts/live-gate/retired-cases.json and the brief's
+ * EVIDENCE.md. Only absence is excused; a retired id that still runs and
+ * fails is judged like any other case.
+ */
+export function compareLiveReports(before, after, { scoped = [], quarantined = [], retired = [] } = {}) {
   const group = report => {
     const groups = new Map();
     for (const row of report.rows ?? []) groups.set(row.id, [...(groups.get(row.id) ?? []), row]);
@@ -25,7 +31,9 @@ export function compareLiveReports(before, after, { scoped = [], quarantined = [
     const a = summarize(previous), b = summarize(current);
     let reason = "No regression";
     let blocks = false;
-    if (!current.length || current.some(row => ["skipped", "pending"].includes(row.state))) {
+    if (!current.length && retired.includes(id)) {
+      reason = "Retired on purpose with the feature it tested (retired-cases.json)";
+    } else if (!current.length || current.some(row => ["skipped", "pending"].includes(row.state))) {
       reason = "Required case was not executed"; blocks = true;
     } else if (b.failures) {
       if (quarantined.includes(id) && !scoped.includes(id)) reason = "Established flaky quarantine; raw outcomes retained";

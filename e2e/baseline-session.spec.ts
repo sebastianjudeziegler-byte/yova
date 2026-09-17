@@ -11,6 +11,11 @@ import { expect, test, type Page, type Route } from "./helpers/frozen-clock";
  * round has the shape the server really returns — a retry has one question
  * per missed point. Composition is proven by compose-practice.test.ts and
  * shape-slot-generator.test.ts, and live by e2e/baseline-practice-retry.live.spec.ts.
+ *
+ * Hub tips (Brief 1.5 item 6) follow the request like the model is told to:
+ * one tip per requested step, on that step's first offered reason. Which
+ * reasons are offered is the product's own routing; tip writing and binding
+ * are proven by session-tips.test.ts and shape-slot-generator.test.ts.
  */
 const BASELINE_ONBOARDING = [
   "Evening",
@@ -31,8 +36,8 @@ const KEY_POINTS = [
   { id: "k3", text: "The electron transport chain builds a proton gradient that drives ATP synthase." },
 ];
 
-function question(id: string, keyPointId: string, correctChoiceIndex: number, prompt: string, kind: "definition" | "relationship" = "relationship") {
-  return { id, keyPointId, kind, prompt, choices: ["Two pyruvate", "One lactate", "Three acetyl-CoA", "Four oxaloacetate"], correctChoiceIndex, explanation: "Glycolysis ends with two three-carbon pyruvate molecules." };
+function question(id: string, keyPointId: string, correctChoiceIndex: number, prompt: string, kind: "recall" | "misconception" = "recall") {
+  return { id, slotId: id, keyPointIds: [keyPointId], kind, prompt, choices: ["Two pyruvate", "One lactate", "Three acetyl-CoA", "Four oxaloacetate"], correctChoiceIndex, explanation: "Glycolysis ends with two three-carbon pyruvate molecules." };
 }
 
 const LEARN_BLOCK = {
@@ -41,35 +46,42 @@ const LEARN_BLOCK = {
   keyPoints: KEY_POINTS,
   questions: [
     question("q1", "k1", 0, "How many stages does cellular respiration have, and where does the first one happen?"),
-    question("q2", "k2", 0, "What does glycolysis produce from one glucose?", "definition"),
+    question("q2", "k2", 0, "What does glycolysis produce from one glucose?", "misconception"),
     question("q3", "k3", 0, "What directly drives ATP synthase in the electron transport chain?"),
   ],
   structure: ["Glucose enters the cell", "Glycolysis splits it into pyruvate", "The citric acid cycle loads carriers", "The electron transport chain drives ATP synthase"],
+  example: { title: "A sprinting muscle cell", steps: ["Glucose is split by glycolysis in the cytosol.", "Oxygen runs short, so pyruvate becomes lactate.", "NAD+ is regenerated and glycolysis keeps making ATP."] },
 };
 
 const COMPARISON = { action: "compare", feedback: "You covered glycolysis and ATP, but you didn't mention the proton gradient that drives ATP synthase.", missing: ["The proton gradient drives ATP synthase"], incorrect: [] };
 
 function practiceResponse(round: number) {
   return { action: "practice", keyPoints: KEY_POINTS, questions: round === 1
-    ? [question("p1", "k1", 0, "Round one: which product ends glycolysis?", "definition"), question("p2", "k2", 0, "Round one: where does glycolysis take place, and what leaves it?"), question("p3", "k3", 0, "Round one: what does the proton gradient power?")]
+    ? [question("p1", "k1", 0, "Round one: which product ends glycolysis?", "misconception"), question("p2", "k2", 0, "Round one: where does glycolysis take place, and what leaves it?"), question("p3", "k3", 0, "Round one: what does the proton gradient power?")]
     // One missed point, so one question: the round-two contract. This fixture
     // used to hand-supply three, which hid the 502 on the ordinary retry.
     : [question("p4", "k2", 0, "Round two: what leaves glycolysis?")] };
 }
 
+type TipRequestEntry = { step: string; reasons: Array<{ ruleId: string; sentence: string }> };
+
+function tipsFollowing(requested: TipRequestEntry[] = []) {
+  return requested.map(({ step, reasons }) => ({ step, title: `Hub tip for the ${step} step.`, body: reasons[0]!.sentence, ruleId: reasons[0]!.ruleId, origin: "generated" }));
+}
+
 async function mockShapeSlots(page: Page, calls: string[]) {
   await page.route("**/api/sessions/shape", async (route: Route) => {
-    const body = route.request().postDataJSON() as { action: string; round?: number };
+    const body = route.request().postDataJSON() as { action: string; round?: number; tips?: TipRequestEntry[] };
     calls.push(body.action);
     const json = body.action === "learn_block" ? LEARN_BLOCK
       : body.action === "compare" ? COMPARISON
         : body.action === "practice" ? practiceResponse(body.round ?? 1)
-          : { action: "direction", whatToLookAt: "Review your notes on cellular respiration.", howToApproach: "Read for the mechanism, not the terms.", origin: "generated" };
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(json) });
+          : { action: "direction", whatToLookAt: "Review your notes on cellular respiration.", howToApproach: "Read for the mechanism, not the terms.", origin: "generated", example: null };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...json, tips: tipsFollowing(body.tips) }) });
   });
 }
 
-test("a learner is routed through Shape A, produces, compares, and finishes with a personalization note", async ({ page }) => {
+test("a learner is routed through Shape A, produces, compares, and finishes with a personalization note", async ({ page }, testInfo) => {
   const calls: string[] = [];
   await mockShapeSlots(page, calls);
   await createPreviewAccount(page);
@@ -85,18 +97,37 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await expect(page.getByRole("button", { name: "Change method" })).toHaveCount(0);
   await expect(page.getByText("Method: Concept Mapping")).toBeVisible();
   // Q2 10–15 minutes, Q3 very often, Q9 shorter sections → 11-minute nudge.
-  await expect(page.getByLabel(/Session timer/)).toContainText("/ 11:00");
+  await expect(page.getByLabel(/Session timer/)).toContainText("0:");
+  await expect(page.getByRole("region", { name: "Timer" })).toContainText("/ 11:00");
+
+  // Brief 1.5 item 6: the hub. Briefing, reasons, shape, tip — every reason a rule that fired.
+  await expect(page.getByRole("region", { name: "How to study this" })).toContainText("Concept Mapping");
+  await expect(page.locator('[data-pill-rule-id="L3.q6.map_it"]')).toHaveText("you prove knowledge by mapping");
+  for (const pillRuleId of await page.locator("[data-pill-rule-id]").evaluateAll((pills) => pills.map((pill) => pill.getAttribute("data-pill-rule-id")))) expect(ruleIds).toContain(pillRuleId);
+  await expect(page.getByRole("region", { name: "Session shape" })).toContainText("SHAPE A · STUDY → PRODUCE → COMPARE → REPAIR");
+  const tip = page.getByTestId("hub-tip");
+  await expect(tip).toHaveAttribute("data-tip-step", "study");
+  await expect(tip).toContainText("YOVA TIP · STEP 1");
+  expect(ruleIds).toContain(await tip.getAttribute("data-tip-rule-id"));
+  await page.screenshot({ path: testInfo.outputPath("hub-shape-a-study.png"), fullPage: true });
 
   // A2: no source, so the explanation, key points and questions come from one call.
   await expect(page.getByText(/Cellular respiration is how a cell releases/)).toBeVisible();
   await expect(page.getByText(KEY_POINTS[2].text)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
-  // Q5 concrete_example: the structure appears before producing.
-  await expect(page.getByRole("heading", { name: "Here is the shape of it before you produce." })).toBeVisible();
-  await expect(page.getByText("The electron transport chain drives ATP synthase")).toBeVisible();
+  // Q5 concrete_example: a worked example appears before producing.
+  // Brief 1.5 item 5: a real example from the explanation, not an outline or the directions presented as one.
+  await expect(page.getByTestId("baseline-worked-example")).toHaveAttribute("data-example-shown", "true");
+  await expect(page.getByRole("heading", { name: "A sprinting muscle cell" })).toBeVisible();
+  await expect(page.getByText("From the explanation.")).toBeVisible();
+  await expect(page.getByText("Oxygen runs short, so pyruvate becomes lactate.")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   // Q6 map_it: the produce step is a concept map with the source hidden.
   await expect(page.getByRole("heading", { name: "Map the concepts and links" })).toBeVisible();
+  await expect(page.getByText("STEP 2 OF 5")).toBeVisible();
+  await expect(tip).toHaveAttribute("data-tip-step", "produce");
+  await expect(tip).toHaveAttribute("data-tip-rule-id", "L3.q6.map_it");
+  await page.screenshot({ path: testInfo.outputPath("hub-shape-a-produce.png"), fullPage: true });
   await expect(page.getByText(/Cellular respiration is how a cell releases/)).toHaveCount(0);
   await page.getByLabel("Concept 1").fill("Glucose");
   await page.getByLabel("Concept 2").fill("Pyruvate");
@@ -109,15 +140,19 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await expect(comparison).toContainText("you didn't mention the proton gradient");
   await expect(comparison).toContainText("Feedback, not a verdict");
   await expect(comparison).not.toContainText(/pass|fail/i);
+  await expect(tip).toHaveAttribute("data-tip-step", "compare");
+  expect(ruleIds).toContain(await tip.getAttribute("data-tip-rule-id"));
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Address the named gaps, or move on." })).toBeVisible();
   await page.getByRole("button", { name: "Move on" }).click();
 
   const note = page.locator("[data-rule-id]");
   await expect(note).toHaveAttribute("data-rule-id", "L3.q5.concrete_example");
-  await expect(note).toContainText("Because you said a concrete example helps most");
+  await expect(note).toContainText("Because you said a concrete example helps most, YOVA showed a worked example");
   await expect(page.getByRole("heading", { name: "You studied, produced and compared." })).toBeVisible();
   await expect(page.getByText("Nothing else queued in this plan")).toBeVisible();
+  await expect(tip).toHaveAttribute("data-tip-step", "end");
+  await expectReceiptNamesEveryRule(page, ruleIds);
   // Development StrictMode mounts twice, so an aborted duplicate of the first
   // request can reach the mock; assert the slots used and their order, not a count.
   expect([...new Set(calls)]).toEqual(["learn_block", "compare"]);
@@ -147,7 +182,7 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   const shell = page.locator("[data-shape]");
   await expect(shell).toHaveAttribute("data-shape", "C");
   const ruleIds = (await shell.getAttribute("data-rule-ids"))?.split(" ") ?? [];
-  expect(ruleIds).toEqual(expect.arrayContaining(["L1.memorization.learn", "L2.not_assessed.shape_c", "L4.q7.gist_leaning", "L4.q10.forget_during_tests"]));
+  expect(ruleIds).toEqual(expect.arrayContaining(["L1.memorization.learn", "L2.not_assessed.shape_c", "L4.mix.memorization", "L4.q7.gist_leaning.mix_recall", "L4.practice.active_recall.default", "L4.practice.error_repair.after_missed_round", "L4.q10.forget_during_tests"]));
   await expect(page.getByText("Method: Active Recall")).toBeVisible();
   // A memorization learn block is a learn block that runs Shape C.
   await expect(page.getByText(/LEARN BLOCK ·/)).toBeVisible();
@@ -156,7 +191,22 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   await page.getByRole("button", { name: "Start the questions" }).click();
 
   await expect(page.getByText("No source shown.")).toBeVisible();
-  await expect(page.getByText("Definitions and terms first.")).toBeVisible();
+  // Brief 1.5 item 2: the screen names the question's real type instead of claiming an order.
+  await expect(page.getByText("Active Recall round. Recall question. No source shown.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Session shape" })).toContainText("SHAPE C · CLOSED-BOOK PRACTICE");
+  await expect(page.getByTestId("hub-tip")).toHaveAttribute("data-tip-step", "questions");
+  expect(ruleIds).toContain(await page.getByTestId("hub-tip").getAttribute("data-tip-rule-id"));
+  // Handoff 3A timer: pause, +5, hide and show again. Never blocks.
+  const timer = page.getByRole("region", { name: "Timer" });
+  await timer.getByRole("button", { name: "Pause" }).click();
+  await expect(timer.getByRole("button", { name: "Resume" })).toBeVisible();
+  const limit = (await timer.textContent())?.match(/\/ (\d+):00/)?.[1];
+  await timer.getByRole("button", { name: "Add 5 minutes" }).click();
+  await expect(timer).toContainText(`/ ${Number(limit) + 5}:00`);
+  await timer.getByRole("button", { name: "Hide" }).click();
+  await expect(page.getByRole("region", { name: "Timer" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Timer hidden, show it" }).click();
+  await expect(page.getByRole("region", { name: "Timer" }).getByRole("button", { name: "Resume" })).toBeVisible();
   // Round 1 uses the questions generated with the explanation; miss the second one.
   await expect(page.getByTestId("baseline-question")).toContainText("ROUND 1 · QUESTION 1 OF 3");
   await expect(page.getByTestId("baseline-question")).toContainText(LEARN_BLOCK.questions[0].prompt);
@@ -172,13 +222,18 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   await page.getByRole("button", { name: "Two pyruvate" }).click();
   await page.getByRole("button", { name: "Finish round" }).click();
   await expect(page.getByRole("heading", { name: "1 point still to pass." })).toBeVisible();
+  await expect(page.getByTestId("hub-tip")).toHaveAttribute("data-tip-step", "round");
   await page.getByRole("button", { name: "Start round 2" }).click();
   // Round 2 covers only the missed key point, with fresh questions from Slot 4.
   await expect(page.getByTestId("baseline-question")).toContainText("ROUND 2 · QUESTION 1 OF 1");
+  // Brief 1.5 item 3: a round after a miss is Error Repair, and the screen says so.
+  await expect(page.getByTestId("baseline-question")).toHaveAttribute("data-practice-round", "error_repair");
+  await expect(page.getByText("Error Repair round.")).toBeVisible();
   await page.getByRole("button", { name: "Two pyruvate" }).click();
   await page.getByRole("button", { name: "Finish round" }).click();
   await expect(page.getByRole("heading", { name: "A full round passed clean." })).toBeVisible();
   await expect(page.getByText("3 of 4 correct")).toBeVisible();
+  await expectReceiptNamesEveryRule(page, ruleIds);
   expect([...new Set(calls)]).toEqual(["learn_block", "practice"]);
   expect(calls.indexOf("practice")).toBeGreaterThan(calls.lastIndexOf("learn_block"));
   await page.getByRole("button", { name: "Finish" }).click();
@@ -190,6 +245,52 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   });
   expect(recorded).toHaveLength(1);
   expect(recorded[0]).toMatchObject({ correctAnswers: 3, totalAnswers: 4 });
+});
+
+// Brief 1.5 follow-up: a try-it-first learner produces, then studies, then gets the comparison.
+// It used to stall on Compare: the comparison was only requested when produce led straight into it.
+test("a try-it-first learner produces before studying and still gets the comparison", async ({ page }) => {
+  const calls: string[] = [];
+  await mockShapeSlots(page, calls);
+  await createPreviewAccount(page);
+  await completeOnboarding(page, ["Morning", "45 to 60 minutes", "Rarely", "Recommend options and let me decide", "Trying it and getting feedback", "Explaining it out loud or in writing", "I know the details but lose how they fit together", "I usually begin when I plan to", null, "Nothing else for now"]);
+  await startStudyNowSession(page, "Explain how photosynthesis converts light energy into chemical energy inside a leaf.");
+
+  const shell = page.locator("[data-shape]");
+  await expect(shell).toHaveAttribute("data-shape", "A");
+  expect((await shell.getAttribute("data-rule-ids"))?.split(" ")).toContain("L3.q5.try_then_feedback");
+  await expect(page.getByRole("heading", { name: "Explain it in your own words" })).toBeVisible();
+  await page.getByLabel("Explain it in your own words").fill("Glucose is split into pyruvate and the cell makes ATP.");
+  await page.getByRole("button", { name: "Compare with the source" }).click();
+  await expect(page.getByText(/Cellular respiration is how a cell releases/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "What is missing or wrong" })).toBeVisible();
+  await expect(page.getByTestId("baseline-comparison")).toContainText("you didn't mention the proton gradient");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Move on", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "You studied, produced and compared." })).toBeVisible();
+  expect([...new Set(calls)]).toEqual(["learn_block", "compare"]);
+});
+
+// Brief 1.5 item 6: below ~1100px the rail sits under the card in one column. Functional, NOT designed.
+test("the session hub falls back to one column on a phone without breaking", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const calls: string[] = [];
+  await mockShapeSlots(page, calls);
+  await createPreviewAccount(page);
+  await completeBaselineOnboarding(page);
+  await startStudyNowSession(page, "Explain how photosynthesis converts light energy into chemical energy inside a leaf.");
+  await expect(page.getByText(/Cellular respiration is how a cell releases/)).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  const card = await page.locator("section").filter({ hasText: /Cellular respiration is how a cell releases/ }).last().boundingBox();
+  const rail = await page.getByRole("complementary", { name: "Session hub" }).boundingBox();
+  expect(card && rail && rail.y >= card.y + card.height - 1).toBe(true);
+  await expect(page.getByTestId("hub-tip")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("hub-mobile-fallback-undesigned.png"), fullPage: true });
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByTestId("baseline-worked-example")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
 
 test("a profile saved by position survives the question reorder and is editable by ID in You", async ({ page }) => {
@@ -243,6 +344,24 @@ async function createPreviewAccount(page: Page) {
   await expect(page.getByRole("heading", { name: "Make YOVA fit how you actually study." })).toBeVisible();
 }
 
+/** Brief 1.5 item 7: every fired rule is named on the end receipt, except the hidden difficulty band. */
+async function expectReceiptNamesEveryRule(page: Page, ruleIds: string[]) {
+  const receipt = page.getByTestId("session-receipt");
+  await receipt.getByText("Why this session ran this way").click();
+  const named = await receipt.locator("[data-receipt-rule-id]").evaluateAll((items) => items.map((item) => item.getAttribute("data-receipt-rule-id")));
+  expect(ruleIds.filter((ruleId) => !named.includes(ruleId) && !/^L4\.difficulty\.(low|medium|high)$/.test(ruleId))).toEqual([]);
+  await expect(receipt).not.toContainText(/difficult/i);
+}
+
+async function completeOnboarding(page: Page, answers: ReadonlyArray<string | null>) {
+  await page.getByRole("button", { name: /Personalize YOVA/ }).click();
+  for (const [index, answer] of answers.entries()) {
+    if (answer) await page.getByRole("button", { name: answer, exact: true }).click();
+    await page.getByRole("button", { name: index === answers.length - 1 ? "Build my setup" : "Continue" }).click();
+  }
+  await page.getByRole("button", { name: "Open YOVA" }).click();
+}
+
 async function completeBaselineOnboarding(page: Page) {
   await page.getByRole("button", { name: /Personalize YOVA/ }).click();
   for (const [index, answer] of BASELINE_ONBOARDING.entries()) {
@@ -254,13 +373,12 @@ async function completeBaselineOnboarding(page: Page) {
   await page.getByRole("button", { name: "Open YOVA" }).click();
 }
 
+/** Brief 1.5 item 8: Study Now's first screen, then the pre-session card, then the hub. */
 async function startStudyNowSession(page: Page, goal: string) {
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
-  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(goal);
-  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
-  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
-  await page.getByRole("button", { name: /Create it for me/ }).click();
-  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await page.getByLabel("Study Now topic or result").fill(goal);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click();
 }
 
 async function createAndActivatePlan(page: Page, description: string) {
@@ -292,4 +410,5 @@ async function startReadySession(page: Page) {
   await page.getByRole("button", { name: /Start session/ }).first().click();
   const keepDates = page.getByRole("button", { name: "Start now, keep dates" });
   if (await keepDates.isVisible({ timeout: 1_500 }).catch(() => false)) await keepDates.click();
+  await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click();
 }

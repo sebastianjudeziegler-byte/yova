@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { emptyOnboardingAnswers, withOnboardingAnswer, type OnboardingAnswers } from "@/lib/onboarding/answers";
 import type { OnboardingQuestionId } from "@/lib/onboarding/questions";
 import { shapeASteps } from "@/lib/session-shapes/shape-a";
+import { settleTips, tipRequest, type TipStep } from "@/lib/session-shapes/session-tips";
 import { personalizationNote } from "./personalization-note";
 import { routeSession, type RoutingInput, type SessionRoute } from "./session-route";
 
@@ -49,7 +50,10 @@ export const BASELINE_PROFILE_2 = profile({
 
 const SAME_TOPIC: Omit<RoutingInput, "answers"> = { taskType: "conceptual_learning", blockKind: "learn", evidence: "not_assessed", hasSource: true, topicHasProblems: false };
 
-export const DELTA_FIELDS = ["entry", "produceStep", "timerMinutes", "questionCap", "weighting", "instructionStyle"] as const;
+/** The Shape A hub steps whose tips the delta compares. */
+const HUB_STEPS: TipStep[] = ["study", "produce", "compare", "repair", "end"];
+
+export const DELTA_FIELDS = ["entry", "produceStep", "timerMinutes", "questionCap", "questionMix", "instructionStyle"] as const;
 
 export function routingDeltaFields(first: SessionRoute, second: SessionRoute) {
   const entryDiffers = first.entry !== second.entry || first.produceBeforeStudy !== second.produceBeforeStudy || first.workedStructureBeforeProduce !== second.workedStructureBeforeProduce;
@@ -57,7 +61,7 @@ export function routingDeltaFields(first: SessionRoute, second: SessionRoute) {
     entryDiffers ? "entry" : null,
     first.produceStep !== second.produceStep ? "produceStep" : null,
     first.timerMinutes !== second.timerMinutes ? "timerMinutes" : null,
-    first.questionCap !== second.questionCap || first.weighting !== second.weighting ? "questionCountOrWeighting" : null,
+    first.questionCap !== second.questionCap || JSON.stringify(first.questionMix) !== JSON.stringify(second.questionMix) ? "questionCountOrMix" : null,
     first.instructionStyle !== second.instructionStyle ? "instructionStyle" : null,
   ].filter((field): field is string => Boolean(field));
 }
@@ -74,12 +78,13 @@ export function sessionPrintout(route: SessionRoute) {
     steps: shapeASteps(route).map((step) => step.kind),
     timerMinutes: route.timerMinutes,
     questionCap: route.questionCap,
-    weighting: route.weighting,
+    questionMix: route.questionMix,
     practiceRoundCeiling: route.practiceRoundCeiling,
     instructionStyle: route.instructionStyle,
     stoppingPoints: route.stoppingPoints,
     visibility: route.visibility,
     personalizationNote: personalizationNote(route),
+    tips: settleTips(tipRequest(route, HUB_STEPS), []).map(({ step, title, body, ruleId }) => ({ step, title, body, ruleId })),
     ruleIds: route.ruleIds,
   };
 }
@@ -94,7 +99,7 @@ describe("Brief 1 permanent personalization delta", () => {
     }
     const differing = routingDeltaFields(first, second);
     expect(differing.length).toBeGreaterThanOrEqual(3);
-    expect(differing).toEqual(["entry", "produceStep", "timerMinutes", "questionCountOrWeighting", "instructionStyle"]);
+    expect(differing).toEqual(["entry", "produceStep", "timerMinutes", "questionCountOrMix", "instructionStyle"]);
   });
 
   it("asserts on the rule IDs that fired for each profile", () => {
@@ -106,7 +111,7 @@ describe("Brief 1 permanent personalization delta", () => {
       "L4.q2.minutes_10_15",
       "L4.q2.short_band_question_cap",
       "L4.q3.very_often",
-      "L4.q7.gist_leaning",
+      "L4.q7.gist_leaning.mix_recall",
       "L4.q9.shorter_sections",
       "L4.q9.simpler_repeated_instructions",
       "L4.q1.evening",
@@ -120,12 +125,12 @@ describe("Brief 1 permanent personalization delta", () => {
       "L3.q6.explain_back",
       "L4.q2.minutes_45_60",
       "L4.q3.rarely",
-      "L4.q7.detail_leaning",
+      "L4.q7.detail_leaning.mix_compare_contrast",
       "L4.q1.morning",
       "L5.q4.learner_choice",
     ]));
     const shared = first.ruleIds.filter((id) => second.ruleIds.includes(id));
-    expect(shared).toEqual(["L1.conceptual_learning.learn", "L2.not_assessed", "L4.timer_resolved", "C6.rule_ids_recorded"]);
+    expect(shared).toEqual(["L1.conceptual_learning.learn", "L2.not_assessed", "L4.timer_resolved", "L4.difficulty.low", "L4.mix.conceptual_learning", "C6.rule_ids_recorded"]);
   });
 
   it("the learner-visible session differs: steps, method, timer, questions, note", () => {
@@ -143,6 +148,29 @@ describe("Brief 1 permanent personalization delta", () => {
     expect(personalizationNote(second).ruleId).toBe("L3.q5.try_then_feedback");
   });
 
+  // Brief 1.5 gate: same topic, contrasting profiles, different question-type mixes, on rule IDs.
+  it("two contrasting profiles get different question-type mixes, decided by rule", () => {
+    expect(first.questionMix).toEqual({ recall: 2, application: 1, compare_contrast: 1, prediction: 0, misconception: 1 });
+    expect(second.questionMix).toEqual({ recall: 1, application: 1, compare_contrast: 2, prediction: 0, misconception: 1 });
+    expect(first.ruleIds).toContain("L4.q7.gist_leaning.mix_recall");
+    expect(second.ruleIds).toContain("L4.q7.detail_leaning.mix_compare_contrast");
+    expect(first.ruleIds).not.toContain("L4.q7.detail_leaning.mix_compare_contrast");
+    expect(second.ruleIds).not.toContain("L4.q7.gist_leaning.mix_recall");
+  });
+
+  // Brief 1.5 gate: different tip text, on rule IDs. The reason half of every tip is a rule that fired for that profile.
+  it("two contrasting profiles get different tips on the same steps, each on a rule that fired", () => {
+    const firstTips = settleTips(tipRequest(first, HUB_STEPS), []);
+    const secondTips = settleTips(tipRequest(second, HUB_STEPS), []);
+    expect(firstTips.map((tip) => tip.step)).toEqual(HUB_STEPS);
+    expect(secondTips.map((tip) => tip.step)).toEqual(HUB_STEPS);
+    for (const tip of firstTips) expect(first.ruleIds).toContain(tip.ruleId);
+    for (const tip of secondTips) expect(second.ruleIds).toContain(tip.ruleId);
+    expect(Object.fromEntries(firstTips.map((tip) => [tip.step, tip.ruleId]))).toEqual({ study: "L3.q5.concrete_example", produce: "L3.q6.map_it", compare: "L3.q6.map_it", repair: "L4.q9.simpler_repeated_instructions", end: "L4.q10.forget_during_tests" });
+    expect(Object.fromEntries(secondTips.map((tip) => [tip.step, tip.ruleId]))).toEqual({ study: "L3.q5.try_then_feedback", produce: "L3.q6.explain_back", compare: "L3.q5.try_then_feedback", repair: "L3.q6.explain_back", end: "L4.q2.minutes_45_60" });
+    for (const [index, tip] of firstTips.entries()) expect(tip.body).not.toBe(secondTips[index]!.body);
+  });
+
   it("the same profile twice is byte-identical (no randomness in routing)", () => {
     expect(JSON.stringify(routeSession({ ...SAME_TOPIC, answers: BASELINE_PROFILE_1 }))).toBe(JSON.stringify(first));
   });
@@ -150,6 +178,6 @@ describe("Brief 1 permanent personalization delta", () => {
   it("the delta holds on the practice block too", () => {
     const practice1 = routeSession({ ...SAME_TOPIC, blockKind: "practice", answers: BASELINE_PROFILE_1 });
     const practice2 = routeSession({ ...SAME_TOPIC, blockKind: "practice", answers: BASELINE_PROFILE_2 });
-    expect(routingDeltaFields(practice1, practice2)).toEqual(expect.arrayContaining(["timerMinutes", "questionCountOrWeighting", "instructionStyle"]));
+    expect(routingDeltaFields(practice1, practice2)).toEqual(expect.arrayContaining(["timerMinutes", "questionCountOrMix", "instructionStyle"]));
   });
 });

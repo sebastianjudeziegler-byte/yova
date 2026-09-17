@@ -42,6 +42,10 @@ the work. They are the reason the 2026-09-07/08 releases shipped cleanly.
   pass unchanged.
 - **The AI never rewrites sessions or plans directly.** Structure is code.
 - **No client-asserted learning evidence** enters the record.
+- **Never claim a personalization that did not happen.** A screen or note that
+  names a profile-driven change must be backed by that change on screen in
+  this session. (Brief 1.5: the examples-first screen repeated the directions
+  and the session note claimed an example had been shown.)
 
 ## Known pre-existing failures — not any brief's problem
 

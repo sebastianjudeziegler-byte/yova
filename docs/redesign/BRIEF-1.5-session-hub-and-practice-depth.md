@@ -142,6 +142,11 @@ receipt all read from `route.ruleIds` and `personalizationNote(route)`. Rule:
 **if a routing rule fired, the learner can see it somewhere.** Plan-screen
 display of reasoning is Brief 2.
 
+Founder decision (16 Sept 2026), reconciling item 4: the topic difficulty band
+(`L4.difficulty.low|medium|high`) stays hidden. Its effect is what the learner
+sees: the question count ("QUESTION 1 OF 8", and on the end receipt, that the
+topic asks eight questions per round). The band itself is never named.
+
 ## Out of scope
 
 Plan model, block sizing, hints-first branching, mid-round adaptation, a third
@@ -166,3 +171,83 @@ PR with EVIDENCE.md: item 1 red/green first; two profiles' full sessions side
 by side including the hub; one screenshot per practice label; the mobile
 fallback screenshot marked undesigned; every "open question" from the handoff
 with the decision taken.
+
+---
+
+## Item 8 - The pre-session screen (replaces three setup screens)
+
+Today, tapping Start on a plan block goes through three screens (session
+direction, "has anything changed?", "set the pace") plus a separate loading
+screen before the session. Replace all four with **one screen**, then the hub.
+
+### The pre-session card
+
+- **Top:** topic, block type (Learn / Practice), estimated time
+  (`block.estimatedMinutes`).
+- **Method:** name, one line of why from the fired rule, "Change" link
+  (same alternatives as the hub's briefing strip).
+- **Source:** what to look at - "Review your Unit 3 slides, pages 4-9" - or
+  "YOVA will teach this" when there is none. Beside it: **Add material**,
+  which attaches to this topic and flips the block to the source path.
+- **Toggle: "I've already covered this"** - the block becomes practice. Same
+  `mark_covered` as the plan screen: learner report, not evidence; receipt +
+  undo.
+- **Toggle: Study inside YOVA / outside YOVA.**
+- **Start.**
+
+Nothing else. No "has anything changed" (that lives on the plan). No pace
+note (that is the hub timer's +5 / Hide).
+
+### Inside vs outside, under the shapes
+
+**Inside:** the full shape runs in-app. With material, YOVA points at it and
+produce -> compare -> practice happen in-app. Without, YOVA writes the
+explanation.
+
+**Outside:** YOVA gives directions and gets out of the way. The learner
+returns with one button ("I'm back") and goes **straight to practice**. No
+produce step, no AI explanation.
+
+The **directions card** is the whole outside experience; make it deliberate:
+- **The method**, named and explained in two lines - what it is and why it
+  fits this learner (fired rule).
+- **The scope** - exactly what to study. Specific when YOVA can locate it
+  (pages, section titles); honest when it cannot ("the part of your chapter
+  that covers glycolysis - focus on where ATP and NADH are made").
+- **Instructions** - how to approach it, shaped by the profile ("read for the
+  mechanism, not the terms; you'll be answering questions on it, not
+  explaining it back").
+- **Suggested time.**
+- **"I'm back"** -> practice.
+
+With no material, outside still works: the scope line tells them what to
+find in their own textbook or notes. This is Slot 1 doing more work; it is
+the smallest AI job in the product.
+
+### Loading
+The hub renders immediately with everything known before generation
+(method, instructions, tip, source, steps, timer). The step card shows
+"writing your questions..." until the first slot returns. No separate spinner
+screen. On failure: the step card shows the honest error with Retry; the
+learner stays on the hub.
+
+### Study Now
+One screen before the pre-session card: "What do you want to study?" plus
+optional materials plus inside/outside. Then the same card. Two screens for
+Study Now, one for a plan block.
+
+### Returning mid-session
+Straight back to where they were. No setup.
+
+### Delete
+The three setup screens, the separate loading screen, the pace note, the
+"has anything changed" flow. Confirm nothing on them routes to anything the
+shapes use; if something does, list it in EVIDENCE.md before deleting.
+
+### Gates
+- Browser: Start -> pre-session card -> hub, desktop and mobile, for a
+  sourced block, an unsourced block, and a covered block.
+- Outside path: directions card -> "I'm back" -> practice, live, both
+  viewports; assert no produce step and no AI explanation ran.
+- Study Now: two screens then the hub.
+- Resume mid-session lands on the same step.
