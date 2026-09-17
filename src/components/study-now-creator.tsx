@@ -15,6 +15,7 @@ import { PlanActivationResponseSchema, PlanGenerationRequestSchema, PlanGenerati
 import { isWorkProductGoal, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
+import { inferRequestedMinutes } from "@/lib/intake/interpret";
 import { developmentPreviewPreferenceRequestInput } from "@/lib/plan-generation/development-preview-preferences";
 import type { StudyLocation } from "@/lib/session-shapes/baseline-checkpoint";
 
@@ -24,7 +25,6 @@ import type { StudyLocation } from "@/lib/session-shapes/baseline-checkpoint";
  * hands it to the pre-session card, the same card a plan block opens with.
  * There is no review step and no separate loading screen.
  */
-const timeChoices = [10, 15, 25, 45, 60] as const;
 const startingPoints = [
   "I haven't learned this yet",
   "I've seen it, but it doesn't make sense yet",
@@ -124,7 +124,7 @@ export function StudyNowCreator({
     let requestId: string | null = null;
     try {
       const now = new Date();
-      const minutes = seedMinutes(seed);
+      const minutes = studyNowAvailableMinutes(goal, seed);
       const startingPoint = seed ? studyNowStartingPointForSeed(seed) : startingPoints[0];
       const planRequest = PlanGenerationRequestSchema.parse({
         intent: "study_now",
@@ -251,9 +251,11 @@ export function studyNowStartingPointForSeed(seed: AddIntakeSeed | null): (typeo
   return "I understand the basics but need practice";
 }
 
-function seedMinutes(seed: AddIntakeSeed | null): (typeof timeChoices)[number] {
-  if (!seed?.requestedMinutes) return 25;
-  return timeChoices.reduce((closest, candidate) => Math.abs(candidate - seed.requestedMinutes!) < Math.abs(closest - seed.requestedMinutes!) ? candidate : closest, timeChoices[0]);
+export function studyNowAvailableMinutes(goal: string, seed: AddIntakeSeed | null): number {
+  // Only this session's explicit request (or its already parsed intake seed)
+  // supplies availability. The server separately applies the profile ceiling.
+  // Keep exact minutes: rounding a hard maximum upward invents available time.
+  return inferRequestedMinutes(goal) ?? seed?.requestedMinutes ?? 25;
 }
 
 export function buildStudyNowRequestSummary(

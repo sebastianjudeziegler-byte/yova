@@ -13,6 +13,7 @@ import type { PlanGenerationStats } from "@/lib/openai/plan-generator";
 import type { NormalPlanEnvelopeComposition } from "@/lib/plan-generation/normal-plan-envelopes";
 import {
   buildNormalPlanProviderFillSchema,
+  buildNormalPlanFallbackFill,
   type NormalPlanProviderFill,
 } from "@/lib/plan-generation/normal-plan-provider-fill";
 import {
@@ -44,8 +45,9 @@ export type NormalPlanFillGenerationOptions = Readonly<{
 
 export type OpenAINormalPlanFillResult = Readonly<{
   fill: NormalPlanProviderFill;
-  model: string;
-  responseId: string;
+  mode?: "openai" | "system";
+  model: string | null;
+  responseId: string | null;
   generationStats: PlanGenerationStats;
 }>;
 
@@ -92,6 +94,9 @@ export async function generateNormalPlanFillWithOpenAI(
     request: input.request,
     composition: input.composition,
   });
+  if (input.composition.envelopes.length > 24) {
+    return {fill:buildNormalPlanFallbackFill(input),mode:"system",model:null,responseId:null,generationStats:{elapsedMs:0,attempts:0,firstAttemptPassed:true,failedValidator:null,repairAttempted:false,repairSucceeded:null,inputTokens:0,cachedInputTokens:0,cacheWriteTokens:0,outputTokens:0,model:null,validationIssueCode:null}};
+  }
   const providerInput = buildNormalPlanProviderFillInput(input);
   const startedAt = Date.now();
   const config = getOpenAIPlanConfig();

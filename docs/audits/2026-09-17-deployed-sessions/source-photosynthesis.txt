@@ -1,0 +1,13 @@
+Photosynthesis: limiting factors — GCSE biology revision notes
+
+Photosynthesis transfers energy from light into chemical energy stored in glucose. Carbon dioxide and water are reactants; glucose and oxygen are products. Chlorophyll absorbs light in chloroplasts.
+
+Light intensity, carbon dioxide concentration and temperature can each limit the rate of photosynthesis. Increasing one factor raises the rate only while that factor is limiting. A plateau does not mean the plant has stopped photosynthesising: it means another factor may now limit the rate.
+
+Temperature affects enzymes. Increasing temperature raises the rate up to an optimum; temperatures beyond the optimum can reduce the rate as enzymes denature. This is different from the usual rising-then-plateau response to increasing light intensity while temperature remains controlled.
+
+In a pondweed experiment, oxygen production can estimate photosynthesis rate. Collecting oxygen volume over a fixed time is more reliable than counting bubbles because bubbles can vary in size. Keep pondweed length, measurement time and other conditions constant when changing light intensity. A lamp can heat the water, so controlling water temperature matters.
+
+Example: doubling lamp brightness does not increase oxygen production, but adding carbon dioxide does. At that point carbon dioxide was limiting; light intensity was not. More light alone would not solve that limitation.
+
+Practice goal: interpret experimental evidence and explain the limiting factor. Do not merely memorise the definitions.

@@ -12,12 +12,12 @@ export async function POST(request: Request) {
   const user = preview ? {id: "development-preview"} : (await (await createSupabaseServerClient()).auth.getUser()).data.user;
   if (!user) return NextResponse.json({error: "Sign in before saving placement evidence."}, {status: 401});
   const parsed = DiagnosticSubmissionSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({error: "Complete each placement question before saving it."}, {status: 422});
+  if (!parsed.success) return NextResponse.json({error: "Answer at least one placement question before saving it."}, {status: 422});
   try {
     const challenge = readDiagnosticChallenge(parsed.data.challengeToken, user.id, null, preview);
-    if (challenge.questions.length !== parsed.data.answers.length
-      || challenge.questions.some((question, index) => !question.options.includes(parsed.data.answers[index]!))) {
-      return NextResponse.json({error: "Choose one of the answers for every question."}, {status: 422});
+    if (parsed.data.answers.length > challenge.questions.length
+      || challenge.questions.slice(0, parsed.data.answers.length).some((question, index) => !question.options.includes(parsed.data.answers[index]!))) {
+      return NextResponse.json({error: "Choose an offered answer for each question you attempted."}, {status: 422});
     }
     let claimed: boolean;
     try {

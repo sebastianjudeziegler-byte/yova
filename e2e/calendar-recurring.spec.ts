@@ -16,12 +16,8 @@ async function savedSeries(page: Page) {
   });
 }
 
-test("Add recognizes the communications timetable and saves a lasting Monday/Wednesday series", async ({ page }, testInfo) => {
-  await page.getByRole("button", { name: "Add to YOVA", exact: true }).first().click();
-  await expect(page.getByRole("heading", { name: "What would you like to add?" })).toBeVisible();
-  await page.getByRole("textbox", { name: "Describe what you want to add" }).fill(description);
-  await page.getByRole("button", { name: "Organize this" }).click();
-  const draft = page.getByRole("dialog", { name: "Confirm quick add" });
+test("Calendar quick add recognizes the communications timetable and saves a lasting Monday/Wednesday series", async ({ page }, testInfo) => {
+  const draft = await quickDraft(page, description);
   await expect(draft).toBeInViewport();
   await expect(draft.getByRole("heading", { name: "Confirm what YOVA understood" })).toBeFocused();
   await expect(draft.getByRole("button", {name: "Save to calendar", exact: true})).toBeInViewport();

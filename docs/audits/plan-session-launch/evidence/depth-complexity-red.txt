@@ -1,0 +1,21 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/plan-generation/topic-weight-complexity.test.ts (1 test | 1 failed) 108ms
+   × bounds prerequisite traversal for a densely connected accepted map 108ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/plan-generation/topic-weight-complexity.test.ts > bounds prerequisite traversal for a densely connected accepted map
+AssertionError: expected 131072 to be less than 500
+ ❯ src/lib/plan-generation/topic-weight-complexity.test.ts:10:28
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  15:51:04
+   Duration  554ms (transform 263ms, setup 0ms, import 374ms, tests 108ms, environment 0ms)
+

@@ -328,7 +328,7 @@ function buildKnowledgeMappedBlueprints(
   const sessionCount = request.intent === "study_now"
     ? 1
     : Math.min(scope.maximumSessions, Math.max(scope.minimumSessions, contentBudget.recommendedSessions));
-  const maximumTargets = contentBudget.typicalSession.maximumContentTargets;
+  const maximumTargets = request.intent === "study_now" ? Math.min(4, contentBudget.typicalSession.maximumContentTargets) : contentBudget.typicalSession.maximumContentTargets;
   const demonstrated = topics.filter((topic) => topic.initialEvidence?.outcome === "demonstrated");
   const gapsAndUnknown = topics.filter((topic) => topic.initialEvidence?.outcome !== "demonstrated");
   const reservedPlacementVerification = demonstrated.length > 0 ? 1 : 0;

@@ -4,6 +4,7 @@ import type { SessionTip, TipStep } from "@/lib/session-shapes/session-tips";
 import type { ShapeAState } from "@/lib/session-shapes/shape-a";
 import type { ShapeCState } from "@/lib/session-shapes/shape-c";
 import type { DirectionResponse, LearnBlockResponse } from "@/lib/session-shapes/slots-schema";
+import type { TopicWorkload } from "@/lib/plan-generation/topic-plan-contract";
 
 /**
  * Where a baseline session is, so a learner who leaves mid-session comes
@@ -23,6 +24,7 @@ export type BaselineCheckpoint = {
   routeFingerprint: string;
   savedAt: string;
   elapsedSeconds: number;
+  timer?: { paused: boolean; hidden: boolean; extraMinutes: number; acknowledgedLimit: number | null };
   started: boolean;
   aState: ShapeAState;
   cState: ShapeCState;
@@ -36,8 +38,12 @@ export type CheckpointStorage = Pick<Storage, "getItem" | "setItem" | "removeIte
 
 const keyFor = (accountId: string) => `yova.baseline-sessions.v1:${accountId}`;
 
-export function routeFingerprint(route: SessionRoute) {
-  return JSON.stringify([route.shape, route.learnPath, route.produceStep, route.produceBeforeStudy, route.workedStructureBeforeProduce, route.briefStudyStep, route.entry]);
+export function routeFingerprint(route: SessionRoute, content?: { workload?: TopicWorkload; learningGoal?: string }) {
+  const identity: unknown[] = [route.shape, route.learnPath, route.produceStep, route.produceBeforeStudy, route.workedStructureBeforeProduce, route.briefStudyStep, route.entry];
+  // Legacy checkpoints remain readable; newly planned work includes the
+  // actual target/count/goal identity, not merely its presentation method.
+  if (content?.workload) identity.push({ topicSubtopics: content.workload.topicSubtopics, questionCount: content.workload.questionCount, recallQuestionCount: content.workload.recallQuestionCount, transferQuestionCount: content.workload.transferQuestionCount, produceSteps: content.workload.produceSteps, learningGoal: content.learningGoal ?? "" });
+  return JSON.stringify(identity);
 }
 
 function readAll(storage: CheckpointStorage, accountId: string): Record<string, BaselineCheckpoint> {
@@ -53,13 +59,15 @@ function writeAll(storage: CheckpointStorage, accountId: string, all: Record<str
   try {
     if (Object.keys(all).length) storage.setItem(keyFor(accountId), JSON.stringify(all));
     else storage.removeItem(keyFor(accountId));
+    return true;
   } catch {
-    // Storage can be full or blocked; the session still runs, it just cannot resume.
+    // The caller keeps the session running and can explain that resume is unavailable.
+    return false;
   }
 }
 
 export function saveBaselineCheckpoint(storage: CheckpointStorage, accountId: string, checkpoint: BaselineCheckpoint) {
-  writeAll(storage, accountId, { ...readAll(storage, accountId), [checkpoint.planSessionId]: checkpoint });
+  return writeAll(storage, accountId, { ...readAll(storage, accountId), [checkpoint.planSessionId]: checkpoint });
 }
 
 export function loadBaselineCheckpoint(storage: CheckpointStorage, accountId: string, planSessionId: string, fingerprint?: string): BaselineCheckpoint | null {

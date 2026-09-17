@@ -251,7 +251,7 @@ describe("atomic normal-plan pipeline", () => {
     })).not.toThrow();
   });
 
-  it("accepts a capacity-deferred dependent when its evidenced prerequisite is scheduled", () => {
+  it("keeps a dependent in the queue despite an obsolete session cap", () => {
     const prerequisite = deferralTopic(0, {
       status: "evidenced",
     });
@@ -267,11 +267,8 @@ describe("atomic normal-plan pipeline", () => {
     ]));
 
     expect(fixture.composition.envelopes[0]!.topicIds).toEqual([prerequisite.id]);
-    expect(fixture.composition.deferrals).toContainEqual(expect.objectContaining({
-      topicId: dependent.id,
-      reasonCode: "session_cap",
-      prerequisiteTopicIds: [],
-    }));
+    expect(fixture.composition.deferrals).toEqual([]);
+    expect(fixture.composition.envelopes.some(block=>block.topicIds.includes(dependent.id))).toBe(true);
     expect(() => buildNormalPlanFromFixedEnvelope({
       ...fixture,
       fill: fixture.fallback,

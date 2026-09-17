@@ -21,6 +21,7 @@ export type RevisionClient = {
   profileSummary: string;
   previewCanonicalProfile?: PlanGenerationRequest["previewCanonicalProfile"];
   onSaved: (plan: LearningPlan, previous: LearningPlan, changedSessionIds?: string[]) => void | Promise<void>;
+  onInlineApplied?: (signed: SignedPreview, message: string) => void;
   onOpenCalendar: () => void;
 };
 type DraftAuthority = { generationRequest: PlanGenerationRequest; draftReceipt: string | null };

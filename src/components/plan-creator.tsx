@@ -1,6 +1,12 @@
 "use client";
 
 import { useReducer, useState } from "react";
+import { z } from "zod";
+import type { OnboardingAnswers } from "@/lib/onboarding/answers";
+import { WhatYovaUnderstood, materialReadSummary } from "@/components/what-yova-understood";
+import { GroupedTopicPlan } from "@/components/grouped-topic-plan";
+import { PlanEditPanel } from "@/components/plan-edit-panel";
+import { initialSetupCorrections, type SetupCorrections } from "@/lib/plan-generation/setup-corrections";
 import {
   AlertCircle,
   ArrowLeft,
@@ -21,6 +27,9 @@ import { BrandMark } from "@/components/brand-mark";
 import { GoalClarification } from "@/components/goal-clarification";
 import { MaterialFileDropzone, materialUploadStatus } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
+import { previewClientPlanRevision, sendPlanRevisionRequest, savedPlanAvailability } from "@/components/plan-revision/revision-client";
+import type { SignedPreview } from "@/components/plan-revision/plan-revision-preview";
+import type { RevisionControls } from "@/lib/plan-revision/revision-schema";
 import { LivingPlanRevision } from "@/components/plan-revision/living-plan-revision";
 import type { MapDelta, MapDeltaOperation } from "@/lib/plan-revision/map-delta";
 import { PlanGenerationNotice } from "@/components/plan-generation-notice";
@@ -45,13 +54,14 @@ import {
   PlanActivationResponseSchema,
   PlanDraftMethodChoiceResponseSchema,
   PlanGenerationRequestSchema,
+  MaterialInputSchema,
   PlanGenerationResponseSchema,
   type DiagnosticResponse,
   type PublicPlanDiagnosticQuestion,
   type PlanGenerationRequest,
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
-import { type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
+import { PlanKnowledgeMapSchema, type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { planScheduleCapacityGuidance } from "@/lib/plan-generation/capacity-guidance";
 import { DeadlinePriorityResponseSchema, type DeadlinePriorityResponse } from "@/lib/plan-generation/deadline-priority";
@@ -95,7 +105,7 @@ import {
 import { agencyModeForStudyRouteControlMode } from "@/lib/study-route/agency-mode-controller";
 import { developmentPreviewPreferenceRequestInput } from "@/lib/plan-generation/development-preview-preferences";
 
-type PlanStep = "goal" | "source" | "schedule" | "diagnostic-loading" | "diagnostic" | "confirm" | "loading" | "error" | "result";
+type PlanStep = "goal" | "source" | "understanding-loading" | "understood" | "placement" | "schedule" | "diagnostic-loading" | "diagnostic" | "confirm" | "loading" | "error" | "result";
 type SourceChoice = "materials" | "yova" | "outside";
 
 export function planCreatorPreviewPreferenceRequestInput(
@@ -118,11 +128,17 @@ export function PlanCreator({
   previewPreferredMethodIds = [],
   previewCanonicalProfile = null,
   seed = null,
-  initialSeedStep = "schedule",
+  initialSeedStep = "source",
+  onCreateEvent,
+  onStudyNow,
+  onboardingAnswers,
   revisionAccountId = "preview",
   activePlans = [],
 }: {
   onExit: () => void;
+  onCreateEvent?: () => void;
+  onStudyNow?: () => void;
+  onboardingAnswers?: OnboardingAnswers;
   onFinish: (plan: LearningPlan) => void;
   profileSummary: string;
   browserPreviewMode?: boolean;
@@ -135,6 +151,19 @@ export function PlanCreator({
 }) {
   const scheduleRecommendation = recommendStudySchedule(profileSummary);
   const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const [acceptedCorrections, setAcceptedCorrections] = useState<SetupCorrections | null>(null);
+  const [inlineDraftBusy, setInlineDraftBusy] = useState(false);
+  const [inlineDraftReceipt, setInlineDraftReceipt] = useState<SignedPreview | null>(null);
+  const [inlineDraftMessage, setInlineDraftMessage] = useState<string | null>(null);
+  const [inlineDraftError, setInlineDraftError] = useState<string | null>(null);
+  const [methodTopicId, setMethodTopicId] = useState<string | null>(null);
+  const [deadlinePurpose, setDeadlinePurpose] = useState<"test" | "assignment" | "personal">(seed?.itemType === "assignment" ? "assignment" : "test");
+  const [understandingBusy, setUnderstandingBusy] = useState(false);
+  const [understandingError, setUnderstandingError] = useState<string | null>(null);
+  const [failedFiles, setFailedFiles] = useState<File[]>([]);
+  const [pastedText, setPastedText] = useState("");
+  const [editPlanOpen, setEditPlanOpen] = useState(false);
+  const [specificTimes, setSpecificTimes] = useState<Record<string, string>>({});
   const [step, setStep] = useState<PlanStep>(seed ? initialSeedStep : "goal");
   const [goal, setGoal] = useState(seed ? seedGoal(seed) : "");
   const [scheduledGoal, setScheduledGoal] = useState(seed ? seedGoal(seed) : "");
@@ -197,10 +226,10 @@ export function PlanCreator({
   const [methodChoiceNotice, setMethodChoiceNotice] = useState<{ sessionId: string; message: string } | null>(null);
   const [draftRevision, setDraftRevision] = useState<{ key: string; delta: MapDelta; type?: MapDeltaOperation["op"]; topicId?: string } | null>(null);
   const [revisionReviewPending, setRevisionReviewPending] = useState(false);
-  const draftBusy = revisionReviewPending || activating || Boolean(methodUpdatingSessionId);
+  const draftBusy = inlineDraftBusy || revisionReviewPending || activating || Boolean(methodUpdatingSessionId);
   const availability = availabilityChoices
     .filter((choice) => choice.enabled)
-    .map(({ day, window, minutes }) => ({ day, window, minutes }));
+    .map(({ day, window, minutes }) => ({ day, window: specificTimes[day] || window, minutes }));
   const availabilityWindows = availability.reduce<Record<string, number>>((summary, slot) => {
     summary[slot.window] = (summary[slot.window] ?? 0) + 1;
     return summary;
@@ -232,10 +261,9 @@ export function PlanCreator({
     )), workProductCopy?.kind ?? null)
     : [];
 
-  const stepNumber = skipsPlacementDiagnostic
-    ? ({ goal: 1, source: 2, schedule: 3, "diagnostic-loading": 4, diagnostic: 4, confirm: 4, loading: 4, error: 4, result: 4 } as Record<PlanStep, number>)[step]
-    : ({ goal: 1, source: 2, schedule: 3, "diagnostic-loading": 4, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
-  const totalSteps = skipsPlacementDiagnostic ? 4 : 5;
+  const stepNumber = ({ goal: 1, source: 2, "understanding-loading": 3, understood: 3, schedule: 4, placement: 5, "diagnostic-loading": 5, diagnostic: 5, confirm: 6, loading: 6, error: 6, result: 6 } as Record<PlanStep, number>)[step];
+  const totalSteps = 6;
+  const inferredGoalDate = deadlineDateFromGoal(goal, new Date(), browserTimeZone);
 
   const back = () => {
     if (generatedPlan) { reviseGeneratedPlan("goal"); return; }
@@ -246,9 +274,12 @@ export function PlanCreator({
     const previous: Record<PlanStep, PlanStep> = {
       goal: "goal",
       source: "goal",
-      schedule: "source",
+      "understanding-loading": "source",
+      understood: "source",
+      placement: "schedule",
+      schedule: "understood",
       "diagnostic-loading": "schedule",
-      diagnostic: "schedule",
+      diagnostic: "placement",
       confirm: "diagnostic",
       loading: "confirm",
       error: "confirm",
@@ -258,6 +289,7 @@ export function PlanCreator({
   };
 
   const invalidateAcceptedScope = () => {
+    setAcceptedCorrections(null);
     if (diagnosticMap || generatedPlan) {
       setScopeChangeNotice("Your goal or sources changed. YOVA will build a fresh topic map; previous placement answers will not be used for the new scope.");
     }
@@ -287,15 +319,17 @@ export function PlanCreator({
   };
 
   const buildGenerationRequest = (overrides: Partial<PlanGenerationRequest> = {}) => {
-    if (!sourceChoice) throw new Error("Choose how YOVA should build this plan.");
+    const selectedSource = sourceChoice ?? "yova";
     return PlanGenerationRequestSchema.parse({
       intent: "plan",
       learningIntent: learningApproach.intent,
       goal,
       startingContext,
-      materialMode: sourceChoice === "materials" ? "upload" : "none",
-      materials: sourceChoice === "materials" ? materials : [],
-      studyMode: seed?.itemType === "assignment" || sourceChoice === "outside" ? "outside" : "inside",
+      deadlinePurpose,
+      ...(acceptedCorrections ? { setupCorrections: acceptedCorrections } : {}),
+      materialMode: selectedSource === "materials" ? "upload" : "none",
+      materials: selectedSource === "materials" ? materials : [],
+      studyMode: seed?.itemType === "assignment" || selectedSource === "outside" ? "outside" : "inside",
       deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate, browserTimeZone) : null,
       timeZone: browserTimeZone,
       diagnosticResponses,
@@ -356,23 +390,36 @@ export function PlanCreator({
   };
 
   const continueFromSchedule = () => {
-    if (!skipsPlacementDiagnostic) {
-      void prepareDiagnostic();
-      return;
-    }
-    setDiagnosticQuestions([]);
-    setDiagnosticAnswers([]);
-    setDiagnosticResponses([]);
-    setDiagnosticMap(null);
-    setDiagnosticError(null);
-    setDiagnosticLatencyMs(null);
-    setStep("confirm");
+    if (deadlineDate && !skipsPlacementDiagnostic) setStep("placement");
+    else void generatePlan();
   };
 
-  const finishDiagnostic = async (skipped: boolean) => {
+  const prepareUnderstanding = async (corrections?: SetupCorrections, selectedSource?: SourceChoice) => {
+    if (understandingBusy) return;
+    setUnderstandingBusy(true); setUnderstandingError(null);
+    if (!corrections) setStep("understanding-loading");
+    try {
+      const request = buildGenerationRequest(selectedSource ? { materialMode: selectedSource === "materials" ? "upload" : "none", materials: selectedSource === "materials" ? materials.map(material => MaterialInputSchema.parse(material)) : [], studyMode: selectedSource === "outside" ? "outside" : "inside" } : {});
+      const { response, body } = await fetchClientJson("/api/plans/generate?mode=understanding", {
+        method: "POST", headers: { "Content-Type": "application/json", ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}) },
+        body: JSON.stringify({ ...request, ...(corrections ? { setupCorrections: corrections } : {}) }),
+      }, { timeoutMs: GENERATION_REQUEST_TIMEOUT_MS, timeoutMessage: "Reading the topic map took too long. Your sources are still here; try again.", invalidResponseMessage: "YOVA could not read this topic map." });
+      if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not prepare this topic map.");
+      const parsed = z.object({ knowledgeMap: PlanKnowledgeMapSchema, knowledgeMapReceipt: z.string().min(1), materials: z.array(MaterialInputSchema).optional() }).parse(body);
+      setDiagnosticMap(parsed.knowledgeMap); setKnowledgeMapReceipt(parsed.knowledgeMapReceipt);
+      if (parsed.materials) setMaterials(parsed.materials);
+      if (corrections) setAcceptedCorrections(initialSetupCorrections(parsed.knowledgeMap, parsed.materials ?? materials));
+      setStep(corrections ? "schedule" : "understood");
+    } catch (failure) {
+      setUnderstandingError(userFacingErrorMessage(failure, "YOVA could not apply these corrections. Your current choices are kept."));
+      setStep("understood");
+    } finally { setUnderstandingBusy(false); }
+  };
+
+  const finishDiagnostic = async () => {
     if (diagnosticSaving) return;
-    if (skipped || !diagnosticMap) {
-      setStep("confirm");
+    if (!diagnosticAnswers.some(Boolean) || !diagnosticMap) {
+      void generatePlan();
       return;
     }
     setDiagnosticSaving(true);
@@ -381,14 +428,14 @@ export function PlanCreator({
       const { response, body } = await fetchClientJson("/api/plans/diagnostic/score", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}) },
-        body: JSON.stringify({ challengeToken: diagnosticToken, answers: diagnosticAnswers }),
+        body: JSON.stringify({ challengeToken: diagnosticToken, answers: diagnosticAnswers.filter(Boolean) }),
       }, { timeoutMs: MUTATION_REQUEST_TIMEOUT_MS, timeoutMessage: "Saving this check took too long. Try again.", invalidResponseMessage: "The placement result could not be read." });
       if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not verify this check.");
       const result = PlanDiagnosticScoreResponseSchema.parse(body);
       setDiagnosticResponses(result.responses);
       setDiagnosticMap(result.knowledgeMap);
       setKnowledgeMapReceipt(result.knowledgeMapReceipt);
-      setStep("confirm");
+      await generatePlan({ diagnosticResponses: result.responses, knowledgeMap: result.knowledgeMap, knowledgeMapReceipt: result.knowledgeMapReceipt });
     } catch (error) {
       setDiagnosticError(userFacingErrorMessage(error, "YOVA could not verify this check."));
     } finally {
@@ -396,7 +443,7 @@ export function PlanCreator({
     }
   };
 
-  const generatePlan = async () => {
+  const generatePlan = async (overrides: Partial<PlanGenerationRequest> = {}) => {
     if (!sourceChoice || draftBusy) return;
 
     setDeadlinePriority(null);
@@ -408,7 +455,7 @@ export function PlanCreator({
     let planRequest: PlanGenerationRequest | null = null;
 
     try {
-      planRequest = buildGenerationRequest();
+      planRequest = buildGenerationRequest(overrides);
       const { response, body } = await fetchClientJson("/api/plans/generate", {
         method: "POST",
         headers: {
@@ -506,6 +553,7 @@ export function PlanCreator({
     try {
       const { accepted, errors, notices } = await uploadMaterialFiles(files, materials, setUploadProgress);
       setMaterialError(errors.join(" ") || null);
+      setFailedFiles(files.filter(file => !accepted.some(material => material.name === file.name)));
       setMaterialNotice(notices.join(" ") || null);
       if (accepted.length) {
         invalidateAcceptedScope();
@@ -574,8 +622,39 @@ export function PlanCreator({
     }
   };
 
+  const acceptInlineDraftResult = (result: Awaited<ReturnType<typeof sendPlanRevisionRequest>>) => {
+    if (!generatedPlan) return;
+    const updated = PlanGenerationResponseSchema.parse({ ...generatedPlan, plan: result.plan, generation: { ...generatedPlan.generation, draftReceipt: result.draftReceipt } });
+    setGeneratedPlan(updated); setGeneratedFrom(PlanGenerationRequestSchema.parse(result.generationRequest));
+    setDiagnosticMap(updated.plan.knowledgeMap ?? null); setMaterials(updated.plan.materials ?? []);
+    setInlineDraftMessage(result.receipt.message);
+  };
+
+  const applyDraftInline = async (delta: MapDelta, controls: RevisionControls = { excludedOperationIndexes: [], sessionEdits: [] }) => {
+    if (!generatedPlan || !mappedGeneratedFrom || draftBusy) return;
+    setInlineDraftBusy(true); setInlineDraftError(null); setInlineDraftReceipt(null); setInlineDraftMessage(null);
+    try {
+      const signed = await previewClientPlanRevision({ plan: generatedPlan.plan, delta, controls, draft: { generationRequest: mappedGeneratedFrom, draftReceipt: generatedPlan.generation.draftReceipt ?? null }, client: { developmentPreview: browserPreviewMode, accountId: revisionAccountId, plans: activePlans, profileSummary, previewCanonicalProfile: previewCanonicalProfile ?? undefined, onSaved: () => {}, onOpenCalendar: () => {} } });
+      if (!signed.proposal.canApply) throw new Error(signed.proposal.capacity.explanation || "This change needs review before it can be saved.");
+      const result = await sendPlanRevisionRequest({ action: "apply", ...signed });
+      acceptInlineDraftResult(result); setInlineDraftReceipt(signed);
+    } catch (failure) { setInlineDraftError(userFacingErrorMessage(failure, "The change could not be saved. Your draft is unchanged.")); }
+    finally { setInlineDraftBusy(false); }
+  };
+
+  const undoInlineDraft = async () => {
+    if (!inlineDraftReceipt || !generatedPlan || draftBusy) return;
+    setInlineDraftBusy(true); setInlineDraftError(null);
+    try {
+      const result = await sendPlanRevisionRequest({ action: "undo", planId: generatedPlan.plan.id, expectedRevisionId: inlineDraftReceipt.proposal.revisionId, ...(browserPreviewMode ? { developmentPlan: generatedPlan.plan } : {}), ...inlineDraftReceipt });
+      acceptInlineDraftResult(result); setInlineDraftReceipt(null);
+    } catch (failure) { setInlineDraftError(userFacingErrorMessage(failure, "Undo could not be saved. Your current draft is unchanged.")); }
+    finally { setInlineDraftBusy(false); }
+  };
+
   const openDraftRevision = (type: MapDeltaOperation["op"], topicId?: string) => {
     if (draftBusy || !generatedPlan) return;
+    setInlineDraftReceipt(null); setInlineDraftMessage(null);
     setRevisionReviewPending(true);
     setActivationError(null);
     setDraftRevision({ key: makeId("revision"), type, topicId,
@@ -609,7 +688,9 @@ export function PlanCreator({
         dispatchSchedule({ type: "set_deadline", deadlineDate: inferredDeadline });
       }
     }
-    setStep("schedule");
+    const selected = sourceChoice === "materials" && materials.length === 0 ? "yova" : sourceChoice ?? "yova";
+    setSourceChoice(selected);
+    void prepareUnderstanding(undefined, selected);
   };
 
   const activateGeneratedPlan = async () => {
@@ -746,8 +827,11 @@ export function PlanCreator({
         <PlanPanel eyebrow="CREATE A PLAN" title="What do you need to learn or prepare for?" description="Write it naturally. YOVA will organize the details before anything is created.">
           <textarea className="goal-input" aria-label="Learning goal or deadline" placeholder="Example: I have a biology test next Friday on photosynthesis and cellular respiration." value={goal} onChange={(event) => changeGoal(event.target.value)} />
           <p className="goal-input-hint">Include the topic and, if relevant, the test, deadline, or result you want.</p>
-          {!assessGoalContext(goal).hasEnoughContext && <p className="goal-context-warning"><AlertCircle size={16} /> Add the actual topic, or continue and choose Use my materials so YOVA can identify what the class label contains.</p>}
-          <PlanActions onBack={() => void exitCreator()} backLabel="Cancel" onNext={() => setStep("source")} nextDisabled={goal.trim().length < 10} />
+          {inferredGoalDate && <fieldset className="schedule-question"><legend>This is for: {formatDateOnly(inferredGoalDate)}</legend>{(["test", "assignment", "personal"] as const).map(purpose => <button type="button" className="button ghost" key={purpose} aria-pressed={deadlinePurpose === purpose} onClick={() => setDeadlinePurpose(purpose)}>{purpose === "personal" ? "My own goal" : purpose === "test" ? "A test" : "An assignment"}</button>)}</fieldset>}
+          <label className="starting-context-field"><span>Anything YOVA should account for?</span><textarea rows={3} maxLength={800} value={startingContext} placeholder="Optional: what you already understand, where you feel lost, or a topic to focus on." onChange={event => { setStartingContext(event.target.value); invalidateAcceptedScope(); }} /><small>Your note guides emphasis; it is not proof that a topic is known.</small></label>
+          {(onCreateEvent || onStudyNow) && <div className="plan-revision-actions">{onCreateEvent && <button className="button ghost" onClick={onCreateEvent}>Add an event instead</button>}{onStudyNow && <button className="button ghost" onClick={onStudyNow}>Just study something now</button>}</div>}
+          {!assessGoalContext(goal).hasEnoughContext && <p className="goal-context-warning"><AlertCircle size={16} /> Can you narrow that — a unit, a chapter, a test?</p>}
+          <PlanActions onBack={() => void exitCreator()} backLabel="Cancel" onNext={() => { dispatchSchedule({ type: "set_deadline", deadlineDate: inferredGoalDate ?? "" }); setStep("source"); }} nextDisabled={goal.trim().length < 10} />
         </PlanPanel>
       )}
 
@@ -760,6 +844,7 @@ export function PlanCreator({
             <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "outside" ? "selected" : ""} onClick={() => void chooseSource("outside")}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>{workProductCopy ? "YOVA gives a method and exact steps for building the artifact with your trusted sources." : "YOVA chooses the method and gives exact steps for another trusted source."}</small></span>{sourceChoice === "outside" && <Check />}</button>
           </div>
           {sourceChoice === "materials" && <div className="material-uploader">
+            <p>Slides, notes, a study guide, or the syllabus.</p>
             <MaterialFileDropzone
               busy={processingMaterials}
               uploadStatus={materialUploadStatus(uploadProgress)}
@@ -769,8 +854,12 @@ export function PlanCreator({
             <p className="material-examples"><strong>Useful examples:</strong> teacher study guide · PowerPoint lecture slides · PDF slides · class notes · review sheet · readable textbook excerpt</p>
             <p className="material-supplement-note"><Sparkles size={14} /> If a source only lists topics, YOVA can fill in the minimum explanation needed while keeping your material as the scope and showing what it added.</p>
             <MaterialLinkImporter existingCount={materials.length} disabled={processingMaterials || Boolean(removingMaterialId)} onWorkingChange={setLinkMaterialWorking} onImported={(material, notice) => { invalidateAcceptedScope(); setMaterials((current) => [...current, material]); setMaterialError(null); setMaterialNotice(notice); }} />
-            {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · text ready for YOVA</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}<p>{materials.length} {materials.length === 1 ? "material" : "materials"} ready for plan generation</p></div>}
+            {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Ready · {materialReadSummary(material)}</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}<p>{materials.length} {materials.length === 1 ? "material" : "materials"} ready for plan generation</p></div>}
           </div>}
+          {uploadProgress && <p role="status">{uploadProgress.filename} · {uploadProgress.stage === "reading" ? "Reading" : "Uploading"}</p>}
+          {failedFiles.map(file => <div className="material-error" key={`${file.name}-${file.size}`}><strong>{file.name}</strong><span> Couldn&apos;t read this file.</span><button className="button ghost" disabled={processingMaterials} onClick={() => void addMaterials([file])}>Retry</button></div>)}
+          {sourceChoice === "materials" && <label className="starting-context-field"><span>Or paste text</span><textarea maxLength={100000} value={pastedText} onChange={event => setPastedText(event.target.value)} /><button className="button secondary" disabled={processingMaterials || pastedText.trim().length < 10 || materials.length >= 5} onClick={() => { void addMaterials([new File([pastedText], "Pasted notes.txt", { type: "text/plain" })]); setPastedText(""); }}>Read pasted text</button></label>}
+          <p>Nothing to upload? <button className="button ghost" disabled={processingMaterials || linkMaterialWorking} onClick={() => { if (!sourceChoice) setSourceChoice("yova"); continueToSchedule(); }}>Skip — YOVA will build this from what it knows</button></p>
           {materialNotice && <p className="material-notice" role="status"><AlertCircle size={15} /> {materialNotice}</p>}
           {materialError && <p className="material-error" role="alert"><AlertCircle size={15} /> {materialError}</p>}
           {sourceChoice && sourceChoice !== "materials" && !goalContext.hasEnoughContext && (
@@ -784,6 +873,11 @@ export function PlanCreator({
         </PlanPanel>
       )}
 
+      {step === "understanding-loading" && <section className="plan-loading" role="status"><h1>Reading the scope…</h1><p>Your topics will be ready to check before YOVA builds the plan.</p></section>}
+      {step === "understood" && diagnosticMap && <WhatYovaUnderstood knowledgeMap={diagnosticMap} materials={materials} onboardingAnswers={onboardingAnswers} onContinue={prepareUnderstanding} onSkip={() => setStep("schedule")} onBack={() => setStep("source")} busy={understandingBusy} error={understandingError} />}
+      {step === "understood" && !diagnosticMap && <PlanPanel eyebrow="TOPIC MAP" title="The topic map is not ready yet" description="Your goal and sources are kept. Try again, or let YOVA build the map with your plan."><p role="alert">{understandingError}</p><button className="button secondary" onClick={() => void prepareUnderstanding()}>Retry topic map</button><button className="button ghost" onClick={() => setStep("schedule")}>Skip for now</button><button className="button ghost" onClick={() => setStep("source")}>Back</button></PlanPanel>}
+      {step === "placement" && <PlanPanel eyebrow="OPTIONAL PLACEMENT" title="Check your starting point?" description="A short check can identify topics you can move straight to practice. You can skip it, and any answers you do give will count."><button className="button primary" onClick={() => void prepareDiagnostic()}>Start placement check</button><button className="button ghost" onClick={() => void generatePlan()}>Skip placement and build plan</button><button className="button ghost" onClick={() => setStep("schedule")}>Back</button></PlanPanel>}
+
       {step === "schedule" && !customScheduleOpen && (
         <PlanPanel wide eyebrow={workProductCopy ? "YOUR WORK RHYTHM" : "YOUR STUDY RHYTHM"} title={workProductCopy ? "When would you prefer to work on this?" : "When would you prefer to study this material?"} description={workProductCopy ? "Choose a realistic pattern. YOVA will sequence the artifact work around the time you actually have." : "Choose a realistic pattern. YOVA will build the learning sequence around it and adapt the schedule as your results change."}>
           {scheduleCapacityError && <ScheduleCapacityGuidance guidance={scheduleCapacityError} />}
@@ -794,13 +888,13 @@ export function PlanCreator({
               <fieldset className="schedule-question"><legend><span>3</span> What is a realistic session length?</legend><div className="schedule-choice-grid lengths">{([15, 25, 45, 60] as StudySessionLength[]).map((minutes) => <button type="button" key={minutes} aria-label={`${minutes} minutes${scheduleRecommendation.minutes === minutes ? ", recommended" : ""}`} aria-pressed={sessionLength === minutes && !customScheduleOpen} className={sessionLength === minutes && !customScheduleOpen ? "selected" : ""} onClick={() => chooseSessionLength(minutes)}><strong className="duration-value" aria-hidden="true"><span>{minutes}</span><span className="duration-unit">min</span></strong>{scheduleRecommendation.minutes === minutes && <small aria-hidden="true">Recommended</small>}</button>)}</div></fieldset>
             </div>
             <aside className="schedule-preview-card">
-              <label className="schedule-deadline"><CalendarDays /><span><small>Target date</small><strong>{deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"}</strong></span><input aria-label="Target date" type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => dispatchSchedule({ type: "set_deadline", deadlineDate: event.target.value })} /></label>
+              <label className="schedule-deadline"><CalendarDays /><span><small>Target date</small><strong>{deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"}</strong></span></label>
               <div className="schedule-preview-summary"><Sparkles /><div><span>YOVA preview</span><strong>{availability.length} study {availability.length === 1 ? "window" : "windows"} available</strong><p>{scheduleRecommendation.reason}</p></div></div>
               <div className="schedule-preview-windows">{Object.entries(availabilityWindows).map(([window, count]) => <div key={window}>{window === "Morning" ? <SunMedium size={17} /> : window === "Evening" ? <Moon size={17} /> : <Clock3 size={17} />}<strong>{window}</strong><span>{durationLabel(availability.filter((slot) => slot.window === window).map((slot) => slot.minutes))}</span><small>{count} {count === 1 ? "session" : "sessions"}</small></div>)}</div>
               <small className="schedule-preview-note">These are availability limits, not mandatory appointments. YOVA will only schedule the amount of learning the plan actually needs.</small>
             </aside>
           </div>
-          <PlanActions onBack={back} onNext={continueFromSchedule} nextLabel={workProductCopy ? "Review plan inputs" : "Continue to placement check"} nextDisabled={availability.length === 0} />
+          <PlanActions onBack={back} onNext={continueFromSchedule} nextLabel={deadlineDate && !skipsPlacementDiagnostic ? "Continue" : "Build my plan"} nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
@@ -810,11 +904,11 @@ export function PlanCreator({
           <section className="schedule-customizer standalone">
             <header>
               <div><span className="step-label">YOUR AVAILABILITY</span><h2>{availability.length} study {availability.length === 1 ? "window" : "windows"} selected</h2><p>YOVA treats these as limits, not mandatory appointments. The plan will use only the time the material actually needs.</p></div>
-              <label className="custom-deadline"><span>Target date</span><input aria-label="Custom target date" type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => dispatchSchedule({ type: "set_deadline", deadlineDate: event.target.value })} /></label>
+              <p>{deadlineDate ? `Target: ${formatDateOnly(deadlineDate)}` : "No fixed deadline"}</p>
             </header>
-            <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => dispatchSchedule({ type: "toggle_day", index })}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_window", index, window: event.target.value as AvailabilityChoice["window"] })}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_minutes", index, minutes: Number(event.target.value) })}>{![15, 25, 30, 45, 60].includes(choice.minutes) && <option value={choice.minutes}>{choice.minutes} min</option>}<option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
+            <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => dispatchSchedule({ type: "toggle_day", index })}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_window", index, window: event.target.value as AvailabilityChoice["window"] })}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><label>Specific time (optional)<input type="time" aria-label={`${choice.day} specific time`} disabled={!choice.enabled} value={specificTimes[choice.day] ?? ""} onChange={event => setSpecificTimes(current => ({ ...current, [choice.day]: event.target.value }))} /></label><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_minutes", index, minutes: Number(event.target.value) })}>{![15, 25, 30, 45, 60].includes(choice.minutes) && <option value={choice.minutes}>{choice.minutes} min</option>}<option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
           </section>
-          <PlanActions onBack={() => dispatchSchedule({ type: "set_custom_open", open: false })} backLabel="Quick choices" onNext={continueFromSchedule} nextLabel={workProductCopy ? "Review plan inputs" : "Continue to placement check"} nextDisabled={availability.length === 0} />
+          <PlanActions onBack={() => dispatchSchedule({ type: "set_custom_open", open: false })} backLabel="Quick choices" onNext={continueFromSchedule} nextLabel={deadlineDate && !skipsPlacementDiagnostic ? "Continue" : "Build my plan"} nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
@@ -824,9 +918,9 @@ export function PlanCreator({
         <PlanPanel eyebrow={diagnosticQuestions.length ? `OPTIONAL PLACEMENT CHECK · ${diagnosticIndex + 1} OF ${diagnosticQuestions.length}` : "OPTIONAL PLACEMENT CHECK"} title={diagnosticQuestions[diagnosticIndex]?.prompt ?? "Continue without a placement check"} description={diagnosticQuestions.length ? "Recommended: answering lets YOVA replace lessons on demonstrated topics with shorter verification checks, making the plan more focused." : "The placement check is unavailable right now. Skipping does not mark any topic as known, and you can take it later from the plan."}>
           {diagnosticError && <div className="chat-error"><AlertCircle size={16} /><span>{diagnosticError}</span></div>}
           {diagnosticQuestions[diagnosticIndex] && <div className="diagnostic-options">{diagnosticQuestions[diagnosticIndex].options.map((option) => <button className={diagnosticAnswers[diagnosticIndex] === option ? "selected" : ""} key={option} onClick={() => { const next = [...diagnosticAnswers]; next[diagnosticIndex] = option; setDiagnosticAnswers(next); }}>{option}{diagnosticAnswers[diagnosticIndex] === option && <Check />}</button>)}</div>}
-          {diagnosticIndex === 0 && <label className="starting-context-field"><span>Anything YOVA should account for?</span><textarea rows={4} maxLength={800} value={startingContext} placeholder="Optional: what you already understand, where you feel lost, or what this plan must focus on." onChange={(event) => setStartingContext(event.target.value)} /><small>Your note can change emphasis, but it never counts as proof that a topic is known. {startingContext.length}/800</small></label>}
+
           {diagnosticLatencyMs !== null && <small className="diagnostic-generation-note">Built from {diagnosticMap?.topics.length ?? 0} mapped topics in {(diagnosticLatencyMs / 1_000).toFixed(1)} seconds.</small>}
-          <footer className="plan-actions"><button className="button ghost" onClick={diagnosticIndex === 0 ? back : () => setDiagnosticIndex((value) => value - 1)}><ArrowLeft size={17} /> Back</button><div className="diagnostic-actions"><button className="button ghost" disabled={diagnosticSaving} onClick={() => void finishDiagnostic(true)}>Skip for now</button>{diagnosticQuestions.length > 0 && <button className="button primary" onClick={() => { if (diagnosticIndex === diagnosticQuestions.length - 1) finishDiagnostic(false); else setDiagnosticIndex((value) => value + 1); }} disabled={diagnosticSaving || !diagnosticAnswers[diagnosticIndex]}>{diagnosticIndex === diagnosticQuestions.length - 1 ? "Use my answers" : "Next question"} <ArrowRight size={17} /></button>}</div></footer>
+          <footer className="plan-actions"><button className="button ghost" onClick={diagnosticIndex === 0 ? back : () => setDiagnosticIndex((value) => value - 1)}><ArrowLeft size={17} /> Back</button><div className="diagnostic-actions"><button className="button ghost" disabled={diagnosticSaving} onClick={() => void finishDiagnostic()}>Skip for now</button>{diagnosticQuestions.length > 0 && <button className="button primary" onClick={() => { if (diagnosticIndex === diagnosticQuestions.length - 1) finishDiagnostic(); else setDiagnosticIndex((value) => value + 1); }} disabled={diagnosticSaving || !diagnosticAnswers[diagnosticIndex]}>{diagnosticIndex === diagnosticQuestions.length - 1 ? "Use my answers" : "Next question"} <ArrowRight size={17} /></button>}</div></footer>
         </PlanPanel>
       )}
 
@@ -845,7 +939,7 @@ export function PlanCreator({
           <h1>Your information is safe.</h1>
           <p>{generationError ?? "YOVA could not build the plan yet."}</p>
           <div>
-            <button className="button ghost" onClick={() => setStep("confirm")}><ArrowLeft size={17} /> Review information</button>
+            <button className="button ghost" onClick={() => setStep("schedule")}><ArrowLeft size={17} /> Review information</button>
             <button className="button primary" onClick={() => void generatePlan()}>Try again <ArrowRight size={17} /></button>
           </div>
         </section>
@@ -860,7 +954,18 @@ export function PlanCreator({
         </PlanPanel>
       )}
 
-      {step === "result" && generatedPlan && (
+      {step === "result" && generatedPlan?.plan.planModel && <>
+        <GroupedTopicPlan plan={generatedPlan.plan} draft busy={draftBusy} onAddMaterial={() => openDraftRevision("attach_source")} onEditPlan={() => { setInlineDraftReceipt(null); setInlineDraftMessage(null); setEditPlanOpen(true); }} onChangeMethod={(sessionId, methodId) => void applyDraftInline({ operations: [{ op: "set_availability", availability: savedPlanAvailability(generatedPlan.plan) }] }, { excludedOperationIndexes: [], sessionEdits: [{ sessionId, operationIndex: 0, methodId }] })} onTopicAction={(topicId, action) => { if (action === "mark_covered") void applyDraftInline({ operations: [{ op: "mark_covered", topic_id: topicId }] }); else if (action === "change_method") setMethodTopicId(topicId); else openDraftRevision(action, topicId); }} />
+        {inlineDraftMessage && <div role="status">{inlineDraftMessage}{inlineDraftReceipt && <button className="button ghost" disabled={draftBusy} onClick={() => void undoInlineDraft()}>Undo</button>}</div>}{inlineDraftError && <p role="alert">{inlineDraftError}</p>}
+        {methodTopicId && <section className="plan-panel" aria-label="Change topic method"><h2>Change method</h2>{generatedPlan.plan.sessions.filter(session => session.topicIds?.includes(methodTopicId) && session.status !== "complete").map(session => <div key={session.id}><strong>{session.title}: {session.method}</strong>{session.studyRoute?.agency.alternatives.length ? session.studyRoute.agency.alternatives.map(alternative => <button className="button secondary" disabled={draftBusy} key={alternative.alternativeId} onClick={() => void changeDraftSessionMethod(session.id, session.studyRoute!.identity.routeRevisionId, alternative.primaryMethodId)}>{alternative.visibleMethodName}</button>) : <p>No other method fits this block yet.</p>}</div>)}{methodChoiceError && <p role="alert">{methodChoiceError.message}</p>}{methodChoiceNotice && <p role="status">{methodChoiceNotice.message}</p>}<button className="button ghost" onClick={() => setMethodTopicId(null)}>Done</button></section>}
+        {editPlanOpen && <PlanEditPanel plan={generatedPlan.plan} busy={draftBusy} onClose={() => setEditPlanOpen(false)} onPreview={delta => { setEditPlanOpen(false); setRevisionReviewPending(true); setDraftRevision({ key: makeId("revision"), delta }); }} />}
+        {draftRevision && mappedGeneratedFrom && <LivingPlanRevision key={draftRevision.key} plan={generatedPlan.plan} initialDelta={draftRevision.delta} initialType={draftRevision.type} initialTopicId={draftRevision.topicId} draft={{ generationRequest: mappedGeneratedFrom, draftReceipt: generatedPlan.generation.draftReceipt ?? null }} client={{ developmentPreview: browserPreviewMode, accountId: revisionAccountId, plans: activePlans, profileSummary, previewCanonicalProfile: previewCanonicalProfile ?? undefined, onSaved: () => {}, onOpenCalendar: () => {} }} onDraftSaved={(plan, request, receipt) => { setGeneratedPlan(PlanGenerationResponseSchema.parse({ ...generatedPlan, plan, generation: { ...generatedPlan.generation, draftReceipt: receipt } })); setGeneratedFrom(request); setDiagnosticMap(plan.knowledgeMap ?? null); setMaterials(plan.materials ?? []); }} onReviewed={() => setRevisionReviewPending(false)} onClose={() => { setDraftRevision(null); setRevisionReviewPending(false); }} />}
+        <PlanGenerationNotice generation={generatedPlan.generation} onRetry={() => void generatePlan()} retryDisabled={draftBusy} />
+        {activationError && <p role="alert" className="material-error">{activationError}</p>}
+        <div className="plan-activation"><p>Nothing is active until you save this plan.</p><button className="button primary large" disabled={draftBusy} onClick={() => void activateGeneratedPlan()}>{activating ? "Saving plan…" : "Use this plan"}</button></div>
+      </>}
+
+      {step === "result" && generatedPlan && !generatedPlan.plan.planModel && (
         <section className="generated-plan">
           <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan ready</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} sessions organized into a coherent path. Nothing is active until you confirm it below.</p></div>{generatedScope && <span className="generated-scope-label">{generatedScope.label}</span>}</div>
           {deferredDraftTopics.length > 0 && <section className="generation-notice" aria-label="Plan coverage">
@@ -1046,11 +1151,7 @@ function defaultAvailability(profileSummary: string): AvailabilityChoice[] {
   });
 }
 
-function todayDateInput() {
-  const date = new Date();
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
-}
+
 
 function formatDateOnly(value: string) {
   return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(new Date(`${value}T12:00:00`));

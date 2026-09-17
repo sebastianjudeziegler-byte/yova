@@ -95,6 +95,9 @@ describe("Shape A reducer", () => {
     state = shapeAReducer(state, { type: "continue" });
     state = shapeAReducer(state, { type: "submit_repair", text: "The mechanism is..." });
     expect(state.repair).toBe("The mechanism is...");
+    expect(isShapeAComplete(state)).toBe(false);
+    state = shapeAReducer(state, { type: "repair_comparison_ready", comparison: { feedback: "The mechanism now explains the missing step.", missing: [], incorrect: [] } });
+    state = shapeAReducer(state, { type: "continue" });
     expect(isShapeAComplete(state)).toBe(true);
   });
 
@@ -157,4 +160,3 @@ describe("outside YOVA", () => {
     expect(shapeASteps(withStudyOutside(route())).map((step) => step.kind)).toEqual(["direct", "end"]);
   });
 });
-

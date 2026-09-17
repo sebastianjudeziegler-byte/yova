@@ -1,0 +1,29 @@
+.map { display: grid; gap: 16px; min-width: 0; }
+.preview { border: 1px solid var(--line, #dce3ed); border-radius: 12px; background: #f7faff; padding: 8px; }
+.preview p { padding: 16px; color: #53657c; }
+.preview svg { display: block; width: 100%; height: auto; color: #6685aa; }
+.preview line { stroke: currentColor; stroke-width: 2; }
+.preview rect { fill: white; stroke: #9bb2d0; stroke-width: 1.5; }
+.preview .marked { color: #965815; }
+.preview .marked rect { fill: #fff8e8; stroke: #b87521; }
+.nodeLabel { display: flex; align-items: center; justify-content: center; height: 38px; color: #213651; font-size: 13px; text-align: center; line-height: 16px; overflow-wrap: anywhere; overflow: hidden; }
+.relationships { display: grid; gap: 8px; margin: 0; padding-left: 24px; color: #314963; }
+.relationships:empty { display: none; }
+.relationships li { padding: 6px 8px; border-radius: 6px; overflow-wrap: anywhere; }
+.relationships p { margin: 4px 0 0; color: #815113; }
+.feedbackItem { background: #fff8e8; }
+.map fieldset { border: 0; padding: 0; min-width: 0; }
+.map legend { font-weight: 600; margin-bottom: 10px; }
+.map input, .map select { width: 100%; min-width: 0; border: 1px solid #cdd8e6; border-radius: 8px; padding: 10px; background: white; font: inherit; }
+.map input:focus-visible, .map select:focus-visible { outline: 2px solid #517eae; outline-offset: 2px; }
+.concepts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.concepts > div { display: flex; align-items: center; min-width: 0; }
+.link { display: grid; grid-template-columns: 1fr 1.2fr 1fr auto; align-items: center; gap: 8px; margin-bottom: 10px; }
+.map small { display: block; color: #53657c; margin: 4px 0; }
+.notice { min-height: 1em; margin: 0; font-size: 13px; color: #53657c; }
+@media (max-width: 600px) {
+  .concepts { grid-template-columns: 1fr; }
+  .link { grid-template-columns: 1fr; padding: 10px; border: 1px solid #dce3ed; border-radius: 10px; }
+  .preview { overflow-x: auto; }
+  .preview svg { min-width: 420px; }
+}

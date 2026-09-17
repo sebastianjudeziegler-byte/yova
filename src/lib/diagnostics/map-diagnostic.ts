@@ -274,14 +274,14 @@ export function applyDiagnosticAnswers(
   answers: string[],
   skipped: boolean,
 ) {
-  if (skipped) {
+  if (skipped && answers.length === 0) {
     return {
       map: { ...map, placementCheck: { status: "skipped" as const, completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] } },
       responses: [],
     };
   }
   const observedAt = new Date().toISOString();
-  const responses = questions.map((question, index) => ({
+  const responses = questions.slice(0, answers.length).map((question, index) => ({
     questionId: question.id,
     topicId: question.topicId,
     question: question.prompt,
@@ -297,7 +297,7 @@ export function applyDiagnosticAnswers(
   return {
     map: {
       ...map,
-      placementCheck: { status: "completed" as const, completedAt: observedAt, demonstratedTopicIds, gapTopicIds },
+      placementCheck: { status: answers.length < questions.length ? "partial" as const : "completed" as const, completedAt: observedAt, demonstratedTopicIds, gapTopicIds },
       topics: map.topics.map((topic) => {
         if (demonstratedTopicIds.includes(topic.id)) {
           return { ...topic, status: topic.status === "secure" ? topic.status : "evidenced" as const, initialEvidence: { source: "placement_check" as const, outcome: "demonstrated" as const, observedAt } };

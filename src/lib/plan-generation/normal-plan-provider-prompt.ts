@@ -1,9 +1,9 @@
-import { normalPlanAvailability, normalPlanModeDecisions, type NormalPlanRevisionContext } from "@/lib/plan-generation/normal-plan-revision-context";
+import { validateTopicComposition } from "@/lib/plan-generation/topic-plan-validation";
+import { type NormalPlanRevisionContext } from "@/lib/plan-generation/normal-plan-revision-context";
 import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-plan-pipeline";
 import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
 import type { InitialPlanMethodRoutingContext } from "@/lib/study-route/initial-plan-method-routing";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
-import { classifyLearningTask } from "@/lib/learning/method-router";
 import {
   type NormalPlanEnvelopeComposition,
   type NormalPlanSessionEnvelope,
@@ -213,81 +213,8 @@ function assertPromptCompositionBinding(
   clock: Date,
   revisionContext?: NormalPlanRevisionContext,
 ) {
-  const knowledgeMap = request.knowledgeMap!;
-  const topicsById = new Map(knowledgeMap.topics.map((topic) => [topic.id, topic]));
-  const resolvedModes = normalPlanModeDecisions({
-    learningIntentRecommendation: {
-      intent: request.learningIntent,
-      basis: "Validate the fixed composition against the accepted request intent.",
-    },
-    knowledgeMap,
-    sessions: composition.envelopes.map((envelope) => ({
-      key: envelope.envelopeId,
-      topicIds: envelope.topicIds,
-    })),
-  }, revisionContext);
-  const maximumDayIndex = Math.max(...composition.envelopes.map((envelope) => (
-    envelope.availabilityDayIndex
-  )));
-  if (
-    !Number.isInteger(maximumDayIndex)
-    || maximumDayIndex < 0
-    || maximumDayIndex > 365
-    || composition.envelopes.some((envelope) => (
-      !Number.isInteger(envelope.availabilityWindowIndex)
-      || envelope.availabilityWindowIndex < 0
-      || envelope.availabilityWindowIndex >= request.availability.length
-    ))
-  ) {
-    throw promptCompositionMismatch();
-  }
-  const slots = normalPlanAvailability({ request, now: clock, searchDays: maximumDayIndex + 1, revisionContext });
-
-  composition.envelopes.forEach((envelope, index) => {
-    const firstTopic = topicsById.get(envelope.topicIds[0]!)!;
-    const taskClassification = classifyLearningTask([
-      request.goal,
-      request.startingContext ?? "",
-      firstTopic.title,
-      firstTopic.description,
-      ...firstTopic.subtopics,
-    ].join(" "));
-    const mode = resolvedModes[index]!;
-    const availability = slots.find((slot) => (
-      slot.startsAt === envelope.availabilityStartsAt
-      && slot.dayIndex === envelope.availabilityDayIndex
-      && slot.windowIndex === envelope.availabilityWindowIndex
-    ));
-    const scheduledAt = Date.parse(envelope.scheduledFor);
-    const availabilityEnd = availability ? Date.parse(availability.endsAt) : Number.NaN;
-    const scheduledEnd = scheduledAt + envelope.timing.activeMinutes * 60_000;
-    const expectedHardMaximum = availability
-      ? Math.floor((availabilityEnd - scheduledAt) / 60_000)
-      : Number.NaN;
-    const targetModesMatch = mode.targetDecisions.length === envelope.targetModeDecisions.length
-      && mode.targetDecisions.every((decision, targetIndex) => {
-        const fixed = envelope.targetModeDecisions[targetIndex];
-        return fixed?.topicId === decision.topicId
-          && fixed.learningMode === decision.learningMode
-          && fixed.basisCode === decision.basisCode;
-      });
-
-    if (
-      envelope.learningMode !== mode.learningMode
-      || envelope.modeBasisCode !== mode.basisCode
-      || !targetModesMatch
-      || envelope.taskFamily !== taskClassification.taskType
-      || JSON.stringify(envelope.taskClassification) !== JSON.stringify(taskClassification)
-      || !availability
-      || scheduledAt < clock.getTime()
-      || scheduledAt < Date.parse(availability.startsAt)
-      || scheduledEnd > availabilityEnd
-      || (scheduledAt - Date.parse(availability.startsAt)) % 60_000 !== 0
-      || envelope.hardMaximumMinutes !== expectedHardMaximum
-    ) {
-      throw promptCompositionMismatch();
-    }
-  });
+  try { validateTopicComposition(request, composition, clock, revisionContext); }
+  catch { throw promptCompositionMismatch(); }
 }
 
 function promptCompositionMismatch() {

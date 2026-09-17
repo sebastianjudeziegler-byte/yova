@@ -100,6 +100,7 @@ export function materializePlanDraft(
 
   const plan: LearningPlan = {
     id: planId,
+    ...(normalPlanEnvelopeComposition?.planModel ? { planModel: normalPlanEnvelopeComposition.planModel } : {}),
     learningItemId: makeUuid(),
     title,
     topic,
@@ -142,6 +143,7 @@ export function materializePlanDraft(
 
       return {
         id: makeUuid(),
+        ...(normalPlanEnvelopeComposition?.envelopes[index]?.workload ? { workload: normalPlanEnvelopeComposition.envelopes[index]!.workload } : {}),
         sequence: index + 1,
         ...session,
         title: repairSubjectCopy(session.title),

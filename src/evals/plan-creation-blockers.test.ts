@@ -12,11 +12,11 @@ describe("consolidated audit: learner-visible launch blockers", () => {
     const lateNow = new Date("2026-09-07T19:30:00.000Z");
     const composition = composeNormalPlanEnvelopes({request,now:lateNow,durationContext:duration(60),learningIntentRecommendation:{intent:"learn",basis:"The learner has not learned the unit."}});
     const plan = buildNormalPlanFromFixedEnvelope({request,composition,now:lateNow,fill:buildNormalPlanFallbackFill({request,composition}),methodContext:{profileVersion:"audit_method_v1",personalization:{decisions:[],methodTie:{state:{controls:{experiments:false},activeExperiment:null,experimentHistory:[]},signals:[]}},observedEvidence:[]}});
-    expect(plan.sessions).toHaveLength(1);
+    expect(plan.sessions).toHaveLength(12);
     expect(plan.sessions[0]!.title).toMatch(/ATP|energy/i);
     expect(plan.sessions[0]!.scheduledFor).toBe(lateNow.toISOString());
     expect(plan.sessions[0]!.estimatedMinutes).toBeLessThanOrEqual(15);
-    expect(plan.rationale).toMatch(/one focused first step/);
+    expect(plan.sessions[0]!.workload?.estimatedMinutes).toBe(plan.sessions[0]!.estimatedMinutes);
     console.info(JSON.stringify({case:"half-used-window",title:plan.sessions[0]!.title,objective:plan.sessions[0]!.objective,rationale:plan.rationale}));
   });
   it.each([11, 3, 1].flatMap(days => [25, 60].map(focus => ({ days, focus: focus as 25 | 60 }))))(
@@ -38,10 +38,13 @@ describe("consolidated audit: learner-visible launch blockers", () => {
       expect(plan.sessions[0]?.learningMode).toBe("learn");
       expect(learnerView.sessions[0]?.title).toMatch(/ATP|energy/i);
       expect(learnerView.sessions.every(s => s.method.length > 3 && s.why.length > 10 && s.objective.length > 10 && s.evidence?.length)).toBe(true);
-      expect(plan.sessions.every(s => Date.parse(s.scheduledFor) + s.estimatedMinutes * 60_000 <= Date.parse(request.deadline!))).toBe(true);
+      expect(plan.sessions.every(s => s.workload && s.estimatedMinutes <= s.workload.ceilingMinutes)).toBe(true);
+      const late = plan.sessions.filter(s => Date.parse(s.scheduledFor) + s.estimatedMinutes * 60_000 > Date.parse(request.deadline!));
+      if (late.length) expect(plan.planModel?.constraints.some(note => /after the deadline/i.test(note))).toBe(true);
+      expect(new Set(plan.sessions.flatMap(s => s.topicIds))).toEqual(new Set(request.knowledgeMap!.topics.map(t => t.id)));
       if (days === 1) {
-        expect(learnerView.deferred?.length).toBeGreaterThan(0);
-        expect(learnerView.rationale).toMatch(/deadline|remaining|defer|time|part/i);
+        expect(learnerView.deferred).toEqual([]);
+        expect(plan.planModel?.constraints.some(note => /deadline/i.test(note))).toBe(true);
       }
       if (days === 11 && focus === 25) expect(plan.sessions).toHaveLength(12);
     },

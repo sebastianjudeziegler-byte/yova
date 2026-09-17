@@ -55,6 +55,12 @@ describe("routing input for a plan session", () => {
     expect(practice).toMatchObject({ blockKind: "practice", hasSource: false });
   });
 
+  it("an outline-only source routes to generated teaching rather than an empty source screen", () => {
+    const material: LearningMaterial = { id: materialId, name: "Syllabus.txt", mimeType: "text/plain", sizeBytes: 50, textContent: "Explain glycolysis and its products.", processingStatus: "ready" };
+    const outline = topic({ origin: "material", sourceReferences: [{ materialId, chunkId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", chunkIndex: 0, startCharacter: 0, endCharacter: 34, locationLabel: "Learning objectives", sectionRole: "scope_outline" }] });
+    expect(routingInputForSession({ plan: plan([outline], [material], "user_materials"), session: session(), topic: outline, answers: emptyOnboardingAnswers() }).hasSource).toBe(false);
+  });
+
   it("flags problems inside a mixed-assessment session from the topic's own classification", () => {
     const solve = topic({ title: "Solve quadratic equations", description: "Solve quadratic equations by factoring and the quadratic formula." });
     const mixed = session({ studyRoute: { target: { taskFamily: "mixed_assessment" } } as never });
@@ -112,4 +118,3 @@ describe("difficulty inputs", () => {
     expect(input.prerequisiteDepth).toBe(1);
   });
 });
-

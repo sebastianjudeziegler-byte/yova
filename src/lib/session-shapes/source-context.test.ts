@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
-import { baselineSourceForTopic } from "./source-context";
+import { baselineSourceForTopic, baselineSourceForTopics } from "./source-context";
 
 const materialId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const chunkId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -18,6 +18,29 @@ function topic(overrides: Partial<KnowledgeMapTopic> = {}): KnowledgeMapTopic {
 const plan = (materials: LearningMaterial[], sourceMode: LearningPlan["sourceMode"] = "user_materials") => ({ materials, sourceMode });
 
 describe("baseline source context", () => {
+  it("mixed work keeps selected topic labels and does not let one topic exhaust the excerpt budget", () => {
+    const references = Array.from({ length: 8 }, (_, index) => ({ materialId, chunkId, chunkIndex: index, startCharacter: 0, endCharacter: text.length, locationLabel: `part ${index}`, sectionRole: "content_source" as const }));
+    const selected = [topic({ title: "Glycolysis", sourceReferences: references }), topic({ id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", title: "ATP synthesis", sourceReferences: references })];
+    const result = baselineSourceForTopics(plan([material()]), selected);
+    expect(result.excerpts).toHaveLength(8);
+    expect(result.excerpts.slice(0, 2).map((excerpt) => excerpt.label.split(" · ")[0])).toEqual(["Glycolysis", "ATP synthesis"]);
+    expect(result.excerpts.filter((excerpt) => excerpt.label.startsWith("ATP synthesis"))).toHaveLength(4);
+  });
+  it("never sends scope-outline text to session generation or calls it a teaching source", () => {
+    const outline = topic({ sourceReferences: [{ materialId, chunkId, chunkIndex: 0, startCharacter: 0, endCharacter: text.length, locationLabel: "Unit goals", sectionRole: "scope_outline" }] });
+    expect(baselineSourceForTopic(plan([material()]), outline)).toEqual({ description: null, excerpts: [] });
+  });
+
+  it("keeps a mixed document's content section but excludes its scope section", () => {
+    const mixed = topic({ sourceReferences: [
+      { materialId, chunkId, chunkIndex: 0, startCharacter: 0, endCharacter: 33, locationLabel: "Goals", sectionRole: "scope_outline" },
+      { materialId, chunkId, chunkIndex: 1, startCharacter: 33, endCharacter: text.length, locationLabel: "Mechanism", sectionRole: "content_source" },
+    ] });
+    const result = baselineSourceForTopic(plan([material()]), mixed);
+    expect(result.excerpts).toHaveLength(1);
+    expect(result.excerpts[0].label).toContain("Mechanism");
+    expect(result.description?.location).toBe("Mechanism");
+  });
   it("names topic-specific slides with their located section and returns the mapped excerpt", () => {
     const result = baselineSourceForTopic(plan([material()]), topic({ sourceReferences: [{ materialId, chunkId, chunkIndex: 0, startCharacter: 0, endCharacter: 33, locationLabel: "slides 12–20", sectionRole: "content_source" }] }));
     expect(result.description).toEqual({ name: "Unit 3 slides.pptx", kind: "slides", location: "slides 12–20" });
@@ -62,4 +85,3 @@ describe("baseline source context", () => {
     expect(result.description?.name).toBe("Chapter 4.pdf");
   });
 });
-

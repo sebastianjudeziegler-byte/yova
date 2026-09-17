@@ -7,6 +7,7 @@ import { classifyLearningTask } from "@/lib/learning/method-router";
 import type { LearningTaskType } from "@/lib/learning/method-catalog";
 import type { OnboardingAnswers } from "@/lib/onboarding/answers";
 import { isProceduralTaskType, type RoutingEvidence, type RoutingInput } from "@/lib/routing/session-route";
+import { baselineSourceForTopic } from "@/lib/session-shapes/source-context";
 
 /**
  * Builds the finite routing input for one plan session. Task type comes from
@@ -51,12 +52,7 @@ export function routingInputForSession({ plan, session, topic, answers, completi
 }): RoutingInput {
   const taskType = taskTypeForSession(plan, session, topic);
   const topicOwnType = topic ? classifyLearningTask(`${topic.title}. ${topic.description}`).taskType : taskType;
-  const hasSource = Boolean(
-    topic && (
-      topic.sourceReferences.some((reference) => (plan.materials ?? []).some((material) => material.id === reference.materialId && material.textContent))
-      || (topic.attachedSources?.length ?? 0) > 0
-    ),
-  ) || (plan.sourceMode === "user_materials" && (plan.materials ?? []).some((material) => material.textContent));
+  const hasSource = Boolean(baselineSourceForTopic(plan, topic).description);
   return {
     taskType,
     blockKind: session.learningMode === "learn" ? "learn" : "practice",
@@ -130,7 +126,7 @@ export function interleavedKeyPointsForSession({ plan, topic, completions }: {
       if (text.length < 8 || seen.has(key)) continue;
       seen.add(key);
       pointIndex += 1;
-      keyPoints.push({ id: `t${topicIndex + 1}k${pointIndex}`, text: text.slice(0, 400) });
+      keyPoints.push({ id: `t${topicIndex + 1}k${pointIndex}`, text: text.slice(0, 400), sourceTopicId: candidate.id });
     }
   });
   return keyPoints.slice(0, 8);

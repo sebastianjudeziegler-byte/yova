@@ -114,7 +114,7 @@ jobs:
           YOVA_MIGRATED_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY" \
           YOVA_MIGRATED_SUPABASE_SECRET_KEY="$SERVICE_ROLE_KEY" \
           YOVA_MIGRATED_DB_CONTAINER="$(docker ps --filter name=supabase_db --format '{{.Names}}' | head -1)" \
-          pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.migrated.test.ts \
+          pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.migrated.test.ts src/lib/sync/baseline-completion.migrated.test.ts \
             2>&1 | tee "$RUNNER_TEMP/migrated-route.log" || {
               {
                 echo '### Migrated route test failed'

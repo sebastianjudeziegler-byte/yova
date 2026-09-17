@@ -1,6 +1,6 @@
 import type { SessionRoute } from "@/lib/routing/session-route";
 import { PRACTICE_ROUND_CEILING } from "@/lib/routing/session-route";
-import type { PracticeQuestion } from "@/lib/practice/compose-practice";
+import type { KeyPoint, PracticeQuestion } from "@/lib/practice/compose-practice";
 
 /**
  * Shape C — closed-book practice. A coded step sequence.
@@ -79,6 +79,16 @@ export function shapeCTotals(state: ShapeCState) {
   return { correct: answers.filter((answer) => answer.correct).length, total: answers.length };
 }
 
+/** Only tested points receive an outcome, and a retry ceiling never undoes a passed point. */
+export function shapeCKeyPointOutcomes(state: ShapeCState, keyPoints: readonly KeyPoint[]) {
+  const tested = new Set(state.rounds.flatMap((round) => round.answers.flatMap((answer) => answer.keyPointIds)));
+  return keyPoints.filter((point) => tested.has(point.id)).map((point) => ({
+    keyPointId: point.id, text: point.text,
+    ...(point.sourceTopicId ? { sourceTopicId: point.sourceTopicId } : {}),
+    outcome: state.outstandingKeyPointIds.includes(point.id) ? "needs_review" as const : "secure" as const,
+  }));
+}
+
 export function isShapeCTopicDone(state: ShapeCState) {
   return state.phase === "done";
 }
@@ -151,4 +161,4 @@ function finishRound(state: ShapeCState): ShapeCState {
 }
 
 /** Learner-facing escalation copy; the link target is a learn block with a different produce step. */
-export const SHAPE_C_ESCALATION_MESSAGE = "This one isn't sticking — want to re-learn it a different way?";
+export const SHAPE_C_ESCALATION_MESSAGE = "Some points still need review. You can finish this block now.";

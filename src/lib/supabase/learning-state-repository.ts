@@ -1,4 +1,6 @@
 "use client";
+import { applyPlanMaterialUnderstanding } from "@/lib/plan-generation/plan-material-understanding";
+import { TopicPlanModelSchema, TopicWorkloadSchema } from "@/lib/plan-generation/topic-plan-contract";
 
 import { readPlanSchedulePreferences } from "@/lib/scheduling/plan-schedule-preferences";
 
@@ -338,6 +340,29 @@ async function withinAuthenticatedLearningMutationDeadline<T>(
   }
 }
 
+/** Resolve an ambiguous Finish reply using the exact authenticated attempt,
+ * without downloading the learner's whole workspace or guessing from status. */
+export async function readAuthenticatedSessionCompletionReceipt(
+  accountId: string,
+  completion: Pick<SessionCompletion, "id" | "planSessionId" | "routeRevisionId">,
+): Promise<boolean> {
+  return withinAuthenticatedLearningMutationDeadline(async run => {
+    const supabase = createSupabaseBrowserClient();
+    const auth = await run(supabase.auth.getUser());
+    if (auth.error || auth.data.user?.id !== accountId) return false;
+    const { data, error } = await run(supabase.from("session_attempts")
+      .select("id,plan_session_id,completed_at,result_data")
+      .eq("id", completion.id)
+      .eq("plan_session_id", completion.planSessionId)
+      .not("completed_at", "is", null)
+      .maybeSingle());
+    if (error || !data?.completed_at) return false;
+    const storedRoute = data.result_data && typeof data.result_data === "object"
+      ? (data.result_data as Record<string, unknown>).routeRevisionId : undefined;
+    return (storedRoute ?? undefined) === completion.routeRevisionId;
+  });
+}
+
 export async function loadAuthenticatedLearningStateWithRetry(
   read: () => Promise<CloudLearningState | null> = loadAuthenticatedLearningState,
   retryDelaysMs: readonly number[] = AUTHENTICATED_STATE_RETRY_DELAYS_MS,
@@ -488,7 +513,9 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       : storedResource;
     const amountLabel = readTextProperty(row.step_data, "amountLabel")
       || `${row.estimated_minutes} min`;
+    const workload = TopicWorkloadSchema.safeParse(readProperty(row.step_data, "workload"));
     const session: LearningPlanSession = {
+      ...(workload.success ? { workload: workload.data } : {}),
       ...(readStringArrayProperty(row.step_data, "revisionEditedFields").length ? { revisionEditedFields: readStringArrayProperty(row.step_data, "revisionEditedFields").filter((field): field is NonNullable<LearningPlanSession["revisionEditedFields"]>[number] => ["title", "objective", "method", "methodReason", "scheduledFor", "estimatedMinutes"].includes(field)) } : {}),
       id: row.id,
       sequence: row.sequence,
@@ -548,9 +575,11 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     sessions.sort((left, right) => left.sequence - right.sequence);
     const knowledgeMap = readPlanKnowledgeMap(planRow.knowledge_map);
     const topic = resolveLearningTopic(item.topic, item.title);
+    const planModel = TopicPlanModelSchema.safeParse(readProperty(planRow.generation_inputs, "planModel"));
 
     return [{
       id: planRow.id,
+      ...(planModel.success ? { planModel: planModel.data } : {}),
       revisionId: planRow.current_revision_id ?? planRow.id,
       learningItemId: item.id,
       title: resolveLearningTitle(item.title, topic),
@@ -567,7 +596,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       rationale: planRow.rationale,
       createdAt: planRow.created_at || item.created_at,
       knowledgeMap,
-      materials: (materialsByItemId.get(item.id) ?? []).filter(material => !Array.isArray(readProperty(planRow.generation_inputs, "revisionMaterialIds")) || readStringArrayProperty(planRow.generation_inputs, "revisionMaterialIds").includes(material.id)),
+      materials: applyPlanMaterialUnderstanding((materialsByItemId.get(item.id) ?? []).filter(material => !Array.isArray(readProperty(planRow.generation_inputs, "revisionMaterialIds")) || readStringArrayProperty(planRow.generation_inputs, "revisionMaterialIds").includes(material.id)), planRow.generation_inputs),
       sessions,
     }];
   });

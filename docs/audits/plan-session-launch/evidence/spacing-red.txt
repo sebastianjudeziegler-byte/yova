@@ -1,0 +1,52 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/plan-generation/topic-plan-model.test.ts (20 tests | 3 failed) 313ms
+     × reserves supported return practice before later learning fills every available day 95ms
+     × measures later return spacing from the preceding practice for a 7-day deadline 2ms
+     × measures later return spacing from the preceding practice for a 14-day deadline 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/plan-generation/topic-plan-model.test.ts > Brief 2 topic plan model > reserves supported return practice before later learning fills every available day
+AssertionError: expected 3.9930555555555554 to be less than 2
+ ❯ src/lib/plan-generation/topic-plan-model.test.ts:78:22
+     76|     const firstGap=(Date.parse(rounds[0]!.scheduledFor)-Date.parse(las…
+     77|     expect(firstGap).toBeGreaterThanOrEqual(1);
+     78|     expect(firstGap).toBeLessThan(2);
+       |                      ^
+     79|     expect(Date.parse(rounds[1]!.scheduledFor)-Date.parse(rounds[0]!.s…
+     80|     expect(plan.envelopes.map(block=>block.scheduledFor)).toEqual(plan…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/lib/plan-generation/topic-plan-model.test.ts > Brief 2 topic plan model > measures later return spacing from the preceding practice for a 7-day deadline
+AssertionError: expected 86100000 to be greater than or equal to 259200000
+ ❯ src/lib/plan-generation/topic-plan-model.test.ts:86:85
+     84|     const plan=run({extra_context:"forget_during_tests"},{deadline:new…
+     85|     const rounds=plan.envelopes.filter(block=>block.topicIds[0]===id(1…
+     86|     expect(Date.parse(rounds[1]!.scheduledFor)-Date.parse(rounds[0]!.s…
+       |                                                                                     ^
+     87|   });
+     88|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/lib/plan-generation/topic-plan-model.test.ts > Brief 2 topic plan model > measures later return spacing from the preceding practice for a 14-day deadline
+AssertionError: expected 172800000 to be greater than or equal to 432000000
+ ❯ src/lib/plan-generation/topic-plan-model.test.ts:86:85
+     84|     const plan=run({extra_context:"forget_during_tests"},{deadline:new…
+     85|     const rounds=plan.envelopes.filter(block=>block.topicIds[0]===id(1…
+     86|     expect(Date.parse(rounds[1]!.scheduledFor)-Date.parse(rounds[0]!.s…
+       |                                                                                     ^
+     87|   });
+     88|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 17 passed (20)
+   Start at  15:54:24
+   Duration  654ms (transform 188ms, setup 0ms, import 266ms, tests 313ms, environment 0ms)
+

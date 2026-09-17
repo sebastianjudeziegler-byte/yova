@@ -23,6 +23,7 @@ describe("signed-in generation release capability probe", () => {
       placementEvidenceBoundary: true,
       unansweredCompletionFeedback: true,
       livingPlanRevision: true,
+      topicPlanWorkloads: true,
     }));
 
     await expect(probeSignedInGenerationDatabase({
@@ -35,7 +36,7 @@ describe("signed-in generation release capability probe", () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://project.supabase.co/rest/v1/rpc/signed_in_generation_readiness_v5",
+      "https://project.supabase.co/rest/v1/rpc/signed_in_generation_readiness_v6",
       expect.objectContaining({
         method: "POST",
         body: "{}",
@@ -105,6 +106,7 @@ describe("signed-in generation release capability probe", () => {
       placementEvidenceBoundary: true,
       unansweredCompletionFeedback: true,
       livingPlanRevision: true,
+      topicPlanWorkloads: true,
     }));
 
     await probeSignedInGenerationDatabase({

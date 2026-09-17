@@ -10,7 +10,7 @@ const source = z.union([
 ]);
 
 export const MapDeltaOperationSchema = z.discriminatedUnion("op", [
-  z.object({ op: z.literal("add_topic"), title: z.string().trim().min(2).max(140), description: z.string().trim().min(8).max(400), after_topic_id: topicId.optional(), source_refs: z.array(source).max(5).optional() }).strict(),
+  z.object({ op: z.literal("add_topic"), title: z.string().trim().min(2).max(140), description: z.string().trim().min(8).max(400), after_topic_id: topicId.optional(), before_topic_id: topicId.optional(), source_refs: z.array(source).max(5).optional() }).strict().refine(value => !(value.after_topic_id && value.before_topic_id), "Choose one position for the new topic."),
   z.object({ op: z.literal("remove_topic"), topic_id: topicId }).strict(),
   z.object({ op: z.literal("mark_covered"), topic_id: topicId }).strict(),
   z.object({ op: z.literal("attach_source"), topic_id: topicId, material_id: z.string().uuid().optional(), url: z.url().max(2048).refine(value => ["https:", "http:"].includes(new URL(value).protocol), "Use an HTTP or HTTPS source link.").optional() }).strict().refine(value => Boolean(value.material_id) !== Boolean(value.url), "Choose exactly one material or URL."),
@@ -51,7 +51,7 @@ export function applyMapDelta({ request, delta: rawDelta, now, excluded = [] }: 
   const currentIds = new Set(map.topics.map(topic => topic.id));
   // References belong to the map before the proposal, never client-proposed IDs.
   for (const operation of delta.operations) {
-    for (const id of ["topic_id" in operation ? operation.topic_id : undefined, "after_topic_id" in operation ? operation.after_topic_id : undefined]) {
+    for (const id of ["topic_id" in operation ? operation.topic_id : undefined, "after_topic_id" in operation ? operation.after_topic_id : undefined, "before_topic_id" in operation ? operation.before_topic_id : undefined]) {
       if (id && !currentIds.has(id)) throw new MapDeltaError("unknown_topic", "That topic is not in this plan. Reload the map before changing it.");
     }
   }
@@ -77,7 +77,7 @@ export function applyMapDelta({ request, delta: rawDelta, now, excluded = [] }: 
         if (topics.some(candidate => candidate.title.trim().toLocaleLowerCase().replace(/\s+/g, " ") === titleKey)) throw new MapDeltaError("duplicate_topic", "This topic is already in the map, including its saved history. Choose the existing topic.");
         const id = makeUuid();
         const next = { id, title: operation.title, description: operation.description, subtopics: [], prerequisiteTopicIds: [], status: "not_started" as const, initialEvidence: null, sourceReferences: [], origin: "ai_generated" as const, deferred: null, attachedSources: operation.source_refs ?? [] };
-        const after = operation.after_topic_id ? topics.findIndex(candidate => candidate.id === operation.after_topic_id) + 1 : topics.length;
+        const after = operation.before_topic_id ? topics.findIndex(candidate => candidate.id === operation.before_topic_id) : operation.after_topic_id ? topics.findIndex(candidate => candidate.id === operation.after_topic_id) + 1 : topics.length;
         topics.splice(after, 0, next);
         changed.add(id); added.push(id);
         line(`Add ${next.title}`, id);

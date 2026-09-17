@@ -88,7 +88,7 @@ describe("plan activation contract", () => {
     }).success).toBe(false);
   });
 
-  it("keeps generation at 14 sessions while allowing bounded runtime verification rows", () => {
+  it("bounds topic generation at 200 sessions while allowing bounded runtime verification rows", () => {
     const draft = matchingDraft();
     const template = draft.plan.sessions[0]!;
     const sessions = Array.from({ length: MAX_RUNTIME_PLAN_SESSIONS }, (_, index) => ({
@@ -98,7 +98,7 @@ describe("plan activation contract", () => {
     }));
     const runtimePlan = { ...draft.plan, sessions };
 
-    expect(MAX_GENERATED_PLAN_SESSIONS).toBe(14);
+    expect(MAX_GENERATED_PLAN_SESSIONS).toBe(200);
     expect(LearningPlanSchema.safeParse(runtimePlan).success).toBe(true);
     expect(LearningPlanSchema.safeParse({
       ...runtimePlan,

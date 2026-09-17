@@ -117,6 +117,7 @@ export type SessionAdaptationNote = {
 };
 
 export type LearningPlanSession = {
+  workload?: import("@/lib/plan-generation/topic-plan-contract").TopicWorkload;
   revisionEditedFields?: ("title" | "objective" | "method" | "methodReason" | "scheduledFor" | "estimatedMinutes")[];
   id: string;
   sequence: number;
@@ -150,6 +151,7 @@ export type LearningPlanSession = {
 };
 
 export type LearningPlan = {
+  planModel?: import("@/lib/plan-generation/topic-plan-contract").TopicPlanModel;
   revisionId?: string;
   id: string;
   learningItemId: string;

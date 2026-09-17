@@ -23,6 +23,11 @@ export type RuleEvidence = {
 export type HappenedInSession = {
   /** false when the session could not show a worked example; omit before a session has run. */
   exampleShown?: boolean;
+  /** Omit for a preview; set from the actual round/answer history for a receipt. */
+  practiceOccurred?: boolean;
+  repairRoundOccurred?: boolean;
+  /** Explicit check-in copy was displayed, rather than a routing flag alone. */
+  checkInsShown?: boolean;
 };
 
 /** A rule ID, or a family: a trailing dot matches by prefix, a RegExp matches the whole ID. */
@@ -37,21 +42,21 @@ export const NOTE_TEMPLATES: ReadonlyArray<Template> = [
   ["L3.q5.step_by_step", () => "Because you asked for step-by-step instructions, YOVA held the scaffolding one level higher and numbered the steps."],
   ["L3.q6.explain_back", () => "Because you prove knowledge by explaining, this session used the Feynman Technique."],
   ["L3.q6.map_it", () => "Because you prove knowledge by mapping, this session used Concept Mapping."],
-  ["L3.q6.answer_questions", () => "Because you prove knowledge by answering questions, this session went straight to Active Recall."],
-  ["L3.q6.solve_it", () => "Because you prove knowledge by solving, this session used Practice Problems after the worked example."],
-  ["L4.q9.shorter_sections", (decision) => `Because you asked for shorter sections, the timer was trimmed to ${decision.value} minutes and practice capped at five questions.`],
-  ["L4.q9.extra_reading_time", () => "Because you asked for extra reading time, the timer was extended and pace prompts were switched off."],
+  ["L3.q6.answer_questions", () => "Because you prove knowledge by answering questions, this session uses Active Recall for practice."],
+  ["L3.q6.solve_it", () => "Because you prove knowledge by solving, this session uses Practice Problems."],
+  ["L4.q9.shorter_sections", (_decision, route) => `Because you asked for shorter sections, this block uses a ${route.timerMinutes}-minute estimate and a smaller workload.`],
+  ["L4.q9.extra_reading_time", () => "Because you asked for extra reading time, the reading allowance is extended and timer nudges are switched off."],
   ["L4.q9.simpler_repeated_instructions", () => "Because you asked for simpler instructions, each step restated the task in plain language."],
-  ["L4.q9.frequent_check_ins", () => "Because you asked for frequent check-ins, YOVA paused at an explicit stopping point after each step."],
-  ["L4.q3.very_often", () => "Because you lose focus very often, the timer dropped one band and stopping points were added."],
-  ["L4.q3.often", () => "Because you lose focus often, the timer dropped one band and stopping points were added."],
-  ["L4.q7.gist_leaning.mix_recall", () => "Because you catch the big picture but miss specifics, practice asked one more question about a specific fact."],
-  ["L4.q7.detail_leaning.mix_compare_contrast", () => "Because you know the details but lose how they fit, practice asked one more question comparing two ideas."],
-  ["L4.q10.forget_during_tests", () => "Because you forget during tests, this topic gets one extra practice round with tighter spacing."],
+  ["L4.q9.frequent_check_ins", () => "Because you asked for frequent check-ins, YOVA offered an explicit stopping point after each step."],
+  ["L4.q3.very_often", (_decision, route) => `Because you lose focus very often, the session uses a shorter workload allowance and a ${route.timerMinutes}-minute estimate.`],
+  ["L4.q3.often", (_decision, route) => `Because you lose focus often, the session uses a shorter workload allowance and a ${route.timerMinutes}-minute estimate.`],
+  ["L4.q7.gist_leaning.mix_recall", () => "Because you catch the big picture but miss specifics, the question mix gives extra weight to recalling specific facts."],
+  ["L4.q7.detail_leaning.mix_compare_contrast", () => "Because you know the details but lose how they fit, the question mix gives extra weight to comparing ideas."],
+  ["L4.q10.forget_during_tests", () => "Because you forget during tests, an extra retry is available if a point still needs practice."],
   ["L2.learner_reported_covered", () => "Because you marked this topic as already covered, YOVA skipped the learn block and went straight to practice."],
   ["L2.demonstrated", () => "Because the placement check showed you already know this, YOVA kept the review brief before asking you to produce."],
-  ["L4.q2.minutes_10_15", () => "Because you said short sessions are realistic, the timer started at fifteen minutes."],
-  ["L4.q2.minutes_45_60", () => "Because you said long sessions are realistic, the timer started at fifty-five minutes."],
+  ["L4.q2.minutes_10_15", (_decision, route) => `Because you said short sessions are realistic, the session uses a ${route.timerMinutes}-minute estimate within your allowance.`],
+  ["L4.q2.minutes_45_60", (_decision, route) => `Because you said long sessions are realistic, the session uses a ${route.timerMinutes}-minute estimate within your allowance.`],
   ["L5.q4.exact_guidance", () => "Because you asked to be told exactly what to do, YOVA applied the method without a chooser."],
   ["L5.q4.learner_choice", () => "Because you asked to decide, YOVA offered the method choice with its pick pre-selected."],
   ["L1.temporary.shape_b_not_built", () => "Because the full worked-example route arrives in Week 2, this procedural topic used a worked example as its source."],
@@ -96,11 +101,11 @@ const ENERGY_PHRASE: Record<string, string> = { morning: "in the morning", after
 
 /** Everything else that can fire: named on the end receipt only, not as pills or tips. */
 const DETAIL_TEMPLATES: ReadonlyArray<Template> = [
-  [/^L1\.[a-z_]+\.learn(\.problems)?$/, (decision) => LAYER_ONE_SENTENCE[decision.ruleId] ?? "Because of the kind of topic this is, the session follows its usual shape."],
+  [/^L1\.[a-z_]+\.learn(\.problems)?$/, (decision, route) => route.produceStep === "retrieval_questions" ? "Because of this topic and the selected method, the session studies and then practises without the source." : LAYER_ONE_SENTENCE[decision.ruleId] ?? "Because of the kind of topic this is, the session follows its usual shape."],
   [/^L1\.[a-z_]+\.practice$/, () => "Because this is a practice block, it is closed-book practice for any kind of topic."],
   ["L2.practice_block", () => "Because this is a practice block, it starts straight at the questions."],
-  ["L2.not_assessed", () => "Because YOVA knows nothing about this topic yet, you study it in full before producing."],
-  ["L2.gap", () => "Because the placement check found a gap, you study it in full before producing."],
+  ["L2.not_assessed", (_decision, route) => `Because YOVA has not assessed this topic yet, you study it before ${route.produceStep === "retrieval_questions" ? "answering questions" : "producing"}.`],
+  ["L2.gap", (_decision, route) => `Because the placement check found a gap, you study it before ${route.produceStep === "retrieval_questions" ? "answering questions" : "producing"}.`],
   [/^L2\.[a-z_]+\.shape_c$/, () => "Because this kind of topic practises directly, what YOVA knows about it only changes the brief study step."],
   ["L2.skip_learn_block_to_shape_c", () => "Because the learn block was skipped, this session is closed-book practice."],
   ["L3.q5.simple_explanation", () => "Because you said a simple explanation helps most, the session keeps its study-first order."],
@@ -110,19 +115,19 @@ const DETAIL_TEMPLATES: ReadonlyArray<Template> = [
   ["C1.layer1_wins.q6", () => "Because this kind of topic fixes how you show what you know, your proof preference did not change the produce step."],
   ["C1.layer1_wins.q6_solve_it", () => "Because this topic has no problems to solve, the session kept its usual produce step."],
   ["C5.q6_unanswered_default", () => "Because you have not said how you prove you know something, the session used this topic's usual produce step."],
-  [/^L4\.q2\.minutes_(20_30|30_45)$/, (decision) => `Because you said ${SESSION_LENGTH_PHRASE[decision.ruleId.slice("L4.q2.".length)]} sessions are realistic, the timer started at ${decision.value} minutes.`],
-  ["L4.q2.task_dependent", (decision) => `Because you said session length depends on the task, the timer started at ${decision.value} minutes.`],
-  ["L4.q2.unanswered", (decision) => `Because no session length is saved, the timer started at ${decision.value} minutes.`],
-  ["L4.q2.short_band_question_cap", () => "Because you said short sessions are realistic, practice is capped at five questions."],
-  [/^L4\.q3\.(rarely|sometimes)$/, (decision) => `Because you ${decision.ruleId.endsWith("rarely") ? "rarely" : "sometimes"} lose focus, the timer kept its length.`],
+  [/^L4\.q2\.minutes_(20_30|30_45)$/, (decision, route) => `Because you said ${SESSION_LENGTH_PHRASE[decision.ruleId.slice("L4.q2.".length)]} sessions are realistic, this block uses a ${route.timerMinutes}-minute estimate within your allowance.`],
+  ["L4.q2.task_dependent", (_decision, route) => `Because you said session length depends on the task, this block uses a ${route.timerMinutes}-minute estimate.`],
+  ["L4.q2.unanswered", (_decision, route) => `Because no session length is saved, this block uses a ${route.timerMinutes}-minute estimate.`],
+  ["L4.q2.short_band_question_cap", (_decision, route) => `Because you said short sessions are realistic, this block contains ${route.questionTarget} planned practice questions.`],
+  [/^L4\.q3\.(rarely|sometimes)$/, (decision) => `Because you ${decision.ruleId.endsWith("rarely") ? "rarely" : "sometimes"} lose focus, no additional focus-loss reduction applies.`],
   ["L4.q9.reduced_text_visual_structure", () => "Because you asked for less text and more visual structure, YOVA noted it, and this block has no writing step to change."],
   [/^L4\.q1\.(morning|afternoon|evening|late_night)$/, (decision) => `Because your energy is highest ${ENERGY_PHRASE[decision.ruleId.slice("L4.q1.".length)]}, YOVA proposes learn blocks then and practice at other times.`],
   ["L4.q10.long_plan_shutdown", () => "Because long plans make you shut down, Home shows only your next block."],
-  ["C4.timer_clamp", (decision) => `Because the timer changes added up past the limit, the timer was held at ${decision.value} minutes.`],
-  ["L4.timer_resolved", (decision) => `Because the timer is a nudge from your profile and not a limit, it is set to ${decision.value} minutes and never stops you.`],
+  ["C4.timer_clamp", (_decision, route) => `Because the session must fit its allowed range, this block uses a ${route.timerMinutes}-minute estimate.`],
+  ["L4.timer_resolved", (_decision, route) => `Because the timer is a guide rather than a limit, it is set to ${route.timerMinutes} minutes and never stops you.`],
   // Founder decision (16 Sept 2026): the difficulty band stays hidden; its effect is named.
-  ["L4.difficulty.high.more_questions", () => "Practice on this topic asks eight questions per round."],
-  ["C8.difficulty_over_question_clamp", () => "Eight questions per round goes past the usual limit for your session length."],
+  ["L4.difficulty.high.more_questions", (_decision, route) => `Practice in this block contains ${route.questionTarget} questions before any missed-point retry.`],
+  ["C8.difficulty_over_question_clamp", (_decision, route) => `The planned first round contains ${route.questionTarget} questions to cover this topic.`],
   [/^L5\.q4\.(structured_flexibility|unanswered_default)$/, (decision, route) => `Because ${decision.ruleId.endsWith("structured_flexibility") ? "you asked for clear structure with flexibility" : "no guidance preference is saved"}, YOVA applied its pick${alternativeProduceSteps(route).length ? " and offered a change before you start" : ""}.`],
   ["C6.rule_ids_recorded", (_decision, route) => `YOVA recorded every decision behind this session, which ran ${route.methodName}.`],
 ];
@@ -146,16 +151,33 @@ function entriesFor(templates: ReadonlyArray<Template>, route: SessionRoute, hap
   return templates.flatMap(([match, sentence]) => {
     if (happened.exampleShown === false && typeof match === "string" && EXAMPLE_CLAIM_RULE_IDS.has(match)) return [];
     const decision = route.decisions.find((candidate) => matches(match, candidate.ruleId));
-    if (!decision) return [];
-    const text = sentence(decision, route);
+    if (!decision || !effectiveRule(decision.ruleId, route, happened)) return [];
+    let text = sentence(decision, route);
+    if (EXAMPLE_CLAIM_RULE_IDS.has(decision.ruleId) && happened.exampleShown === undefined) text = `Because ${decision.ruleId.includes("q10") ? "you said you need examples before feeling ready" : "you said a concrete example helps most"}, this session includes a worked-example step when the material supports one.`;
     return [{ ruleId: decision.ruleId, head: headOf(text), sentence: text }];
   });
 }
 
+/** A fired rule can be overridden later; it is not evidence that its action ran. */
+function effectiveRule(id: string, route: SessionRoute, happened: HappenedInSession) {
+  const practice = happened.practiceOccurred ?? (route.shape === "C" || route.produceStep === "retrieval_questions");
+  if ((id.startsWith("L4.practice.") || id.startsWith("L4.mix.") || id.startsWith("L4.q7.") || id === "L4.q10.forget_during_tests" || id.startsWith("C7.") || id.startsWith("C8.") || id === "L4.difficulty.high.more_questions" || id === "L4.q2.short_band_question_cap") && !practice) return false;
+  if (id === "L4.practice.error_repair.after_missed_round" && happened.repairRoundOccurred === false) return false;
+  if (id === "L3.q5.try_then_feedback" && (!route.produceBeforeStudy || route.produceStep === "retrieval_questions")) return false;
+  if (EXAMPLE_CLAIM_RULE_IDS.has(id) && (!route.workedStructureBeforeProduce || route.produceStep === "retrieval_questions")) return false;
+  const produced: Record<string, string> = { "L3.q6.explain_back": "typed_explanation", "L3.q6.map_it": "concept_map", "L3.q6.answer_questions": "retrieval_questions", "L3.q6.solve_it": "worked_solution", "C2.q9_visual_overrides_q6": "concept_map" };
+  if (id in produced && route.produceStep !== produced[id]) return false;
+  if (id === "L4.q9.frequent_check_ins" && happened.checkInsShown === false) return false;
+  // These are plan/home claims, not actions observable in this session.
+  if (id.startsWith("L4.q1.") || id === "L4.q10.long_plan_shutdown") return false;
+  if ((id === "L2.not_assessed" || id === "L2.gap" || id === "L3.q5.simple_explanation") && route.produceBeforeStudy) return false;
+  return true;
+}
+
 /** For an examples-first learner the session could not show an example: the reason, without the claim. */
 const EXAMPLE_NOT_SHOWN: Record<string, string> = {
-  "L3.q5.concrete_example": "Because you said a concrete example helps most, YOVA looked for a worked example, but there was none to show this time.",
-  "L3.q10.examples_before_ready": "Because you said you need examples before you feel ready, YOVA looked for a worked example, but there was none to show this time.",
+  "L3.q5.concrete_example": "Because you said a concrete example helps most, the session included an example step, but you continued without an example being shown.",
+  "L3.q10.examples_before_ready": "Because you said you need examples before you feel ready, the session included an example step, but you continued without an example being shown.",
 };
 
 /** Personalization-note rules first (in note rank), then practice and mix rules. Never topic difficulty. */
@@ -174,7 +196,7 @@ export function noteEvidence(route: SessionRoute, happened: HappenedInSession = 
  */
 export function receiptEvidence(route: SessionRoute, happened: HappenedInSession = {}): RuleEvidence[] {
   const notShown = happened.exampleShown === false
-    ? route.ruleIds.filter((ruleId) => ruleId in EXAMPLE_NOT_SHOWN).map((ruleId) => ({ ruleId, head: headOf(EXAMPLE_NOT_SHOWN[ruleId]!), sentence: EXAMPLE_NOT_SHOWN[ruleId]! }))
+    ? route.ruleIds.filter((ruleId) => ruleId in EXAMPLE_NOT_SHOWN && effectiveRule(ruleId, route, happened)).map((ruleId) => ({ ruleId, head: headOf(EXAMPLE_NOT_SHOWN[ruleId]!), sentence: EXAMPLE_NOT_SHOWN[ruleId]! }))
     : [];
   const entries = [...notShown, ...ruleEvidence(route, happened), ...entriesFor(DETAIL_TEMPLATES, route, happened)];
   return [...new Map(entries.map((entry) => [entry.ruleId, entry])).values()].filter((entry) => !HIDDEN_RULE_IDS.has(entry.ruleId));

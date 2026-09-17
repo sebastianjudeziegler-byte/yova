@@ -16,6 +16,26 @@ export type BaselineSourceContext = {
   excerpts: SourceExcerpt[];
 };
 
+/** Round-robin extraction gives every selected topic source context within the same request cap. */
+export function baselineSourceForTopics(plan: Pick<LearningPlan, "materials" | "sourceMode">, topics: readonly KnowledgeMapTopic[]): BaselineSourceContext {
+  const unique = [...new Map(topics.map((topic) => [topic.id, topic])).values()].slice(0, 4);
+  if (unique.length < 2) return baselineSourceForTopic(plan, unique[0] ?? null);
+  const contexts = unique.map((topic) => ({ topic, source: baselineSourceForTopic(plan, topic) }));
+  const excerpts: SourceExcerpt[] = [];
+  for (let index = 0; excerpts.length < EXCERPT_LIMIT; index += 1) {
+    let found = false;
+    for (const { topic, source } of contexts) {
+      const excerpt = source.excerpts[index];
+      if (!excerpt || excerpts.length >= EXCERPT_LIMIT) continue;
+      found = true;
+      excerpts.push({ ...excerpt, label: `${topic.title} · ${excerpt.label}`.slice(0, 160) });
+    }
+    if (!found) break;
+  }
+  const descriptions = contexts.flatMap(({ source }) => source.description ? [source.description] : []);
+  return { description: descriptions.length ? { name: [...new Set(descriptions.map((item) => item.name))].join("; ").slice(0, 160), kind: descriptions[0]!.kind, location: descriptions.flatMap((item) => item.location ? [item.location] : []).join("; ").slice(0, 120) || null } : null, excerpts };
+}
+
 const EXCERPT_LIMIT = 8;
 const EXCERPT_CHARACTERS = 4_000;
 
@@ -36,7 +56,7 @@ export function baselineSourceForTopic(plan: Pick<LearningPlan, "materials" | "s
   const locations = new Map<string, string[]>();
   for (const reference of topic.sourceReferences) {
     const material = materials.get(reference.materialId);
-    if (!material?.textContent) continue;
+    if (reference.sectionRole !== "content_source" || !material?.textContent || material.understanding?.role === "scope_outline") continue;
     const text = material.textContent.slice(reference.startCharacter, reference.endCharacter).trim();
     if (text) excerpts.push({ label: `${material.name} · ${reference.locationLabel}`, text: text.slice(0, EXCERPT_CHARACTERS) });
     locations.set(material.id, [...(locations.get(material.id) ?? []), reference.locationLabel]);
@@ -46,15 +66,24 @@ export function baselineSourceForTopic(plan: Pick<LearningPlan, "materials" | "s
   // A file attached to this topic (the plan screen, or Add material on the pre-session card).
   const attachedMaterial = (topic.attachedSources ?? [])
     .flatMap((attached) => ("material_id" in attached ? [materials.get(attached.material_id)] : []))
-    .find((material): material is LearningMaterial => Boolean(material));
+    .find((material): material is LearningMaterial => Boolean(material && canTeachFromMaterial(material)));
   if (!excerpts.length && attachedMaterial?.textContent) {
-    const text = attachedMaterial.textContent.trim();
+    // A mixed file must not leak its scope-outline sections through the
+    // attached-file fallback. Only its explicitly mapped teaching ranges count.
+    const text = attachedMaterial.understanding?.role === "mixed"
+      ? attachedMaterial.understanding.topics.flatMap(entry => entry.sourceReferences)
+        .filter(reference => reference.sectionRole === "content_source")
+        .map(reference => attachedMaterial.textContent!.slice(reference.startCharacter, reference.endCharacter))
+        .join("\n").trim()
+      : attachedMaterial.textContent.trim();
     for (let start = 0, part = 1; start < text.length && excerpts.length < EXCERPT_LIMIT; start += EXCERPT_CHARACTERS, part += 1) {
       excerpts.push({ label: `${attachedMaterial.name} · part ${part}`, text: text.slice(start, start + EXCERPT_CHARACTERS) });
     }
   }
   const referencedMaterial = [...locations.keys()].map((id) => materials.get(id)).find((material): material is LearningMaterial => Boolean(material));
-  const anyMaterial = referencedMaterial ?? (plan.materials ?? [])[0] ?? null;
+  const outlineOnly = topic.sourceReferences.length > 0 && topic.sourceReferences.every(reference => reference.sectionRole === "scope_outline");
+  const anyMaterial = referencedMaterial ?? (topic.origin === "material" && !outlineOnly
+    ? (plan.materials ?? []).find(canTeachFromMaterial) ?? null : null);
   let description: SourceDescription | null = null;
   if (referencedMaterial) {
     const labels = [...new Set(locations.get(referencedMaterial.id) ?? [])];
@@ -72,4 +101,11 @@ export function baselineSourceForTopic(plan: Pick<LearningPlan, "materials" | "s
     description = { name: anyMaterial.name.slice(0, 160), kind: materialKind(anyMaterial), location: null };
   }
   return { description, excerpts };
+}
+
+function canTeachFromMaterial(material: LearningMaterial) {
+  if (material.understanding?.role === "scope_outline") return false;
+  return material.understanding?.role !== "mixed" || material.understanding.topics.some(topic => (
+    topic.sourceReferences.some(reference => reference.sectionRole === "content_source")
+  ));
 }

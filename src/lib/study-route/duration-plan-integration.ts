@@ -70,7 +70,10 @@ export function parseStudyNowDurationDecision(
 
   const parsed = StudyNowDurationDecisionSchema.parse(decision);
   const timing = parsed.timing;
-  if (!NORMAL_STUDY_DURATION_LEVELS.some((minutes) => minutes === timing.activeMinutes)) {
+  const contentEstimated = parsed.routerVersion.split("+").includes("topic_workload_v1")
+    && parsed.ruleTrace.some(rule => rule.ruleId === "plan.workload.content_estimate")
+    && timing.activeMinutes >= 8 && timing.activeMinutes <= 60;
+  if (!contentEstimated && !NORMAL_STUDY_DURATION_LEVELS.some((minutes) => minutes === timing.activeMinutes)) {
     throw new Error("A Study Now duration decision must use a normal-session duration level.");
   }
   if (timing.optionalTimedBreak) {

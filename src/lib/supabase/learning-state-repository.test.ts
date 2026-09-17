@@ -48,6 +48,7 @@ import {
   deleteAuthenticatedActiveSessionCheckpoint,
   loadAuthenticatedLearningState,
   loadAuthenticatedLearningStateWithRetry,
+  readAuthenticatedSessionCompletionReceipt,
   recordAuthenticatedSessionInterruption as persistAuthenticatedSessionInterruption,
   saveAuthenticatedActiveSessionCheckpoint,
   saveAuthenticatedLearnerProfile,
@@ -2426,3 +2427,35 @@ function mockCloudQueries({
     return builder;
   });
 }
+
+
+describe("exact baseline completion receipt", () => {
+  const completion = { id: "00000000-0000-4000-8000-000000000111", planSessionId: "00000000-0000-4000-8000-000000000112", routeRevisionId: ROUTE_REVISION_ID };
+  function receipt(data: unknown, error: unknown = null) {
+    const query = { select: vi.fn(), eq: vi.fn(), not: vi.fn(), maybeSingle: vi.fn().mockResolvedValue({ data, error }) };
+    query.select.mockReturnValue(query); query.eq.mockReturnValue(query); query.not.mockReturnValue(query);
+    from.mockReturnValue(query); return query;
+  }
+  it("reads only the exact completed attempt and route for the authenticated account", async () => {
+    const query = receipt({ id: completion.id, plan_session_id: completion.planSessionId, completed_at: NOW, result_data: { routeRevisionId: ROUTE_REVISION_ID } });
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", completion)).resolves.toBe(true);
+    expect(from).toHaveBeenCalledWith("session_attempts");
+    expect(query.eq.mock.calls).toEqual([["id", completion.id], ["plan_session_id", completion.planSessionId]]);
+    expect(query.not).toHaveBeenCalledWith("completed_at", "is", null);
+  });
+  it.each([null, { completed_at: null }, { completed_at: NOW, result_data: { routeRevisionId: "another-route" } }])("does not infer a commit from missing or mismatched provenance", async data => {
+    receipt(data);
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", completion)).resolves.toBe(false);
+  });
+  it("does not read another account after an account switch", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-2" } }, error: null });
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", completion)).resolves.toBe(false);
+    expect(from).not.toHaveBeenCalled();
+  });
+  it("bounds an unavailable authentication check", async () => {
+    getUser.mockReturnValue(new Promise(() => {}));
+    const pending = expect(readAuthenticatedSessionCompletionReceipt("user-1", completion)).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS);
+    await pending;
+  });
+});

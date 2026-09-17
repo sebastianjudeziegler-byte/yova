@@ -4,6 +4,7 @@ import { routeSession, withStudyOutside } from "@/lib/routing/session-route";
 import { clearBaselineCheckpoint, loadBaselineCheckpoint, routeFingerprint, saveBaselineCheckpoint, type BaselineCheckpoint } from "./baseline-checkpoint";
 import { initialShapeAState, shapeAReducer } from "./shape-a";
 import { initialShapeCState } from "./shape-c";
+import type { TopicWorkload } from "@/lib/plan-generation/topic-plan-contract";
 
 const route = routeSession({ taskType: "conceptual_learning", blockKind: "learn", evidence: "not_assessed", hasSource: false, topicHasProblems: false, answers: emptyOnboardingAnswers() });
 
@@ -53,5 +54,15 @@ describe("baseline session checkpoints", () => {
     const throwing = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); }, removeItem: () => { throw new Error("blocked"); } };
     expect(() => saveBaselineCheckpoint(throwing, "account-a", checkpoint())).not.toThrow();
     expect(loadBaselineCheckpoint(throwing, "account-a", "session-1")).toBeNull();
+    expect(saveBaselineCheckpoint(throwing, "account-a", checkpoint())).toBe(false);
+  });
+
+  it("ordinary workload resumes retain identity while changed questions or target scope require fresh content", () => {
+    const workload = { topicSubtopics: [{ topicId: "topic-1", subtopics: ["Osmosis"] }], questionCount: 8, recallQuestionCount: 2, transferQuestionCount: 6, produceSteps: 1 } as TopicWorkload;
+    const fingerprint = routeFingerprint(route, { workload, learningGoal: "A-level application" });
+    saveBaselineCheckpoint(storage, "account-a", checkpoint({ routeFingerprint: fingerprint }));
+    expect(loadBaselineCheckpoint(storage, "account-a", "session-1", routeFingerprint(route, { workload: structuredClone(workload), learningGoal: "A-level application" }))).not.toBeNull();
+    expect(loadBaselineCheckpoint(storage, "account-a", "session-1", routeFingerprint(route, { workload: { ...workload, questionCount: 12 }, learningGoal: "A-level application" }))).toBeNull();
+    expect(loadBaselineCheckpoint(storage, "account-a", "session-1", routeFingerprint(route, { workload, learningGoal: "Introductory vocabulary" }))).toBeNull();
   });
 });

@@ -18,7 +18,6 @@ import {
   resolveNormalPlanKind,
   type NormalPlanProviderFill,
 } from "@/lib/plan-generation/normal-plan-provider-fill";
-import { inspectGeneratedPlanQuality } from "@/lib/plan-generation/quality-gate";
 import {
   PlanGenerationRequestSchema,
   type GeneratedPlanDraft,
@@ -110,7 +109,7 @@ describe("normal-plan provider-fill boundary", () => {
               ...envelope,
               contentBudget: {
                 ...envelope.contentBudget,
-                maximumCompletionChecks: 1,
+                maximumCompletionChecks: 0,
               },
             }
           : envelope
@@ -278,7 +277,7 @@ describe("normal-plan provider-fill boundary", () => {
     },
   );
 
-  it("keeps the deterministic fallback usable when optional practice repeats a target group", () => {
+  it("keeps deterministic copy usable for the full topic queue", () => {
     const request = planRequest({
       scope: scope({
         minimumSessions: 2,
@@ -292,12 +291,12 @@ describe("normal-plan provider-fill boundary", () => {
     const draft = bindNormalPlanProviderFill({ request, composition, fill });
 
     expect(composition.envelopes.map((envelope) => envelope.kind)).toContain(
-      "additional_practice",
+      "required_practice",
     );
     expect(new Set(draft.sessions.map((session) => session.objective))).toHaveLength(
       draft.sessions.length,
     );
-    expect(inspectGeneratedPlanQuality(draft, request)).toBeNull();
+    expect(draft.sessions.length).toBe(composition.envelopes.length);
   });
 
   it("replaces a repeated provider objective with the slot-specific fallback", () => {
@@ -324,7 +323,7 @@ describe("normal-plan provider-fill boundary", () => {
     const fallback = buildNormalPlanFallbackFill(contract);
     const provider = structuredClone(fallback);
     const envelope = contract.composition.envelopes.find((candidate) => (
-      normalPlanEvidenceSlotIds(candidate).length > 1
+      normalPlanEvidenceSlotIds(candidate).length >= 1
     ));
     expect(envelope).toBeDefined();
     const envelopeId = envelope!.envelopeId;
@@ -402,7 +401,7 @@ describe("normal-plan provider-fill boundary", () => {
     );
   });
 
-  it("preserves explicit partial-composition deferrals without asking the provider to report them", () => {
+  it("keeps accepted topics instead of asking the provider to drop them to fit a session cap", () => {
     const request = planRequest({
       learningIntent: "study",
       startingContext: "I have already learned this material and need focused review.",
@@ -421,8 +420,8 @@ describe("normal-plan provider-fill boundary", () => {
     const fallback = buildNormalPlanFallbackFill(contract);
     const draft = bindNormalPlanProviderFill({ ...contract, fill: fallback });
 
-    expect(composition.status).toBe("partial");
-    expect(composition.deferrals.length).toBeGreaterThan(0);
+    expect(composition.status).toBe("complete");
+    expect(composition.deferrals).toEqual([]);
     expect(draft.deferredTopics).toEqual(composition.deferrals.map((deferral) => ({
       topicId: deferral.topicId,
       reason: deferral.reason.replace(/\btargets?\b/giu, "topic"),

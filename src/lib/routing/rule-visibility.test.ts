@@ -6,10 +6,9 @@ import { chosenBecause, HIDDEN_RULE_IDS, receiptEvidence } from "./rule-evidence
 import { alternativeProduceSteps, routeSession, withProduceStepOverride, withStudyOutside, type RoutingInput, type SessionRoute } from "./session-route";
 
 /**
- * Brief 1.5 item 7: if a routing rule fired, the learner can see it somewhere.
- * The end receipt names every fired rule; the only exception is the topic
- * difficulty band, which stays hidden while its effect (the question count)
- * is named (founder decision, 16 Sept 2026).
+ * Session quality S3: fired routing rules remain traceable internally.
+ * A receipt names the effective method and observed actions, excluding rules
+ * that were overridden or refer to practice that did not occur.
  */
 function profile(seed: Record<string, string | string[]>) {
   return Object.entries(seed).reduce((record, [id, value]) => withOnboardingAnswer(record, id as never, value), emptyOnboardingAnswers());
@@ -54,24 +53,28 @@ function everyRoute(): SessionRoute[] {
   return routes;
 }
 
-describe("every fired rule is visible", () => {
+describe("effective personalization is visible", () => {
   const routes = everyRoute();
 
   it("covers a large sample of routes", () => {
     expect(routes.length).toBeGreaterThan(20_000);
   });
 
-  it("the end receipt names every fired rule except the hidden difficulty band", { timeout: 60_000 }, () => {
-    const invisible = new Map<string, number>();
+  it("receipts name effective produce preferences and reject overridden or unused actions across the route space", { timeout: 60_000 }, () => {
+    const violations = new Set<string>();
+    const preference = { typed_explanation: "L3.q6.explain_back", concept_map: "L3.q6.map_it", retrieval_questions: "L3.q6.answer_questions", worked_solution: "L3.q6.solve_it" };
     for (const route of routes) {
-      for (const happened of [{}, { exampleShown: true }, { exampleShown: false }]) {
-        const named = new Set(receiptEvidence(route, happened).map((entry) => entry.ruleId));
-        for (const ruleId of route.ruleIds) {
-          if (!named.has(ruleId) && !HIDDEN_RULE_IDS.has(ruleId)) invisible.set(ruleId, (invisible.get(ruleId) ?? 0) + 1);
-        }
-      }
+      const practiceOccurred = route.shape === "C" || route.produceStep === "retrieval_questions";
+      const named = new Set(receiptEvidence(route, { practiceOccurred, repairRoundOccurred: false }).map((entry) => entry.ruleId));
+      const expectedPreference = preference[route.produceStep as keyof typeof preference];
+      if (expectedPreference && route.ruleIds.includes(expectedPreference) && !named.has(expectedPreference)) violations.add(`Missing effective ${expectedPreference}`);
+      if ((!route.produceBeforeStudy || route.produceStep === "retrieval_questions") && named.has("L3.q5.try_then_feedback")) violations.add("False try-first claim");
+      if (!practiceOccurred && [...named].some((id) => /^L4\.(practice|mix|q7)\./.test(id))) violations.add("False practice claim");
+      if (named.has("L4.practice.error_repair.after_missed_round")) violations.add("False retry history");
+      if (route.produceStep !== "concept_map" && named.has("C2.q9_visual_overrides_q6")) violations.add("False map claim");
+      if (route.ruleIds.includes("C6.rule_ids_recorded") && !named.has("C6.rule_ids_recorded")) violations.add("Missing traceability");
     }
-    expect([...invisible.keys()].sort()).toEqual([]);
+    expect([...violations]).toEqual([]);
   });
 
   it("names only rules that fired, one sentence each, and never the difficulty band", { timeout: 60_000 }, () => {
@@ -89,12 +92,13 @@ describe("every fired rule is visible", () => {
     expect([...HIDDEN_RULE_IDS].sort()).toEqual(["L4.difficulty.high", "L4.difficulty.low", "L4.difficulty.medium"]);
     const high = routeSession({ taskType: "conceptual_learning", blockKind: "learn", evidence: "not_assessed", hasSource: true, topicHasProblems: false, answers: emptyOnboardingAnswers(), subtopicCount: 9, prerequisiteDepth: 3 });
     expect(high.ruleIds).toContain("L4.difficulty.high");
-    expect(receiptEvidence(high).find((entry) => entry.ruleId === "L4.difficulty.high.more_questions")?.sentence).toBe("Practice on this topic asks eight questions per round.");
+    expect(receiptEvidence(high, { practiceOccurred: false }).find((entry) => entry.ruleId === "L4.difficulty.high.more_questions")).toBeUndefined();
+    expect(receiptEvidence(high, { practiceOccurred: true }).find((entry) => entry.ruleId === "L4.difficulty.high.more_questions")?.sentence).toBe("Practice in this block contains 8 questions before any missed-point retry.");
   });
 
   it("an examples-first learner shown no example gets an honest sentence, not a claim", () => {
     const examplesFirst = routeSession({ taskType: "conceptual_learning", blockKind: "learn", evidence: "not_assessed", hasSource: true, topicHasProblems: false, answers: withOnboardingAnswer(emptyOnboardingAnswers(), "difficulty_help", "concrete_example") });
     const sentence = receiptEvidence(examplesFirst, { exampleShown: false }).find((entry) => entry.ruleId === "L3.q5.concrete_example")?.sentence;
-    expect(sentence).toBe("Because you said a concrete example helps most, YOVA looked for a worked example, but there was none to show this time.");
+    expect(sentence).toBe("Because you said a concrete example helps most, the session included an example step, but you continued without an example being shown.");
   });
 });

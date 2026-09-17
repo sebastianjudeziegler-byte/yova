@@ -1,3 +1,4 @@
+import { buildPlanFromSchedule, chooseGeneratedPlanSource } from "./helpers/plan-setup";
 import { expect, test, type Page } from "@playwright/test";
 import { freezePlanClock } from "./helpers/frozen-clock";
 
@@ -175,18 +176,10 @@ test("finishing a quick-add plan replaces the manual deadline with one linked au
   await confirmation.getByRole("button", { name: "Save and build plan" }).click();
 
   await chooseCalendarGeneratedSource(page);
-  const reviewInputs = page.getByRole("button", { name: "Review plan inputs" });
-  if (await reviewInputs.isVisible()) {
-    await reviewInputs.click();
-  } else {
-    await page.getByRole("button", { name: "Continue to placement check" }).click();
-    await page.getByRole("button", { name: "Skip for now" }).click();
-  }
-  await expect(page.getByRole("heading", { name: "Everything YOVA will use" })).toBeVisible();
-  await page.getByRole("button", { name: "Generate my plan" }).click();
-  await expect(page.getByText("Plan ready")).toBeVisible();
+  await buildPlanFromSchedule(page);
+  await expect(page.getByRole("region", { name: "Plan grouped by topic" })).toBeVisible();
   await page.getByRole("button", { name: "Use this plan" }).click();
-  await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start next block", exact: true })).toBeVisible();
 
   await expect.poll(() => quickAddPlanCommitState(page)).toMatchObject({
     planCount: 1,
@@ -386,8 +379,7 @@ async function chooseCalendarGeneratedSource(page: Page) {
   await expect(page.getByRole("button", { name: /Use my materials/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Create it for me/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Guide me outside YOVA/ })).toBeVisible();
-  await page.getByRole("button", { name: /Create it for me/ }).click();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await chooseGeneratedPlanSource(page);
   await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
 }
 

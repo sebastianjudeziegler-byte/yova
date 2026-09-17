@@ -1,3 +1,4 @@
+import { beginNormalPlan, buildPlanFromSchedule, expandGroupedPlanTopics } from "./helpers/plan-setup";
 import { expect, test, type Page, freezePlanClock, PLAN_FIXED_NOW } from "./helpers/frozen-clock";
 import type { LearningPlan } from "../src/lib/domain";
 
@@ -291,8 +292,8 @@ test("the product shell keeps every core destination and creation path usable", 
   await page.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByRole("button", { name: "Calendar", exact: true }).click();
-  await page.locator(".calendar-page-header").getByRole("button", { name: "Add to YOVA", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "What would you like to add?" })).toBeVisible();
+  await page.locator(".calendar-page-header").getByRole("button", { name: "Add event", exact: true }).click();
+  await expect(page.getByRole("form", { name: "Add calendar event" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("button", { name: "Home", exact: true }).click();
 
@@ -360,11 +361,9 @@ test("a planning request outage still produces a reviewable plan from YOVA's sav
   await completeOnboarding(page);
 
   await beginPlanFromAdd(page, "I have a biology test in two weeks on cellular respiration.");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Skip for now" }).click();
-  await page.getByRole("button", { name: "Generate my plan" }).click();
+  await buildPlanFromSchedule(page);
 
-  await expect(page.getByText("Plan ready")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("region", { name: "Plan grouped by topic" })).toBeVisible({ timeout: 30_000 });
   const livePlanningIssue = page.locator(".generation-notice[role='alert']");
   await expect(livePlanningIssue).toContainText("Live AI planning failed");
   await expect(livePlanningIssue.getByRole("button", { name: "Retry live planning" })).toBeVisible();
@@ -652,78 +651,39 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
 });
 
 test("a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes", async ({ page }) => {
-  await createPreviewAccount(page);
-  await completeOnboarding(page);
-
+  await createPreviewAccount(page); await completeOnboarding(page);
   await beginPlanFromAdd(page, "I have never studied cellular respiration. Teach me from scratch for my exam in three weeks.");
-  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
   await page.getByRole("button", { name: "45 minutes", exact: true }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Skip for now" }).click();
-  await page.getByRole("button", { name: "Generate my plan" }).click();
-  await expect(page.getByText("Plan ready")).toBeVisible({ timeout: 30_000 });
-
-  const visibleDraftRoutes = await page.locator(".generated-timeline article").evaluateAll((articles) => (
-    articles.map((article) => ({
-      title: article.querySelector("h3")?.textContent?.trim() ?? "",
-      modeLabel: article.querySelector("small")?.textContent?.trim() ?? "",
-    }))
-  ));
-  const visibleLearnIndex = visibleDraftRoutes.findIndex((session) => (
-    session.modeLabel.startsWith("TEACHING FIRST")
-  ));
-  const visiblePracticeIndex = visibleDraftRoutes.findIndex((session, index) => (
-    index > visibleLearnIndex && session.modeLabel.startsWith("PRACTICE FIRST")
-  ));
-  expect(visibleLearnIndex, JSON.stringify(visibleDraftRoutes)).toBeGreaterThanOrEqual(0);
-  expect(visiblePracticeIndex, JSON.stringify(visibleDraftRoutes)).toBeGreaterThan(visibleLearnIndex);
-
+  const generated = await (await buildPlanFromSchedule(page)).json() as {plan:LearningPlan};
+  await expect(page.getByRole("region", { name: "Plan grouped by topic" })).toBeVisible();
+  await expandGroupedPlanTopics(page);
+  const learnIndex = generated.plan.sessions.findIndex(session => session.learningMode === "learn");
+  const practiceIndex = generated.plan.sessions.findIndex((session,index) => index > learnIndex && session.learningMode === "study");
+  expect(learnIndex).toBeGreaterThanOrEqual(0); expect(practiceIndex).toBeGreaterThan(learnIndex);
+  for (const session of generated.plan.sessions) {
+    await expect(page.locator(`[data-block-id="${session.id}"]`)).toContainText(session.title);
+    await expect(page.locator(`[data-block-id="${session.id}"]`)).toContainText(session.method);
+  }
   await page.getByRole("button", { name: "Use this plan" }).click();
-  await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
-
-  const activatedRoutes = await page.evaluate(() => {
-    const raw = window.localStorage.getItem("yova.preview.v1");
-    if (!raw) throw new Error("Expected the activated conceptual plan in preview storage.");
-    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
-    const plan = snapshot.plans?.at(-1);
-    if (!plan) throw new Error("Expected the latest activated conceptual plan.");
-    return plan.sessions.map((session) => ({
-      title: session.title,
-      learningMode: session.learningMode,
-      routeMode: session.studyRoute?.approach.mode ?? null,
-      lifecycle: session.studyRoute?.identity.lifecycleStatus ?? null,
-    }));
-  });
-  expect(activatedRoutes.map((session) => session.title)).toEqual(
-    visibleDraftRoutes.map((session) => session.title),
-  );
-  const committedLearnIndex = activatedRoutes.findIndex((session) => (
-    session.learningMode === "learn" && session.routeMode === "learn"
-  ));
-  const committedPracticeIndex = activatedRoutes.findIndex((session, index) => (
-    index > committedLearnIndex
-    && session.learningMode === "study"
-    && session.routeMode === "practice"
-  ));
-  expect(committedLearnIndex, JSON.stringify(activatedRoutes)).toBe(visibleLearnIndex);
-  expect(committedPracticeIndex, JSON.stringify(activatedRoutes)).toBe(visiblePracticeIndex);
-  expect(activatedRoutes.every((session) => session.lifecycle === "committed")).toBe(true);
+  await expect(page.getByRole("button", {name:"Start next block",exact:true})).toBeVisible();
+  const stored = await page.evaluate(() => (JSON.parse(localStorage.getItem("yova.preview.v1")!) as {plans:LearningPlan[]}).plans.at(-1)!);
+  expect(stored.sessions.map(session=>session.title)).toEqual(generated.plan.sessions.map(session=>session.title));
+  expect(stored.sessions[learnIndex]!.studyRoute!.approach.mode).toBe("learn");
+  expect(stored.sessions[practiceIndex]!.studyRoute!.approach.mode).toBe("practice");
+  expect(stored.sessions.every(session=>session.studyRoute!.identity.lifecycleStatus==="committed")).toBe(true);
 });
 
-test("map revision cannot activate a stale draft and reviewed starting level preserves placement", async ({ page }) => {
+test("map revision cannot activate a stale draft and covered reports preserve placement", async ({ page }) => {
   await freezePlanClock(page);
   let releaseUpdate: (() => void) | undefined;
-  let updateStarted = false;
-  let activated = 0;
+  let updateStarted = false; let activated = 0; let diagnosticRequests = 0;
   let previewBody: { proposal: { after: LearningPlan; before: LearningPlan } } | undefined;
-  let diagnosticRequests = 0;
   page.on("request", request => {
     if (new URL(request.url()).pathname === "/api/plans/activate") activated += 1;
     if (request.url().includes("/api/plans/generate?mode=diagnostic")) diagnosticRequests += 1;
   });
   await page.route("**/api/plans/adjust", async route => {
-    const input = route.request().postDataJSON();
-    if (input.action === "preview" && !updateStarted) {
+    if (route.request().postDataJSON().action === "preview" && !updateStarted) {
       updateStarted = true;
       await new Promise<void>(resolve => { releaseUpdate = resolve; });
       const response = await route.fetch(); previewBody = await response.json();
@@ -733,146 +693,67 @@ test("map revision cannot activate a stale draft and reviewed starting level pre
   await createPreviewAccount(page); await completeOnboarding(page);
   await beginPlanFromAdd(page, "Build me a plan to understand cellular respiration from scratch in three weeks.");
   await page.getByRole("button", { name: "45 minutes", exact: true }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Skip for now" }).click();
-  await page.getByRole("button", { name: "Generate my plan" }).click();
-  await expect(page.getByText("Plan ready", { exact: true })).toBeVisible({ timeout: 30_000 });
-  const priorDiagnostics = diagnosticRequests;
-  await page.getByRole("button", { name: "Change content", exact: true }).click();
+  await buildPlanFromSchedule(page);
+  await page.getByRole("button", {name:"Edit plan",exact:true}).click();
+  await page.getByLabel("Add topic",{exact:true}).fill("Fermentation comparison");
+  await page.getByRole("button",{name:"Preview changes",exact:true}).click();
   const panel = page.getByRole("region", { name: "Plan change preview" });
-  await panel.getByLabel("Topic title", { exact: true }).fill("Fermentation comparison");
-  await panel.getByLabel("What should this topic cover?").fill("Compare fermentation with aerobic respiration after glycolysis.");
-  await panel.getByRole("button", { name: "Preview change", exact: true }).click();
   await expect.poll(() => updateStarted).toBe(true);
   try {
     await expect(page.getByRole("button", { name: "Use this plan" })).toBeDisabled();
-    for (const name of ["Change content", "Change source", "Change schedule", "Change starting level"]) await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
+    for (const name of ["Edit plan", "Add material"]) await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
     expect(activated).toBe(0);
   } finally { releaseUpdate?.(); }
   await expect(panel.getByRole("button", { name: "Confirm changes" })).toBeEnabled();
   await panel.getByRole("button", { name: "Confirm changes" }).click();
   await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
   expect(previewBody!.proposal.after.knowledgeMap!.placementCheck).toEqual(previewBody!.proposal.before.knowledgeMap!.placementCheck);
-  await page.getByRole("button", { name: "Change starting level", exact: true }).click();
-  await expect(panel.getByLabel("Change type")).toHaveValue("mark_covered");
-  await expect(page.getByRole("button", { name: "Use this plan" })).toBeDisabled();
-  expect(diagnosticRequests).toBe(priorDiagnostics);
-  expect(activated).toBe(0);
-  await panel.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button",{name:"Edit plan",exact:true}).click();
+  await page.getByRole("region",{name:"Edit plan",exact:true}).getByRole("button",{name:"Cancel",exact:true}).click();
+  await expandGroupedPlanTopics(page);
+  const report = page.waitForResponse(response=>new URL(response.url()).pathname==="/api/plans/adjust"&&response.request().postDataJSON().action==="apply");
+  await page.getByRole("combobox",{name:/^Topic actions for/}).first().selectOption("mark_covered");
+  const applied = await (await report).json() as {plan:LearningPlan};
+  expect(applied.plan.knowledgeMap!.placementCheck).toEqual(previewBody!.proposal.before.knowledgeMap!.placementCheck);
+  expect(applied.plan.knowledgeMap!.topics.some(topic=>topic.initialEvidence?.source==="learner_report")).toBe(true);
+  expect(diagnosticRequests).toBe(0); expect(activated).toBe(0);
   await expect(page.getByRole("button", { name: "Use this plan" })).toBeEnabled();
 });
 
 test("normal-plan review changes one offered method without regenerating or rewriting other routes", async ({ page }) => {
-  let planGenerationRequests = 0;
-  page.on("request", (request) => {
-    if (new URL(request.url()).pathname === "/api/plans/generate") {
-      planGenerationRequests += 1;
-    }
-  });
-
-  await createPreviewAccount(page);
-  await completeOnboarding(page);
-
-  await beginPlanFromAdd(page, "I have a biology test next Friday on cellular respiration.");
-  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
-  await page.getByRole("button", { name: "45 minutes", exact: true }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Skip for now" }).click();
-  await page.getByRole("button", { name: "Generate my plan" }).click();
-  await expect(page.getByText("Plan ready")).toBeVisible({ timeout: 30_000 });
-
-  const generationCountBeforeChoice = planGenerationRequests;
-  const targetSession = page.getByRole("article", { name: /^Session 1:/ });
-  const methodDecision = targetSession.locator("details.generated-method-reason");
-  const methodName = targetSession.locator(":scope > div > p").first();
-  const methodReason = methodDecision.locator(":scope > p");
-  const originalMethod = (await methodName.innerText()).trim();
-  const originalReason = (await methodReason.innerText()).trim();
-
-  await methodDecision.locator("summary").click();
-  await methodDecision.getByRole("button", { name: "Change method" }).click();
-  const alternatives = methodDecision.getByRole("group", {
-    name: /^Other methods that also fit for /,
-  });
-  const alternative = alternatives.getByRole("button").first();
-  const alternativeName = (await alternative.locator("strong").innerText()).trim();
-  expect(alternativeName).not.toBe(originalMethod);
-
-  const methodChoiceResponsePromise = page.waitForResponse((response) => (
-    new URL(response.url()).pathname === "/api/plans/method-choice"
-    && response.request().method() === "POST"
-  ));
-  await alternative.click();
-  const methodChoiceResponse = await methodChoiceResponsePromise;
-  expect(methodChoiceResponse.ok()).toBe(true);
-
-  const requestPayload = methodChoiceResponse.request().postDataJSON() as {
-    plan: LearningPlan;
-    selection: { sessionId: string; methodId: string };
-  };
-  const responsePayload = await methodChoiceResponse.json() as {
-    plan: LearningPlan;
-    revision: { status: string };
-  };
-  expect(responsePayload.revision.status).toBe("updated");
-  expect(requestPayload.selection.methodId).toBe(
-    responsePayload.plan.sessions.find((session) => session.id === requestPayload.selection.sessionId)
-      ?.studyRoute?.approach.primaryMethodId,
-  );
-
-  const beforeRouteIds = new Map(requestPayload.plan.sessions.map((session) => [
-    session.id,
-    session.studyRoute?.identity.routeRevisionId ?? null,
-  ]));
-  const afterRouteIds = new Map(responsePayload.plan.sessions.map((session) => [
-    session.id,
-    session.studyRoute?.identity.routeRevisionId ?? null,
-  ]));
-  for (const [sessionId, routeRevisionId] of beforeRouteIds) {
-    if (sessionId === requestPayload.selection.sessionId) {
-      expect(afterRouteIds.get(sessionId)).not.toBe(routeRevisionId);
-    } else {
-      expect(afterRouteIds.get(sessionId)).toBe(routeRevisionId);
-    }
-  }
-
-  await expect(methodName).toHaveText(alternativeName);
-  await expect(methodReason).toContainText(`You chose ${alternativeName}`);
-  expect((await methodReason.innerText()).trim()).not.toBe(originalReason);
-  await expect(targetSession.getByRole("status")).toContainText(`${alternativeName} is now part of this draft.`);
+  let planGenerationRequests=0;
+  page.on("request",request=>{if(new URL(request.url()).pathname==="/api/plans/generate")planGenerationRequests+=1;});
+  await createPreviewAccount(page);await completeOnboarding(page);
+  await beginPlanFromAdd(page,"I have a biology test next Friday on cellular respiration.");
+  await page.getByRole("button",{name:"45 minutes",exact:true}).click();
+  const generated=await(await buildPlanFromSchedule(page)).json() as {plan:LearningPlan};
+  await expect(page.getByRole("region",{name:"Plan grouped by topic"})).toBeVisible();
+  await expandGroupedPlanTopics(page);
+  const generationCountBeforeChoice=planGenerationRequests;
+  const target=generated.plan.sessions.find(session=>session.studyRoute?.agency.alternatives.length)!;
+  expect(target).toBeDefined();const alternative=target.studyRoute!.agency.alternatives[0]!;
+  expect(alternative.visibleMethodName).not.toBe(target.method);
+  const appliedResponse=page.waitForResponse(response=>new URL(response.url()).pathname==="/api/plans/adjust"&&response.request().postDataJSON().action==="apply");
+  await page.locator(`[data-block-id="${target.id}"]`).getByRole("combobox").selectOption(alternative.primaryMethodId);
+  const applied=await appliedResponse;expect(applied.ok()).toBe(true);
+  const updated=(await applied.json() as {plan:LearningPlan}).plan;
+  const changed=updated.sessions.find(session=>session.id===target.id)!;
+  expect(changed.studyRoute!.approach.primaryMethodId).toBe(alternative.primaryMethodId);
+  expect(changed.studyRoute!.identity.routeRevisionId).not.toBe(target.studyRoute!.identity.routeRevisionId);
+  expect(changed.studyRoute!.agency.selectedBy).toBe("learner");
+  for(const before of generated.plan.sessions){if(before.id!==target.id)expect(updated.sessions.find(session=>session.id===before.id)).toEqual(before);}
+  await expect(page.locator(`[data-block-id="${target.id}"]`)).toContainText(alternative.visibleMethodName);
   expect(planGenerationRequests).toBe(generationCountBeforeChoice);
-
-  await page.getByRole("button", { name: "Use this plan" }).click();
-  await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
-
-  const storedPlan = await page.evaluate((planId) => {
-    const raw = window.localStorage.getItem("yova.preview.v1");
-    if (!raw) throw new Error("Expected the activated plan in preview storage.");
-    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
-    const plan = snapshot.plans?.find((candidate) => candidate.id === planId);
-    if (!plan) throw new Error("Expected the revised plan to be activated.");
-    return plan;
-  }, responsePayload.plan.id);
-  const storedTarget = storedPlan.sessions.find((session) => (
-    session.id === requestPayload.selection.sessionId
-  ));
-  expect(storedTarget).toBeDefined();
-  expect(storedTarget?.method).toBe(alternativeName);
-  expect(storedTarget?.studyRoute?.approach.visibleMethodName).toBe(alternativeName);
-  expect(storedTarget?.studyRoute?.identity.lifecycleStatus).toBe("committed");
-  expect(storedTarget?.studyRoute?.identity.routeRevisionId).toBe(
-    afterRouteIds.get(requestPayload.selection.sessionId),
-  );
-  expect(storedTarget?.studyRoute?.agency).toMatchObject({
-    selectedBy: "learner",
-    controlMode: "learner_customizes",
-    override: { changedFields: ["primary_method"] },
-  });
-  for (const storedSession of storedPlan.sessions) {
-    if (storedSession.id === requestPayload.selection.sessionId) continue;
-    expect(storedSession.studyRoute?.identity.routeRevisionId).toBe(beforeRouteIds.get(storedSession.id));
-    expect(storedSession.studyRoute?.agency.selectedBy).toBe("yova");
-  }
+  await page.getByRole("button",{name:"Use this plan",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Start next block",exact:true})).toBeVisible();
+  const stored=await page.evaluate(id=>(JSON.parse(localStorage.getItem("yova.preview.v1")!) as {plans:LearningPlan[]}).plans.find(plan=>plan.id===id)!,updated.id);
+  const storedTarget=stored.sessions.find(session=>session.id===target.id)!;
+  expect(storedTarget.method).toBe(alternative.visibleMethodName);
+  expect(storedTarget.studyRoute!.approach.visibleMethodName).toBe(alternative.visibleMethodName);
+  expect(storedTarget.studyRoute!.identity.lifecycleStatus).toBe("committed");
+  expect(storedTarget.studyRoute!.identity.routeRevisionId).toBe(changed.studyRoute!.identity.routeRevisionId);
+  expect(storedTarget.studyRoute!.agency).toMatchObject({selectedBy:"learner",controlMode:"learner_customizes",override:{changedFields:["primary_method"]}});
+  for(const before of generated.plan.sessions){if(before.id!==target.id){const persisted=stored.sessions.find(session=>session.id===before.id)!;expect(persisted.studyRoute!.identity.routeRevisionId).toBe(before.studyRoute!.identity.routeRevisionId);expect(persisted.studyRoute!.agency.selectedBy).toBe("yova");}}
 });
 
 test("a multi-session plan carries one clear source decision from Add to Learning", async ({ page }, testInfo) => {
@@ -886,47 +767,34 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
 
   await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
   await page.getByRole("button", { name: "45 minutes", exact: true }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Skip for now" }).click();
-
-  await expect(page.getByRole("heading", { name: "Everything YOVA will use" })).toBeVisible();
-  await expect(page.getByText("Guided inside YOVA with YOVA-created teaching and practice")).toBeVisible();
-  await page.getByRole("button", { name: "Generate my plan" }).click();
-
-  await expect(page.getByText("Plan ready")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Does this plan match what you need?" })).toBeVisible();
-  await expect(page.getByText("Nothing is active until you confirm it below.")).toBeVisible();
-  const planContract = page.getByRole("region", { name: "How YOVA mapped this plan" });
-  await expect(planContract).toBeVisible();
-  await expect(planContract).toContainText("KNOWLEDGE MAP");
-  await expect(planContract).toContainText("SESSION LOAD");
-  await expect(planContract).toContainText("YOUR DELIVERY");
-  await expect(planContract).toContainText("YOUR SCHEDULE");
-  await expect(page.locator(".generated-session-focus").first()).toContainText("Focus:");
-  await page.getByRole("button", { name: "Change schedule" }).click();
-  const schedulePreview = page.getByRole("region", { name: "Plan change preview" });
-  await expect(schedulePreview.getByLabel("Change type")).toHaveValue("set_availability");
-  await schedulePreview.getByLabel("Day", { exact: true }).selectOption("Sunday");
-  await schedulePreview.getByLabel("Time window", { exact: true }).fill("20:00–21:00");
-  await schedulePreview.getByRole("button", { name: "Preview change", exact: true }).click();
-  await schedulePreview.getByRole("button", { name: "Confirm changes" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
-  const reviewedMethods = (await page.locator(
-    ".generated-timeline article > div > p:not(.generated-session-focus)",
-  ).allTextContents()).map((method) => method.trim());
+  const generated = await (await buildPlanFromSchedule(page)).json() as {plan:LearningPlan};
+  const grouped = page.getByRole("region", {name:"Plan grouped by topic"});
+  await expect(grouped).toBeVisible();
+  await expect(page.getByText("Nothing is active until you save this plan.")).toBeVisible();
+  expect(generated.plan.sourceMode).toBe("yova_generated");
+  expect(generated.plan.studyMode).toBe("inside_yova");
+  expect(generated.plan.knowledgeMap!.topics.length).toBeGreaterThan(0);
+  expect(generated.plan.sessions.length).toBeGreaterThan(0);
+  await expect(grouped).toContainText(`${generated.plan.sessions.length} blocks`);
+  await expect(grouped).toContainText(generated.plan.planModel!.personalizationSentence);
+  await page.getByRole("button", { name: "Edit plan",exact:true }).click();
+  const editor=page.getByRole("region",{name:"Edit plan",exact:true});
+  await editor.getByLabel("Day for window 1").selectOption("Sunday");
+  await editor.getByLabel("Time for Sunday",{exact:true}).selectOption("Evening");
+  await editor.getByRole("button",{name:"Preview changes",exact:true}).click();
+  const schedulePreview=page.getByRole("region",{name:"Plan change preview"});
+  const savedResponse=page.waitForResponse(response=>new URL(response.url()).pathname==="/api/plans/adjust"&&response.request().postDataJSON().action==="apply");
+  await schedulePreview.getByRole("button",{name:"Confirm changes",exact:true}).click();
+  const reviewed=(await(await savedResponse).json() as {plan:LearningPlan}).plan;
+  const reviewedMethods=reviewed.sessions.map(session=>session.method);
+  const reviewedMethodReasons=reviewed.sessions.map(session=>session.methodReason);
   expect(reviewedMethods.length).toBeGreaterThan(0);
-  expect(reviewedMethods.every((method) => method.length > 0)).toBe(true);
-  const reviewedMethodReasons = (await page.locator(
-    ".generated-method-reason > p",
-  ).allTextContents()).map((reason) => reason.trim());
-  expect(reviewedMethodReasons).toHaveLength(reviewedMethods.length);
-  expect(reviewedMethodReasons.every((reason) => reason.length > 0)).toBe(true);
-  const firstMethodReason = page.locator(".generated-method-reason").first();
-  await firstMethodReason.locator("summary").click();
-  await expect(firstMethodReason.locator("p")).toBeVisible();
+  expect(reviewedMethods.every(method=>method.length>0)).toBe(true);
+  expect(reviewedMethodReasons.every(reason=>reason.length>0)).toBe(true);
+  await expandGroupedPlanTopics(page);
+  for(const session of reviewed.sessions)await expect(page.locator(`[data-block-id="${session.id}"]`)).toContainText(session.method);
   await page.getByRole("button", { name: "Use this plan" }).click();
-  await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
-  await expect(page.getByText("Created by YOVA", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name:"Start next block",exact:true })).toBeVisible();
   const persistedMethodContract = await page.evaluate(() => {
     const raw = window.localStorage.getItem("yova.preview.v1");
     if (!raw) throw new Error("Expected the activated multi-session plan in preview storage.");
@@ -954,25 +822,35 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
 
   const actionHeights = await page.locator(".learning-hero-actions .button").evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().height));
   expect(actionHeights.every(height => height >= 44 && height <= 80)).toBe(true);
-  await page.locator(".learning-hero").screenshot({ path: testInfo.outputPath("plan-actions.png") });
+  await page.locator(".learning-hero-actions").screenshot({ path: testInfo.outputPath("plan-actions.png") });
 
-  const initialSessionCount = await page.locator(".timeline-row").count();
+  const initialSessionCount = await page.locator("[data-block-id]").count();
   expect(initialSessionCount).toBeGreaterThan(0);
-  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+  await page.getByRole("button", { name: "Edit plan", exact: true }).click();
+  const activeEditor=page.getByRole("region",{name:"Edit plan",exact:true});
+  const removeWindow=activeEditor.getByRole("button",{name:/^Remove window/});
+  while(await removeWindow.count()>1)await removeWindow.last().click();
+  await activeEditor.getByLabel("Day for window 1").selectOption("Thursday");
+  await activeEditor.getByLabel("Time for Thursday",{exact:true}).selectOption("Evening");
+  await activeEditor.getByLabel("Minutes for Thursday",{exact:true}).fill("15");
+  const capacityResponse=page.waitForResponse(response=>new URL(response.url()).pathname==="/api/plans/adjust"&&response.request().postDataJSON().action==="preview");
+  await activeEditor.getByRole("button",{name:"Preview changes",exact:true}).click();
   const activePreview = page.getByRole("region", { name: "Plan change preview" });
-  await activePreview.getByLabel("Change type").selectOption("set_availability");
-  const kept = activePreview.getByRole("checkbox", { name: /^Keep existing window/ });
-  for (let index = 0; index < await kept.count(); index += 1) await kept.nth(index).uncheck();
-  await activePreview.getByLabel("Day", { exact: true }).selectOption("Thursday");
-  await activePreview.getByLabel("Time window", { exact: true }).fill("18:00–18:15");
-  await activePreview.getByLabel("Minutes", { exact: true }).fill("15");
-  await activePreview.getByRole("button", { name: "Preview change", exact: true }).click();
-  // Capacity across the fixed deadline is explicit. An impossible reduction
-  // keeps the current plan and offers the existing degrade choices.
-  await expect(activePreview).toContainText(/Move a block|Shorten scope|Add time/);
-  await expect(activePreview.getByRole("button", { name: "Confirm changes" })).toBeDisabled();
+  const capacity=await(await capacityResponse).json() as {proposal:{canApply:boolean;before:LearningPlan;after:LearningPlan}};
+  // Availability may move the full queue beyond the deadline. It must never
+  // silently discard topics or fake a completion when a short window is chosen.
+  expect(capacity.proposal.after.knowledgeMap!.topics).toEqual(capacity.proposal.before.knowledgeMap!.topics);
+  expect(capacity.proposal.after.sessions.every(session=>session.status!=="complete")).toBe(true);
+  if(!capacity.proposal.canApply){
+    await expect(activePreview).toContainText(/Move a block|Shorten scope|Add time/);
+    await expect(activePreview.getByRole("button",{name:"Confirm changes"})).toBeDisabled();
+    expect(capacity.proposal.after.sessions).toEqual(capacity.proposal.before.sessions);
+  } else {
+    await expect(activePreview.getByRole("button",{name:"Confirm changes"})).toBeEnabled();
+    expect(capacity.proposal.after.sessions).toHaveLength(capacity.proposal.before.sessions.length);
+  }
   await activePreview.getByRole("button", { name: "Cancel", exact: true }).click();
-  const adjustedDurations = await page.locator(".timeline-row > span:last-child").allTextContents();
+  const adjustedDurations = await page.locator("[data-block-id] > p").allTextContents();
   expect(adjustedDurations).toHaveLength(initialSessionCount);
   const planClock = await page.evaluate(() => {
     const snapshot = JSON.parse(window.localStorage.getItem("yova.preview.v1")!) as { plans: LearningPlan[] };
@@ -993,12 +871,12 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
     contentType: "application/json",
   });
   console.log("Plan clock evidence:", JSON.stringify(clockEvidence));
-  await expect(page.getByText(/sessions complete/).first()).toBeVisible();
+  await expect(page.getByRole("region",{name:"Plan grouped by topic"})).toContainText("0 done");
 
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
   const tutorContext = page.getByRole("combobox", { name: "Ask YOVA context" });
   await expect(tutorContext).toHaveValue("general");
-  await expect(tutorContext.locator("option").nth(1)).toContainText("Biology Test on Cellular Respiration");
+  await expect(tutorContext.locator("option").nth(1)).toContainText(reviewed.title);
   await tutorContext.selectOption({ index: 1 });
   await expect(page.getByText("Using learning context")).toBeVisible();
   await expect(page.getByText("YOVA can use this goal's materials, next session, and learner evidence.")).toBeVisible();
@@ -1180,13 +1058,7 @@ test("material drop zone accepts drag gestures and explains rejected files", asy
 });
 
 async function beginPlanFromAdd(page: Page, description: string) {
-  await page.getByRole("button", { name: "Calendar", exact: true }).click();
-  await page.locator(".calendar-page-header").getByRole("button", { name: "Add to YOVA", exact: true }).click();
-  await page.getByRole("textbox", { name: "Describe what you want to add" }).fill(description);
-  await page.getByRole("button", { name: "Organize this" }).click();
-  await expect(page.getByRole("heading", { name: "Here is what YOVA understood." })).toBeVisible();
-  await page.getByRole("button", { name: "Choose what YOVA should do" }).click();
-  await page.getByRole("button", { name: /Create a plan/ }).click();
+  await beginNormalPlan(page, description);
 }
 
 async function expectNoHorizontalOverflow(page: Page, selector: string) {

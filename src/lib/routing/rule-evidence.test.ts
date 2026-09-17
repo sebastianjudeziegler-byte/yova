@@ -15,7 +15,9 @@ describe("rule evidence", () => {
   it("only ever names rules that fired, each with a short head and one sentence", () => {
     const routed = route({}, { prove_knowing: "map_it", gist_detail: "gist_leaning" });
     const evidence = ruleEvidence(routed);
-    expect(evidence.map((entry) => entry.ruleId)).toEqual(expect.arrayContaining(["L3.q6.map_it", "L4.mix.conceptual_learning", "L4.q7.gist_leaning.mix_recall"]));
+    expect(evidence.map((entry) => entry.ruleId)).toContain("L3.q6.map_it");
+    expect(evidence.map((entry) => entry.ruleId)).not.toContain("L4.mix.conceptual_learning");
+    expect(ruleEvidence(routed, { practiceOccurred: true }).map((entry) => entry.ruleId)).toEqual(expect.arrayContaining(["L4.mix.conceptual_learning", "L4.q7.gist_leaning.mix_recall"]));
     for (const entry of evidence) {
       expect(routed.ruleIds).toContain(entry.ruleId);
       expect(entry.head.length).toBeGreaterThan(4);
@@ -42,6 +44,14 @@ describe("rule evidence", () => {
     const routed = route({}, { difficulty_help: "concrete_example" });
     expect(ruleEvidence(routed, { exampleShown: true }).map((entry) => entry.ruleId)).toContain("L3.q5.concrete_example");
     expect(ruleEvidence(routed, { exampleShown: false }).map((entry) => entry.ruleId)).not.toContain("L3.q5.concrete_example");
+  });
+
+  it("describes check-ins as offered stopping points rather than automatic pauses", () => {
+    const routed = route({}, { support_needs: ["frequent_check_ins"] });
+    const claim = ruleEvidence(routed, { checkInsShown: true }).find(entry => entry.ruleId === "L4.q9.frequent_check_ins");
+    expect(claim?.sentence).toContain("offered an explicit stopping point");
+    expect(claim?.sentence).not.toContain("paused");
+    expect(ruleEvidence(routed, { checkInsShown: false }).some(entry => entry.ruleId === "L4.q9.frequent_check_ins")).toBe(false);
   });
 
   it("chosen-because pills are the evidence heads, and fall back to the task default", () => {

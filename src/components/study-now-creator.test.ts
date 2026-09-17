@@ -6,6 +6,7 @@ import {
   studyNowStartingPointForSeed,
   StudyNowCreator,
   studyNowPreviewPreferenceRequestInput,
+  studyNowAvailableMinutes,
 } from "@/components/study-now-creator";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
@@ -27,6 +28,21 @@ const seed: AddIntakeSeed = {
 };
 
 describe("StudyNowCreator request summary", () => {
+  it.each([20, 40, 17])("honors a direct %i-minute request without rounding up", minutes => {
+    expect(studyNowAvailableMinutes(`Help me understand the product rule in ${minutes} minutes.`, null)).toBe(minutes);
+  });
+
+  it("preserves a seeded ceiling and lets an edited explicit duration replace it", () => {
+    expect(studyNowAvailableMinutes("Help me understand the product rule.", { ...seed, requestedMinutes: 20 })).toBe(20);
+    expect(studyNowAvailableMinutes("Help me understand the product rule within 12 minutes.", { ...seed, requestedMinutes: 40 })).toBe(12);
+    expect(studyNowAvailableMinutes("Help me understand the product rule.", { ...seed, requestedMinutes: 5 })).toBe(5);
+  });
+
+  it("keeps the 25-minute default when topic text contains no explicit duration", () => {
+    expect(studyNowAvailableMinutes("Complete 40 calculus problems from chapter 20.", null)).toBe(25);
+    expect(studyNowAvailableMinutes("Help me understand the product rule.", null)).toBe(25);
+  });
+
   it("renders title, objective, and scope as separate sentences without relying on source punctuation", () => {
     const html = renderToStaticMarkup(createElement(StudyNowCreator, {
       onExit: vi.fn(),

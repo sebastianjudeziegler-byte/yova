@@ -213,8 +213,8 @@ describe("normal-plan envelope route integration", () => {
       availabilityMinutes: 60,
     },
     {
-      label: "observed outcome adjustment",
-      expected: "observed_outcome_adjustment" as const,
+      label: "profile ceiling unaffected by unscoped past outcomes",
+      expected: "profile_recommendation" as const,
       durationContext: durationContext({
         sustainableMinutes: 45,
         recentOutcomes: interruptionOutcomes(),
@@ -251,10 +251,7 @@ describe("normal-plan envelope route integration", () => {
 
   it("binds mixed Learn and Practice envelopes without changing either target snapshot", () => {
     const fixture = buildFixture();
-    expect(fixture.composition.envelopes.map((envelope) => envelope.learningMode)).toEqual([
-      "learn",
-      "study",
-    ]);
+    expect(fixture.composition.envelopes.map((envelope) => envelope.learningMode)).toEqual(["learn", "learn", "study", "study"]);
 
     const results = fixture.plan.sessions.map((session) => {
       return {
@@ -267,10 +264,7 @@ describe("normal-plan envelope route integration", () => {
       };
     });
 
-    expect(results.map(({ binding }) => binding.route.approach.mode)).toEqual([
-      "learn",
-      "practice",
-    ]);
+    expect(results.map(({ binding }) => binding.route.approach.mode)).toEqual(["learn", "learn", "practice", "practice"]);
     results.forEach(({ session, binding }, index) => {
       expect(session.studyRoute).toBeUndefined();
       expect(binding.route.target.targetStates.map((target) => target.targetId)).toEqual(
@@ -287,8 +281,8 @@ describe("normal-plan envelope route integration", () => {
     });
     const envelope = fixture.composition.envelopes[0]!;
     const session = fixture.plan.sessions[0]!;
-    expect(envelope.topicIds).toHaveLength(2);
-    expect(session.completionEvidence).toHaveLength(2);
+    expect(envelope.topicIds).toHaveLength(1);
+    expect(session.completionEvidence).toHaveLength(1);
 
     const result = integrateNormalPlanEnvelopeRoute({
       plan: fixture.plan,
@@ -312,11 +306,11 @@ describe("normal-plan envelope route integration", () => {
     });
     const shortSession = {
       ...structuredClone(fixture.plan.sessions[0]!),
-      completionEvidence: fixture.plan.sessions[0]!.completionEvidence!.slice(0, 1),
+      completionEvidence: fixture.plan.sessions[0]!.completionEvidence!.slice(0, 0),
     };
     const shortPlan = {
       ...structuredClone(fixture.plan),
-      sessions: [shortSession],
+      sessions: [shortSession, ...structuredClone(fixture.plan.sessions.slice(1))],
     };
     expectIntegrationError(() => integrateNormalPlanEnvelopeRoute({
       plan: shortPlan,
@@ -330,7 +324,7 @@ describe("normal-plan envelope route integration", () => {
         index === 0
           ? {
               ...envelope,
-              targetModeDecisions: [...envelope.targetModeDecisions].reverse(),
+              targetModeDecisions: envelope.targetModeDecisions.map(decision=>({...decision,topicId:IDS[9]!})),
             }
           : envelope
       )),
@@ -496,15 +490,15 @@ describe("normal-plan envelope route integration", () => {
     });
   });
 
-  it("accepts a partial plan while keeping global deferrals out of the active session route", () => {
+  it("keeps the whole topic queue while each active route remains topic-specific", () => {
     const fixture = buildFixture({
       learningIntent: "study",
       topicCount: 7,
       oneSession: true,
       availabilityMinutes: 25,
     });
-    expect(fixture.composition.status).toBe("partial");
-    expect(fixture.composition.deferrals.length).toBeGreaterThan(0);
+    expect(fixture.composition.status).toBe("complete");
+    expect(fixture.composition.deferrals).toEqual([]);
     const session = fixture.plan.sessions[0]!;
     const result = integrateNormalPlanEnvelopeRoute({
       plan: fixture.plan,

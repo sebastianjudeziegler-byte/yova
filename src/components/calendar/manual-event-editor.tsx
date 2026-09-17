@@ -11,8 +11,9 @@ function localInput(iso: string) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-export function ManualEventEditor({ event, series, onSave, onCancel }: {
+export function ManualEventEditor({ event, series, onSave, onCancel, mode = "edit" }: {
   event: ManualCalendarEvent;
+  mode?: "create" | "edit";
   series?: ManualCalendarBlock["series"];
   onSave: (before: ManualCalendarEvent, after: ManualCalendarEvent, scope: "occurrence" | "series", series?: ManualCalendarBlock["series"]) => Promise<void>;
   onCancel: () => void;
@@ -32,7 +33,7 @@ export function ManualEventEditor({ event, series, onSave, onCancel }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const outcome = type === "deadline" || type === "exam";
-  return <form className="calendar-event-editor" aria-label="Edit calendar item" onSubmit={async (e) => {
+  return <form className="calendar-event-editor" aria-label={mode === "create" ? "Add calendar event" : "Edit calendar item"} onSubmit={async (e) => {
     e.preventDefault();
     setError("");
     const deadlineOnly = outcome && !time;
@@ -73,8 +74,8 @@ export function ManualEventEditor({ event, series, onSave, onCancel }: {
     {outcome && <label>Due time<input type="datetime-local" required value={due} onChange={(e) => setDue(e.target.value)} /></label>}
     <label>Course<input value={course} maxLength={120} onChange={(e) => setCourse(e.target.value)} /></label>
     <label className="calendar-checkbox"><input type="checkbox" checked={fixed} onChange={(e) => setFixed(e.target.checked)} /><span>Fixed time</span></label>
-    {(!originalSeries || scope === "series") && !outcome && <RecurrenceFields value={recurrence} startsAt={time && Number.isFinite(new Date(time).getTime()) ? new Date(time).toISOString() : null} onChange={setRecurrence} />}
+    {mode === "edit" && (!originalSeries || scope === "series") && !outcome && <RecurrenceFields value={recurrence} startsAt={time && Number.isFinite(new Date(time).getTime()) ? new Date(time).toISOString() : null} onChange={setRecurrence} />}
     {error && <p className="calendar-inline-error" role="alert">{error}</p>}
-    <div className="calendar-inline-actions"><button type="button" className="button ghost" disabled={saving} onClick={onCancel}>Cancel editing</button><button className="button primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button></div>
+    <div className="calendar-inline-actions"><button type="button" className="button ghost" disabled={saving} onClick={onCancel}>{mode === "create" ? "Cancel" : "Cancel editing"}</button><button className="button primary" type="submit" disabled={saving}>{saving ? "Saving…" : mode === "create" ? "Add event" : "Save changes"}</button></div>
   </form>;
 }

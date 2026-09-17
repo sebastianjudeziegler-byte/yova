@@ -1,4 +1,5 @@
 import type { ProduceStep, SessionRoute } from "@/lib/routing/session-route";
+import { emptyConceptMap, type ConceptMapDraft, type MapItemFeedback } from "./concept-map";
 
 /**
  * Shape A — study → produce → compare → repair. A coded step sequence.
@@ -27,12 +28,16 @@ export type ShapeAStep = {
 
 export type ShapeAProduceInput =
   | { kind: "typed_explanation" | "outline" | "worked_solution"; text: string }
-  | { kind: "concept_map"; concepts: string[]; links: Array<{ from: string; to: string; label: string }> };
+  | { kind: "concept_map"; concepts: string[]; links: Array<{ from: string; to: string; label: string }>; map?: ConceptMapDraft };
+
+export type ShapeADraft = { text: string; map: ConceptMapDraft; repairText: string; repairMap: ConceptMapDraft | null };
+export const initialShapeADraft = (): ShapeADraft => ({ text: "", map: emptyConceptMap(), repairText: "", repairMap: null });
 
 export type ShapeAComparison = {
   feedback: string;
   missing: string[];
   incorrect: string[];
+  itemFeedback?: MapItemFeedback[];
 };
 
 export type ShapeAState = {
@@ -42,6 +47,13 @@ export type ShapeAState = {
   comparison: ShapeAComparison | null;
   repair: string | null;
   repairSkipped: boolean;
+  /** Optional for checkpoints written before durable drafts were introduced. */
+  draft?: ShapeADraft;
+  comparisonUnavailable?: boolean;
+  repairStatus?: "pending" | "checked" | "error";
+  repairComparison?: ShapeAComparison | null;
+  revisedProduce?: ShapeAProduceInput | null;
+  exampleViewed?: boolean;
   /** Set when the learner chooses to keep going after the timer nudge; never blocks. */
   timerAcknowledged: boolean;
 };
@@ -50,7 +62,12 @@ export type ShapeAEvent =
   | { type: "continue" }
   | { type: "submit_produce"; produce: ShapeAProduceInput }
   | { type: "comparison_ready"; comparison: ShapeAComparison }
-  | { type: "submit_repair"; text: string }
+  | { type: "edit_draft"; draft: ShapeADraft }
+  | { type: "example_viewed" }
+  | { type: "skip_comparison" }
+  | { type: "submit_repair"; text: string; produce?: ShapeAProduceInput }
+  | { type: "repair_comparison_ready"; comparison: ShapeAComparison }
+  | { type: "repair_failed" }
   | { type: "skip_repair" }
   | { type: "acknowledge_timer" };
 
@@ -113,6 +130,7 @@ export function initialShapeAState(route: SessionRoute): ShapeAState {
     comparison: null,
     repair: null,
     repairSkipped: false,
+    draft: initialShapeADraft(),
     timerAcknowledged: false,
   };
 }
@@ -143,6 +161,8 @@ export function shapeAReducer(state: ShapeAState, event: ShapeAEvent): ShapeASta
   const step = currentShapeAStep(state);
   if (!step) return state;
   if (event.type === "acknowledge_timer") return { ...state, timerAcknowledged: true };
+  if (event.type === "example_viewed") return { ...state, exampleViewed: true };
+  if (event.type === "edit_draft" && (step.kind === "produce" || (step.kind === "repair" && state.repairStatus !== "checked"))) return { ...state, draft: event.draft };
   switch (step.kind) {
     case "direct":
     case "away":
@@ -155,11 +175,14 @@ export function shapeAReducer(state: ShapeAState, event: ShapeAEvent): ShapeASta
         : state;
     case "compare":
       if (event.type === "comparison_ready") return { ...state, comparison: event.comparison };
+      if (event.type === "skip_comparison" && !state.comparison) return { ...state, index: state.steps.length - 1, comparisonUnavailable: true, repairSkipped: true };
       // Feedback, not a verdict: the learner may continue once the comparison is shown.
       return event.type === "continue" && state.comparison ? advance(state) : state;
     case "repair":
-      if (event.type === "submit_repair" && event.text.trim()) return advance({ ...state, repair: event.text.trim() });
-      if (event.type === "skip_repair" || event.type === "continue") return advance({ ...state, repairSkipped: true });
+      if (event.type === "submit_repair" && event.text.trim() && state.repairStatus !== "checked" && state.repairStatus !== "pending") return { ...state, repair: event.text.trim(), revisedProduce: event.produce ?? null, repairStatus: "pending", repairComparison: null };
+      if (event.type === "repair_comparison_ready" && state.repairStatus === "pending") return { ...state, repairStatus: "checked", repairComparison: event.comparison };
+      if (event.type === "repair_failed" && state.repairStatus === "pending") return { ...state, repairStatus: "error" };
+      if (event.type === "skip_repair" || event.type === "continue") return advance({ ...state, repairSkipped: !state.repair });
       return state;
     case "end":
       return state;

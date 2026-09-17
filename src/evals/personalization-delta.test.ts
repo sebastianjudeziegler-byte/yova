@@ -38,7 +38,7 @@ describe("Brief A permanent personalization delta", () => {
     expect(plan.sessions.map(s => [s.topicIds, s.learningMode, s.estimatedMinutes, s.scheduledFor])).toEqual(fixture.composition.envelopes.map(e => [e.topicIds, e.learningMode, e.timing.activeMinutes, e.scheduledFor]));
   });
 
-  it("prioritizes a named ETC difficulty after prerequisites, budgets more time and explains it without recording evidence", () => {
+  it("prioritizes a named ETC difficulty after prerequisites within the content ceiling, without recording evidence", () => {
     const fixture = deltaFixture(1);
     const before = structuredClone(fixture.request.knowledgeMap);
     const plan = buildNormalPlanFromFixedEnvelope({ ...fixture, fill: buildNormalPlanFallbackFill(fixture) });
@@ -46,9 +46,10 @@ describe("Brief A permanent personalization delta", () => {
     expect(plan.sessions[0].topicIds).toContain(deltaTopicId(0));
     const etc = plan.sessions.find(s => s.topicIds?.includes(deltaTopicId(4)))!;
     const normal = plan.sessions.find(s => s.topicIds?.includes(deltaTopicId(1)))!;
-    expect(etc.estimatedMinutes).toBeGreaterThan(normal.estimatedMinutes);
+    expect(etc.estimatedMinutes).toBeLessThanOrEqual(etc.workload!.ceilingMinutes);
+    expect(normal.estimatedMinutes).toBeLessThanOrEqual(normal.workload!.ceilingMinutes);
     expect(plan.rationale).toMatch(/electron transport chain/i);
-    expect(plan.rationale).toMatch(/confus|stuck|difficulty|extra|more time/i);
+    expect(plan.rationale).toMatch(/confus|stuck|difficult/i);
     expect(fixture.request.knowledgeMap).toEqual(before);
     expect(plan.sessions.flatMap(s => s.studyRoute?.provenance.evidenceRefs ?? [])).not.toContainEqual(expect.stringMatching(/^placement:/));
   });
@@ -104,7 +105,10 @@ describe("Brief A permanent personalization delta", () => {
   it("does not prioritize a negated difficulty or a topic absent from the map", () => {
     for (const startingContext of ["The ETC is not confusing.", "Quantum mechanics confuses me."]) {
       const fixture = deltaFixture(1, { startingContext });
-      expect(fixture.composition.envelopes.findIndex(e => e.topicIds.includes(deltaTopicId(4)))).toBe(4);
+      // Spaced returns can now occur between first passes; they must not
+      // change which topic is introduced first because of negated prose.
+      const firstSeenTopics = [...new Set(fixture.composition.envelopes.flatMap(envelope => envelope.topicIds))];
+      expect(firstSeenTopics.indexOf(deltaTopicId(4))).toBe(4);
     }
   });
 

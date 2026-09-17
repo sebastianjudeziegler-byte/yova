@@ -1,3 +1,4 @@
+import { hydrateShapeSlotContext } from "@/lib/server/shape-slot-context";
 import "server-only";
 import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import { fillShapeSlot, ShapeSlotGenerationError, type SlotProvider } from "@/lib/openai/shape-slot-generator";
@@ -62,7 +63,7 @@ export async function handleShapeSlotRequest(request: Request, { provider }: Sha
   if (!parsed.success) {
     return failure(422, { error: "YOVA could not read this session step.", code: "invalid_request" });
   }
-  const slotRequest = parsed.data;
+  let slotRequest = parsed.data;
 
   if (!developmentPreview && supabase) {
     const operationAccess = await verifyOperationalPlanSession(supabase, {
@@ -73,6 +74,11 @@ export async function handleShapeSlotRequest(request: Request, { provider }: Sha
       const denied = sessionOperationFailure(operationAccess);
       return failure(denied.status, { error: denied.error, code: "not_operational" });
     }
+  }
+
+  if (!developmentPreview && supabase && user) {
+    try { slotRequest = await hydrateShapeSlotContext(supabase, user.id, slotRequest); }
+    catch { return failure(409, { error: "YOVA could not verify the saved topic and sources. Refresh this plan and try again.", code: "invalid_request" }); }
   }
 
   const rateLimit = checkLessonGenerationRateLimit(`${user?.id ?? "preview"}:${requestRateLimitKey(request)}`);

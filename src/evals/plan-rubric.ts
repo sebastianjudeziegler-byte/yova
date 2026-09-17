@@ -52,6 +52,10 @@ export function evaluatePlanDraft(
   const hasDeadlineViolation = request.deadline
     ? draft.sessions.some((session) => new Date(session.scheduledFor).getTime() > new Date(request.deadline as string).getTime())
     : false;
+  const topicQueue = composition?.planModel?.version === "topic_plan_v2";
+  const deadlineHonest = !hasDeadlineViolation || Boolean(topicQueue
+    && composition?.planModel?.constraints.some(note => /after the deadline/i.test(note))
+    && draft.sessions.every((session, index) => session.scheduledFor === composition.envelopes[index]?.scheduledFor));
   const uniqueObjectives = new Set(draft.sessions.map((session) => normalize(session.objective))).size;
   const progression = progressionSignals(draft);
   const sourceLanguageIsSafe = request.materialMode !== "upload"
@@ -65,10 +69,10 @@ export function evaluatePlanDraft(
   // Only the trusted production composer can establish deadline recovery.
   // Legacy provider output has no such authority. Keep all coverage, timing,
   // progression and method checks even when the Sept 7 ladder reduces count.
-  const expectedMinimumSessions = composition?.capacityRecovery ? composition.envelopes.length : request.intent === "study_now"
+  const expectedMinimumSessions = topicQueue ? composition.envelopes.length : composition?.capacityRecovery ? composition.envelopes.length : request.intent === "study_now"
     ? 1
     : Math.max(scope.minimumSessions, contentBudget.minimumSessions);
-  const expectedMaximumSessions = request.intent === "study_now" ? 1 : scope.maximumSessions;
+  const expectedMaximumSessions = topicQueue ? composition.envelopes.length : request.intent === "study_now" ? 1 : scope.maximumSessions;
   const knownTopicIds = new Set(request.knowledgeMap?.topics.map((topic) => topic.id) ?? []);
   const scheduledTopicIds = new Set(draft.sessions.flatMap((session) => session.topicIds));
   const deferredTopicIds = new Set(draft.deferredTopics.map((topic) => topic.topicId));
@@ -112,7 +116,7 @@ export function evaluatePlanDraft(
       `${draft.sessions.length} sessions for ${scope.label.toLowerCase()}; expected ${expectedMinimumSessions}-${expectedMaximumSessions}`,
     ),
     check("time_fit", "Sessions fit supplied availability", sessionsFitAvailability, 15, true, scheduledWindows.map(({ session, weekday, matchingWindow }) => `${weekday}: ${session.estimatedMinutes}/${matchingWindow?.minutes ?? 0} min`).join("; ")),
-    check("deadline_fit", "No work is scheduled after the deadline", !hasDeadlineViolation, 15, true, request.deadline ? `Deadline: ${request.deadline}` : "No fixed deadline"),
+    check("deadline_fit", topicQueue ? "Deadline conflicts are explicit and dates match the code-owned queue" : "No work is scheduled after the deadline", deadlineHonest, 15, true, request.deadline ? `Deadline: ${request.deadline}` : "No fixed deadline"),
     check(
       "method_alignment",
       "Methods fit each session's actual task",

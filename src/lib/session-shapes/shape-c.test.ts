@@ -9,6 +9,7 @@ import {
   lastShapeCAnswer,
   shapeCReducer,
   shapeCTotals,
+  shapeCKeyPointOutcomes,
   type ShapeCState,
 } from "./shape-c";
 
@@ -120,6 +121,26 @@ describe("Shape C reducer", () => {
     expect(state.phase).toBe("escalate");
     expect(state.outstandingKeyPointIds).toEqual(["k1"]);
     expect(shapeCReducer(state, { type: "start_next_round" })).toBe(state);
+  });
+
+  it("retains passed points at the retry ceiling and attributes points to their own topic", () => {
+    let state = initialShapeCState(route());
+    state = shapeCReducer(state, { type: "questions_ready", questions: [question("first", "passed"), question("second", "missed")] });
+    state = answerAll(state, (item) => item.id === "first" ? 0 : 3);
+    for (let round = 2; round <= 3; round += 1) {
+      state = shapeCReducer(state, { type: "start_next_round" });
+      state = shapeCReducer(state, { type: "questions_ready", questions: [question(`retry-${round}`, "missed")] });
+      state = answerAll(state, () => 3);
+    }
+    expect(state.phase).toBe("escalate");
+    expect(shapeCKeyPointOutcomes(state, [
+      { id: "passed", text: "A point already passed", sourceTopicId: "10000000-0000-4000-8000-000000000001" },
+      { id: "missed", text: "A point still unresolved", sourceTopicId: "10000000-0000-4000-8000-000000000002" },
+      { id: "untested", text: "A point not in the round" },
+    ])).toEqual([
+      { keyPointId: "passed", text: "A point already passed", sourceTopicId: "10000000-0000-4000-8000-000000000001", outcome: "secure" },
+      { keyPointId: "missed", text: "A point still unresolved", sourceTopicId: "10000000-0000-4000-8000-000000000002", outcome: "needs_review" },
+    ]);
   });
 
   it("forget_during_tests raises the ceiling to four rounds", () => {

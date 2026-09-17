@@ -1,0 +1,9 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+
+ Test Files  3 passed (3)
+      Tests  73 passed (73)
+   Start at  15:53:58
+   Duration  902ms (transform 932ms, setup 0ms, import 1.30s, tests 633ms, environment 0ms)
+

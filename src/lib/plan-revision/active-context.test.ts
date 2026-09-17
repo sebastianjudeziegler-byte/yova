@@ -17,6 +17,22 @@ function storedContext(editedFields: unknown) {
 }
 
 describe("active revision context from the database", () => {
+  it("hydrates a v2 marker from persisted generation inputs before checking the runtime session bound", async () => {
+    const fixture = storedContext([]);
+    const result = await (fixture.supabase as { rpc: () => Promise<{data: Record<string, unknown>}> }).rpc();
+    const data = result.data as { plan: typeof fixture.plan; generationRequest: Record<string, unknown> };
+    data.generationRequest.planModel = data.plan.planModel;
+    delete data.plan.planModel;
+    const original = data.plan.sessions;
+    data.plan.sessions = Array.from({length: 40}, (_, index) => ({...original[index % original.length]!,sequence:index + 1}));
+    const supabase = {rpc: async () => ({data,error:null})} as never;
+    const context = await loadActiveRevisionContext(supabase, fixture.plan.id);
+    expect(context.plan.planModel?.version).toBe("topic_plan_v2");
+    expect(context.plan.sessions).toHaveLength(40);
+    delete data.generationRequest.planModel;
+    await expect(loadActiveRevisionContext(supabase, fixture.plan.id)).rejects.toThrow(/legacy revision/i);
+  });
+
   it("reads a stored null edit list as no reviewed edits", async () => {
     const { plan, supabase } = storedContext(null);
     const context = await loadActiveRevisionContext(supabase, plan.id);

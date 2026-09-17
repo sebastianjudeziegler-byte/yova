@@ -31,34 +31,46 @@ export function makeSlotIds() {
   return { requestId: crypto.randomUUID(), recoveryKey: crypto.randomUUID() };
 }
 
+export const SHAPE_SLOT_CLIENT_TIMEOUT_MS = 65_000;
+
 async function postSlot<T extends ShapeSlotResponse>(request: ShapeSlotRequest, signal?: AbortSignal): Promise<T> {
-  let response: Response;
+  const controller = new AbortController();
+  let timedOut = false;
+  const abort = () => controller.abort(signal?.reason);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener("abort", abort, { once: true });
+  const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, SHAPE_SLOT_CLIENT_TIMEOUT_MS);
   try {
-    response = await fetch("/api/sessions/shape", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Yova-Development-Preview": "guided-session" },
-      body: JSON.stringify(request),
-      signal,
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
-    throw new ShapeSlotClientError("YOVA could not reach the server. Check your connection and try again.", "network", 0);
+    let response: Response;
+    try {
+      response = await fetch("/api/sessions/shape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Yova-Development-Preview": "guided-session" },
+        body: JSON.stringify(request),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (timedOut) throw new ShapeSlotClientError("This step took too long. Your work remains on screen; retry when you are ready.", "timeout", 408);
+      if (signal?.aborted || (error instanceof DOMException && error.name === "AbortError")) throw error;
+      throw new ShapeSlotClientError("YOVA could not reach the server. Check your connection and try again.", "network", 0);
+    }
+    let body: unknown = null;
+    try { body = await response.json(); }
+    catch (error) {
+      if (timedOut) throw new ShapeSlotClientError("This step took too long. Your work remains on screen; retry when you are ready.", "timeout", 408);
+      if (signal?.aborted) throw error;
+    }
+    if (!response.ok) {
+      const parsed = ShapeSlotErrorSchema.safeParse(body);
+      throw new ShapeSlotClientError(parsed.success ? parsed.data.error : SHAPE_SLOT_HONEST_ERROR, parsed.success ? parsed.data.code : "unknown", response.status);
+    }
+    const parsed = ShapeSlotResponseSchema.safeParse(body);
+    if (!parsed.success || parsed.data.action !== request.action) throw new ShapeSlotClientError(SHAPE_SLOT_HONEST_ERROR, "invalid_response", response.status);
+    return parsed.data as T;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
   }
-  let body: unknown = null;
-  try {
-    body = await response.json();
-  } catch {
-    body = null;
-  }
-  if (!response.ok) {
-    const parsed = ShapeSlotErrorSchema.safeParse(body);
-    throw new ShapeSlotClientError(parsed.success ? parsed.data.error : SHAPE_SLOT_HONEST_ERROR, parsed.success ? parsed.data.code : "unknown", response.status);
-  }
-  const parsed = ShapeSlotResponseSchema.safeParse(body);
-  if (!parsed.success || parsed.data.action !== request.action) {
-    throw new ShapeSlotClientError(SHAPE_SLOT_HONEST_ERROR, "invalid_response", response.status);
-  }
-  return parsed.data as T;
 }
 
 export const requestDirection = (request: DirectionRequest, signal?: AbortSignal) => postSlot<DirectionResponse>(request, signal);

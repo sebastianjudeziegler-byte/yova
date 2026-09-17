@@ -1,0 +1,28 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/app/api/plans/generate/route.test.ts (54 tests | 1 failed | 53 skipped) 371ms
+     × activates a freshly generated content-derived Study Now workload without losing its exact promise 370ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/app/api/plans/generate/route.test.ts > plan generation route > activates a freshly generated content-derived Study Now workload without losing its exact promise
+AssertionError: expected 422 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 422
+
+ ❯ src/app/api/plans/generate/route.test.ts:363:29
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 53 skipped (54)
+   Start at  15:52:46
+   Duration  1.03s (transform 571ms, setup 0ms, import 574ms, tests 371ms, environment 0ms)
+
