@@ -120,3 +120,56 @@ sized 11-minute block keeps all three claims.
 Local checkpoint after both fixes: **4,553 unit tests passed, 106 gated or
 skipped, one known red** (the PT409 completion case, item 2), full typecheck,
 and lint on the changed files.
+
+
+## Item 2 — the stalled completion, narrowed to one rejected replay
+
+CI #415 (`c659ccc`, [run 35256560801](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35256560801), step
+"Test the plan adjustment route against the migrated database"): 7 cases passed
+and only `persists both checked origins once and reloads the exact segment
+receipts after a terminal retry` failed, at its unchanged 30-second deadline.
+Codex's stage log locates the stall exactly:
+
+| Stage | Finished at |
+| --- | --- |
+| activate fresh segmented plan | 101 ms |
+| first completion write | 201 ms |
+| exact completion retry | 208 ms |
+| count durable attempt | 258 ms |
+| read authenticated receipt | 294 ms |
+| reload authenticated learning state | 351 ms |
+| read stored segment receipt | 355 ms |
+| **reject changed receipt retry** | **never — still pending at 25,001 ms** |
+
+Everything the case is about — two segment receipts written once, the exact
+retry coalesced, the receipts reloaded and re-read — completes in under
+four-tenths of a second. What hangs is the deliberately tampered replay, which
+the locked writer answers by raising `40001
+study_route_completion_retry_conflict`.
+
+The one database sample taken at 25 seconds showed a single client backend,
+`state=active`, `query_class=completion_rpc`, `blocking_pids=[]` and
+`active_seconds=0`. Nothing was blocked, and the statement had started less
+than a second earlier — so at 25 seconds the database was not grinding through
+one long call. That is consistent with the same call being started again, but
+one sample cannot prove it, and `40001` is the only error code in this suite
+that no passing case observes.
+
+Two additive probes now settle it in the next run, with the stalled case's
+assertions and deadline untouched:
+
+1. **A separate case, `answers a completion conflict instead of leaving the
+   request open`**, drives the earliest `40001` the writer raises — a fresh
+   attempt against an already completed session — and asserts it comes back. If
+   this returns while the tampered replay stalls, the stall belongs to that
+   replay path; if both stall, every `40001` this RPC raises is left open, which
+   would also be a candidate explanation for the unexplained production
+   completion timeout.
+2. **Repeated sampling at 5, 15 and 25 seconds**, now including transaction and
+   connection age, plus a request/response trace that records only the attempt
+   number and HTTP status. A transaction age that keeps resetting means the
+   request is being re-issued; a response with no resolution means the client
+   is holding it.
+
+No SQL, application behaviour, assertion or deadline changed, and no local
+database run is claimed.

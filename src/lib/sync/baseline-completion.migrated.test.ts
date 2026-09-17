@@ -39,6 +39,8 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
   let userId: string;
   let offline = false;
   let dropReply = false;
+  /** Start time while a case is tracing completion requests, otherwise 0. */
+  let tracingTransport = 0;
   let writes = 0;
   let inspectingReload = false;
   const reloadFailures: Array<{ path: string; status: number; code: string | null; message: string | null }> = [];
@@ -61,6 +63,45 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
   function rows(id: string) {
     if (!/^[a-f\d-]{36}$/i.test(id)) throw new Error("Invalid test id");
     return execFileSync("docker", ["exec", "-i", container!, "psql", "-U", "postgres", "-d", "postgres", "-X", "-At", "-v", "ON_ERROR_STOP=1"], { encoding: "utf8", input: `select count(*) from public.session_attempts where id='${id}' and completed_at is not null;` }).trim();
+  }
+  /**
+   * Samples what the database is doing while a case waits, then stops on
+   * cleanup. Repeated samples separate one long-running statement from the same
+   * statement being started again: a new transaction start or a query age that
+   * keeps resetting means the request is being re-issued, not blocked. Only
+   * wait states, ages, blocking PIDs and a fixed RPC classification are output;
+   * raw SQL, arguments, auth headers and learner text are never printed.
+   */
+  function watchDatabaseWaits(stage: string | (() => string), atMs = [5_000, 15_000, 25_000]) {
+    const started = Date.now();
+    const timers = atMs.map(delay => setTimeout(() => {
+      const label = { stage: typeof stage === "function" ? stage() : stage, elapsedMs: Date.now() - started };
+      try {
+        const activity = execFileSync("docker", ["exec", "-i", container!, "psql", "-U", "postgres", "-d", "postgres", "-X", "-At", "-v", "ON_ERROR_STOP=1"], {
+          encoding: "utf8", timeout: 2_000, maxBuffer: 32_768,
+          input: `set statement_timeout = '1500ms';
+select coalesce(jsonb_agg(to_jsonb(activity)), '[]'::jsonb) from (
+  select pid, state, wait_event_type, wait_event,
+    pg_blocking_pids(pid) as blocking_pids,
+    floor(extract(epoch from clock_timestamp() - query_start)) as active_seconds,
+    floor(extract(epoch from clock_timestamp() - xact_start)) as transaction_seconds,
+    floor(extract(epoch from clock_timestamp() - backend_start)) as connection_seconds,
+    case when position('complete_plan_session_with_route' in query) > 0 then 'completion_rpc'
+      when position('save_generated_plan_with_routes' in query) > 0 then 'activation_rpc'
+      when position('mint_plan_activation_permit_v1' in query) > 0 then 'activation_permit_rpc'
+      else 'other' end as query_class
+  from pg_stat_activity
+  where pid <> pg_backend_pid() and backend_type = 'client backend'
+    and (state = 'active' or state like 'idle in transaction%')
+  order by pid
+) as activity;`,
+        }).trim().split("\n").at(-1);
+        console.error("Migrated completion database waits", JSON.stringify(label), activity);
+      } catch {
+        console.error("Migrated completion database wait diagnostic unavailable within two seconds", JSON.stringify(label));
+      }
+    }, delay));
+    return () => timers.forEach(clearTimeout);
   }
   async function persistSegmentedPlan() {
     const input: NormalPlanEnvelopeInput = {
@@ -131,7 +172,11 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
       if (offline) throw new TypeError("Test transport offline");
       const isFinish = String(input).includes("/rpc/complete_plan_session");
       if (isFinish) writes += 1;
+      // Which side of the wire a stalled completion is waiting on. Status and
+      // attempt number only: never headers, credentials, payloads or rows.
+      if (isFinish && tracingTransport) console.info("Migrated completion transport", JSON.stringify({ event: "request", attempt: writes, elapsedMs: Date.now() - tracingTransport }));
       const response = await fetch(input, init);
+      if (isFinish && tracingTransport) console.info("Migrated completion transport", JSON.stringify({ event: "response", attempt: writes, status: response.status, elapsedMs: Date.now() - tracingTransport }));
       if (inspectingReload && !response.ok) {
         const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
         if (path.startsWith("/rest/v1/")) {
@@ -284,6 +329,28 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
     }
   }, 30_000);
 
+  // Whether one completion conflict comes back at all, independently of the
+  // segmented case below: a fresh attempt on an already completed session is
+  // the earliest 40001 the locked writer raises. If this returns while the
+  // changed-receipt replay stalls, the stall belongs to that replay path; if
+  // both stall, every 40001 from this RPC is left open.
+  it("answers a completion conflict instead of leaving the request open", async () => {
+    const saved = await persistSegmentedPlan();
+    const event = segmentedCompletion(saved);
+    await completeAuthenticatedPlanSession(event, undefined, undefined, undefined, undefined, userId);
+    expect(rows(event.id)).toBe("1");
+    const samples = watchDatabaseWaits("completion conflict answer");
+    try {
+      tracingTransport = Date.now();
+      const conflict = await clients.learner.rpc("complete_plan_session_with_route", { payload: { ...completionPayload(event), attemptId: randomUUID() } });
+      expect(conflict.error?.code).toBe("40001");
+      expect(conflict.error?.message).toBe("study_route_completion_session_not_ready");
+    } finally {
+      tracingTransport = 0;
+      samples();
+    }
+  }, 30_000);
+
   it("persists both checked origins once and reloads the exact segment receipts after a terminal retry", async () => {
     const started = Date.now();
     let currentStage = "not started";
@@ -294,34 +361,8 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
       console.info("Migrated segment completion stage", JSON.stringify({ stage: name, state: "finished", elapsedMs: Date.now() - started }));
       return result;
     }
-    // Diagnose the current await before the unchanged 30-second test deadline.
-    // Only wait states, blocking PIDs and a fixed RPC classification are output;
-    // raw SQL, arguments, auth headers and learner text are never printed.
-    const diagnostic = setTimeout(() => {
-      console.error("Migrated segment completion still pending", JSON.stringify({ stage: currentStage, elapsedMs: Date.now() - started }));
-      try {
-        const activity = execFileSync("docker", ["exec", "-i", container!, "psql", "-U", "postgres", "-d", "postgres", "-X", "-At", "-v", "ON_ERROR_STOP=1"], {
-          encoding: "utf8", timeout: 2_000, maxBuffer: 32_768,
-          input: `set statement_timeout = '1500ms';
-select coalesce(jsonb_agg(to_jsonb(activity)), '[]'::jsonb) from (
-  select pid, state, wait_event_type, wait_event,
-    pg_blocking_pids(pid) as blocking_pids,
-    floor(extract(epoch from clock_timestamp() - query_start)) as active_seconds,
-    case when position('complete_plan_session_with_route' in query) > 0 then 'completion_rpc'
-      when position('save_generated_plan_with_routes' in query) > 0 then 'activation_rpc'
-      when position('mint_plan_activation_permit_v1' in query) > 0 then 'activation_permit_rpc'
-      else 'other' end as query_class
-  from pg_stat_activity
-  where pid <> pg_backend_pid() and backend_type = 'client backend'
-    and (state = 'active' or state like 'idle in transaction%')
-  order by pid
-) as activity;`,
-        }).trim();
-        console.error("Migrated segment completion database waits", activity);
-      } catch {
-        console.error("Migrated segment completion database wait diagnostic unavailable within two seconds");
-      }
-    }, 25_000);
+    const samples = watchDatabaseWaits(() => currentStage);
+    tracingTransport = started;
     try {
       const saved = await stage("activate fresh segmented plan", persistSegmentedPlan);
       const event = segmentedCompletion(saved);
@@ -350,7 +391,8 @@ select coalesce(jsonb_agg(to_jsonb(activity)), '[]'::jsonb) from (
       expect(afterRejectedReplay.error).toBeNull();
       expect(afterRejectedReplay.data?.result_data).toEqual(persisted.data?.result_data);
     } finally {
-      clearTimeout(diagnostic);
+      tracingTransport = 0;
+      samples();
     }
   }, 30_000);
 });
