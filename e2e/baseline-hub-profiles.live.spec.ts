@@ -23,10 +23,7 @@ type ProfileRecord = { profile: string; ruleIds: string[]; pills: string[]; step
 
 const recordPath = (testInfo: TestInfo, profile: string) => join(testInfo.project.outputDir, "hub-profiles", `${profile}.json`);
 
-test.beforeEach(({}, testInfo) => {
-  test.skip(testInfo.project.name.includes("mobile"), "The side-by-side sessions are captured at desktop width; the phone fallback is captured by baseline-session.spec.ts.");
-});
-
+// Desktop only: playwright.baseline-live.config.ts leaves this file out of the phone project.
 for (const profile of ["P1", "P2"] as const) {
   test(`${profile} runs a live session with the hub`, async ({ page }, testInfo) => {
     test.setTimeout(420_000);

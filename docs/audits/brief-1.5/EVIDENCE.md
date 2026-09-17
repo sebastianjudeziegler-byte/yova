@@ -728,3 +728,17 @@ Tests:
 
 The live baseline practice retries passed apart from the hub run.
 
+## CI run 35154080379 (46d7511)
+
+- **Now green:**
+  - core learner journey;
+  - baseline session journey (every item 8 browser case, both viewports);
+  - Study Profile comparison.
+- **Live baseline practice:** 13 passed, 0 failed, 0 flaky.
+  - The retries and practice labels, the two-profile hub run (P1, P2, comparison) and outside YOVA on both viewports all passed.
+  - The step still went red on its own guard: 3 skipped, which were the hub file's phone runs skipping themselves. Fixed: `playwright.baseline-live.config.ts` leaves that desktop-only file out of the phone project, so nothing is skipped. `--list` shows 13 cases.
+- **Regression gate: blocked on one live case,** `plan-session-journey.live.test.ts` "History essay using outside sources" (main 1 pass, branch 1 fail).
+  - It is a Brief B scoped case, so it cannot be quarantined.
+  - Its import graph (131 modules, dynamic imports included, via `tsc --listFilesOnly`) contains none of the files this branch changes. The branch cannot have caused it.
+  - Re-run on the next commit. If it fails again, it goes to the founder rather than being reclassified.
+
