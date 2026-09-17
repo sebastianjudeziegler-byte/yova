@@ -2,7 +2,7 @@
   "commit": "0ce2292b71f7ca53a5978d637280e71d913debb7",
   "run": 35251019423,
   "job": 105303099789,
-  "source": "GitHub Actions run 35251019423 step 20 (\"Run core learner journey\") step log, parsed case by case: file, project, title and final attempt outcome. Rebuilt from the log rather than artifacts/quality/browser.json to avoid a 196 MB download; the log is the same run's own record and carries no per-attempt timings or error text.",
+  "source": "GitHub Actions run 35251019423 step 20 (\"Run core learner journey\") step log, parsed case by case: file, project, title and final attempt outcome. Rebuilt from the log rather than artifacts/quality/browser.json to avoid a 196 MB download; the log is the same run's own record and carries no per-attempt timings or error text. Every case carries its own outcome: the five that fail on main are recorded as failures rather than omitted, so a case failing on both sides is not counted against this branch.",
   "rows": [
     {
       "file": "accessibility-regression.spec.ts",
@@ -324,6 +324,12 @@
     },
     {
       "file": "calendar-journeys.spec.ts",
+      "name": "manual events support full keyboard-editable fields and immediate undo",
+      "project": "mobile-chromium",
+      "status": "fail"
+    },
+    {
+      "file": "calendar-journeys.spec.ts",
       "name": "manual workload is included in adjustment totals and has a useful Move action",
       "project": "mobile-chromium",
       "status": "pass"
@@ -438,9 +444,21 @@
     },
     {
       "file": "calendar-recurring.spec.ts",
+      "name": "one occurrence can move, be cancelled and be restored without changing the series",
+      "project": "mobile-chromium",
+      "status": "fail"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
       "name": "the class keeps 11:30 local time after daylight saving ends",
       "project": "mobile-chromium",
       "status": "pass"
+    },
+    {
+      "file": "calendar-recurring.spec.ts",
+      "name": "the whole series can be edited and deleted with one undoable action",
+      "project": "mobile-chromium",
+      "status": "fail"
     },
     {
       "file": "calendar-safety.spec.ts",
@@ -723,6 +741,12 @@
       "name": "map revision cannot activate a stale draft and reviewed starting level preserves placement",
       "project": "desktop-chromium",
       "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "material drop zone accepts drag gestures and explains rejected files",
+      "project": "desktop-chromium",
+      "status": "fail"
     },
     {
       "file": "core-learning-loop.spec.ts",
@@ -819,6 +843,12 @@
       "name": "map revision cannot activate a stale draft and reviewed starting level preserves placement",
       "project": "mobile-chromium",
       "status": "pass"
+    },
+    {
+      "file": "core-learning-loop.spec.ts",
+      "name": "material drop zone accepts drag gestures and explains rejected files",
+      "project": "mobile-chromium",
+      "status": "fail"
     },
     {
       "file": "core-learning-loop.spec.ts",
@@ -1431,38 +1461,6 @@
       "name": "YOVA Study Profile > uses a generic not-found screen for an unknown private token",
       "project": "mobile-chromium",
       "status": "pass"
-    }
-  ],
-  "notPassing": [
-    {
-      "file": "calendar-journeys.spec.ts",
-      "name": "manual events support full keyboard-editable fields and immediate undo",
-      "project": "mobile-chromium",
-      "status": "fail"
-    },
-    {
-      "file": "calendar-recurring.spec.ts",
-      "name": "one occurrence can move, be cancelled and be restored without changing the series",
-      "project": "mobile-chromium",
-      "status": "fail"
-    },
-    {
-      "file": "calendar-recurring.spec.ts",
-      "name": "the whole series can be edited and deleted with one undoable action",
-      "project": "mobile-chromium",
-      "status": "fail"
-    },
-    {
-      "file": "core-learning-loop.spec.ts",
-      "name": "material drop zone accepts drag gestures and explains rejected files",
-      "project": "desktop-chromium",
-      "status": "fail"
-    },
-    {
-      "file": "core-learning-loop.spec.ts",
-      "name": "material drop zone accepts drag gestures and explains rejected files",
-      "project": "mobile-chromium",
-      "status": "fail"
     }
   ]
 }

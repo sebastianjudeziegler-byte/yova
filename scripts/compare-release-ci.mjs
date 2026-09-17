@@ -59,7 +59,9 @@ const observed = normalized.cases.flatMap((row, index) => (runs[index]?.length ?
 }))).filter(row => row.state !== "skipped");
 const scopedBrowser = normalized.cases.filter(row => row.file.includes("living-plan") || /visibly shortened inside recipe|10-minute outside teaching-first session|overdue outside teaching-first session|overdue arbitrary inside session|scheduled-review setup stays fixed|shorter sessions preserve weekly availability/.test(row.name)).map(key);
 const browserFlakes = normalized.cases.filter((_row, index) => runs[index].some(result => result.status === "passed") && runs[index].some(result => ["failed", "timedOut"].includes(result.status))).map(key);
-const browser = compareLiveReports({ rows: mainBrowser.rows.map(row => ({ ...row, id: key(row), state: "passed" })) }, { rows: observed }, {
+// Main's own failures are retained with their outcome, so a case that fails
+// on both sides reads as pre-existing instead of as this branch's regression.
+const browser = compareLiveReports({ rows: mainBrowser.rows.map(row => ({ ...row, id: key(row), state: row.status === "fail" ? "failed" : "passed" })) }, { rows: observed }, {
   retired: mainBrowser.rows.filter(row => isRetired(row.file, row.name)).map(key),
   renamed: mainBrowser.rows.filter(row => isRenamed(row.file, row.name)).map(key),
   scoped: scopedBrowser,

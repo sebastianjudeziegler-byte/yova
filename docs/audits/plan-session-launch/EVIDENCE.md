@@ -482,3 +482,69 @@ baseline, every replacement exists in the branch's specs, and all four
 Local checkpoint: **4,560 unit tests passed, 107 skipped, none failing** — the
 PT409 case included — full lint clean, 26 runner checks, typecheck clean. The
 migration, the migrated-database cases and the live gates run in CI.
+
+
+## CI run 423 on `57a5f17` ([35281007140](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35281007140))
+
+**The completion fix works.** Step 12, the migrated database step, passed
+entirely: 15 cases, including `answers a completion conflict instead of leaving
+the request open` and `persists both checked origins once and reloads the exact
+segment receipts after a terminal retry`, both of which timed out at 30 s in run
+420 and both of which now expect `PT409` and get it. The stall is gone against a
+real migrated database.
+
+**What the migration broke, and the fix:** step 11 failed on one pgTAP
+assertion, `the existing v6 RPC advertises the read-grant migration contract`,
+which pinned `20260917180001`. The contract legitimately advanced, so the
+assertion now expects `20260917190001`. A new boundary test,
+`20260917190001_permanent_completion_conflicts.test.sql`, holds the change in
+place: no writer may pair `40001` with a permanent message, the writers must
+raise `PT409`, ordinary serialization failures must still raise `40001`, and
+readiness must report `permanentConflictsAnswer`.
+
+**The reviewer's allowance worked.** Step 22 went from 3 failures to 1:
+the 6-question and 24-question workloads pass, and so do both profile journeys,
+their comparison, both phone cases, both retries and outside study. **16 passed,
+1 failed.**
+
+**The 32-question case failed again, in a third place.** Not the review, and not
+the all-or-nothing gate: `withOneRetry` gave up inside `remainingQuestions`
+(`shape-slot-generator.ts:358`, from `fillLearnBlock:452`), which is the
+*generation* of the additional question batches, after 48.0 s of the 50 s
+budget. Two attempts at a batch returned nothing. Whether those calls timed out,
+came back invalid, or found no budget left is in that run's diagnostics artifact
+and is not inferred here.
+
+**The release gate: BLOCKED, 33 cases** (was 60). The renamed list and the
+refreshed baseline removed 27 of them.
+
+- **11 "new failure versus passing main":** the four branch regressions from
+  earlier work (`add-to-yova` and `living-plan` on both projections), the
+  32-question case, one live `session-quality` Spanish case, and the mobile
+  calendar and drop-zone cases that also fail on main — see below.
+- **22 "required case was not executed":** the four deliberately unexcused
+  cases, plus a set the static title diff could not see because their titles are
+  built at runtime: `plan-schedule-date.spec.ts` builds `consolidated: …` and
+  `explicit N-minute availability remains a priority card` from loop variables.
+  Two of those are renames (`consolidated: a 1-day/3-day deadline survives
+  placement, plan review and activation` → `a 1-day/3-day deadline retains the
+  full queue and states scheduling conflicts`) and are now listed as such. The
+  other five are the priority-card cases, and they are **not** excused:
+  `src/lib/plan-generation/deadline-priority.ts` still ships, so that is a live
+  feature whose browser coverage was dropped. `notReplaced` now records that.
+
+**Main's own failures were being counted against the branch.** The baseline
+format keeps only passing cases, so a case failing on both sides had no
+"before" sample and read as a new failure — which is how three mobile calendar
+cases and the material drop zone appeared in the 11 above, though main fails
+them too. The refreshed baseline now carries all 243 cases with their outcome,
+five of them failures, and the comparator maps a recorded failure to `failed`
+instead of forcing every baseline row to `passed`. A case that fails on both
+sides will read as pre-existing.
+
+Also logged in `docs/audits/BACKLOG.md`: the same writers still raise other
+deterministic refusals as `40001` (for example
+`post_session_study_route_projection_conflict`). This migration converted only
+the ten the client classifies as permanent; if one of the others is raised, it
+hangs the same way. Out of scope for the founder's decision, recorded rather
+than fixed.
