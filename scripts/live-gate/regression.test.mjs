@@ -95,3 +95,15 @@ test("a case retired on purpose may be absent, but only if it is named, and neve
   assert.equal(compareLiveReports(passed, report(["fail"]), { retired: ["case"] }).exitCode, 1);
   assert.equal(compareLiveReports(passed, absent, { retired: ["another case"] }).exitCode, 1);
 });
+
+test("a renamed case may be absent under its old title, and says so, but still cannot hide a failure", () => {
+  const passed = { rows: [{ id: "case", state: "passed", status: "pass" }] };
+  const absent = { exitCode: 0, rows: [] };
+  const renamed = compareLiveReports(passed, absent, { renamed: ["case"] });
+  assert.equal(renamed.exitCode, 0);
+  assert.match(renamed.rows[0].reason, /Renamed/);
+  assert.doesNotMatch(renamed.rows[0].reason, /Retired/);
+  // The old title is excused; a case that still runs under it is judged as usual.
+  assert.equal(compareLiveReports(passed, report(["fail"]), { renamed: ["case"] }).exitCode, 1);
+  assert.equal(compareLiveReports(passed, absent, { renamed: ["another case"] }).exitCode, 1);
+});

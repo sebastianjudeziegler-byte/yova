@@ -343,7 +343,9 @@ select coalesce(jsonb_agg(to_jsonb(activity)), '[]'::jsonb) from (
     try {
       tracingTransport = Date.now();
       const conflict = await clients.learner.rpc("complete_plan_session_with_route", { payload: { ...completionPayload(event), attemptId: randomUUID() } });
-      expect(conflict.error?.code).toBe("40001");
+      // 20260917190001: a permanent refusal answers as PT409 (HTTP 409) rather
+      // than 40001, which the stack in front retried until nothing came back.
+      expect(conflict.error?.code).toBe("PT409");
       expect(conflict.error?.message).toBe("study_route_completion_session_not_ready");
     } finally {
       tracingTransport = 0;
@@ -384,7 +386,7 @@ select coalesce(jsonb_agg(to_jsonb(activity)), '[]'::jsonb) from (
       expect(persisted.data?.result_data.conceptEvidence).toEqual(event.conceptEvidence);
       const changedReplay = await stage("reject changed receipt retry", async () => await clients.learner.rpc("complete_plan_session_with_route", { payload: { ...completionPayload(event), segmentCompletions: event.segmentCompletions!.map((segment, index) => index === 0 ? { ...segment, elapsedSeconds: segment.elapsedSeconds + 1 } : segment) } }));
       expect(changedReplay.error).not.toBeNull();
-      expect(changedReplay.error?.code).toBe("40001");
+      expect(changedReplay.error?.code).toBe("PT409");
       expect(changedReplay.error?.message).toBe("study_route_completion_retry_conflict");
       expect(await stage("count attempt after rejected retry", () => rows(event.id))).toBe("1");
       const afterRejectedReplay = await stage("read unchanged receipt after rejection", async () => await clients.learner.from("session_attempts").select("result_data").eq("id", event.id).single());

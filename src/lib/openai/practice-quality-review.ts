@@ -57,7 +57,10 @@ Return exactly one review per target question.slotId, never a review for priorQu
     schema: ReviewSchema,
     schemaName: "yova_practice_quality_review",
     questionCount: context.questions.length,
-    maxOutputTokens: 350 + context.questions.length * 110,
+    // Reasoning shares this allowance with the reviews themselves, and the
+    // batch that must be compared against the most earlier questions needs the
+    // most of it. CI #420: the fourth batch of 32 came back cut off, twice.
+    maxOutputTokens: 1_200 + context.questions.length * 170 + (context.priorQuestions?.length ?? 0) * 25,
     cacheKey: "yova-practice-quality-review-v2",
   });
   const parsed = ReviewSchema.safeParse(draft);

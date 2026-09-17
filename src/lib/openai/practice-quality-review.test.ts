@@ -98,4 +98,23 @@ describe("independent practice answer review", () => {
     expect(await reviewPracticeQuestions({ ...context, questions }, provider as never)).toEqual({ ok: false });
     expect(provider).toHaveBeenCalledTimes(2);
   });
+
+  // CI #420: reviewing 32 questions splits into four calls, and the last batch —
+  // eight questions against 24 earlier ones — came back "incomplete" twice, at
+  // 1,230 output tokens. Reasoning is drawn from the same allowance, so the
+  // batch with the most to compare against is the one that runs out.
+  it("gives each review batch room for its questions and everything it must compare them against", async () => {
+    const questions = Array.from({ length: 32 }, (_, index) => ({ ...question, slotId: `s${index + 1}`, prompt: `Osmosis case ${index + 1}?` }));
+    const provider = vi.fn(async (call: SlotProviderCall<unknown>) => ({ reviews: JSON.parse(call.input).questions.map((target: { slotId: string }) => verdict({ slotId: target.slotId, answerIndices: [0], issue: "none", reason: "" })) }));
+    expect(await reviewPracticeQuestions({ ...context, questions }, provider as never)).toEqual({ ok: true, rejected: [] });
+    const calls = (provider.mock.calls as unknown as [SlotProviderCall<unknown>][]).map(([call]) => ({ ...JSON.parse(call.input), maxOutputTokens: call.maxOutputTokens }));
+    expect(calls).toHaveLength(4);
+    const last = calls.at(-1)!;
+    expect(last.questions).toHaveLength(8);
+    expect(last.priorQuestions).toHaveLength(24);
+    for (const call of calls) {
+      expect(call.maxOutputTokens, "a batch must not be cut off mid-review").toBeGreaterThanOrEqual(1_000 + call.questions.length * 150 + call.priorQuestions.length * 20);
+    }
+    expect(last.maxOutputTokens).toBeGreaterThan(calls[0]!.maxOutputTokens);
+  });
 });

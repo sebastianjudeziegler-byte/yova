@@ -24,9 +24,13 @@ for (const count of [6, 24, 32]) {
     const parsed = ShapeSlotResponseSchema.parse(body);
     expect(parsed.action).toBe("learn_block");
     if (parsed.action !== "learn_block") return;
-    expect(parsed.questions).toHaveLength(count);
+    // A question the independent review still rejects is dropped rather than
+    // refusing the whole block, so the round may be slightly shorter than the
+    // workload asked for. Every question here still passed that review.
+    expect(parsed.questions.length).toBeLessThanOrEqual(count);
+    expect(parsed.questions.length, "a dropped question may shorten a round, never gut it").toBeGreaterThanOrEqual(count - Math.max(1, Math.round(count / 16)));
     expect(parsed.keyPoints.every(point => point.sourceTopicId === topic.id)).toBe(true);
-    expect(new Set(parsed.questions.map(question => question.prompt)).size).toBe(count);
+    expect(new Set(parsed.questions.map(question => question.prompt)).size).toBe(parsed.questions.length);
     expect(parsed.questions.some(question => question.kind === (count === 6 ? "recall" : "application"))).toBe(true);
     for (const question of parsed.questions) {
       expect(question.prompt).not.toMatch(/(?:study guide|syllabus|course outline|unit\s+\d+\s+(?:lists|covers))/i);

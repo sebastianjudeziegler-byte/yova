@@ -2,9 +2,15 @@
 // preview. The same stale-activation test was renamed (EVIDENCE.md); no general
 // fuzzy matching is allowed because that could conceal an omitted case.
 export function canonicalBrowserCaseName(name) {
-  return name === "map revision cannot activate a stale draft and fresh placement uses the revised map"
-    ? "map revision cannot activate a stale draft and reviewed starting level preserves placement"
-    : name;
+  // Brief 2 renamed it again when learned-elsewhere became an immediate,
+  // reported action; both retained-main spellings map to the current title.
+  const chain = {
+    "map revision cannot activate a stale draft and fresh placement uses the revised map":
+      "map revision cannot activate a stale draft and covered reports preserve placement",
+    "map revision cannot activate a stale draft and reviewed starting level preserves placement":
+      "map revision cannot activate a stale draft and covered reports preserve placement",
+  };
+  return chain[name] ?? name;
 }
 
 /** Compare recorded observations; never relabel a failure as a passing run. */
@@ -13,8 +19,13 @@ export function canonicalBrowserCaseName(name) {
  * each listed in scripts/live-gate/retired-cases.json and the brief's
  * EVIDENCE.md. Only absence is excused; a retired id that still runs and
  * fails is judged like any other case.
+ *
+ * `renamed`: exact case ids whose coverage still runs under a new title, each
+ * listed with its replacement in the same file. Absence is excused for the old
+ * title only, and the replacement is compared on its own merits, so a rename
+ * cannot quietly drop what the case asserted.
  */
-export function compareLiveReports(before, after, { scoped = [], quarantined = [], retired = [] } = {}) {
+export function compareLiveReports(before, after, { scoped = [], quarantined = [], retired = [], renamed = [] } = {}) {
   const group = report => {
     const groups = new Map();
     for (const row of report.rows ?? []) groups.set(row.id, [...(groups.get(row.id) ?? []), row]);
@@ -33,6 +44,8 @@ export function compareLiveReports(before, after, { scoped = [], quarantined = [
     let blocks = false;
     if (!current.length && retired.includes(id)) {
       reason = "Retired on purpose with the feature it tested (retired-cases.json)";
+    } else if (!current.length && renamed.includes(id)) {
+      reason = "Renamed; its replacement case runs and is compared (retired-cases.json)";
     } else if (!current.length || current.some(row => ["skipped", "pending"].includes(row.state))) {
       reason = "Required case was not executed"; blocks = true;
     } else if (b.failures) {

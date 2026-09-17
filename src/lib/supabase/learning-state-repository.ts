@@ -253,17 +253,28 @@ const NON_RETRYABLE_COMPLETION_SERVER_FAILURES = new Map<string, NonRetryableSes
   ["P0001:Session timing is not valid.", "invalid_payload"],
   ["P0001:The delayed verification session is not valid.", "invalid_payload"],
 
-  // These application-defined 40001 reasons prove that the exact terminal
-  // payload or its immutable receipt conflicts. Other 40001 responses remain
-  // retryable because ordering and real serialization failures are ambiguous.
+  // These application-defined reasons prove that the exact terminal payload or
+  // its immutable receipt conflicts. Since 20260917190001 the writer raises
+  // them as PT409, so the refusal answers instead of being retried as a
+  // serialization failure; the 40001 spellings stay listed for a database that
+  // has not taken that migration yet. Other 40001 responses remain retryable
+  // because ordering and real serialization failures are ambiguous.
   ["40001:study_route_evidence_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_evidence_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_retry_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_completion_retry_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_completion_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_event_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_completion_event_conflict", "incompatible_cloud_state"],
   ["40001:study_route_revision_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_revision_conflict", "incompatible_cloud_state"],
   ["40001:post_session_study_route_coverage_conflict", "incompatible_cloud_state"],
+  ["PT409:post_session_study_route_coverage_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_session_not_ready", "incompatible_cloud_state"],
+  ["PT409:study_route_completion_session_not_ready", "incompatible_cloud_state"],
   ["40001:post_session_adaptation_target_conflict", "incompatible_cloud_state"],
+  ["PT409:post_session_adaptation_target_conflict", "incompatible_cloud_state"],
   ["P0002:study_route_session_not_found", "incompatible_cloud_state"],
   ["P0002:study_route_plan_not_found", "incompatible_cloud_state"],
   ["P0001:Unguided completion identity is not valid.", "invalid_payload"],
@@ -281,8 +292,11 @@ const NON_RETRYABLE_COMPLETION_SERVER_FAILURES = new Map<string, NonRetryableSes
 const NON_RETRYABLE_INTERRUPTION_SERVER_FAILURES = new Map<string, NonRetryableSessionTerminalRejection>([
   ["P0001:Interrupted-session evidence is not valid.", "invalid_payload"],
   ["40001:study_route_evidence_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_evidence_conflict", "incompatible_cloud_state"],
   ["40001:study_route_interruption_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_interruption_conflict", "incompatible_cloud_state"],
   ["40001:study_route_interruption_event_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_interruption_event_conflict", "incompatible_cloud_state"],
 ]);
 
 function nonRetryableTerminalServerRejection(

@@ -372,3 +372,113 @@ counts `{"pass":50,"fail":6,"flaky":22,"unavailable":1}`. The comparator counts
 The retained baseline is also older than current main, which is why cases that
 fail on main's own run still count as passing there. Brief 2's gate note asks
 for the baseline to be refreshed before the PR; that refresh has not been done.
+
+
+## Founder decisions after run 420
+
+### 1. Permanent completion conflicts answer instead of hanging
+
+`20260917190001_permanent_completion_conflicts_answer.sql`. The locked writer
+raised its deterministic refusals as SQLSTATE `40001`, PostgreSQL's
+serialization failure — "transient, retry me". CI #420 showed what that costs:
+one request sent, no reply ever, the same statement restarting at every sample,
+and a second attempt waiting on the first one's advisory lock. Both the probe
+case and the tampered replay timed out at 30 s.
+
+PostgREST documents SQLSTATE `PTxyz` as an explicit HTTP status with `"code":
+"PTxyz"` in the body, so the ten permanent messages the client already treats as
+final now raise `PT409` and answer as HTTP 409. Genuine serialization failures
+keep `40001` and stay retryable. The migration rewrites every public function
+whose source still pairs `40001` with one of those messages, fails loudly if an
+anchor is gone, and refuses to leave a partial rewrite behind. Rows, locks,
+ordering and validation are untouched: only the reporting changes.
+
+The client lists the `PT409:` spellings beside the `40001:` ones, so a database
+that has not taken the migration still classifies correctly. This makes Codex's
+committed red case green — `classifies an allowlisted permanent completion
+conflict (PT409) without exposing database detail` — which is the red-then-green
+evidence for this change, together with the two migrated cases that now expect
+`PT409` and, more importantly, expect an answer at all.
+
+Readiness advances to contract `20260917190001` with a `permanentConflictsAnswer`
+capability, and fails closed when it is false or absent: a deployment whose
+database still hangs on these refusals is not ready. New test:
+`fails closed when answered completion conflicts are false|undefined`.
+
+### 2. The exact-count gate
+
+`e2e/baseline-session-quality.live.spec.ts` asserted `toHaveLength(count)` for
+6, 24 and 32 questions. A question dropped by the review now makes that false,
+which is what failed in run 420. It asserts what the round delivered instead:
+at most the requested count, and at least the count less one in sixteen, with
+prompts unique across whatever was delivered.
+
+### 3. The reviewer's output allowance — measured, then raised
+
+The founder asked for the arithmetic to be checked rather than assumed. The
+authorised 25 KB artifact from run 420 settles it. Reviewing 32 questions splits
+into four calls; the fourth — eight questions against 24 earlier ones — returned
+`incomplete` **both times**, at `maxOutputTokens: 1230`:
+
+| Review call | Questions | Prior questions | Took | Outcome |
+| --- | --- | --- | --- | --- |
+| 5 | 8 | 0 | 3.4 s | completed |
+| 6 | 8 | 8 | 6.3 s | completed |
+| 7 | 8 | 16 | 9.5 s | **incomplete** |
+| 8 | 8 | 24 | 3.1 s | completed |
+| 9–12 (retry) | 8 each | 0/8/16/24 | 2.6–8.5 s | 12 **incomplete** |
+
+`incomplete` is the provider stopping at the output cap, and reasoning tokens
+are drawn from the same cap, so the batch with the most to compare against is
+the one that runs out — twice, in the same place, which is why
+`withOneRetry` gave up at `shape-slot-generator.ts:164`. Not the time budget:
+36.5 s of a 50 s allowance, 13.4 s still unused.
+
+The allowance is now `1200 + 170 × questions + 25 × priorQuestions` — 3,160
+tokens for that fourth batch instead of 1,230. Red first:
+`gives each review batch room for its questions and everything it must compare
+them against` failed with `expected 1230 to be greater than or equal to 2200`,
+and passes now. No prompt, criterion, retry count or deadline changed.
+
+### 4. Renamed cases, and a baseline that is actually main
+
+`scripts/live-gate/retired-cases.json` gains two sections beside the retired
+Brief 1.5 cases:
+
+- `renamed`: 13 cases whose coverage still runs under a new title, each listed
+  with the case that carries it now (3 in `plan-schedule-date.spec.ts`, 6 in
+  `add-to-yova.spec.ts`, 3 in `living-plan.spec.ts`, 1 in
+  `calendar-recurring.spec.ts`). The comparator excuses the old title's absence
+  with its own disposition — "Renamed; its replacement case runs and is
+  compared" — and judges the replacement on its own merits. It refuses a case
+  listed as both retired and renamed, and a rename with no replacement named.
+  New runner test: `a renamed case may be absent under its old title, and says
+  so, but still cannot hide a failure`.
+- `notReplaced`: 4 cases present in main and absent here with no replacement
+  identified — three `plan-schedule-date` cases about capacity math and the
+  "insufficient time" refusal that Brief 2 deletes, and
+  `speech and presentation plans bypass placement and use artifact-aware modes`.
+  They are deliberately **not** excused. The gate still blocks on them until
+  someone states what happened to the behaviour they covered; that is a question
+  for whoever rewrote those flows, not something to wave through.
+
+`canonicalBrowserCaseName` now maps both retained spellings of the stale-draft
+map case to its current title, which Brief 2 renamed a second time.
+
+The baseline moves from run 35098660639 on `00995f1` (2026-09-16) to **run
+35251019423 on `0ce2292`, main's own full run**. Its live half is that run's
+49 KB full-live-gate artifact, downloaded with the founder's approval; its
+browser half is the same run's core-journey step log parsed case by case —
+238 passing and 5 failing cases, matching the step's own totals — chosen over a
+196 MB artifact for the identical pass/fail list, and the baseline file records
+that source rather than claiming `browser.json`. The old baseline stays in
+`docs/audits/brief-b/evidence` for history. The five cases that fail on main now
+classify as pre-existing rather than as this branch's regressions.
+
+Validated before commit: every renamed old title exists in the refreshed
+baseline, every replacement exists in the branch's specs, and all four
+`notReplaced` titles are genuinely in the baseline.
+
+Local checkpoint: **4,560 unit tests passed, 107 skipped, none failing** — the
+PT409 case included — full lint clean, 26 runner checks, typecheck clean. The
+migration, the migrated-database cases and the live gates run in CI.
