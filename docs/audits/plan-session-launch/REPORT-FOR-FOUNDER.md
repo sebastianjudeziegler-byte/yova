@@ -109,12 +109,45 @@ One consequence was fixed: the Practice Test case checked that the counter read
 round actually delivered, so the learner is never counting toward questions that
 do not exist.
 
+## What the full run says
+
+The run on the final commit confirms items 1 and 4 and refuses to sign the
+branch off. Details in EVIDENCE.md; in short:
+
+- **Confirmed live.** Both profile journeys and the comparison between them
+  passed against the real model — the two profiles now get genuinely different
+  session sizes. Both phone cases passed too, untouched.
+- **Item 2, answered.** My probe hung exactly like the original case, so it is
+  not the tampered retry: every refusal this completion writer raises leaves the
+  request hanging. One request goes out, no reply ever comes back, the database
+  shows the same work restarting every few seconds, and eventually two of those
+  retries block each other. The cause is that the writer marks permanent
+  refusals with the code Postgres reserves for "temporary clash, retry me".
+  Fixing it means changing that code in the database and teaching the app the
+  new one — Codex's red test is exactly that second half. It is a migration to
+  the locked completion writer, so I stopped for your decision.
+- **Still failing, and honest about it.** The three session-quality cases and the
+  synthetic 32-question trace fail for two reasons: one gate of ours still
+  demands an exact question count, which a dropped question now breaks, and the
+  generation gives up after a review reply comes back unusable twice — most
+  likely the new, stricter reviewer being squeezed into too small an output
+  allowance. The second is a hypothesis from the failure site, not a trace.
+- **Against main.** Of nine core-journey failures, five also fail on main's own
+  run. Four do not: a quick-add deadline whose type reads "class", and the
+  founder journey's missing source link, both on desktop and phone. Neither
+  belongs to items 1–4; they come from this branch's earlier work.
+- **The release gate is blocked**, and 50 of its 60 cases are simply renamed
+  tests: Brief 2 rewrote intake, scheduling and the inline topic actions, and the
+  comparator matches old titles exactly. They need listing as renamed, one by
+  one, before anyone can read that gate. The saved main baseline is also older
+  than main and due a refresh.
+
 ## What is still open
 
-- The full CI run on this branch, and its comparison against main's own run.
-  Main's run currently fails five browser cases of its own (a material drop
-  zone, and three mobile calendar cases), which are not this branch's doing.
-- Item 2's answer, which that run produces.
+- The four decisions above: the completion-code migration, the exact-count gate,
+  the reviewer's output allowance, and the renamed-case list plus a refreshed
+  baseline.
+- The two browser regressions from earlier branch work.
 - Codex's earlier honest caveats still stand: test counts are not evidence of
   learning, the phone briefing still puts a long list of instructions before the
   task, and automated recordings cannot replace feedback from real learners.
