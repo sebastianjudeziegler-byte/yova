@@ -230,3 +230,43 @@ Note for the founder's judgement, not changed here: the repetition finding says
 a 32-question block on a single three-subtopic topic is over-filled at source.
 Section 1 of the plan model answers that by sweeping in the next ready topic,
 which the segmented blocks on this branch already do.
+
+
+## Item 4 — the phone Practice Test failure is the same generation refusal, not a mobile fault
+
+The CI #414 review recorded the phone Practice Test and phone Interleaved
+Review failing while their desktop twins passed, which reads as a mobile
+problem. CI #415's live step contradicts that:
+
+| Case | CI #414 | CI #415 |
+| --- | --- | --- |
+| Phone Practice Test (8 planned questions) | failed, `502 generation_failed` after 17.2 s | **passed, 14.9 s** |
+| Phone Interleaved Review | failed, `502 generation_failed` after 18.3 s | **passed, 11.4 s** |
+| Phone 1-point and 2-point retries, phone outside-study | passed | passed |
+| Desktop 6-question workload | passed | **failed, `502 generation_failed`** |
+| Desktop 24-question workload | passed, 39.1 s | passed, 32.6 s |
+| Desktop 32-question workload | failed, `502 generation_failed` | failed, `502 generation_failed` |
+
+Nothing in the phone projection changed between the runs. The failure moves
+between projections and question counts, and every instance is the same
+`generation_failed` refusal from the one shared generation path — item 3's
+all-or-nothing quality gate, which discarded a whole round whenever one
+question still failed review. A 5-question retry round or an 8-question
+Practice Test has far fewer questions to lose, so a single unsound question was
+enough to refuse the round outright.
+
+Item 3's change covers these rounds: a round now drops a question the review
+still rejects and runs shorter, while keeping its floor of three sound
+questions, so one bad question can no longer take a Practice Test with it. No
+mobile-specific change was made, because no mobile-specific cause is supported
+by the evidence.
+
+One consequence handled here: the live Practice Test case asserted the visible
+counter read "QUESTION 1 OF 8" exactly. It now asserts the counter matches the
+number of questions that round actually delivered, between six and eight — the
+learner's counter must never claim questions the round does not contain.
+
+If the phone cases fail again in the next full run while their desktop twins
+pass, that is a regression to chase; on the two runs available they are
+intermittent instances of the generation refusal, which is the standing rules'
+FLAKY category rather than a mobile defect.
