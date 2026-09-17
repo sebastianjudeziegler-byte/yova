@@ -251,7 +251,7 @@ async function fillDirection(request: DirectionRequest, provider: SlotProvider |
 const TYPE_GUIDANCE: Record<QuestionType, string> = {
   recall: "recall: retrieve one specific fact from its key point, worded so it cannot be answered by matching the key point's wording.",
   application: "application: put both key points to work in a new, concrete situation the material does not describe; answering needs both.",
-  compare_contrast: "compare_contrast: distinguish or relate the two key points; a learner who knows only one of them cannot answer.",
+  compare_contrast: "compare_contrast: distinguish two cases, mechanisms or outcomes using both key points; a learner who knows only one cannot answer. Calling a definition a comparison does not meet this requirement.",
   prediction: "prediction: change one condition and ask what happens next, reasoning from both key points.",
   misconception: "misconception: state a plausible but wrong belief about the key point and ask which choice corrects it.",
 };
@@ -305,7 +305,7 @@ function learnBlockInstructions(request: LearnBlockRequest, plan: ReturnType<typ
       : "";
   const count = plan.keyPointIds.length;
   return `You write one bounded learn block for YOVA, in ONE response, from ONE shared context.
-1. explanation: plain prose on exactly the supplied topic, matched to topic.learningGoal and its academic level. ${focus} ${style} ${request.modifiers.questionTarget > 12 ? "This substantial practice block needs rich, distinct ideas: teach the mechanism, its necessary conditions and boundaries, and how to reason from evidence. Include enough supported depth for the full workload, not five superficial definitions. Use concise connected paragraphs; do not pad or add unrelated topics." : ""}
+1. explanation: plain prose on exactly the supplied topic, matched to topic.learningGoal and its academic level. ${focus} ${style} input.workload gives the FULL requested question count and type mix; input.slots contains only this call's first batch. Teach the full workload's distinct reasoning needs, not just the types in this first batch. ${request.modifiers.questionTarget > 12 ? "This substantial practice block needs rich, distinct ideas: teach the mechanism, its necessary conditions and boundaries, and how to reason from evidence. Include enough supported depth for the full workload, not five superficial definitions. Use concise connected paragraphs; do not pad or add unrelated topics." : ""}
 2. keyPoints: exactly ${count} key points derived only from the explanation, with ids ${plan.keyPointIds.join(", ")} in that order.
 3. questions: ${questionSlotInstructions(plan.slots, request.modifiers.instructionStyle)} A question may only test what the explanation states.
 4. structure: the explanation's skeleton as 2–8 short lines, in order, for a learner who wants to see the structure before producing.
@@ -345,9 +345,9 @@ type QuestionBatchInput = {
 // These vary the context of the existing slot types, never the tested topic.
 const BATCH_ANGLES = [
   "Use the central mechanism in a concrete setting supported by the key points.",
-  "Vary the setting or values while preserving the supplied mechanism and question type.",
-  "Use a contrasting case or representation that is fully answerable from the same key points.",
-  "Use another supported condition or perspective without adding facts outside the key points.",
+  "Use an observed outcome to infer a necessary condition or distinguish possible causes, within each planned type and its key points; renaming the setting is insufficient.",
+  "Test a supported boundary or contrast between conditions, within each planned type and its key points; do not repeat a previous direction-of-change inference.",
+  "Evaluate a concrete claim or interpretation using the supplied evidence, within each planned type and its key points; do not add facts beyond the teaching context.",
 ];
 
 /** Remaining batches all use the first call's immutable teaching context. */
@@ -418,10 +418,11 @@ async function ensureQuestionQuality(questions: PracticeQuestion[], context: Omi
 async function fillLearnBlock(request: LearnBlockRequest, provider: SlotProvider | null): Promise<LearnBlockResponse> {
   const plan = firstRoundPlan(request.modifiers.questionMix, request.modifiers.questionCap, request.modifiers.questionTarget);
   const firstSlots = plan.slots.slice(0, MAX_BATCH_QUESTIONS);
+  const workload = { questionCount: plan.slots.length, questionMix: plan.slots.reduce<QuestionMix>((mix, slot) => { mix[slot.type] += 1; return mix; }, { recall: 0, application: 0, compare_contrast: 0, prediction: 0, misconception: 0 }) };
   const initial = await withOneRetry(async () => {
     const draft = await provider!({
       instructions: learnBlockInstructions(request, { ...plan, slots: firstSlots }),
-      input: JSON.stringify({ topic: request.topic, keyPointTopics: keyPointTopics(request.topic, plan.keyPointIds), slots: firstSlots, tips: request.tips }),
+      input: JSON.stringify({ topic: request.topic, keyPointTopics: keyPointTopics(request.topic, plan.keyPointIds), workload, slots: firstSlots, tips: request.tips }),
       schema: LearnBlockDraftSchema,
       schemaName: "yova_shape_learn_block",
       questionCount: firstSlots.length, purpose: "initial",

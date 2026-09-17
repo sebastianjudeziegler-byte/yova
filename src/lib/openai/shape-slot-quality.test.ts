@@ -21,7 +21,7 @@ function fixture(repairWorks: boolean) {
     if (call.schemaName === "yova_practice_quality_review") {
       return { reviews: input.questions.map((question: { slotId: string; choices: string[] }) => {
         const index = question.choices.indexOf(good.choices[3]);
-        return { slotId: question.slotId, answerIndices: index >= 0 ? [index] : [], issue: index >= 0 ? "none" : "ambiguous", reason: "Water moves A to B from higher to lower water potential; the reason and direction must both match.", duplicateOfSlotId: null };
+        return { slotId: question.slotId, answerIndices: index >= 0 ? [index] : [], stemSufficient: true, demandMet: true, issue: index >= 0 ? "none" : "ambiguous", reason: "Water moves A to B from higher to lower water potential; the reason and direction must both match.", duplicateOfSlotId: null };
       }) };
     }
     return { keyPoints: sample.keyPoints, questions: [input.qualityIssues && repairWorks ? good : bad], tips: [] };
@@ -63,7 +63,7 @@ describe("MCQ quality gate before delivery", () => {
     const provider = vi.fn(async (call: SlotProviderCall<unknown>) => {
       const input = JSON.parse(call.input);
       if (call.schemaName === "yova_practice_quality_review") {
-        return { reviews: input.questions.map((question: { slotId: string; choices: string[] }) => ({ slotId: question.slotId, answerIndices: [question.choices.indexOf(good.choices[3])], issue: "none", reason: "", duplicateOfSlotId: null })) };
+        return { reviews: input.questions.map((question: { slotId: string; choices: string[] }) => ({ slotId: question.slotId, answerIndices: [question.choices.indexOf(good.choices[3])], stemSufficient: true, demandMet: true, issue: "none", reason: "", duplicateOfSlotId: null })) };
       }
       return { keyPoints, tips: [], questions: input.slots.map((slot: { slotId: string }) => ({ ...good, slotId: slot.slotId, prompt: `Explain the osmosis direction in case ${slot.slotId === "s9" && !input.collisionRepair ? "s1" : slot.slotId}.` })) };
     });
@@ -78,6 +78,6 @@ describe("MCQ quality gate before delivery", () => {
       expect(batch).toMatchObject({ round: 2, roundKind: "error_repair", repairTargets });
       expect(batch.slots).toEqual([expect.objectContaining({ slotId: "s9" })]);
     }
-    expect(provider).toHaveBeenCalledTimes(4);
+    expect(provider).toHaveBeenCalledTimes(5);
   });
 });

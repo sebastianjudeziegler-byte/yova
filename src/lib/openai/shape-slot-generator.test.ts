@@ -62,6 +62,14 @@ describe("bounded launch workloads", () => {
     const request = { ...ids, action, topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24 }, round: 1, keyPoints: [], outstandingKeyPointIds: [], excerpts: [], attempt: ids.requestId, roundKind: "active_recall", repairTargets: [] };
     const result = await fillShapeSlot(request as LearnBlockRequest | PracticeRequest, provider as never);
     expect(result.action === action && result.questions).toHaveLength(24);
+    if (action === "learn_block") {
+      const input = JSON.parse(provider.mock.calls[0]![0].input);
+      expect(input.workload.questionCount).toBe(24);
+      expect(Object.values(input.workload.questionMix).reduce((sum: number, count) => sum + Number(count), 0)).toBe(24);
+      expect(input.workload.questionMix.application).toBeGreaterThan(0);
+      expect(input.workload.questionMix.compare_contrast).toBeGreaterThan(0);
+      expect(input.slots).toHaveLength(8);
+    }
     expect(calls).toHaveLength(3);
     expect(calls.every(call => slotsOf(call).length <= 8)).toBe(true);
     const later = JSON.parse(calls[1]!.input);

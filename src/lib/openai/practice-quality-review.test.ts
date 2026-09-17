@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import failedSample from "./fixtures/ci410-invalid-osmosis-question.json";
 import type { PracticeQuestion } from "@/lib/practice/compose-practice";
+import type { SlotProviderCall } from "./shape-slot-generator";
 vi.mock("server-only", () => ({}));
 import { reviewPracticeQuestions } from "./practice-quality-review";
 
 const question = failedSample.question as PracticeQuestion;
 const context = { topic: failedSample.topic, keyPoints: failedSample.keyPoints, explanation: failedSample.explanation, questions: [question] };
-const verdict = (overrides = {}) => ({ slotId: question.slotId, answerIndices: [], issue: "ambiguous", reason: "A to B is the direction, but neither option combines that direction with higher water potential on A.", duplicateOfSlotId: null, ...overrides });
+const verdict = (overrides = {}) => ({ slotId: question.slotId, answerIndices: [], stemSufficient: true, demandMet: true, issue: "ambiguous", reason: "A to B is the direction, but neither option combines that direction with higher water potential on A.", duplicateOfSlotId: null, ...overrides });
 
 describe("independent practice answer review", () => {
   it("rejects the retained live question with no fully correct option, without exposing its proposed key to the reviewer", async () => {
@@ -58,5 +59,43 @@ describe("independent practice answer review", () => {
     const provider = Object.assign(vi.fn(async () => ({ reviews: [] })), { diagnose });
     expect(await reviewPracticeQuestions(context, provider as never)).toEqual({ ok: false });
     expect(diagnose).toHaveBeenCalledExactlyOnceWith({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "invalid", questionCount: 1 });
+  });
+
+  it.each([24, 32])("reviews %i questions in parallel batches of at most eight with complete earlier-question context", async count => {
+    const questions = Array.from({ length: count }, (_, index) => ({ ...question, slotId: `s${index + 1}` }));
+    const prior = { ...question, slotId: "accepted-prior" };
+    let active = 0, maxActive = 0;
+    const provider = vi.fn(async (call: SlotProviderCall<unknown>) => {
+      active += 1; maxActive = Math.max(active, maxActive);
+      await Promise.resolve();
+      active -= 1;
+      const input = JSON.parse(call.input);
+      return { reviews: input.questions.map((item: { slotId: string }) => verdict({ slotId: item.slotId, answerIndices: [question.correctChoiceIndex], issue: "none", reason: "" })) };
+    });
+    expect(await reviewPracticeQuestions({ ...context, questions, priorQuestions: [prior] }, provider as never)).toEqual({ ok: true, rejected: [] });
+    expect(provider).toHaveBeenCalledTimes(count / 8);
+    expect(maxActive).toBe(count / 8);
+    const inputs = provider.mock.calls.map(([call]) => JSON.parse(call.input));
+    expect(inputs.flatMap(input => input.questions.map((item: { slotId: string }) => item.slotId))).toEqual(questions.map(item => item.slotId));
+    for (const [index, input] of inputs.entries()) {
+      expect(input.questions).toHaveLength(8);
+      expect(input.priorQuestions.map((item: { slotId: string }) => item.slotId)).toEqual([prior, ...questions.slice(0, index * 8)].map(item => item.slotId));
+      expect([...input.questions, ...input.priorQuestions].every(item => !("correctChoiceIndex" in item))).toBe(true);
+    }
+  });
+
+  it.each(["stemSufficient", "demandMet"])("returns an actionable rejection when %s is false despite a matching answer and issue=none", async field => {
+    const provider = vi.fn(async () => ({ reviews: [verdict({ answerIndices: [question.correctChoiceIndex], issue: "none", reason: "The stem omits the relation needed for this inference.", stemSufficient: true, demandMet: true, [field]: false })] }));
+    expect(await reviewPracticeQuestions(context, provider as never)).toMatchObject({ ok: true, rejected: [{ slotId: question.slotId, reason: expect.stringContaining(field === "stemSufficient" ? "missing_conditions" : "wrong_type") }] });
+  });
+
+  it("refuses the entire review when a later batch omits one target", async () => {
+    const questions = Array.from({ length: 16 }, (_, index) => ({ ...question, slotId: `s${index + 1}` }));
+    const provider = vi.fn(async (call: SlotProviderCall<unknown>) => {
+      const input = JSON.parse(call.input);
+      return { reviews: input.questions.filter((item: { slotId: string }) => item.slotId !== "s16").map((item: { slotId: string }) => verdict({ slotId: item.slotId, answerIndices: [question.correctChoiceIndex], issue: "none", reason: "" })) };
+    });
+    expect(await reviewPracticeQuestions({ ...context, questions }, provider as never)).toEqual({ ok: false });
+    expect(provider).toHaveBeenCalledTimes(2);
   });
 });

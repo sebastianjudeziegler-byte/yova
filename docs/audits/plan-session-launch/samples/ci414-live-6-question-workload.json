@@ -1,0 +1,193 @@
+{
+  "environment": "CI development-preview; real model; no database",
+  "elapsedMs": 6710,
+  "input": {
+    "requestId": "dfd61a9f-6103-4d09-98d0-aeb60ef0ae09",
+    "recoveryKey": "a1aaf4c8-5862-406e-8f1f-1d0ba4bed1dd",
+    "planId": "7b0109c8-dc22-4407-bc59-86685688dfb9",
+    "planSessionId": "b2a07b7d-354b-4cf6-ad84-4f375af3ebee",
+    "topic": {
+      "id": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
+      "title": "Plant cell structures",
+      "description": "Identify the cell wall, nucleus, chloroplast and vacuole and recall their functions.",
+      "subtopics": [
+        "Cell wall",
+        "Nucleus",
+        "Chloroplast",
+        "Vacuole"
+      ],
+      "taskType": "memorization",
+      "learningGoal": "Learn the basic plant cell structures and their functions for an introductory secondary-school biology quiz."
+    },
+    "modifiers": {
+      "instructionStyle": "standard",
+      "questionMix": {
+        "recall": 6,
+        "application": 0,
+        "compare_contrast": 0,
+        "prediction": 0,
+        "misconception": 0
+      },
+      "produceStep": "typed_explanation",
+      "explanationFocus": "concept",
+      "questionCap": 6,
+      "questionTarget": 6,
+      "workloadBounded": true
+    },
+    "tips": [],
+    "action": "learn_block"
+  },
+  "status": 200,
+  "output": {
+    "action": "learn_block",
+    "explanation": "Plant cells have four key structures to know at this level. The cell wall is a rigid outer layer that supports the cell and helps it keep its shape. The nucleus controls the cell’s activities and contains the genetic material. Chloroplasts absorb light energy for photosynthesis. The vacuole stores cell sap and helps keep the cell firm. For example, in a leaf cell, chloroplasts use light to make food, while the vacuole helps keep the cell upright and the cell wall gives it strength.",
+    "keyPoints": [
+      {
+        "id": "k1",
+        "text": "The cell wall is a rigid outer layer that supports the plant cell and helps it keep its shape.",
+        "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+      },
+      {
+        "id": "k2",
+        "text": "The nucleus controls the cell’s activities and contains the genetic material.",
+        "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+      },
+      {
+        "id": "k3",
+        "text": "Chloroplasts absorb light energy for photosynthesis.",
+        "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+      },
+      {
+        "id": "k4",
+        "text": "The vacuole stores cell sap and helps keep the cell firm.",
+        "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+      },
+      {
+        "id": "k5",
+        "text": "Plant cells have these parts working together: wall for support, nucleus for control, chloroplasts for photosynthesis, and vacuole for firmness.",
+        "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+      }
+    ],
+    "questions": [
+      {
+        "id": "s1",
+        "slotId": "s1",
+        "kind": "recall",
+        "keyPointIds": [
+          "k1"
+        ],
+        "prompt": "Which part of a plant cell gives it strength and helps stop it from collapsing?",
+        "choices": [
+          "Nucleus",
+          "Vacuole",
+          "Cell wall",
+          "Chloroplast"
+        ],
+        "correctChoiceIndex": 2,
+        "explanation": "The cell wall is the tough outer layer that supports the cell and helps it keep its shape."
+      },
+      {
+        "id": "s2",
+        "slotId": "s2",
+        "kind": "recall",
+        "keyPointIds": [
+          "k2"
+        ],
+        "prompt": "A cell needs one structure that acts like the control center and holds the hereditary material. Which is it?",
+        "choices": [
+          "Vacuole",
+          "Chloroplast",
+          "Cell wall",
+          "Nucleus"
+        ],
+        "correctChoiceIndex": 3,
+        "explanation": "The nucleus controls the cell’s activities and contains the genetic material."
+      },
+      {
+        "id": "s3",
+        "slotId": "s3",
+        "kind": "recall",
+        "keyPointIds": [
+          "k3"
+        ],
+        "prompt": "Which structure is responsible for taking in light energy so the cell can make food?",
+        "choices": [
+          "Chloroplast",
+          "Cell wall",
+          "Vacuole",
+          "Nucleus"
+        ],
+        "correctChoiceIndex": 0,
+        "explanation": "Chloroplasts absorb light energy for photosynthesis."
+      },
+      {
+        "id": "s4",
+        "slotId": "s4",
+        "kind": "recall",
+        "keyPointIds": [
+          "k4"
+        ],
+        "prompt": "A plant cell is swollen with fluid that helps it stay firm. Which structure is doing this job?",
+        "choices": [
+          "Vacuole",
+          "Chloroplast",
+          "Nucleus",
+          "Cell wall"
+        ],
+        "correctChoiceIndex": 0,
+        "explanation": "The vacuole stores cell sap and helps keep the cell firm."
+      },
+      {
+        "id": "s5",
+        "slotId": "s5",
+        "kind": "recall",
+        "keyPointIds": [
+          "k5"
+        ],
+        "prompt": "In a leaf cell, which structure would most directly explain why the cell can make food in sunlight?",
+        "choices": [
+          "Chloroplast",
+          "Vacuole",
+          "Cell wall",
+          "Nucleus"
+        ],
+        "correctChoiceIndex": 0,
+        "explanation": "Chloroplasts absorb light energy for photosynthesis, which is how the cell makes food."
+      },
+      {
+        "id": "s6",
+        "slotId": "s6",
+        "kind": "recall",
+        "keyPointIds": [
+          "k1"
+        ],
+        "prompt": "Which structure is the best match for a part that makes the cell sturdy but does not control cell activities?",
+        "choices": [
+          "Chloroplast",
+          "Vacuole",
+          "Nucleus",
+          "Cell wall"
+        ],
+        "correctChoiceIndex": 3,
+        "explanation": "The cell wall provides support and shape, while control of activities belongs to the nucleus."
+      }
+    ],
+    "structure": [
+      "Plant cells have four key structures.",
+      "Cell wall: support and shape.",
+      "Nucleus: control and genetic material.",
+      "Chloroplast: light capture for photosynthesis.",
+      "Vacuole: storage and firmness."
+    ],
+    "example": {
+      "title": "A leaf cell in sunlight",
+      "steps": [
+        "The chloroplast absorbs light.",
+        "The nucleus controls the cell’s work.",
+        "The vacuole keeps the cell firm.",
+        "The cell wall supports the whole cell."
+      ]
+    },
+    "tips": []
+  }
+}
