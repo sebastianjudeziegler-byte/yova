@@ -753,3 +753,48 @@ The live baseline practice retries passed apart from the hub run.
 
   Both were recorded as failing 0/3 at audit, then passed once in the retained main sample. They are intermittent, so they are now FLAKY per the standing rules (policy.json and BACKLOG.md).
 
+## CI run 35179854931 (da39e45): green
+
+- **Every journey step passed:** core learner journey, baseline session journey, public authentication, Study Profile comparison.
+- **Live baseline practice:** 13 passed, 0 failed, 0 flaky, 0 skipped.
+- **Regression gate:** "No regressions versus main".
+- **Full live gate step:** its raw step is red, as on every main run, including retained main run 35098660639. By the standing rules, only a regression versus main blocks.
+
+The screenshots below come from this run's `yova-quality-evidence-35179854931` artifact, downloaded with the founder's approval.
+
+### Two profiles, the same topic, side by side (live, with the hub)
+
+Profile 1: short sessions, exact guidance, example first, maps knowledge. Profile 2: long sessions, decides for themselves, tries first, explains.
+
+| Step | Profile 1 (Concept Mapping) | Profile 2 (Feynman Technique) |
+|---|---|---|
+| Study | ![P1 study](screenshots/P1-1-study.png) | ![P2 study](screenshots/P2-2-study.png) |
+| Worked example / produce first | ![P1 worked example](screenshots/P1-2-worked-example.png) | ![P2 produce](screenshots/P2-1-produce.png) |
+| Produce | ![P1 produce](screenshots/P1-3-produce.png) | (P2 produced first, above) |
+| Compare | ![P1 compare](screenshots/P1-4-compare.png) | ![P2 compare](screenshots/P2-3-compare.png) |
+| Repair | ![P1 repair](screenshots/P1-5-repair.png) | ![P2 repair](screenshots/P2-4-repair.png) |
+| End receipt | ![P1 end](screenshots/P1-6-end.png) | ![P2 end](screenshots/P2-5-end.png) |
+
+In the live run, every tip and pill sat on a rule in that profile's `route.ruleIds`, and the two profiles' tips differed on rule and text (`baseline-hub-profiles.live.spec.ts`).
+
+### One live screenshot per practice label
+
+| Label | Rule ID | Screenshot |
+|---|---|---|
+| Active Recall | `L4.practice.active_recall.default` | ![Active Recall](screenshots/label-active-recall-1.png) |
+| Error Repair | `L4.practice.error_repair.after_missed_round` | ![Error Repair](screenshots/label-error-repair-1.png) |
+| Practice Test | `L4.practice.practice_test.deadline_within_3_days` | ![Practice Test](screenshots/label-practice-test.png) |
+| Interleaved Review | `L4.practice.interleaved_review.related_topics_passed` | ![Interleaved Review](screenshots/label-interleaved-review.png) |
+
+### Phone fallback: UNDESIGNED
+
+![Phone fallback, undesigned](screenshots/hub-mobile-fallback-undesigned.png)
+
+### Item 8: outside YOVA (live)
+
+Card, directions, I'm back, practice, end. No produce step and no explanation ran.
+
+| Card | Directions | Directions (phone) | Practice | End |
+|---|---|---|---|---|
+| ![card](screenshots/outside-1-card.png) | ![directions](screenshots/outside-2-directions.png) | ![directions phone](screenshots/outside-2-directions-mobile.png) | ![practice](screenshots/outside-3-practice.png) | ![end](screenshots/outside-4-end.png) |
+
