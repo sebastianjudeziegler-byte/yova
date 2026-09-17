@@ -452,12 +452,12 @@
       "evidence": "Corrected placement canary intermittently rejects generated ambiguous/unsupported answers, already backlogged and explicitly deferred. Exact main passed; Brief B repeats the known diagnostic failure. No validator change. See docs/audits/brief-b/EVIDENCE.md."
     },
     "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Biology test with learner notes'": {
-      "classification": "STALE",
-      "passRate": "0/3",
-      "semanticFailures": 3,
+      "classification": "FLAKY",
+      "passRate": "1/5",
+      "semanticFailures": 4,
       "unavailable": 0,
       "auditId": "A06",
-      "evidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20)."
+      "evidence": "Reclassified from STALE in Brief 1.5: failed 0/3 at audit (No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20).), passed once on retained main run 35098660639, failed on Brief 1.5 run 35176051576. Its import graph reaches none of the files Brief 1.5 changed (docs/audits/BACKLOG.md)."
     },
     "src/evals/plan-quality.live.test.ts::live OpenAI plan quality > 'Calculus problem-solving plan'": {
       "classification": "STALE",
@@ -646,12 +646,12 @@
       "evidence": "The old 4/5 activity cap predates the method-aware Learn budget and recognition phase in b8f5e102 (Sep 1)."
     },
     "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Startup funding foundations for a new…'": {
-      "classification": "STALE",
-      "passRate": "0/3",
-      "semanticFailures": 3,
+      "classification": "FLAKY",
+      "passRate": "1/5",
+      "semanticFailures": 4,
       "unavailable": 0,
       "auditId": "A29",
-      "evidence": "The old 4/5 activity cap predates the method-aware Learn budget and recognition phase in b8f5e102 (Sep 1)."
+      "evidence": "Reclassified from STALE in Brief 1.5: failed 0/3 at audit (The old 4/5 activity cap predates the method-aware Learn budget and recognition phase in b8f5e102 (Sep 1).), passed once on retained main run 35098660639, failed on Brief 1.5 run 35176051576. Its import graph reaches none of the files Brief 1.5 changed (docs/audits/BACKLOG.md)."
     },
     "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'History reasoning from a primary-sour…'": {
       "classification": "REAL",

@@ -742,3 +742,14 @@ The live baseline practice retries passed apart from the hub run.
   - Its import graph (131 modules, dynamic imports included, via `tsc --listFilesOnly`) contains none of the files this branch changes. The branch cannot have caused it.
   - Re-run on the next commit. If it fails again, it goes to the founder rather than being reclassified.
 
+## CI run 35176051576 (10b9e65)
+
+- **Every journey step green.**
+- **Live baseline practice:** 13 passed, 0 failed, 0 flaky, 0 skipped.
+- **The scoped History essay case passed on re-run.**
+- **Regression gate: blocked on two unscoped live AI quality cases:**
+  - `plan-quality` "Biology test with learner notes": 84-module import graph, no changed file;
+  - `session-quality` "Startup funding foundations…": 89 modules, no changed file.
+
+  Both were recorded as failing 0/3 at audit, then passed once in the retained main sample. They are intermittent, so they are now FLAKY per the standing rules (policy.json and BACKLOG.md).
+
