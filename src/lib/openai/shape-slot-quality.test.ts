@@ -44,4 +44,40 @@ describe("MCQ quality gate before delivery", () => {
     await expect(fillShapeSlot(request, provider as never)).rejects.toMatchObject({ code: "generation_failed" });
     expect(provider).toHaveBeenCalledTimes(4);
   });
+
+  it("keeps the learner's missed-answer context when the quality gate replaces a one-point retry", async () => {
+    const repairTargets = [{ keyPointId: "k2", question: "Why does water move from side A to side B?", chosenAnswer: "Water moves toward higher water potential.", correctAnswer: "Water moves toward lower water potential." }];
+    const provider = fixture(true);
+    const response = await fillShapeSlot({ ...request, round: 2, roundKind: "error_repair", outstandingKeyPointIds: ["k2"], repairTargets }, provider as never);
+    if (response.action !== "practice") throw new Error("Expected practice");
+    expect(response.questions).toHaveLength(1);
+    expect(response.questions[0]!.keyPointIds).toEqual(["k2"]);
+    const replacement = provider.mock.calls.find(([call]) => JSON.parse(call.input).qualityIssues)![0];
+    expect(JSON.parse(replacement.input)).toMatchObject({ round: 2, roundKind: "error_repair", repairTargets });
+    expect(provider).toHaveBeenCalledTimes(4);
+  });
+
+  it("preserves retry context in later batches and their bounded collision repair", async () => {
+    const keyPoints = Array.from({ length: 9 }, (_, index) => ({ id: `k${index + 1}`, text: `Osmosis key point ${index + 1}: water moves from higher to lower water potential.` }));
+    const repairTargets = [{ keyPointId: "k9", question: "Why does water move from side A to side B?", chosenAnswer: "Water moves toward higher water potential.", correctAnswer: "Water moves toward lower water potential." }];
+    const provider = vi.fn(async (call: SlotProviderCall<unknown>) => {
+      const input = JSON.parse(call.input);
+      if (call.schemaName === "yova_practice_quality_review") {
+        return { reviews: input.questions.map((question: { slotId: string; choices: string[] }) => ({ slotId: question.slotId, answerIndices: [question.choices.indexOf(good.choices[3])], issue: "none", reason: "", duplicateOfSlotId: null })) };
+      }
+      return { keyPoints, tips: [], questions: input.slots.map((slot: { slotId: string }) => ({ ...good, slotId: slot.slotId, prompt: `Explain the osmosis direction in case ${slot.slotId === "s9" && !input.collisionRepair ? "s1" : slot.slotId}.` })) };
+    });
+    const response = await fillShapeSlot({ ...request, modifiers: { ...request.modifiers, questionCap: 9, questionTarget: 9 }, keyPoints, outstandingKeyPointIds: keyPoints.map(point => point.id), round: 2, roundKind: "error_repair", repairTargets }, provider as never);
+    if (response.action !== "practice") throw new Error("Expected practice");
+    expect(response.questions).toHaveLength(9);
+    expect(new Set(response.questions.map(question => question.prompt)).size).toBe(9);
+    const batches = provider.mock.calls.filter(([call]) => call.schemaName === "yova_shape_question_batch").map(([call]) => JSON.parse(call.input));
+    expect(batches).toHaveLength(2);
+    expect(batches.map(batch => batch.collisionRepair)).toEqual([false, true]);
+    for (const batch of batches) {
+      expect(batch).toMatchObject({ round: 2, roundKind: "error_repair", repairTargets });
+      expect(batch.slots).toEqual([expect.objectContaining({ slotId: "s9" })]);
+    }
+    expect(provider).toHaveBeenCalledTimes(4);
+  });
 });

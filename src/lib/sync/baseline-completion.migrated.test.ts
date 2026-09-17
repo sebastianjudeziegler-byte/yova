@@ -285,31 +285,72 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
   }, 30_000);
 
   it("persists both checked origins once and reloads the exact segment receipts after a terminal retry", async () => {
-    const saved = await persistSegmentedPlan();
-    const event = segmentedCompletion(saved);
-    await completeAuthenticatedPlanSession(event, undefined, undefined, undefined, undefined, userId);
-    await completeAuthenticatedPlanSession(event, undefined, undefined, undefined, undefined, userId);
-    expect(rows(event.id)).toBe("1");
-    expect(await readAuthenticatedSessionCompletionReceipt(userId, event)).toBe(true);
-    const reloaded = await loadAuthenticatedLearningState();
-    const attempts = reloaded!.sessionCompletions.filter(item => item.id === event.id);
-    expect(attempts).toHaveLength(1);
-    expect(attempts[0]!.segmentCompletions).toEqual(event.segmentCompletions);
-    expect(attempts[0]!.conceptEvidence).toEqual(event.conceptEvidence);
-    expect(attempts[0]!.correctAnswers).toBe(event.correctAnswers);
-    expect(attempts[0]!.totalAnswers).toBe(event.totalAnswers);
-    expect(reloaded!.plans.find(item => item.id === saved.id)!.sessions[0]!.status).toBe("complete");
-    const persisted = await clients.learner.from("session_attempts").select("result_data").eq("id", event.id).single();
-    expect(persisted.error).toBeNull();
-    expect(persisted.data?.result_data.segmentCompletions).toEqual(event.segmentCompletions);
-    expect(persisted.data?.result_data.conceptEvidence).toEqual(event.conceptEvidence);
-    const changedReplay = await clients.learner.rpc("complete_plan_session_with_route", { payload: { ...completionPayload(event), segmentCompletions: event.segmentCompletions!.map((segment, index) => index === 0 ? { ...segment, elapsedSeconds: segment.elapsedSeconds + 1 } : segment) } });
-    expect(changedReplay.error).not.toBeNull();
-    expect(changedReplay.error?.code).toBe("40001");
-    expect(changedReplay.error?.message).toBe("study_route_completion_retry_conflict");
-    expect(rows(event.id)).toBe("1");
-    const afterRejectedReplay = await clients.learner.from("session_attempts").select("result_data").eq("id", event.id).single();
-    expect(afterRejectedReplay.error).toBeNull();
-    expect(afterRejectedReplay.data?.result_data).toEqual(persisted.data?.result_data);
+    const started = Date.now();
+    let currentStage = "not started";
+    async function stage<T>(name: string, operation: () => T | Promise<T>): Promise<T> {
+      currentStage = name;
+      console.info("Migrated segment completion stage", JSON.stringify({ stage: name, state: "started", elapsedMs: Date.now() - started }));
+      const result = await operation();
+      console.info("Migrated segment completion stage", JSON.stringify({ stage: name, state: "finished", elapsedMs: Date.now() - started }));
+      return result;
+    }
+    // Diagnose the current await before the unchanged 30-second test deadline.
+    // Only wait states, blocking PIDs and a fixed RPC classification are output;
+    // raw SQL, arguments, auth headers and learner text are never printed.
+    const diagnostic = setTimeout(() => {
+      console.error("Migrated segment completion still pending", JSON.stringify({ stage: currentStage, elapsedMs: Date.now() - started }));
+      try {
+        const activity = execFileSync("docker", ["exec", "-i", container!, "psql", "-U", "postgres", "-d", "postgres", "-X", "-At", "-v", "ON_ERROR_STOP=1"], {
+          encoding: "utf8", timeout: 2_000, maxBuffer: 32_768,
+          input: `set statement_timeout = '1500ms';
+select coalesce(jsonb_agg(to_jsonb(activity)), '[]'::jsonb) from (
+  select pid, state, wait_event_type, wait_event,
+    pg_blocking_pids(pid) as blocking_pids,
+    floor(extract(epoch from clock_timestamp() - query_start)) as active_seconds,
+    case when position('complete_plan_session_with_route' in query) > 0 then 'completion_rpc'
+      when position('save_generated_plan_with_routes' in query) > 0 then 'activation_rpc'
+      when position('mint_plan_activation_permit_v1' in query) > 0 then 'activation_permit_rpc'
+      else 'other' end as query_class
+  from pg_stat_activity
+  where pid <> pg_backend_pid() and backend_type = 'client backend'
+    and (state = 'active' or state like 'idle in transaction%')
+  order by pid
+) as activity;`,
+        }).trim();
+        console.error("Migrated segment completion database waits", activity);
+      } catch {
+        console.error("Migrated segment completion database wait diagnostic unavailable within two seconds");
+      }
+    }, 25_000);
+    try {
+      const saved = await stage("activate fresh segmented plan", persistSegmentedPlan);
+      const event = segmentedCompletion(saved);
+      await stage("first completion write", () => completeAuthenticatedPlanSession(event, undefined, undefined, undefined, undefined, userId));
+      await stage("exact completion retry", () => completeAuthenticatedPlanSession(event, undefined, undefined, undefined, undefined, userId));
+      expect(await stage("count durable attempt", () => rows(event.id))).toBe("1");
+      expect(await stage("read authenticated receipt", () => readAuthenticatedSessionCompletionReceipt(userId, event))).toBe(true);
+      const reloaded = await stage("reload authenticated learning state", loadAuthenticatedLearningState);
+      const attempts = reloaded!.sessionCompletions.filter(item => item.id === event.id);
+      expect(attempts).toHaveLength(1);
+      expect(attempts[0]!.segmentCompletions).toEqual(event.segmentCompletions);
+      expect(attempts[0]!.conceptEvidence).toEqual(event.conceptEvidence);
+      expect(attempts[0]!.correctAnswers).toBe(event.correctAnswers);
+      expect(attempts[0]!.totalAnswers).toBe(event.totalAnswers);
+      expect(reloaded!.plans.find(item => item.id === saved.id)!.sessions[0]!.status).toBe("complete");
+      const persisted = await stage("read stored segment receipt", async () => await clients.learner.from("session_attempts").select("result_data").eq("id", event.id).single());
+      expect(persisted.error).toBeNull();
+      expect(persisted.data?.result_data.segmentCompletions).toEqual(event.segmentCompletions);
+      expect(persisted.data?.result_data.conceptEvidence).toEqual(event.conceptEvidence);
+      const changedReplay = await stage("reject changed receipt retry", async () => await clients.learner.rpc("complete_plan_session_with_route", { payload: { ...completionPayload(event), segmentCompletions: event.segmentCompletions!.map((segment, index) => index === 0 ? { ...segment, elapsedSeconds: segment.elapsedSeconds + 1 } : segment) } }));
+      expect(changedReplay.error).not.toBeNull();
+      expect(changedReplay.error?.code).toBe("40001");
+      expect(changedReplay.error?.message).toBe("study_route_completion_retry_conflict");
+      expect(await stage("count attempt after rejected retry", () => rows(event.id))).toBe("1");
+      const afterRejectedReplay = await stage("read unchanged receipt after rejection", async () => await clients.learner.from("session_attempts").select("result_data").eq("id", event.id).single());
+      expect(afterRejectedReplay.error).toBeNull();
+      expect(afterRejectedReplay.data?.result_data).toEqual(persisted.data?.result_data);
+    } finally {
+      clearTimeout(diagnostic);
+    }
   }, 30_000);
 });

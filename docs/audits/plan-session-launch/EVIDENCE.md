@@ -63,3 +63,10 @@ The production build also passed in #409. The next CI run puts the live session 
 
 
 Latest integrated local checkpoint: **4,534 unit tests passed,105gated/skipped;25runner checks passed; full lint passed**. Focused two-activity desktop replay passed13.1s, preserving both origins and second-activity draft through reload; video decoded and frame inspected. The Next dev console emitted a router-initialization error during page load despite the passing assertions; final CI review remains necessary. Later-history routing refinements have separate targeted verification and will run in full CI.
+
+
+## CI #414 review in progress
+
+Candidate `e3dfd97` / run `35254727222` passed migration replay, database lint/boundaries, integrated units, lint, types, production build and the live retained-invalid-MCQ versus corrected-option check. The migrated route/completion step passed 13 cases and timed out in the new valid two-segment completion/retry/reload case after30s; the exact await is not yet known. Per-segment source hydration and the malformed/partial receipt rejection cases passed. Test-only bounded stage/database-wait diagnostics retain the existing assertions and30s deadline; no SQL change is justified by the timeout alone. See `evidence/migrated-segment-ci414.md`.
+
+Independent review found that question replacements could lose the current retry round and original missed-answer details. Two focused regressions failed before threading that immutable context through later batches, duplicate replacements and quality replacements. The same one-point scope and four-call bound remain. All62 focused generator/quality tests passed; evidence: `evidence/repair-context-{red,green}.txt`. This follow-up is not covered by the initial CI414 head.
