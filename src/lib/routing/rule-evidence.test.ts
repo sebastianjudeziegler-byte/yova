@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { emptyOnboardingAnswers, withOnboardingAnswer } from "@/lib/onboarding/answers";
 import { personalizationNote } from "./personalization-note";
-import { chosenBecause, ruleEvidence } from "./rule-evidence";
+import { chosenBecause, receiptEvidence, ruleEvidence } from "./rule-evidence";
+import { applyTopicWorkloadToRoute } from "@/lib/plan-generation/topic-workload-route";
+import { TopicWorkloadSchema } from "@/lib/plan-generation/topic-plan-contract";
 import { routeSession, type RoutingInput } from "./session-route";
 
 function route(overrides: Partial<RoutingInput> = {}, answers: Record<string, string | string[]> = {}) {
@@ -60,5 +62,38 @@ describe("rule evidence", () => {
     const defaults = chosenBecause(route({ blockKind: "learn" }));
     expect(defaults.length).toBeGreaterThan(0);
     for (const pill of defaults) expect(route().ruleIds).toContain(pill.ruleId);
+  });
+
+  // CI #414: a 10-15 minute, loses-focus-very-often profile was delivered a
+  // 22-minute, six-question block sized without its answers, and the end
+  // receipt still told the learner it had a shorter allowance.
+  const shortProfile = { session_length: "minutes_10_15", focus_loss: "very_often", support_needs: ["shorter_sections"] };
+  const workload = (estimatedMinutes: number, questionCount: number) => TopicWorkloadSchema.parse({
+    version: "topic_workload_v1", topicSubtopics: [{ topicId: "11111111-1111-4111-8111-111111111111", subtopics: ["Light absorption", "Energy carriers"] }],
+    questionCount, recallQuestionCount: questionCount, transferQuestionCount: 0, produceSteps: 1, sourceReadMinutes: 4,
+    estimatedMinutes, ceilingMinutes: estimatedMinutes, practicePlaceholder: false, practiceRound: 0, suggestedDate: false, ruleIds: ["plan.workload.content_estimate"],
+  });
+  const allowanceClaims = (estimatedMinutes: number, questionCount: number) =>
+    receiptEvidence(applyTopicWorkloadToRoute(route({}, shortProfile), workload(estimatedMinutes, questionCount)), { practiceOccurred: true })
+      .filter(entry => /allowance|smaller workload/u.test(entry.sentence));
+
+  it("claims a shorter allowance only when the block delivered one", () => {
+    const sized = allowanceClaims(11, 3);
+    expect(sized.map(entry => entry.ruleId)).toEqual(expect.arrayContaining(["L4.q3.very_often", "L4.q9.shorter_sections", "L4.q2.minutes_10_15"]));
+    for (const entry of sized) expect(entry.sentence).toContain("11-minute");
+
+    for (const entry of allowanceClaims(22, 6)) {
+      expect(entry.sentence, `${entry.ruleId} claims an allowance the block did not deliver`).not.toMatch(/shorter workload allowance|smaller workload|within your allowance/u);
+    }
+  });
+
+  it("still names a focus or support rule whose allowance was not delivered, without the claim", () => {
+    const receipt = receiptEvidence(applyTopicWorkloadToRoute(route({}, shortProfile), workload(22, 6)), { practiceOccurred: true });
+    const ids = receipt.map(entry => entry.ruleId);
+    expect(ids).toContain("L4.q3.very_often");
+    expect(ids).toContain("L4.q9.shorter_sections");
+    const focus = receipt.find(entry => entry.ruleId === "L4.q3.very_often")?.sentence ?? "";
+    expect(focus).toContain("15 minutes");
+    expect(focus).toContain("estimated at 22 minutes");
   });
 });

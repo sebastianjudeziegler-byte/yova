@@ -144,6 +144,25 @@ function headOf(sentence: string) {
   return sentence.match(/^Because (.+?), /)?.[1] ?? sentence;
 }
 
+/** Rules whose sentence tells the learner this block was sized to a profile
+ * allowance. The claim holds only while the block's own estimate stays inside
+ * the allowance that rule set. (CI #414: a 10–15 minute, loses-focus-very-often
+ * profile was delivered a 22-minute block whose receipt still promised a
+ * shorter allowance.) When it does not hold, the rule is still named, with the
+ * allowance and the estimate the learner actually got. */
+const ALLOWANCE_CLAIM_HEADS: ReadonlyArray<[match: string | RegExp, head: string]> = ([
+  ["L4.q3.very_often", "you lose focus very often"],
+  ["L4.q3.often", "you lose focus often"],
+  ["L4.q9.shorter_sections", "you asked for shorter sections"],
+  [/^L4\.q2\.minutes_(10_15|20_30|30_45|45_60)$/, "of the session length you said is realistic"],
+]);
+
+function undeliveredAllowanceText(decision: RoutingDecision, route: SessionRoute) {
+  const head = ALLOWANCE_CLAIM_HEADS.find(([match]) => matches(match, decision.ruleId))?.[1];
+  if (!head || typeof decision.value !== "number" || route.timerMinutes <= decision.value) return null;
+  return `Because ${head}, your allowance for this block is ${decision.value} minutes, but its content is estimated at ${route.timerMinutes} minutes.`;
+}
+
 function matches(match: string | RegExp, ruleId: string) {
   if (match instanceof RegExp) return match.test(ruleId);
   return match.endsWith(".") ? ruleId.startsWith(match) : ruleId === match;
@@ -156,6 +175,7 @@ function entriesFor(templates: ReadonlyArray<Template>, route: SessionRoute, hap
     if (!decision || !effectiveRule(decision.ruleId, route, happened)) return [];
     let text = sentence(decision, route);
     if (EXAMPLE_CLAIM_RULE_IDS.has(decision.ruleId) && happened.exampleShown === undefined) text = `Because ${decision.ruleId.includes("q10") ? "you said you need examples before feeling ready" : "you said a concrete example helps most"}, this session includes a worked-example step when the material supports one.`;
+    text = undeliveredAllowanceText(decision, route) ?? text;
     return [{ ruleId: decision.ruleId, head: headOf(text), sentence: text }];
   });
 }

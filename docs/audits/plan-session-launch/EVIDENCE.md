@@ -72,3 +72,51 @@ Candidate `e3dfd97` / run `35254727222` passed migration replay, database lint/b
 Independent review found that question replacements could lose the current retry round and original missed-answer details. Two focused regressions failed before threading that immutable context through later batches, duplicate replacements and quality replacements. The same one-point scope and four-call bound remain. All62 focused generator/quality tests passed; evidence: `evidence/repair-context-{red,green}.txt`. This follow-up is not covered by the initial CI414 head.
 
 CI414 live browser/API checkpoint: {"startTime": "2026-09-17T17:52:44.785Z", "duration": 557270.007, "expected": 14, "skipped": 0, "unexpected": 3, "flaky": 0}. The retained-invalid-answer solver regression passed. Both contrasting profiles, their route/tip delta, desktop outside study/retries/special rounds and short factual generation passed. The24-question application sample returned in39.1s, while32-question generation failed in46.9s. The phone Practice Test also failed after its UI wait, despite the same desktop case passing. These are release blockers. Content-free provider timing/outcome/count diagnostics and a CI-only synthetic32question call trace were added without changing budgets, retries or quality criteria;70focused tests, scoped lint and typecheck passed. No local live call was made.
+
+
+## Item 1 — session sizing follows the profile, and the receipt claims only what was delivered
+
+Two symptoms in CI #414 (`evidence/ci414-live-review.md`): both contrasting
+profiles got **22 minutes and six questions**, and P1's receipt still claimed
+"a shorter workload allowance and a 22-minute estimate".
+
+**Sizing, red.** With the pre-handoff sources restored under the new tests,
+`src/app/api/plans/generate/route.test.ts` "preserves direct baseline profile
+differences with canonical rollout" fails for both rollout values:
+`expected 25 to be less than or equal to 15` — the short profile's ceiling was
+the requested Study Now duration, because the learner's own ten answers were
+only forwarded to workload sizing when the canonical personalization rollout
+was enabled for that learner. The route now forwards them unconditionally, and
+the rollout keeps gating canonical signals and observed history only.
+
+**Sizing, green.** Both cases pass for `intent: "plan"` and `"study_now"`. On
+the same topic, one 25-minute Study Now request:
+
+| Profile | Allowance | Estimate | Questions | Method |
+| --- | --- | --- | --- | --- |
+| 10–15 min, loses focus very often, shorter sections | 11 min | 11 min | 3 | Concept Mapping |
+| 45–60 min, rarely loses focus | 25 min | 22 min | 10 | Feynman Technique |
+
+The live comparison in `e2e/baseline-hub-profiles.live.spec.ts` now reads the
+server-sized workload from the generate response, asserts the visible timer
+equals it, asserts the generated questions actually delivered match the
+persisted count, and requires the two profiles to differ by at least five
+minutes and two questions — a difference in tip copy alone can no longer pass.
+
+**Receipt, red.** `src/lib/routing/rule-evidence.test.ts` "claims a shorter
+allowance only when the block delivered one" reproduces the CI #414 receipt
+from a short profile carrying a 22-minute, six-question block:
+`L4.q9.shorter_sections claims an allowance the block did not deliver:
+"Because you asked for shorter sections, this block uses a 22-minute estimate
+and a smaller workload."`
+
+**Receipt, green.** An allowance claim (`L4.q3.often`/`very_often`,
+`L4.q9.shorter_sections`, `L4.q2.minutes_*`) now holds only while the block's
+estimate stays inside the allowance that rule set. Otherwise the rule is still
+named — Brief 1.5 item 7 — with the real numbers: "your allowance for this
+block is 15 minutes, but its content is estimated at 22 minutes." A correctly
+sized 11-minute block keeps all three claims.
+
+Local checkpoint after both fixes: **4,553 unit tests passed, 106 gated or
+skipped, one known red** (the PT409 completion case, item 2), full typecheck,
+and lint on the changed files.
