@@ -254,3 +254,15 @@ The unit test pushed with 36ae0c8 also failed for a second, unrelated reason: it
   - It failed 0/3 at audit, passed once on retained main, and its 90-module import graph reaches no file this branch changes.
   - The founder chose to classify it FLAKY (policy.json, BACKLOG.md). CI re-runs on that commit.
 
+
+## Undo precondition: omitted versus empty reviewed-edit list (17 Sept 2026)
+
+Standalone branch `codex/undo-empty-edited-fields`, based on main `75ea40a8d87366b41c6308bb5189452d0b493435`. The founder has restored working production Undo as a prerequisite for #97; #97 is paused. No changes from that branch are included here.
+
+A rebuilt session omits `revisionEditedFields` when its list is empty (`build-plan-revision.ts`). Fresh activation stores `[]`, and the revision writer merges session metadata into the existing row, preserving that list. Undo compares the stored proposal against the reloaded row. Its timestamp normalization from #94 does not equate this omitted/empty representation.
+
+The previous migrated test shared a plan across cases. The legacy-row test changed all lists to JSON `null`; the reader strips those null fields, so the later Undo case did not exercise fresh `[]` rows. Each case now activates a fresh plan for a fresh signed-in learner. The regression checks the actual changed row before and after Apply, and verifies that the corresponding session in the persisted proposal omits the field. It then requires Undo and a subsequent database reload to restore the plan. A second real-database case changes the stored list to `["title"]` and requires refusal with the plan and revision history unchanged.
+
+Red-first status: the unchanged production comparator fails three new local unit assertions (omitted/empty in both directions, plus spurious patch creation); twelve checks still pass, including genuine edit protection and #94 timestamps. The test-only commit will run the migrated database reproduction in CI before implementation changes.
+
+After the fix, run the full existing CI suite. The founder merges and deploys. Only after that deployment, use a fresh test topic for change → confirm → receipt → Undo → reload, and verify the restoration persisted. Do not reuse `Water Cycle Quiz Foundations`, which the founder reports has three stuck revisions. No production Undo success is claimed by this branch's database tests.
