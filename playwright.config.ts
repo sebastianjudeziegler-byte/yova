@@ -31,6 +31,11 @@ export default defineConfig({
       use: { ...devices["Pixel 7"] },
       testIgnore: /(^|\/)baseline-[^/]*\.spec\.ts$/,
     },
+    {
+      name: "mobile-webkit",
+      testMatch: "mobile-ui.spec.ts",
+      use: { ...devices["iPhone 13"] },
+    },
   ],
   webServer: externalBaseURL ? undefined : {
     command: passwordAuthMode
