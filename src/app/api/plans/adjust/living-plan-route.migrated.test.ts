@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -15,6 +15,8 @@ vi.mock("@/lib/server/development-preview", () => ({ isDevelopmentPreviewRequest
 
 import { commitPlanStudyRoutes } from "@/lib/study-route/activation";
 import { persistPlanForAuthenticatedUser } from "@/lib/supabase/plan-repository";
+import { loadActiveRevisionContext } from "@/lib/plan-revision/active-context";
+import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import { PATCH } from "@/app/api/plans/adjust/route";
 
 // Supplied by CI while the migrated Supabase stack is running. The browser
@@ -47,8 +49,13 @@ describe.runIf(process.env.YOVA_REQUIRE_MIGRATED_ROUTE_TEST)("migrated-database 
 
 describe.skipIf(!configured)("plan adjustment route against a migrated database", () => {
   const fixture = deltaFixture(1);
-  const plan = commitPlanStudyRoutes({ ...deterministicDeltaPlan(1), status: "active" as const }, DELTA_NOW.toISOString());
+  let plan: LearningPlan;
   let planId: string;
+
+  async function send(body: unknown) {
+    const response = await PATCH(new Request("https://yova.test/api/plans/adjust", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    return { status: response.status, body: await response.json() };
+  }
 
   async function preview() {
     const response = await PATCH(new Request("https://yova.test/api/plans/adjust", {
@@ -65,7 +72,14 @@ describe.skipIf(!configured)("plan adjustment route against a migrated database"
     return { status: response.status, body: await response.json() };
   }
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    // Each case activates a fresh plan for a fresh learner. In particular, the
+    // legacy-null case must not remove [] from the later Undo fixture.
+    plan = commitPlanStudyRoutes({ ...deterministicDeltaPlan(1), status: "active" }, DELTA_NOW.toISOString());
+    // Keep room to revise this unstarted plan without freezing the real auth
+    // and database clocks or eventually failing on the fixture's old deadline.
+    fixture.request.deadline = new Date(Date.now() + 30 * 86_400_000).toISOString();
+    plan.deadline = fixture.request.deadline;
     vi.stubEnv("YOVA_DRAFT_RECEIPT_SECRET", "migrated-route-test-secret-01234567890123456789");
     clients.admin = createClient(url!, secretKey!, { auth: { persistSession: false } });
     const email = `migrated-route-${randomUUID()}@example.com`;
@@ -81,6 +95,28 @@ describe.skipIf(!configured)("plan adjustment route against a migrated database"
     // The real activation writer, the same call the activate route makes.
     await expect(persistPlanForAuthenticatedUser(plan, fixture.request, new Date().toISOString())).resolves.toBe("supabase");
   });
+
+  async function applyFreshChangeWithEmptyEditList() {
+    const before = await loadActiveRevisionContext(clients.learner, planId);
+    expect(before.plan.sessions.every(session => Array.isArray(session.revisionEditedFields) && session.revisionEditedFields.length === 0)).toBe(true);
+    const previewed = await preview();
+    expect(previewed.body.error ?? null, `preview refused: ${previewed.body.error}`).toBeNull();
+    expect(previewed.body.proposal.canApply, previewed.body.proposal.capacity.explanation).toBe(true);
+    const rebuilt = (previewed.body.proposal.after.sessions as LearningPlanSession[]).find(session =>
+      !Object.hasOwn(session, "revisionEditedFields")
+      && before.plan.sessions.some(previous => previous.id === session.id && previous.revisionEditedFields?.length === 0));
+    expect(rebuilt, "the changed session must omit its empty list in the actual proposal").toBeDefined();
+    const changedId = rebuilt!.id;
+    const storedEdits = () => ownerSql(`select step_data->'revisionEditedFields' from public.plan_sessions where id='${uuid(changedId)}';`);
+    expect(storedEdits(), "the actual changed row carries [] before apply").toBe("[]");
+    const applied = await send({ action: "apply", proposal: previewed.body.proposal, proposalReceipt: previewed.body.proposalReceipt });
+    expect(applied.body.error ?? null, `apply refused: ${applied.body.error}`).toBeNull();
+    expect(applied.status).toBe(200);
+    expect(applied.body.changedSessionIds).toContain(changedId);
+    expect(storedEdits(), "the real revision writer preserves [] on this changed row").toBe("[]");
+    expect(ownerSql(`select session ? 'revisionEditedFields' from public.plan_revisions revision, jsonb_array_elements(revision.proposal#>'{after,sessions}') session where revision.id='${uuid(previewed.body.proposal.revisionId)}' and session->>'id'='${uuid(changedId)}';`), "the persisted proposal omits the field that the live row stores as []").toBe("f");
+    return { before, previewed, applied, changedId };
+  }
 
   it("stores an empty reviewed-edit list for sessions the learner never edited", () => {
     const stored = ownerSql(`select coalesce((step_data->'revisionEditedFields')::text, '<absent>') from public.plan_sessions where plan_id = '${uuid(planId)}' order by sequence;`).split("\n");
@@ -107,22 +143,12 @@ describe.skipIf(!configured)("plan adjustment route against a migrated database"
     expect(body.status).toBe("preview");
   });
 
-  // Production, 17 Sept 2026: a saved change applied, then Undo failed with "A changed session no
-  // longer matches this preview". The database returns session times as +00:00; the change stored
-  // them as .000Z, and the preimage check compared the two as text.
-  it("saves a change and then undoes it", async () => {
-    async function send(body: unknown) {
-      const response = await PATCH(new Request("https://yova.test/api/plans/adjust", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
-      return { status: response.status, body: await response.json() };
-    }
-    const previewed = await preview();
-    expect(previewed.body.error ?? null, `preview refused: ${previewed.body.error}`).toBeNull();
+  // Exercise both #94's timestamp normalization and the fresh-row []/omitted
+  // mismatch through real activation, revision, history and reload RPCs.
+  it("saves a change with a real empty edit list, undoes it, and reloads the restored session", async () => {
+    const { before, previewed, applied, changedId } = await applyFreshChangeWithEmptyEditList();
     const stored = ownerSql(`select to_json(scheduled_for)::text from public.plan_sessions where plan_id = '${uuid(planId)}' order by sequence limit 1;`);
     expect(stored, "the database writes session times with an explicit offset").toMatch(/\+00:00"$/);
-
-    const applied = await send({ action: "apply", proposal: previewed.body.proposal, proposalReceipt: previewed.body.proposalReceipt });
-    expect(applied.body.error ?? null, `apply refused: ${applied.body.error}`).toBeNull();
-    expect(applied.status).toBe(200);
     const covered = applied.body.plan.knowledgeMap.topics.find((topic: { id: string }) => topic.id === deltaTopicId(4));
     expect(covered.initialEvidence?.source).toBe("learner_report");
 
@@ -132,6 +158,26 @@ describe.skipIf(!configured)("plan adjustment route against a migrated database"
     expect(undone.body.receipt.message).toMatch(/Previous revision restored/);
     const restored = undone.body.plan.knowledgeMap.topics.find((topic: { id: string }) => topic.id === deltaTopicId(4));
     expect(restored.initialEvidence ?? null).toBeNull();
+    const reloaded = await loadActiveRevisionContext(clients.learner, planId);
+    expect(reloaded.plan.revisionId).toBe(before.plan.revisionId);
+    expect(reloaded.plan.knowledgeMap).toEqual(before.plan.knowledgeMap);
+    const previousSession = before.plan.sessions.find(session => session.id === changedId)!;
+    const restoredSession = reloaded.plan.sessions.find(session => session.id === changedId)!;
+    expect(restoredSession).toMatchObject({ title: previousSession.title, objective: previousSession.objective,
+      method: previousSession.method, estimatedMinutes: previousSession.estimatedMinutes, revisionEditedFields: [] });
+    expect(Date.parse(restoredSession.scheduledFor)).toBe(Date.parse(previousSession.scheduledFor));
+  });
+
+  it("still refuses Undo when the stored reviewed-edit list genuinely changed", async () => {
+    const { previewed, changedId } = await applyFreshChangeWithEmptyEditList();
+    ownerSql(`update public.plan_sessions set step_data=jsonb_set(step_data,'{revisionEditedFields}','["title"]'::jsonb) where id='${uuid(changedId)}';`);
+    const beforeRefusal = await loadActiveRevisionContext(clients.learner, planId);
+    expect(beforeRefusal.plan.sessions.find(session => session.id === changedId)?.revisionEditedFields).toEqual(["title"]);
+    const undone = await send({ action: "undo", planId, expectedRevisionId: previewed.body.proposal.revisionId });
+    expect(undone.status).toBe(409);
+    expect(undone.body.error).toContain("A changed session no longer matches this preview");
+    const afterRefusal = await loadActiveRevisionContext(clients.learner, planId);
+    expect(afterRefusal.plan).toEqual(beforeRefusal.plan);
+    expect(ownerSql(`select count(*) from public.plan_revisions where plan_id='${uuid(planId)}';`)).toBe("1");
   });
 });
-
