@@ -270,3 +270,105 @@ If the phone cases fail again in the next full run while their desktop twins
 pass, that is a regression to chase; on the two runs available they are
 intermittent instances of the generation refusal, which is the standing rules'
 FLAKY category rather than a mobile defect.
+
+
+## Item 5 — full CI on `c177ac7` (run 420, [35271412310](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35271412310))
+
+Seven steps failed. What each one is:
+
+**Green and worth naming first.** Migration replay, database lint and
+boundaries, the plan-adjustment route against the migrated database (6 cases,
+including save-change-then-undo), lint, types, the production build, the
+authentication journey and the Study Profile phone comparison. In the live
+step, **both profile journeys and the delta comparison passed** — "the two
+profiles have different actual workloads as well as hub rules and tips" is green
+against the real model, which is item 1 verified end to end. **Both phone cases
+from item 4 passed**: Practice Test 19.8 s, Interleaved Review 15.5 s, plus both
+phone retries and phone outside-study.
+
+**Step 16, learning-engine tests: 4,555 passed, 1 failed** — the committed red
+PT409 case and nothing else.
+
+**Step 12, migrated database: 13 passed, 2 failed**, and together they answer
+item 2. The new probe, `answers a completion conflict instead of leaving the
+request open`, timed out exactly like the segmented case. So the stall is not
+the tampered replay: **any conflict this writer raises leaves the request
+open.** The traces show why:
+
+- transport: `{"event":"request","attempt":19}` and **no response event ever** —
+  one request sent, no reply;
+- database at 5 s, 15 s and 25 s: the same backend `active`, `query_class`
+  `completion_rpc`, `active_seconds: 0` and `transaction_seconds: 0` each time —
+  the statement and its transaction keep restarting;
+- by 25 s of the second case: `wait_event: "advisory"`, `blocking_pids: [903]` —
+  a second backend now holds the writer's advisory lock, so the retries block
+  each other.
+
+The writer raises these permanent refusals with SQLSTATE `40001`, which is
+PostgreSQL's *serialization failure* — the code that means "transient, retry
+me". Everything in front of it obliges, forever, and the request never returns.
+Production consequence, not yet proven there but consistent with the
+unexplained completion timeout: a learner retrying Finish with any changed field,
+or finishing a session that is no longer ready, gets a request that never
+answers. This is the client half of Codex's PT409 hypothesis, and it is a
+migration-level change to the locked completion writer, so it stops here for the
+founder's decision rather than being done unasked.
+
+**Steps 20 and 22, live generation.** `practice-32-quality` and the three
+`baseline-session-quality` cases fail:
+
+| Case | Outcome |
+| --- | --- |
+| 6-question workload | `expect(received).toHaveLength(expected)` — an exact count |
+| 24-question workload | `generation_failed`, 42.7 s (passed in #414 and #415) |
+| 32-question workload | `generation_failed`, 35.5 s |
+| synthetic 32-question trace | `generation_failed` thrown at `shape-slot-generator.ts:164` |
+
+Two distinct causes, neither of them the old all-or-nothing gate:
+
+1. The 6-question gate asserts an exact question count, the same assumption the
+   Practice Test case carried. A dropped question now breaks it. That gate needs
+   the same treatment: assert what the round delivered.
+2. `:164` is `withOneRetry` giving up, which means a call returned nothing twice.
+   The prime suspect is the newly batched, stricter review: its budget is
+   `350 + 110 × questions` output tokens, and reasoning tokens are drawn from the
+   same allowance, so an eight-question review with `stemSufficient`, `demandMet`
+   and a reason per question can be truncated into an unusable reply. That is a
+   hypothesis from the failure site and the arithmetic, not from a trace; the
+   run's own diagnostics artifact would confirm it.
+
+**Step 28, core learner journey: 220 passed, 9 failed, 23 skipped.** Against
+current main's own run ([413 on `0ce2292`](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35251019423), 238 passed, 5 failed) five of the nine also fail on main — the material
+drop zone on both projections and three mobile calendar cases. Four do not:
+
+| New on this branch | Failure |
+| --- | --- |
+| `add-to-yova.spec.ts` "a deadline can live in Calendar…" (desktop, mobile) | quick-add's Type select reads `class`, expected `deadline`/`exam` |
+| `living-plan.spec.ts:135` founder journey (desktop, mobile) | the attached source link `…watch?v=example-ap-biology` is not rendered |
+
+Neither touches session sizing, receipt wording, the quality gate or the
+Practice Test counter, so neither comes from items 1–4; they belong to this
+branch's earlier plan-model and plan-screen work.
+
+**Steps 34–35, the release gate: BLOCKED — regression versus main.** Raw live
+counts `{"pass":50,"fail":6,"flaky":22,"unavailable":1}`. The comparator counts
+60 blocking cases against retained main `00995f1`:
+
+- **50 "required case was not executed".** These are cases the retained baseline
+  names that this branch renamed: `plan-schedule-date.spec.ts` (26),
+  `add-to-yova.spec.ts` (14), `living-plan.spec.ts` (6),
+  `calendar-recurring.spec.ts` (2), `core-learning-loop.spec.ts` (2). Brief 2
+  rewrote intake, scheduling and the inline topic actions, and the titles moved
+  with them — "a natural deadline and an edited date survive every schedule
+  control" is now "explicit weekdays and a goal date survive changes to
+  availability". The comparator matches on exact case names, so a rename reads
+  as an absence. They need declaring in `scripts/live-gate/retired-cases.json`
+  with their replacements, case by case; nothing is proven broken by their
+  absence, and nothing should be waived without that list.
+- **10 "new failure versus passing main".** The four branch regressions above,
+  the five that also fail on current main, and the new 32-question case, which
+  has no counterpart on main.
+
+The retained baseline is also older than current main, which is why cases that
+fail on main's own run still count as passing there. Brief 2's gate note asks
+for the baseline to be refreshed before the PR; that refresh has not been done.
