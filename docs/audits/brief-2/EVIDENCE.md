@@ -243,3 +243,14 @@ The canonical comparison treats a full ISO 8601 timestamp with a zone as a momen
 | `src/lib/plan-revision/revision-patch.test.ts` (4) | 2 failed without the fix (the same moment in two formats; nested timestamps and another zone) | 4 pass |
 
 The unit test pushed with 36ae0c8 also failed for a second, unrelated reason: it built its two sessions from separate calls to a fixture that issues fresh route ids. The fixture now builds both from one plan. Red and green above were re-run locally against that corrected test, with and without the fix.
+
+### CI on the fix (656fd24, run 35212248119)
+
+- **Now green:**
+  - the migrated-database route test, including "saves a change and then undoes it";
+  - learning-engine tests, including `revision-patch.test.ts`;
+  - every browser journey.
+- **Regression gate: blocked on one unrelated live case,** `streamed-world-war-one-lesson` "delivers substantive teaching from the first generated lesson brief".
+  - It failed 0/3 at audit, passed once on retained main, and its 90-module import graph reaches no file this branch changes.
+  - The founder chose to classify it FLAKY (policy.json, BACKLOG.md). CI re-runs on that commit.
+
