@@ -106,4 +106,32 @@ describe.skipIf(!configured)("plan adjustment route against a migrated database"
     expect(status).toBe(200);
     expect(body.status).toBe("preview");
   });
+
+  // Production, 17 Sept 2026: a saved change applied, then Undo failed with "A changed session no
+  // longer matches this preview". The database returns session times as +00:00; the change stored
+  // them as .000Z, and the preimage check compared the two as text.
+  it("saves a change and then undoes it", async () => {
+    async function send(body: unknown) {
+      const response = await PATCH(new Request("https://yova.test/api/plans/adjust", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+      return { status: response.status, body: await response.json() };
+    }
+    const previewed = await preview();
+    expect(previewed.body.error ?? null, `preview refused: ${previewed.body.error}`).toBeNull();
+    const stored = ownerSql(`select to_json(scheduled_for)::text from public.plan_sessions where plan_id = '${uuid(planId)}' order by sequence limit 1;`);
+    expect(stored, "the database writes session times with an explicit offset").toMatch(/\+00:00"$/);
+
+    const applied = await send({ action: "apply", proposal: previewed.body.proposal, proposalReceipt: previewed.body.proposalReceipt });
+    expect(applied.body.error ?? null, `apply refused: ${applied.body.error}`).toBeNull();
+    expect(applied.status).toBe(200);
+    const covered = applied.body.plan.knowledgeMap.topics.find((topic: { id: string }) => topic.id === deltaTopicId(4));
+    expect(covered.initialEvidence?.source).toBe("learner_report");
+
+    const undone = await send({ action: "undo", planId, expectedRevisionId: previewed.body.proposal.revisionId });
+    expect(undone.body.error ?? null, `undo refused: ${undone.body.error}`).toBeNull();
+    expect(undone.status).toBe(200);
+    expect(undone.body.receipt.message).toMatch(/Previous revision restored/);
+    const restored = undone.body.plan.knowledgeMap.topics.find((topic: { id: string }) => topic.id === deltaTopicId(4));
+    expect(restored.initialEvidence ?? null).toBeNull();
+  });
 });
+
