@@ -702,12 +702,12 @@
       "evidence": "A 15-minute method-bounded slice keeps one active claim and explicitly defers the second topic; scope narrowing dates to c924f5d (Aug 23)."
     },
     "src/evals/streamed-world-war-one-lesson.live.test.ts::live streamed World War I lesson > delivers substantive teaching from the first generated lesson brief": {
-      "classification": "REAL",
-      "passRate": "0/3",
-      "semanticFailures": 3,
+      "classification": "FLAKY",
+      "passRate": "1/5",
+      "semanticFailures": 4,
       "unavailable": 0,
       "auditId": "A35",
-      "evidence": "A learner-facing failure or unresolved product-intent question remains."
+      "evidence": "Reclassified from REAL (founder decision, 17 Sept): failed 0/3 at audit (A learner-facing failure or unresolved product-intent question remains.), passed once on retained main run 35098660639, failed on fix-revision-undo-dates run 35212248119. Its import graph (90 modules) reaches none of the files that branch changes."
     },
     "src/evals/streamed-world-war-one-skeleton.live.test.ts::live exact World War I baseline skeleton > creates the production 45-minute streamed teaching session": {
       "classification": "REAL",
