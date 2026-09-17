@@ -6,6 +6,14 @@ import {
 } from "@/lib/materials/chunk";
 
 describe("material text chunking", () => {
+  it("keeps slide locations when a chunk starts in the middle of a slide", () => {
+    const text = `[Slide 1]\n${"An introductory explanation. ".repeat(150)}\n\n[Slide 2]\n${"The contrasting theory. ".repeat(240)}\n\n[Slide 3]\nConclusion.`;
+    const chunks = chunkMaterialText("11111111-1111-4111-8111-111111111111", text);
+    expect(chunks[0]?.locationLabel).toBe("Slides 1–2");
+    expect(chunks.at(-1)?.locationLabel).toBe("Slides 2–3");
+    expect(chunks.at(-1)?.text).toContain("Conclusion.");
+  });
+
   it("keeps continuous locations through the final section of a long document", () => {
     const text = `${"Foundation sentence. ".repeat(900)}FINAL_EXAM_TOPIC`;
     const chunks = chunkMaterialText("11111111-1111-4111-8111-111111111111", text);

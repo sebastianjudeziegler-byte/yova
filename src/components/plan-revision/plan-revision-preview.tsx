@@ -6,6 +6,7 @@ import type { LearningPlan } from "@/lib/domain";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { MapDelta, MapDeltaOperation } from "@/lib/plan-revision/map-delta";
 import type { PlanRevisionProposal, RevisionControls } from "@/lib/plan-revision/revision-schema";
+import { MATERIAL_FILE_ACCEPT } from "@/lib/materials/formats";
 
 export type SignedPreview = { proposal: PlanRevisionProposal; proposalReceipt: string };
 type Option = { value: string; label: string };
@@ -205,7 +206,8 @@ export function PlanRevisionPreview(props: Props) {
       {["attach_source", "mark_covered", "remove_topic", "reorder"].includes(newType) && <label>Change topic<select value={newTopic} onChange={event => setNewTopic(event.target.value)}>{topics.map(topic => <option key={topic.id} value={topic.id}>{topic.title}</option>)}</select></label>}
       {newType === "attach_source" && <>
         <label>Source URL<input type="url" value={sourceUrl} onChange={event => { setSourceUrl(event.target.value); setStagedFile(null); }} /></label>
-        <label>Choose a source file<input type="file" onChange={event => void stage(event.target.files?.[0])} /></label>
+        <label>Choose a source file<input type="file" accept={MATERIAL_FILE_ACCEPT} onChange={event => { void stage(event.target.files?.[0]); event.target.value = ""; }} /></label>
+        {staging && <p role="status">Uploading and reading your source…</p>}
         {stagedFile && <p>{stagedFile.name}</p>}
       </>}
       {newType === "add_topic" && <><label>Topic title<input value={newTitle} onChange={event => setNewTitle(event.target.value)} /></label><label>What should this topic cover?<textarea aria-invalid={newDescription.length > 400 || undefined} aria-describedby="revision-description-limit" value={newDescription} onChange={event => setNewDescription(event.target.value)} /><small id="revision-description-limit" role={newDescription.length > 400 ? "alert" : undefined}>{newDescription.length}/400 characters</small></label></>}

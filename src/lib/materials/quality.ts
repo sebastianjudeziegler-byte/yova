@@ -22,7 +22,7 @@ export function assessMaterialQuality(text: string, truncated: boolean): Materia
     return {
       status: "limited",
       wordCount: tokens.length,
-      notice: "YOVA read the first 50,000 characters. This material is usable, but later sections were not included.",
+      notice: "YOVA reached the reading limit. This material is usable, but later sections were not included. Split it into smaller files to cover the rest.",
     };
   }
 

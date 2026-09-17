@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { GoalClarification } from "@/components/goal-clarification";
-import { MaterialFileDropzone } from "@/components/material-file-dropzone";
+import { MaterialFileDropzone, materialUploadStatus } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
 import { LivingPlanRevision } from "@/components/plan-revision/living-plan-revision";
 import type { MapDelta, MapDeltaOperation } from "@/lib/plan-revision/map-delta";
@@ -30,6 +30,7 @@ import {
   abandonUploadedMaterials,
   deleteUploadedMaterial,
   uploadMaterialFiles,
+  type MaterialUploadProgress,
 } from "@/lib/materials/intake";
 import { userFacingErrorMessage } from "@/lib/errors/user-facing-message";
 import {
@@ -142,6 +143,7 @@ export function PlanCreator({
   const [materialError, setMaterialError] = useState<string | null>(null);
   const [materialNotice, setMaterialNotice] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<MaterialUploadProgress | null>(null);
   const [linkMaterialWorking, setLinkMaterialWorking] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
   const [abandoningMaterials, setAbandoningMaterials] = useState(false);
@@ -502,14 +504,15 @@ export function PlanCreator({
     setProcessingMaterials(true);
 
     try {
-      const { accepted, errors, notices } = await uploadMaterialFiles(files, materials);
-      setMaterialError(errors[0] ?? null);
-      setMaterialNotice(notices[0] ?? null);
+      const { accepted, errors, notices } = await uploadMaterialFiles(files, materials, setUploadProgress);
+      setMaterialError(errors.join(" ") || null);
+      setMaterialNotice(notices.join(" ") || null);
       if (accepted.length) {
         invalidateAcceptedScope();
         setMaterials((current) => [...current, ...accepted]);
       }
     } finally {
+      setUploadProgress(null);
       setProcessingMaterials(false);
     }
   };
@@ -752,17 +755,18 @@ export function PlanCreator({
         <PlanPanel eyebrow="CHOOSE HOW YOVA SHOULD HELP" title={workProductCopy ? "What should YOVA use to help build it?" : "Where should the learning come from?"} description={workProductCopy ? "Choose what should ground the work. YOVA will keep that source decision throughout the plan." : "Pick one starting mode. YOVA will use the same choice throughout the plan, and you can still change it later."}>
           <div className="plan-goal-echo"><span>YOUR GOAL</span><p>{goal}</p><button className="button ghost" onClick={() => setStep("goal")}>Edit</button></div>
           <div className="mode-cards three-up">
-            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "materials" ? "selected" : ""} onClick={() => void chooseSource("materials")}><Upload /><span><strong>Use my materials</strong><small>Build from study guides, PDF slides, notes, review sheets, or textbook excerpts.</small></span>{sourceChoice === "materials" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "materials" ? "selected" : ""} onClick={() => void chooseSource("materials")}><Upload /><span><strong>Use my materials</strong><small>Build from study guides, PowerPoint or PDF slides, notes, review sheets, or textbook excerpts.</small></span>{sourceChoice === "materials" && <Check />}</button>
             <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "yova" ? "selected" : ""} onClick={() => void chooseSource("yova")}><Sparkles /><span><strong>Create it for me</strong><small>{workProductCopy ? "YOVA creates the structure, criteria, and working steps for the artifact." : "YOVA creates the teaching, examples, and practice from the topic."}</small></span>{sourceChoice === "yova" && <Check />}</button>
             <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "outside" ? "selected" : ""} onClick={() => void chooseSource("outside")}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>{workProductCopy ? "YOVA gives a method and exact steps for building the artifact with your trusted sources." : "YOVA chooses the method and gives exact steps for another trusted source."}</small></span>{sourceChoice === "outside" && <Check />}</button>
           </div>
           {sourceChoice === "materials" && <div className="material-uploader">
             <MaterialFileDropzone
               busy={processingMaterials}
+              uploadStatus={materialUploadStatus(uploadProgress)}
               disabled={linkMaterialWorking || Boolean(removingMaterialId) || materials.length >= 5}
               onFiles={addMaterials}
             />
-            <p className="material-examples"><strong>Useful examples:</strong> teacher study guide · lecture slides exported as PDF · class notes · review sheet · readable textbook excerpt</p>
+            <p className="material-examples"><strong>Useful examples:</strong> teacher study guide · PowerPoint lecture slides · PDF slides · class notes · review sheet · readable textbook excerpt</p>
             <p className="material-supplement-note"><Sparkles size={14} /> If a source only lists topics, YOVA can fill in the minimum explanation needed while keeping your material as the scope and showing what it added.</p>
             <MaterialLinkImporter existingCount={materials.length} disabled={processingMaterials || Boolean(removingMaterialId)} onWorkingChange={setLinkMaterialWorking} onImported={(material, notice) => { invalidateAcceptedScope(); setMaterials((current) => [...current, material]); setMaterialError(null); setMaterialNotice(notice); }} />
             {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · text ready for YOVA</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}<p>{materials.length} {materials.length === 1 ? "material" : "materials"} ready for plan generation</p></div>}

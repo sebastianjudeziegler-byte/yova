@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
-import { MaterialFileDropzone } from "@/components/material-file-dropzone";
+import { MaterialFileDropzone, materialUploadStatus } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
 import type { DeadlineMilestone, LearningMaterial } from "@/lib/domain";
 import { isCalendarDescription } from "@/lib/calendar/recurrence-parser";
@@ -29,6 +29,7 @@ import {
   abandonUploadedMaterials,
   deleteUploadedMaterial,
   uploadMaterialFiles,
+  type MaterialUploadProgress,
 } from "@/lib/materials/intake";
 
 type AddStep = "describe" | "review" | "outcome" | "saving";
@@ -53,6 +54,7 @@ export function AddToYova({
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [interpretation, setInterpretation] = useState<IntakeInterpretation | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<MaterialUploadProgress | null>(null);
   const [linkWorking, setLinkWorking] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [abandoning, setAbandoning] = useState(false);
@@ -66,11 +68,12 @@ export function AddToYova({
     setError(null);
     setNotice(null);
     try {
-      const result = await uploadMaterialFiles(files, materials);
+      const result = await uploadMaterialFiles(files, materials, setUploadProgress);
       if (result.accepted.length) setMaterials((current) => [...current, ...result.accepted]);
-      setError(result.errors[0] ?? null);
-      setNotice(result.notices[0] ?? null);
+      setError(result.errors.join(" ") || null);
+      setNotice(result.notices.join(" ") || null);
     } finally {
+      setUploadProgress(null);
       setProcessing(false);
     }
   };
@@ -184,11 +187,11 @@ export function AddToYova({
         placeholder="Example: I have a communications class from 11:30 to 12 every Monday and Wednesday. Or: I have a biology test in two weeks."
       />
       <div className="add-materials-heading"><div><strong>Materials are optional</strong><span>Attach a study guide, notes, slides, article, or video when it helps define the scope.</span></div><PaperclipLabel /></div>
-      <MaterialFileDropzone busy={processing} disabled={linkWorking || Boolean(removingId) || materials.length >= 5} onFiles={addMaterials} />
+      <MaterialFileDropzone busy={processing} uploadStatus={materialUploadStatus(uploadProgress)} disabled={linkWorking || Boolean(removingId) || materials.length >= 5} onFiles={addMaterials} />
       <MaterialLinkImporter existingCount={materials.length} disabled={processing || Boolean(removingId)} onWorkingChange={setLinkWorking} onImported={(material, materialNotice) => { setMaterials((current) => [...current, material]); setNotice(materialNotice); }} />
       <MaterialList materials={materials} removingId={removingId} onRemove={removeMaterial} />
-      {notice && <p className="material-notice"><Sparkles size={15} /> {notice}</p>}
-      {error && <p className="material-error"><AlertCircle size={15} /> {error}</p>}
+      {notice && <p className="material-notice" role="status"><Sparkles size={15} /> {notice}</p>}
+      {error && <p className="material-error" role="alert"><AlertCircle size={15} /> {error}</p>}
       <footer><button className="button ghost" disabled={processing || linkWorking || Boolean(removingId) || abandoning} onClick={() => void exitIntake()}><ArrowLeft size={17} /> Cancel</button><button className="button primary" disabled={description.trim().length < 3 || processing || linkWorking || abandoning} onClick={() => void interpret()}>{processing ? <span className="button-spinner" /> : null} Organize this <ArrowRight size={17} /></button></footer>
     </section>}
 
@@ -206,7 +209,7 @@ export function AddToYova({
           : <label><span>Current starting point</span><input placeholder="Optional" value={interpretation.progress} onChange={(event) => setInterpretation({ ...interpretation, progress: event.target.value })} /></label>}
       </div>
       <div className="add-source-summary"><FileText size={19} /><div><strong>{materials.length ? `${materials.length} ${materials.length === 1 ? "source" : "sources"} ready` : "No materials needed"}</strong><span>{interpretation.materialsSummary}</span></div></div>
-      {notice && <p className="material-notice"><Sparkles size={15} /> {notice}</p>}
+      {notice && <p className="material-notice" role="status"><Sparkles size={15} /> {notice}</p>}
       <footer><button className="button ghost" onClick={() => setStep("describe")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={interpretation.title.trim().length < 2 || interpretation.objective.trim().length < 3} onClick={() => setStep("outcome")}>Choose what YOVA should do <ArrowRight size={17} /></button></footer>
     </section>}
 
@@ -220,7 +223,7 @@ export function AddToYova({
         <button disabled={step === "saving"} onClick={() => onCreateSession(seed)}><Clock3 /><span><strong>Create one session</strong><small>Turn this into one focused session.</small></span><ArrowRight /></button>
         <button disabled={step === "saving"} onClick={() => onCreatePlan(seed)}><Layers3 /><span><strong>Create a plan</strong><small>Break this into multiple sessions and schedule them around your availability.</small></span><ArrowRight /></button>
       </div>
-      {error && <p className="material-error"><AlertCircle size={15} /> {error}</p>}
+      {error && <p className="material-error" role="alert"><AlertCircle size={15} /> {error}</p>}
       <footer><button className="button ghost" disabled={step === "saving"} onClick={() => setStep("review")}><ArrowLeft size={17} /> Back</button></footer>
     </section>}
   </main>;

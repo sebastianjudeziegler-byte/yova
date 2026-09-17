@@ -68,6 +68,7 @@ vi.mock("@/lib/server/ai-usage", () => ({
 
 import { DELETE, PATCH, POST, PUT } from "@/app/api/materials/route";
 import { MaterialStageResponseSchema } from "@/lib/materials/schema";
+import { PPTX_MIME_TYPE } from "@/lib/materials/formats";
 
 beforeEach(() => {
   mocks.isAdminConfigured.mockReturnValue(true);
@@ -124,6 +125,21 @@ describe("material staging write response", () => {
       }),
     });
     expect(mocks.createSignedUploadUrl).toHaveBeenCalledOnce();
+  });
+
+  it("stages a PowerPoint as a private .pptx object with the canonical MIME type", async () => {
+    const response = await POST(new Request("http://localhost/api/materials", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Class slides.pptx", mimeType: "application/zip", sizeBytes: 4_500_000 }),
+    }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.mimeType).toBe(PPTX_MIME_TYPE);
+    expect(body.storagePath).toMatch(/\/source\.pptx$/);
+    expect(mocks.rpc).toHaveBeenCalledWith("create_material_upload", {
+      payload: expect.objectContaining({ mimeType: PPTX_MIME_TYPE, filename: "Class slides.pptx", byteSize: 4_500_000 }),
+    });
   });
 
   it("removes the staging row and returns a retryable JSON error when response validation fails", async () => {

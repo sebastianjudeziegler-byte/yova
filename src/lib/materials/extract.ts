@@ -1,6 +1,8 @@
 import "server-only";
 
 import { assessMaterialQuality } from "@/lib/materials/quality";
+import { PPTX_MIME_TYPE, type MaterialMimeType } from "@/lib/materials/formats";
+import { extractPptxText } from "@/lib/materials/pptx";
 
 // Enough for roughly a small textbook. The mapping pass chunks this complete
 // bounded text instead of repeatedly reading only its opening pages.
@@ -11,6 +13,7 @@ export type ExtractedMaterial = {
   text: string;
   pages: number | null;
   truncated: boolean;
+  notice?: string | null;
 };
 
 export class MaterialExtractionError extends Error {
@@ -22,8 +25,17 @@ export class MaterialExtractionError extends Error {
 
 export async function extractMaterialText(
   bytes: Uint8Array,
-  mimeType: "application/pdf" | "text/plain" | "text/markdown",
+  mimeType: MaterialMimeType,
 ): Promise<ExtractedMaterial> {
+  if (mimeType === PPTX_MIME_TYPE) {
+    try {
+      const extracted = await extractPptxText(bytes, MAX_EXTRACTED_CHARACTERS);
+      assertUsableMaterial(extracted);
+      return extracted;
+    } catch (error) {
+      throw new MaterialExtractionError(error instanceof Error ? error.message : "YOVA could not read this PowerPoint. Try exporting it as PDF.");
+    }
+  }
   if (mimeType !== "application/pdf") return extractPlainText(bytes);
   return extractPdfText(bytes);
 }

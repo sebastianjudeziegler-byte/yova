@@ -20,6 +20,8 @@ export function chunkMaterialText(materialId: string, text: string): MaterialTex
   const normalized = text.trim();
   if (!normalized) return [];
   const chunks: MaterialTextChunk[] = [];
+  const slideLocations = [...normalized.matchAll(/^\[Slide (\d+)\]$/gm)]
+    .map((match) => ({ start: match.index, number: Number(match[1]) }));
   let start = 0;
 
   while (start < normalized.length && chunks.length < MAX_MATERIAL_CHUNKS) {
@@ -40,7 +42,7 @@ export function chunkMaterialText(materialId: string, text: string): MaterialTex
         index,
         startCharacter: start,
         endCharacter: end,
-        locationLabel: `Characters ${start + 1}-${end}`,
+        locationLabel: slideLocationLabel(slideLocations, start, end) ?? `Characters ${start + 1}-${end}`,
         text: chunkText,
       });
     }
@@ -49,6 +51,15 @@ export function chunkMaterialText(materialId: string, text: string): MaterialTex
   }
 
   return chunks;
+}
+
+function slideLocationLabel(slides: Array<{ start: number; number: number }>, start: number, end: number) {
+  // A marker at the document start distinguishes native slide extraction
+  // from prose that happens to mention a slide farther down the page.
+  if (slides[0]?.start !== 0) return null;
+  const first = slides.findLast((slide) => slide.start <= start) ?? slides[0];
+  const last = slides.findLast((slide) => slide.start < end) ?? first;
+  return first.number === last.number ? `Slide ${first.number}` : `Slides ${first.number}–${last.number}`;
 }
 
 function stableChunkId(materialId: string, index: number) {

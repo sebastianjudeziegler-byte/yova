@@ -2,14 +2,23 @@
 
 import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Upload } from "lucide-react";
+import { MATERIAL_FILE_ACCEPT, MATERIAL_FORMAT_LABEL } from "@/lib/materials/formats";
+import type { MaterialUploadProgress } from "@/lib/materials/intake";
 
 type MaterialFileDropzoneProps = {
   busy: boolean;
   disabled?: boolean;
+  uploadStatus?: string;
   onFiles: (files: File[]) => void | Promise<void>;
 };
 
-export function MaterialFileDropzone({ busy, disabled = false, onFiles }: MaterialFileDropzoneProps) {
+export function materialUploadStatus(progress: MaterialUploadProgress | null): string | undefined {
+  if (!progress) return undefined;
+  const action = { preparing: "Preparing", uploading: "Uploading", reading: "Reading" }[progress.stage];
+  return `${action} file ${progress.fileIndex} of ${progress.fileCount}: ${progress.filename}`;
+}
+
+export function MaterialFileDropzone({ busy, disabled = false, uploadStatus, onFiles }: MaterialFileDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const [dragging, setDragging] = useState(false);
@@ -73,15 +82,15 @@ export function MaterialFileDropzone({ busy, disabled = false, onFiles }: Materi
     >
       <span className="upload-dropzone-icon"><Upload size={22} /></span>
       <span>
-        <strong>{busy ? "Reading files…" : dragging ? "Drop files to add them" : "Choose files or drag them here"}</strong>
-        <small>PDF, TXT, or Markdown · up to 5 files · 10 MB each</small>
+        <strong role="status" aria-live="polite" aria-atomic="true">{busy ? uploadStatus ?? "Preparing files…" : dragging ? "Drop files to add them" : "Choose files or drag them here"}</strong>
+        <small>{MATERIAL_FORMAT_LABEL} · up to 5 files · 10 MB each</small>
       </span>
       <input
         ref={inputRef}
         aria-label="Choose learning materials"
         type="file"
         multiple
-        accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf"
+        accept={MATERIAL_FILE_ACCEPT}
         disabled={unavailable}
         onChange={(event) => {
           submitFiles(Array.from(event.target.files ?? []));
