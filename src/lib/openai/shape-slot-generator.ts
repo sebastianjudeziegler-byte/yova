@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
+import { APIConnectionTimeoutError } from "openai";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import { reviewPracticeQuestions, type PracticeQualityIssue } from "./practice-quality-review";
@@ -43,9 +44,23 @@ export type SlotProviderCall<T> = {
   schemaName: string;
   maxOutputTokens: number;
   cacheKey: string;
+  questionCount?: number;
+  purpose?: "initial" | "additional" | "collision_repair" | "quality_repair";
 };
 
-export type SlotProvider = <T>(call: SlotProviderCall<T>) => Promise<T | null>;
+type SlotDiagnosticEvent = {
+  stage: "provider"; schemaName: string; callId: number;
+  outcome: "completed" | "incomplete" | "invalid" | "timeout" | "error" | "deadline";
+  elapsedMs: number; timeoutMs: number;
+  questionCount?: number; purpose?: SlotProviderCall<unknown>["purpose"];
+} | {
+  stage: "quality"; schemaName: "yova_practice_quality_review";
+  outcome: "completed" | "invalid"; questionCount: number; rejectedCount?: number;
+};
+export type SlotDiagnostic = SlotDiagnosticEvent & { traceId: string; totalElapsedMs: number; remainingBudgetMs: number };
+export type SlotProvider = (<T>(call: SlotProviderCall<T>) => Promise<T | null>) & {
+  diagnose?: (event: SlotDiagnosticEvent) => void;
+};
 
 export class ShapeSlotGenerationError extends Error {
   readonly code: "provider_unavailable" | "generation_failed";
@@ -59,28 +74,55 @@ export class ShapeSlotGenerationError extends Error {
   }
 }
 
-export function openAIShapeSlotProvider(): SlotProvider | null {
+export function openAIShapeSlotProvider(options: { onDiagnostic?: (event: SlotDiagnostic) => void } = {}): SlotProvider | null {
   const config = getOpenAISessionConfig();
   if (!config) return null;
   // All attempts and batches share one budget below the route's 60-second limit.
-  const deadline = Date.now() + 50_000;
-  return async <T,>(call: SlotProviderCall<T>) => {
-    const remaining = deadline - Date.now() - 2_000;
-    if (remaining < 1_000) return null;
-    const response = await getOpenAIClient().responses.parse({
-      model: config.model,
-      instructions: call.instructions,
-      input: call.input,
-      reasoning: { effort: "low" },
-      text: { format: zodTextFormat(call.schema, call.schemaName), verbosity: "low" },
-      max_output_tokens: call.maxOutputTokens,
-      prompt_cache_key: call.cacheKey,
-      store: false,
-    }, { maxRetries: 0, timeout: Math.min(20_000, remaining) });
-    if (response.status !== "completed") return null;
-    const parsed = call.schema.safeParse(response.output_parsed);
-    return parsed.success ? parsed.data : null;
+  const startedAt = Date.now();
+  const deadline = startedAt + 50_000;
+  const traceId = crypto.randomUUID();
+  let callSequence = 0;
+  const diagnose = (event: SlotDiagnosticEvent) => {
+    // Explicit fields only: never include input, output, reason, exception or user identifiers.
+    const summary = event.stage === "provider"
+      ? { stage: event.stage, schemaName: event.schemaName, callId: event.callId, outcome: event.outcome, elapsedMs: event.elapsedMs, timeoutMs: event.timeoutMs, ...(event.questionCount === undefined ? {} : { questionCount: event.questionCount }), ...(event.purpose ? { purpose: event.purpose } : {}) }
+      : { stage: event.stage, schemaName: event.schemaName, outcome: event.outcome, questionCount: event.questionCount, ...(event.rejectedCount === undefined ? {} : { rejectedCount: event.rejectedCount }) };
+    const diagnostic: SlotDiagnostic = { ...summary, traceId, totalElapsedMs: Math.max(0, Date.now() - startedAt), remainingBudgetMs: Math.max(0, deadline - Date.now()) };
+    try {
+      if (options.onDiagnostic) options.onDiagnostic(diagnostic);
+      else console.info("YOVA_SHAPE_SLOT", JSON.stringify(diagnostic));
+    } catch { /* Diagnostics must never affect delivery or retry semantics. */ }
   };
+  const provider: SlotProvider = async <T,>(call: SlotProviderCall<T>) => {
+    const callId = ++callSequence;
+    const callStartedAt = Date.now();
+    const remaining = deadline - callStartedAt - 2_000;
+    const timeoutMs = remaining < 1_000 ? 0 : Math.min(20_000, remaining);
+    const record = (outcome: Extract<SlotDiagnosticEvent, { stage: "provider" }>["outcome"]) => diagnose({ stage: "provider", schemaName: call.schemaName, callId, outcome, elapsedMs: Math.max(0, Date.now() - callStartedAt), timeoutMs, questionCount: call.questionCount, purpose: call.purpose });
+    if (!timeoutMs) { record("deadline"); return null; }
+    try {
+      const response = await getOpenAIClient().responses.parse({
+        model: config.model,
+        instructions: call.instructions,
+        input: call.input,
+        reasoning: { effort: "low" },
+        text: { format: zodTextFormat(call.schema, call.schemaName), verbosity: "low" },
+        max_output_tokens: call.maxOutputTokens,
+        prompt_cache_key: call.cacheKey,
+        store: false,
+      }, { maxRetries: 0, timeout: timeoutMs });
+      if (response.status !== "completed") { record("incomplete"); return null; }
+      const parsed = call.schema.safeParse(response.output_parsed);
+      record(parsed.success ? "completed" : "invalid");
+      return parsed.success ? parsed.data : null;
+    } catch (error) {
+      const timeout = error instanceof APIConnectionTimeoutError || (error instanceof Error && ["APITimeoutError", "TimeoutError", "AbortError"].includes(error.name));
+      record(timeout ? "timeout" : "error");
+      throw error;
+    }
+  };
+  provider.diagnose = diagnose;
+  return provider;
 }
 
 /** Every draft carries tips; the list is empty when the call writes none. */
@@ -319,6 +361,7 @@ async function remainingQuestions(input: QuestionBatchInput) {
       instructions: `Write further closed-book practice from the supplied immutable key points${input.explanation ? " and explanation; do not test material the explanation did not teach" : ""}. ${input.framing ?? ""} ${questionSlotInstructions(slots, input.instructionStyle)} Avoid priorQuestions. Each batch covers its specific slots with distinct situations. The code-owned batch angle is: ${batchAngle.instruction} Apply it only where compatible with the planned question type; preserve every slot's type and key points. ${input.collisionRepair ? "These slots repeated an accepted question. Replace only these slots with substantively distinct questions; priorQuestions contains every accepted prompt." : ""} ${input.qualityIssues ? "An independent solver found the specific defects in qualityIssues. Replace only these slots, resolving those defects; preserve the immutable teaching context and test a different inference from each accepted priorQuestion." : ""} ${UNTRUSTED}`,
       input: JSON.stringify({ topic: input.topic, keyPoints: input.keyPoints, explanation: input.explanation, excerpts: input.excerpts, slots, batchAngle, priorQuestions: input.priorQuestions.map(question => question.prompt), attempt: input.attempt, round: input.round, roundKind: input.roundKind, repairTargets: input.repairTargets, collisionRepair: input.collisionRepair ?? false, qualityIssues: input.qualityIssues?.filter(issue => slots.some(slot => slot.slotId === issue.slotId)) }),
       schema: QuestionBatchSchema, schemaName: "yova_shape_question_batch", maxOutputTokens: 3_000, cacheKey: "yova-shape-question-batch-v2",
+      questionCount: slots.length, purpose: input.qualityIssues ? "quality_repair" : input.collisionRepair ? "collision_repair" : "additional",
     });
     if (!draft) return null;
     const composed = composePracticeRound({ keyPoints: input.keyPoints, slots, drafts: draft.questions });
@@ -381,6 +424,7 @@ async function fillLearnBlock(request: LearnBlockRequest, provider: SlotProvider
       input: JSON.stringify({ topic: request.topic, keyPointTopics: keyPointTopics(request.topic, plan.keyPointIds), slots: firstSlots, tips: request.tips }),
       schema: LearnBlockDraftSchema,
       schemaName: "yova_shape_learn_block",
+      questionCount: firstSlots.length, purpose: "initial",
       maxOutputTokens: 4_000 + request.tips.length * 200,
       cacheKey: "yova-shape-learn-block-v4",
     });
@@ -467,6 +511,7 @@ async function fillPractice(request: PracticeRequest, provider: SlotProvider | n
       input: JSON.stringify({ topic: request.topic, keyPoints: roundKeyPoints, excerpts: request.excerpts, round: request.round, roundKind: request.roundKind, repairTargets: request.repairTargets, keyPointTopics: keyPointTopics(request.topic, plan.keyPointIds), slots: firstSlots, tips: request.tips }),
       schema: PracticeDraftSchema,
       schemaName: "yova_shape_practice",
+      questionCount: firstSlots.length, purpose: "initial",
       maxOutputTokens: 3_000 + request.tips.length * 200,
       cacheKey: "yova-shape-practice-v3",
     });

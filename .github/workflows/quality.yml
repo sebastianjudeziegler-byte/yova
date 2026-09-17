@@ -189,12 +189,21 @@ jobs:
       # Brief 1.5 item 1: live, unmocked practice retries (one and two missed
       # points) to completion on desktop and mobile. Same-repository runs only,
       # where the model key exists; a missing key fails instead of skipping.
-      - name: Verify live MCQ answer review against the retained failure
+      - name: Verify live MCQ answer review and full 32-question generation
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        run: pnpm exec vitest run src/evals/practice-answer-quality.live.test.ts --maxWorkers=1
+        run: pnpm exec vitest run src/evals/practice-answer-quality.live.test.ts src/evals/practice-32-quality.live.test.ts --maxWorkers=1
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YOVA_RUN_LIVE_PRACTICE_QUALITY: "1"
+
+      - name: Retain synthetic generation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: session-generation-diagnostics-${{ github.run_id }}
+          path: artifacts/quality/practice-32-synthetic-trace.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Run live baseline practice retries
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}

@@ -44,4 +44,19 @@ describe("independent practice answer review", () => {
     expect(input.priorQuestions[0].slotId).toBe("s1");
     expect(input.priorQuestions[0]).not.toHaveProperty("correctChoiceIndex");
   });
+
+  it("reports only aggregate rejected counts, never learner content or rejection reasons", async () => {
+    const diagnose = vi.fn();
+    const provider = Object.assign(vi.fn(async () => ({ reviews: [verdict({ reason: "private rejection content" })] })), { diagnose });
+    await reviewPracticeQuestions(context, provider as never);
+    expect(diagnose).toHaveBeenCalledExactlyOnceWith({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "completed", questionCount: 1, rejectedCount: 1 });
+    expect(JSON.stringify(diagnose.mock.calls)).not.toContain("private");
+  });
+
+  it("distinguishes incomplete review coverage from zero rejected questions", async () => {
+    const diagnose = vi.fn();
+    const provider = Object.assign(vi.fn(async () => ({ reviews: [] })), { diagnose });
+    expect(await reviewPracticeQuestions(context, provider as never)).toEqual({ ok: false });
+    expect(diagnose).toHaveBeenCalledExactlyOnceWith({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "invalid", questionCount: 1 });
+  });
 });
