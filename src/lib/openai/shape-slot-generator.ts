@@ -8,6 +8,7 @@ import { reviewPracticeQuestions, type PracticeQualityIssue } from "./practice-q
 import { composePracticeRound, firstRoundKeyPointCount, KeyPointSchema, keyPointsForRound, QuestionDraftSchema, roundQuestionCount, type KeyPoint, type PracticeQuestion } from "@/lib/practice/compose-practice";
 import { planQuestionSlots, type QuestionMix, type QuestionSlot, type QuestionType } from "@/lib/practice/question-mix";
 import { PRACTICE_TEST_QUESTION_COUNT, type PracticeRoundKind } from "@/lib/practice/practice-rounds";
+import { PRACTICE_QUESTION_MINIMUM } from "@/lib/routing/session-route";
 import { settleTips, TipDraftSchema, tipInstructions, type TipRequest } from "@/lib/session-shapes/session-tips";
 import {
   SHAPE_SLOT_HONEST_ERROR,
@@ -408,10 +409,22 @@ async function ensureQuestionQuality(questions: PracticeQuestion[], context: Omi
     const result = await reviewPracticeQuestions({ ...context, questions: replacements, priorQuestions: accepted }, context.provider!);
     return result.ok ? result : null;
   }, context.provider !== null);
-  if (checked.rejected.length) throw new ShapeSlotGenerationError("generation_failed", 2);
-  const bySlot = new Map(replacements.map(question => [question.slotId, question]));
-  const repaired = questions.map(question => bySlot.get(question.slotId) ?? question);
-  if (!distinctPrompts(repaired)) throw new ShapeSlotGenerationError("generation_failed", 2);
+  // A replacement that still fails review is dropped, never delivered. One
+  // unsound question out of many used to discard the whole block and show the
+  // learner an error (CI #415: 1 of 32). The round is shorter than planned
+  // instead, and only while it still holds its floor of sound questions.
+  const stillRejected = new Set(checked.rejected.map(issue => issue.slotId));
+  const bySlot = new Map(replacements.filter(question => !stillRejected.has(question.slotId)).map(question => [question.slotId, question]));
+  const repaired = questions.flatMap(question => {
+    if (!rejectedIds.has(question.slotId)) return [question];
+    const replacement = bySlot.get(question.slotId);
+    return replacement ? [replacement] : [];
+  });
+  const floor = Math.min(context.slots.length, PRACTICE_QUESTION_MINIMUM);
+  if (repaired.length < floor || !distinctPrompts(repaired)) throw new ShapeSlotGenerationError("generation_failed", 2);
+  if (repaired.length < questions.length) {
+    context.provider?.diagnose?.({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "completed", questionCount: repaired.length, rejectedCount: questions.length - repaired.length });
+  }
   return repaired;
 }
 

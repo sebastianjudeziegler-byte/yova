@@ -80,4 +80,35 @@ describe("MCQ quality gate before delivery", () => {
     }
     expect(provider).toHaveBeenCalledTimes(5);
   });
+
+  // CI #415: the reviewer rejected 6 of 32 osmosis questions, the repair fixed
+  // five, and the one that still disagreed with its answer key discarded all 32.
+  it("delivers the questions that passed review when one replacement still fails", async () => {
+    const keyPoints = Array.from({ length: 8 }, (_, index) => ({ id: `k${index + 1}`, text: `Osmosis key point ${index + 1}: water moves from higher to lower water potential.` }));
+    const stubborn = "s3";
+    const provider = vi.fn(async (call: SlotProviderCall<unknown>) => {
+      const input = JSON.parse(call.input);
+      if (call.schemaName === "yova_practice_quality_review") {
+        return { reviews: input.questions.map((question: { slotId: string; prompt: string; choices: string[] }) => {
+          const sound = !question.prompt.includes("still wrong");
+          return { slotId: question.slotId, answerIndices: sound ? [question.choices.indexOf(good.choices[3])] : [], stemSufficient: true, demandMet: sound,
+            issue: sound ? "none" : "wrong_type", reason: sound ? "" : "The question does not require the reasoning its type names.", duplicateOfSlotId: null };
+        }) };
+      }
+      return { keyPoints, tips: [], questions: input.slots.map((slot: { slotId: string }) => ({ ...good, slotId: slot.slotId,
+        prompt: slot.slotId === stubborn ? `Case ${slot.slotId} is still wrong after the repair.` : `Explain the osmosis direction in case ${slot.slotId}.` })) };
+    });
+    const response = await fillShapeSlot({ ...request, modifiers: { ...request.modifiers, questionCap: 8, questionTarget: 8 }, keyPoints, outstandingKeyPointIds: keyPoints.map(point => point.id) }, provider as never);
+    if (response.action !== "practice") throw new Error("Expected practice");
+    expect(response.questions.map(question => question.slotId)).not.toContain(stubborn);
+    expect(response.questions).toHaveLength(7);
+    for (const question of response.questions) expect(question.choices[question.correctChoiceIndex]).toBe(good.choices[3]);
+    // One review, one bounded repair, one recheck: no extra attempt is spent.
+    expect(provider.mock.calls.filter(([call]) => call.schemaName === "yova_practice_quality_review")).toHaveLength(2);
+  });
+
+  it("still refuses a round left with fewer sound questions than its floor", async () => {
+    const provider = fixture(false);
+    await expect(fillShapeSlot(request, provider as never)).rejects.toMatchObject({ code: "generation_failed" });
+  });
 });

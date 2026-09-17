@@ -173,3 +173,60 @@ assertions and deadline untouched:
 
 No SQL, application behaviour, assertion or deadline changed, and no local
 database run is claimed.
+
+
+## Item 3 — the 32-question failure is the rejection loop, not the time budget
+
+Founder-approved artifact download: `session-generation-diagnostics-35256560801`
+(21 KB) from CI #415, holding `practice-32-synthetic-trace.json`. Every provider
+call in that trace returned; nothing timed out.
+
+| Call | Purpose | Started | Took |
+| --- | --- | --- | --- |
+| 1 | learn block, first 8 questions | 0.0 s | 8.8 s |
+| 2–4 | three further 8-question batches, in parallel | 8.8 s | 6.5 / 6.3 / 11.4 s |
+| 5 | independent review of all 32 in one call | 20.2 s | 15.6 s |
+| 6 | repair of the 6 rejected questions | 35.7 s | 6.9 s |
+| 7 | re-review of those 6 | 42.6 s | 4.3 s |
+
+Total 46.9 s against the shared 50-second provider budget, with the request
+failing at 46.9 s — not at a deadline. The failure is
+`ensureQuestionQuality` throwing `generation_failed` after the re-review, with
+`attempts: 2`.
+
+What the reviewer actually rejected in the first pass: 6 of 32, one as an
+ambiguous stem (`s17`) and **five as repetition** — `s23`, `s25`, `s29`, `s30`
+and `s32` all restated "osmosis needs a selectively permeable membrane" or "net
+osmosis stops at equilibrium" in a renamed scenario. On the evidence of the
+retained questions those rejections are correct: one three-subtopic topic does
+not hold 32 distinct questions. The repair fixed five; **one** still disagreed
+with its answer key, and that single question discarded all 32 and showed the
+learner "YOVA couldn't build this".
+
+**Founder decision:** deliver the sound questions. A replacement that still
+fails review is dropped, never delivered, and the block is shorter than planned
+instead of absent, while it keeps a floor of sound questions (the round's
+planned count, or three, whichever is smaller). The quality check itself is
+unchanged: the review must still cover every question, and a failed or
+unavailable review still refuses the block.
+
+**Red.** `src/lib/openai/shape-slot-quality.test.ts` "delivers the questions
+that passed review when one replacement still fails": an eight-question round
+whose `s3` replacement stays unsound threw `ShapeSlotGenerationError` at
+`shape-slot-generator.ts:411`.
+
+**Green.** Seven sound questions are delivered, `s3` is absent, each delivered
+question's key matches the reviewer's answer, and the call count is unchanged:
+one review, one bounded repair, one re-check. A round left below its floor still
+refuses, and the existing one-question case still refuses. 23 generator/quality
+files, 384 tests pass.
+
+The 32-question live gate now requires every delivered question to have passed
+review and at most two of 32 to be dropped, instead of requiring all 32 to
+survive. Its final quality diagnostic must account for exactly the dropped
+questions.
+
+Note for the founder's judgement, not changed here: the repetition finding says
+a 32-question block on a single three-subtopic topic is over-filled at source.
+Section 1 of the plan model answers that by sweeping in the next ready topic,
+which the segmented blocks on this branch already do.
