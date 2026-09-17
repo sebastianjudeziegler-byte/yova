@@ -959,11 +959,11 @@ describe("recordAuthenticatedSessionInterruption", () => {
 });
 
 describe("completeAuthenticatedPlanSession", () => {
-  it("classifies an allowlisted permanent completion conflict without exposing database detail", async () => {
+  it.each(["40001", "PT409"])("classifies an allowlisted permanent completion conflict (%s) without exposing database detail", async (code) => {
     rpc.mockResolvedValueOnce({
       data: null,
       error: {
-        code: "40001",
+        code,
         message: "study_route_completion_retry_conflict",
         details: "private completion detail",
       },
