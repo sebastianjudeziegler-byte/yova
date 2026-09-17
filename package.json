@@ -38,6 +38,8 @@
     "@fontsource/sora": "latest",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.111.0",
+    "fast-xml-parser": "5.11.1",
+    "fflate": "0.8.3",
     "katex": "0.16.47",
     "lucide-react": "latest",
     "next": "latest",

@@ -23,17 +23,21 @@ function existing(name: string, sizeBytes = 1024): LearningMaterial {
 }
 
 describe("material intake validation", () => {
-  it("accepts PDFs, text, and Markdown dropped together", () => {
+  it("accepts PowerPoint, PDFs, text, and Markdown dropped together", () => {
     const result = validateMaterialFiles([
       candidate("study-guide.pdf"),
       candidate("class-notes.txt"),
       candidate("review.md"),
+      candidate("lecture.PPTX"),
+      candidate("notes.markdown"),
     ], []);
 
     expect(result.accepted.map((file) => file.name)).toEqual([
       "study-guide.pdf",
       "class-notes.txt",
       "review.md",
+      "lecture.PPTX",
+      "notes.markdown",
     ]);
     expect(result.errors).toEqual([]);
   });
@@ -47,7 +51,7 @@ describe("material intake validation", () => {
 
     expect(result.accepted).toEqual([]);
     expect(result.errors).toEqual([
-      "worksheet.docx is not supported. Use PDF, TXT, or Markdown.",
+      "worksheet.docx is not supported. Use PowerPoint (.pptx), PDF, TXT, or Markdown.",
       "textbook.pdf is larger than the 10 MB limit.",
       "study-guide.pdf is already attached.",
     ]);

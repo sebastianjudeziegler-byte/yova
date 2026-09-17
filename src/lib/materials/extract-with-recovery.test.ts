@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PPTX_MIME_TYPE } from "./formats";
 
 const mocks = vi.hoisted(() => ({
   extractMaterialText: vi.fn(),
@@ -67,6 +68,14 @@ describe("material extraction recovery", () => {
       "text/plain",
       "notes.txt",
     )).rejects.toThrow("invalid text");
+    expect(mocks.extractWithOpenAI).not.toHaveBeenCalled();
+  });
+
+  it("does not send a failed PowerPoint to the PDF recovery path", async () => {
+    mocks.extractMaterialText.mockRejectedValueOnce(new Error("Export this PowerPoint to PDF"));
+    const { extractMaterialWithRecovery } = await import("./extract-with-recovery");
+    await expect(extractMaterialWithRecovery(new Uint8Array([0]), PPTX_MIME_TYPE, "slides.pptx"))
+      .rejects.toThrow("Export this PowerPoint to PDF");
     expect(mocks.extractWithOpenAI).not.toHaveBeenCalled();
   });
 

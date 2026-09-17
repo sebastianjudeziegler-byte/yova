@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { AlertCircle, ArrowLeft, ArrowRight, FileText, Trash2 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
-import { MaterialFileDropzone } from "@/components/material-file-dropzone";
+import { MaterialFileDropzone, materialUploadStatus } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { CanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
-import { abandonUploadedMaterials, deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
+import { abandonUploadedMaterials, deleteUploadedMaterial, uploadMaterialFiles, type MaterialUploadProgress } from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
 import { fetchClientJson, GENERATION_REQUEST_TIMEOUT_MS, MUTATION_REQUEST_TIMEOUT_MS } from "@/lib/http/client-json";
 import { PlanActivationResponseSchema, PlanGenerationRequestSchema, PlanGenerationResponseSchema } from "@/lib/plan-generation/schema";
@@ -63,6 +63,7 @@ export function StudyNowCreator({
   const [materialError, setMaterialError] = useState<string | null>(null);
   const [materialNotice, setMaterialNotice] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<MaterialUploadProgress | null>(null);
   const [linkMaterialWorking, setLinkMaterialWorking] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
   const [abandoningMaterials, setAbandoningMaterials] = useState(false);
@@ -77,11 +78,12 @@ export function StudyNowCreator({
     setMaterialNotice(null);
     setProcessingMaterials(true);
     try {
-      const { accepted, errors, notices } = await uploadMaterialFiles(files, materials);
-      setMaterialError(errors[0] ?? null);
-      setMaterialNotice(notices[0] ?? null);
+      const { accepted, errors, notices } = await uploadMaterialFiles(files, materials, setUploadProgress);
+      setMaterialError(errors.join(" ") || null);
+      setMaterialNotice(notices.join(" ") || null);
       if (accepted.length) setMaterials((current) => [...current, ...accepted]);
     } finally {
+      setUploadProgress(null);
       setProcessingMaterials(false);
     }
   };
@@ -204,7 +206,7 @@ export function StudyNowCreator({
         <div className="study-now-field">
           <strong>Material <small>(optional)</small></strong>
           <div className="material-uploader">
-            <MaterialFileDropzone busy={processingMaterials} disabled={building || linkMaterialWorking || Boolean(removingMaterialId) || materials.length >= 5} onFiles={addMaterials} />
+            <MaterialFileDropzone busy={processingMaterials} uploadStatus={materialUploadStatus(uploadProgress)} disabled={building || linkMaterialWorking || Boolean(removingMaterialId) || materials.length >= 5} onFiles={addMaterials} />
             <MaterialLinkImporter existingCount={materials.length} disabled={building || processingMaterials || Boolean(removingMaterialId)} onWorkingChange={setLinkMaterialWorking} onImported={(material, notice) => { setMaterials((current) => [...current, material]); setMaterialError(null); setMaterialNotice(notice); }} />
             {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · ready for this session</small></span><button aria-label={`Remove ${material.name}`} disabled={building || removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}><Trash2 size={16} /></button></div>)}</div>}
           </div>

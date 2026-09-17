@@ -7,8 +7,7 @@ import {
 } from "@/lib/materials/extract";
 import { assessMaterialQuality } from "@/lib/materials/quality";
 import { extractScannedPdfTextWithOpenAI } from "@/lib/openai/pdf-text-extractor";
-
-type SupportedMimeType = "application/pdf" | "text/plain" | "text/markdown";
+import type { MaterialMimeType } from "@/lib/materials/formats";
 
 type ExtractionResult = {
   extracted: ExtractedMaterial;
@@ -23,7 +22,7 @@ type ExtractionResult = {
  */
 export async function extractMaterialWithRecovery(
   bytes: Uint8Array,
-  mimeType: SupportedMimeType,
+  mimeType: MaterialMimeType,
   filename: string,
 ): Promise<ExtractionResult> {
   try {

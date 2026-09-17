@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MATERIAL_MIME_TYPES } from "@/lib/materials/formats";
 
 // Keep this equal to the server extraction boundary. This schema is imported
 // by browser code, so it cannot import the server-only extraction module.
@@ -14,7 +15,7 @@ export const MaterialStageResponseSchema = z.object({
   materialId: z.string().uuid(),
   storagePath: z.string().min(1).max(500),
   token: z.string().min(1),
-  mimeType: z.enum(["application/pdf", "text/plain", "text/markdown"]),
+  mimeType: z.enum(MATERIAL_MIME_TYPES),
 });
 
 export const MaterialProcessRequestSchema = z.object({
@@ -24,7 +25,7 @@ export const MaterialProcessRequestSchema = z.object({
 export const UploadedMaterialSchema = z.object({
   id: z.string().uuid(),
   name: z.string().trim().min(1).max(180),
-  mimeType: z.enum(["application/pdf", "text/plain", "text/markdown"]),
+  mimeType: z.enum(MATERIAL_MIME_TYPES),
   sizeBytes: z.number().int().min(1).max(10 * 1024 * 1024),
   textContent: z.null(),
   processingStatus: z.literal("ready"),

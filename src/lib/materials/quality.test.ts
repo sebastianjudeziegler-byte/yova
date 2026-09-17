@@ -29,6 +29,6 @@ describe("assessMaterialQuality", () => {
     const text = Array.from({ length: 80 }, (_, index) => `topic${index} has readable explanatory material`).join(" ");
     const quality = assessMaterialQuality(text, true);
     expect(quality.status).toBe("limited");
-    expect(quality.notice).toContain("50,000 characters");
+    expect(quality.notice).toContain("reading limit");
   });
 });

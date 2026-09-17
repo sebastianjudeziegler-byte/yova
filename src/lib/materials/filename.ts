@@ -1,4 +1,4 @@
-type MaterialMimeType = "application/pdf" | "text/plain" | "text/markdown";
+import { PPTX_MIME_TYPE, type MaterialMimeType } from "@/lib/materials/formats";
 
 /**
  * Keeps the name learners recognize while removing characters that are unsafe
@@ -25,7 +25,9 @@ export function materialStoragePath(
   materialId: string,
   mimeType: MaterialMimeType,
 ) {
-  const extension = mimeType === "application/pdf"
+  const extension = mimeType === PPTX_MIME_TYPE
+    ? "pptx"
+    : mimeType === "application/pdf"
     ? "pdf"
     : mimeType === "text/markdown"
       ? "md"

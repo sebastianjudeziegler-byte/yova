@@ -5,6 +5,7 @@ import { MaterialExtractionError } from "@/lib/materials/extract";
 import { extractMaterialWithRecovery } from "@/lib/materials/extract-with-recovery";
 import { assessMaterialQuality } from "@/lib/materials/quality";
 import { materialStoragePath, sanitizeMaterialDisplayName } from "@/lib/materials/filename";
+import { MATERIAL_FORMAT_LABEL, resolveMaterialMimeType, unsupportedMaterialMessage, type MaterialMimeType } from "@/lib/materials/formats";
 import { storePrivateMaterial } from "@/lib/materials/storage-upload";
 import {
   MATERIAL_MAPPING_ROUTE_BUDGET_MS,
@@ -34,8 +35,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-type SupportedMimeType = "application/pdf" | "text/plain" | "text/markdown";
-
 // Creates a user-owned staging record and a short-lived token. The browser
 // sends the file directly to Supabase Storage, avoiding hosting request limits.
 export async function POST(request: Request) {
@@ -56,12 +55,12 @@ export async function POST(request: Request) {
 
   const parsed = MaterialStageRequestSchema.safeParse(await readJson(request));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Choose one PDF, TXT, or Markdown file up to 10 MB." }, { status: 422 });
+    return NextResponse.json({ error: `Choose one ${MATERIAL_FORMAT_LABEL} file up to 10 MB.` }, { status: 422 });
   }
 
-  const mimeType = resolveMimeType(parsed.data.name, parsed.data.mimeType);
+  const mimeType = resolveMaterialMimeType(parsed.data.name, parsed.data.mimeType);
   if (!mimeType) {
-    return NextResponse.json({ error: "This file type is not supported. Use PDF, TXT, or Markdown." }, { status: 422 });
+    return NextResponse.json({ error: unsupportedMaterialMessage(parsed.data.name) }, { status: 422 });
   }
 
   const materialId = crypto.randomUUID();
@@ -417,7 +416,7 @@ export async function PATCH(request: Request) {
     }
     const { extracted, aiAssistedExtraction } = await extractMaterialWithRecovery(
       bytes,
-      upload.mime_type as SupportedMimeType,
+      upload.mime_type as MaterialMimeType,
       upload.filename,
     );
     const priorMetadata = upload.metadata && typeof upload.metadata === "object" && !Array.isArray(upload.metadata)
@@ -428,6 +427,7 @@ export async function PATCH(request: Request) {
       pageCount: extracted.pages,
       textTruncated: extracted.truncated,
       aiAssistedExtraction,
+      extractionNotice: extracted.notice ?? null,
       mappingStatus: "processing",
     };
     const { error: updateError } = await supabase
@@ -539,7 +539,8 @@ function materialResponse(
   const truncated = record.textTruncated === true;
   const aiAssistedExtraction = record.aiAssistedExtraction === true;
   const quality = assessMaterialQuality(extractedText, truncated);
-  const responseQuality = quality.status === "unusable" ? "limited" : quality.status;
+  const extractionNotice = typeof record.extractionNotice === "string" ? record.extractionNotice.slice(0, 240) : null;
+  const responseQuality = quality.status === "unusable" || extractionNotice ? "limited" : quality.status;
   return MaterialUploadResponseSchema.parse({
     material: {
       id: upload.id,
@@ -557,18 +558,9 @@ function materialResponse(
       quality: responseQuality,
       notice: aiAssistedExtraction
         ? "YOVA used AI to read this PDF after the private text reader could not finish. Review the generated plan against the original document before relying on it."
-        : quality.notice,
+        : truncated ? quality.notice : extractionNotice ?? quality.notice,
     },
   });
-}
-
-function resolveMimeType(name: string, suppliedMimeType: string): SupportedMimeType | null {
-  const extension = name.split(".").pop()?.toLowerCase();
-  const genericType = !suppliedMimeType || suppliedMimeType === "application/octet-stream";
-  if (extension === "pdf" && (genericType || suppliedMimeType === "application/pdf")) return "application/pdf";
-  if (extension === "txt" && (genericType || suppliedMimeType === "text/plain")) return "text/plain";
-  if ((extension === "md" || extension === "markdown") && (genericType || suppliedMimeType === "text/plain" || suppliedMimeType === "text/markdown")) return "text/markdown";
-  return null;
 }
 
 async function readJson(request: Request): Promise<unknown> {
