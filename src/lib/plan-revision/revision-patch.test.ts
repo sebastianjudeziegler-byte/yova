@@ -10,8 +10,10 @@ import { applySessionRevisionPatches, RevisionConflict } from "@/lib/plan-revisi
  * stored with the change wrote the same moment as "2026-09-19T08:00:00.000Z".
  * The preimage check compared them as text.
  */
+// One plan for every session here: each call to the fixture issues fresh route ids.
+const BASE: LearningPlanSession = { ...deterministicDeltaPlan(1).sessions[0]!, status: "ready", resource: undefined };
 function session(overrides: Partial<LearningPlanSession> = {}): LearningPlanSession {
-  return { ...structuredClone(deterministicDeltaPlan(1).sessions[0]!), status: "ready", resource: undefined, ...overrides };
+  return { ...structuredClone(BASE), ...overrides };
 }
 
 describe("session preimage check compares times as moments", () => {

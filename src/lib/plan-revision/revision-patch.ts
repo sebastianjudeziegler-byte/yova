@@ -16,7 +16,14 @@ export type SessionRevisionPatch = Readonly<{
 
 const pendingProjection = (session: LearningPlanSession | null) => session && ["ready", "upcoming"].includes(session.status) ? { ...session, status: "unstarted" } : session;
 const same = (left: unknown, right: unknown) => canonical(left) === canonical(right);
+/** A full ISO 8601 timestamp with a zone. The database returns "+00:00" where a stored proposal holds ".000Z". */
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 function canonical(value: unknown): string {
+  // Times compare as moments, not as text: the same instant written two ways is the same preimage.
+  if (typeof value === "string" && ISO_TIMESTAMP.test(value)) {
+    const moment = Date.parse(value);
+    if (!Number.isNaN(moment)) return JSON.stringify(new Date(moment).toISOString());
+  }
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (value && typeof value === "object") return "{" + Object.entries(value).filter(([, item]) => item !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",") + "}";
   return JSON.stringify(value) ?? "null";
