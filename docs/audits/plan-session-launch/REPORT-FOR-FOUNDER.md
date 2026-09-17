@@ -142,12 +142,42 @@ branch off. Details in EVIDENCE.md; in short:
   one, before anyone can read that gate. The saved main baseline is also older
   than main and due a refresh.
 
+## Your four decisions, done
+
+1. **Finish now answers.** The database marked permanent refusals with the code
+   Postgres reserves for "temporary clash, retry me", so the request was retried
+   until nothing came back. Those ten refusals now answer as a plain 409
+   Conflict; genuine temporary clashes keep the old code and stay retryable. The
+   app knows both spellings, so a database that has not taken the migration yet
+   still behaves. Codex's red test is green. Readiness now refuses to call a
+   deployment ready while its database still hangs on these refusals.
+2. **The exact-count gate** now checks what the round delivered rather than the
+   number originally asked for.
+3. **The reviewer's allowance — measured first, as you asked.** The trace shows
+   the fourth review batch, the one comparing eight questions against 24
+   earlier ones, stopping at its output limit twice in the same place, with 13
+   seconds of time budget still unused. It was the allowance, not the clock. It
+   now grows with the questions and the context the reviewer has to compare
+   against: 3,160 tokens where that batch had 1,230. Nothing else about the
+   review changed.
+4. **Renamed cases and the baseline.** 13 cases are listed with the case that
+   carries their coverage now, and the comparator says "renamed" rather than
+   treating them as missing. Four have no replacement — three about the capacity
+   maths and the "doesn't fit" refusal that Brief 2 deletes, and one about
+   speech and presentation plans — and I left those blocking on purpose: they
+   are a question for whoever rewrote those flows, not something to wave
+   through. The baseline is now main's own run rather than a commit from before
+   Brief 2 renamed anything.
+
+Locally: 4,560 tests pass, nothing failing, lint and types clean. The migration,
+the database cases and the live gates only run in CI, so the next run is the
+real check.
+
 ## What is still open
 
-- The four decisions above: the completion-code migration, the exact-count gate,
-  the reviewer's output allowance, and the renamed-case list plus a refreshed
-  baseline.
-- The two browser regressions from earlier branch work.
+- The two browser regressions from earlier branch work: a quick-add deadline
+  whose type reads "class", and the founder journey's missing source link.
+- The four unreplaced cases above.
 - Codex's earlier honest caveats still stand: test counts are not evidence of
   learning, the phone briefing still puts a long list of instructions before the
   task, and automated recordings cannot replace feedback from real learners.
