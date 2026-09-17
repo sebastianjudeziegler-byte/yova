@@ -1,111 +1,98 @@
 # BRIEF 2 - Plan model
 
-Branch: `codex/baseline-plan-model`
-Base: current `main`, after PR #88 (Brief 1) has merged. Do not start before.
+Branch: `baseline-plan-model`
+Base: current `main`, after Brief 1.5 has fully merged. Do not start before.
 
-Read `docs/redesign/00-SCOPE.md` and `06-STANDING-RULES.md` first - both govern
-this brief. Then `05-PLAN-MODEL.md`, which is the specification. `01`-`04`
-describe the session layer this plan feeds.
+Read `docs/redesign/00-SCOPE.md` and `06-STANDING-RULES.md` first. Then
+`05-PLAN-MODEL.md` - it is the specification and it has been rewritten; read
+it in full, not from memory of the earlier version.
 
 ## Why
 
-Brief 1 fixed what happens inside a session. The plan that decides which
-sessions exist is still the old time-first composer: it takes free time, cuts
-it into slots, and fits content into boxes. That is the source of stacked
-micro-sessions, duration-follows-slot-size, and the capacity errors. It also
-means the learner's profile changes nothing about the plan's shape.
+Brief 1 fixed what happens inside a session. Brief 1.5 fills the session
+screen. The plan that decides which sessions exist is still the old
+time-first composer, and the learner's profile changes nothing about the
+plan's shape. This brief makes the plan personal and makes it honest about
+what it read.
 
-## PRECONDITION - do this first and report before building
+## Precondition (already satisfied - do not redo)
 
-**Diagnose plan revision.** The founder reports that revising a plan "just
-doesn't work at all, even though it says it does", in the deployed app. Brief B
-shipped Tuesday with a passing browser journey for exactly that (mark covered,
-attach source, confirm, undo) plus a byte-identical unchanged-sessions test.
-
-Reproduce it as a learner on production. Either the tests pass on a path users
-do not take, or it regressed after merge. **Report what you find before writing
-any Brief 2 code.** Section 8 of the spec (falling behind) depends on revision
-working, so this is a precondition, not a side quest.
+The plan-revision migration is applied and the editedFields bug is fixed
+(#89, #90). Verify with one revision on production before building; if it
+fails, stop and report.
 
 ## Scope
 
-### 1. Block sizing (Option C) - spec section 1
-`blocksForTopic = clamp(ceil(topicWeight / learnerCapacity), 1, 3)`.
-Topic weight from subtopic count, intrinsic load, prior knowledge. Capacity
-from Q2/Q3/Q9/Q10. Splits on subtopic boundaries only; topics without
-subtopics are never split. Practice blocks are never split. When a topic would
-need more than 3 blocks, record that the map mis-sized it.
+### 1. Block sizing - spec section 1
+Option C. Deterministic topic weight, profile-driven capacity, clamp 1-3,
+subtopic-boundary splits. Practice blocks are placeholders.
 
-### 2. Replace the time-first composer - spec sections 4, 7, 8
-Blocks are topic-sized. The timer is a profile nudge, not a boundary. Dates are
-suggestions that can slip. The deadline is guidance and **must never throw** -
-reuse the Sept 7 degrade ladder and the deferral notices that already exist.
+### 2. The full profile -> plan routing map - spec section 2
+**All ten questions route to a plan-level effect.** Implement every row,
+including the three new ones (Q4 guidance levels, Q5 one-learn-block-per-day
+and worked-examples-first, Q8 front-loading). Every decision returns a rule
+ID. The plan header sentence is generated from fired rule IDs only.
 
-**Delete the time-slicing composer as part of this brief**, not later. Nothing
-is deleted until its replacement passes the same tests the old one did. List
-every module removed and what replaced it.
+### 3. Replace the time-first composer - spec section 4
+Topic-sized blocks. Suggested dates. Nearest available day forward. Many
+blocks per day allowed with the Q3 exception. Deadline is guidance. **Delete
+the time-slicing composer in this brief** - nothing removed until its
+replacement passes the same tests. List every module removed and what
+replaced it.
 
-### 3. Level 2 personalization - spec section 2
-Block count and practice rounds vary by profile. Ordering is prerequisites
-first, then material order, nothing else. Do not implement Level 3 or 4.
+### 4. Setup flow - spec section 3
+Add-on-Home opens the plan flow with the two links. Goal screen: date-purpose
+pills, starting-context note moved here, vague-goal nudge. Materials screen:
+visible file states, retry, read-reliability requirements. **The "What YOVA
+understood" screen** - new, per spec, all corrections applied on Continue.
+Placement never auto-opens. Build functional; no design exists yet - mark as
+undesigned in EVIDENCE.md.
 
-### 4. Visible personalization - spec section 3
-Plan header and topic headers state what the profile changed, built from rule
-IDs, never hand-written prose. Rule: if a routing rule fired, the learner can
-see it somewhere.
+### 5. Editing - spec section 5
+Inline actions apply immediately with receipt + Undo (until next change).
+Structural actions go through Brief B's preview. Remove-topic allowed with
+completed blocks. Deadline change re-spaces remaining practice only. Add
+material is its own button with the topic dropdown. Falling-behind banner
+with one fix.
 
-### 5. Placement opt-in and the topic ticker - spec section 6
-Placement never opens automatically. Offered before generation with an obvious
-skip, and skippable per question. The topic ticker lives in plan editing and
-sets `mark_covered` (learner report, never demonstrated evidence). Default with
-neither: every topic teaching-first.
+### 6. Plan screen - spec section 6
+Grouped by topic, blocks collapsed, count includes practice, personalization
+sentence, topic notes, collapsed variant for Q10.
 
-### 6. Materials: the two hard rules - spec section 9
-**This is the bug that burned the founder. Treat it as the brief's headline.**
-A `scope_outline` chunk contributes topic titles and nothing else, and never
-reaches a generation call as content. A topic sourced only from scope-outline
-takes the no-source path. Reject document-referential questions. Add the
-permanent live test: upload a study guide, generate a session, assert no
-question references the unit, the guide, or its goals.
+### 7. Home ordering - spec section 7
 
-### 7. "What YOVA understood" screen - spec section 10
-After upload, before generation. Three states: saved / read / usable. The data
-exists already; it has never been shown.
+### 8. Materials rules - spec section 8
+**The bug that burned the founder.** Scope-outline chunks contribute titles
+only. Document-referential questions rejected. Permanent live study-guide
+test.
 
-### 8. Plan screen grouped by topic - spec section 12
-Topic headers with blocks nested, checkmark per topic, collapsed variant for
-`long_plan_shutdown`.
-
-### 9. Materials per plan or per topic - spec section 5
-The learner chooses at upload.
-
-### 10. Falling behind - spec section 8
-Say something, offer a concrete restructure as an editable preview. Depends on
-the precondition.
-
-### 11. Archive on completion - spec section 13
+### 9. Old plans - spec section 9
+App refuses to open a pre-Brief-2 plan. Founder deletes the data.
 
 ## Out of scope
 
-Shape B, ingestion formats beyond what exists, syllabus import,
-natural-language anything, cross-plan memory, Level 3/4 personalization,
-adaptive routing, the paywall. If a change wants to alter Brief B's revision
-pipeline beyond fixing the precondition, stop and ask.
+Shape B, ingestion formats beyond PDF/PPTX/DOCX/text, syllabus import,
+natural-language anything, cross-plan memory, adaptive routing, the paywall,
+any visual design work. If a change wants to alter Brief B's revision pipeline
+beyond routing inline actions around it, stop and ask.
 
 ## Gates
 
-- Personalization delta test extended to plans: two contrasting profiles, same
-  unit, same materials - assert **different block counts** and different
-  practice rounds, on rule IDs.
-- Study-guide test from item 6, permanent, in the live gate.
-- Existing create -> activate -> open session -> complete passes unchanged.
+- Personalization delta test for plans: two contrasting profiles, same unit,
+  same materials - assert different block counts, different first-block
+  timing (Q8), different date placement (Q1), on rule IDs.
+- Every one of the ten routing rows has at least one test that fires it and
+  asserts the rule ID.
+- Study-guide live test.
 - Brief B byte-identical unchanged-sessions test still passes.
-- Full gate in CI. The regression comparator now runs on every branch and has
-  three outcomes; **inconclusive blocks the merge too** - re-run, do not
-  interpret.
+- Existing create -> activate -> open -> complete passes unchanged.
+- Full gate in CI; comparator passed/blocked/inconclusive; inconclusive
+  blocks. Refresh the saved main baseline before opening the PR if it is more
+  than a week old.
 
 ## Deliver
 
-PR with `EVIDENCE.md`: the precondition finding first, then red/green per item,
-two contrasting profiles' full plans side by side, the study-guide test output,
-and the list of deleted modules with what replaced each.
+PR with EVIDENCE.md: precondition check, red/green per item, two profiles'
+full plans side by side with their header sentences, the study-guide test
+output, the routing-row coverage table, the list of deleted modules with
+replacements, and the undesigned screens flagged.
