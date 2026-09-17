@@ -1,3 +1,4 @@
+import { emptyOnboardingAnswers, withOnboardingAnswer } from "@/lib/onboarding/answers";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -97,6 +98,12 @@ describe("StudyNowCreator request summary", () => {
       goal: "I have not started my essay",
       startingPoint,
     })).toMatchObject({ intent: "learn" });
+  });
+
+  it("transports the local baseline profile only in browser preview mode", () => {
+    const answers = withOnboardingAnswer(emptyOnboardingAnswers(), "session_length", "minutes_10_15");
+    expect(studyNowPreviewPreferenceRequestInput(true, [], null, answers)).toEqual({ previewOnboardingAnswers: answers });
+    expect(studyNowPreviewPreferenceRequestInput(false, [], null, answers)).toEqual({});
   });
 
   it("sends canonical method preferences only in browser preview mode", () => {

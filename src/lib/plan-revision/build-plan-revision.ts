@@ -135,6 +135,13 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
       break;
     }
     const subRequest = scopedRequest(applied.request, [topic.id], unit!.maximumSessions);
+    // A reviewed combined block can become separate valid blocks. Retain each
+    // consumed chunk's exact scope instead of expanding back to the full map.
+    const savedSegment = unit!.original?.workload?.segments?.find(segment => segment.workload.topicSubtopics[0]!.topicId === topic.id);
+    if (savedSegment) {
+      const selected = savedSegment.workload.topicSubtopics[0]!.subtopics;
+      subRequest.knowledgeMap!.topics = subRequest.knowledgeMap!.topics.map(item => ({ ...item, subtopics: selected.filter(subtopic => item.subtopics.includes(subtopic)) }));
+    }
     const priorSessions = plan.sessions.filter(session => session.status !== "skipped" && unit!.original && session.sequence < unit!.original.sequence && session.topicIds?.includes(topic.id)).map(session => ({ key: `existing:${session.id}`, topicIds: [topic.id] }));
     const previousParts = prepared.filter(item => item.unit.original?.id === unit!.original?.id && item.unit.topicId === topic.id);
     const revisionContext: NormalPlanRevisionContext = { reservations: [...reservations], earliestStart: selectedTime ?? new Date(earliest).toISOString(),

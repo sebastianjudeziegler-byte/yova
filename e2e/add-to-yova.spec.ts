@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Response } from "@playwright/test";
 import { PLAN_FIXED_NOW } from "./helpers/frozen-clock";
 import {
+  activatePreviewPlan,
   buildPlanFromSchedule,
   chooseGeneratedPlanSource,
   expandGroupedPlanTopics,
@@ -238,11 +239,7 @@ async function expectGroupedPlanMatches(page: Page, plan: LearningPlan) {
 }
 
 async function activateGroupedPlan(page: Page, draft: LearningPlan) {
-  const activated = page.waitForResponse(response => new URL(response.url()).pathname === "/api/plans/activate");
-  await page.getByRole("button", { name: "Use this plan", exact: true }).click();
-  expect((await activated).ok()).toBe(true);
-  await expect(page.getByRole("button", { name: "Start next block", exact: true })).toBeVisible();
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.at(-1)) as LearningPlan;
+  const saved = await activatePreviewPlan(page);
   expect(saved.deadline).toBe(draft.deadline);
   expect(saved.studyMode).toBe(draft.studyMode);
   expect(saved.planModel?.learningGoal).toBe(draft.planModel?.learningGoal);
@@ -257,7 +254,7 @@ async function addCalendarDeadline(page: Page, title: string, date: string) {
   const confirmation = page.getByRole("dialog", { name: "Confirm quick add" });
   await expect(confirmation).toBeVisible();
   await confirmation.getByLabel("Title", { exact: true }).fill(title);
-  await expect(confirmation.getByLabel("Type", { exact: true })).toHaveValue(/^(deadline|exam)$/);
+  await expect(confirmation.getByRole("combobox", { name: /^Type\b/ })).toHaveValue(/^(deadline|exam)$/);
   await expect(confirmation.getByLabel("Calendar time", { exact: true })).toHaveValue("");
   await expect(confirmation.getByLabel("Due time", { exact: true })).toHaveValue(new RegExp(`^${date}T`));
   await confirmation.getByRole("button", { name: "Save to calendar", exact: true }).click();

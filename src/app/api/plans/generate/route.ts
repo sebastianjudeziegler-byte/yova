@@ -1,3 +1,4 @@
+import { writeOnboardingAnswers } from "@/lib/onboarding/answers";
 import { immediateTopicWorkload } from "@/lib/plan-generation/topic-plan-model";
 import { NextResponse } from "next/server";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
@@ -191,6 +192,14 @@ export async function POST(request: Request) {
         headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
       },
     );
+  }
+
+  if (parsedRequest.data.previewOnboardingAnswers !== undefined && !developmentPreview) {
+    return NextResponse.json({
+      error: "Preview onboarding context is available only in the local development preview.",
+      code: "preview_onboarding_answers_not_allowed",
+      fields: { previewOnboardingAnswers: ["Remove this development-preview-only field before generating a cloud plan."] },
+    }, { status: 422, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
   }
 
   const goalContext = assessGoalContext(
@@ -589,13 +598,13 @@ export async function POST(request: Request) {
     try {
       const studyNowStartedAt = new Date(scheduleNowMs);
       const preliminaryPlan = generatePreviewPlan(planRequest, studyNowStartedAt);
-      const durationContext = await loadAuthorizedNormalDurationContext(
+      const durationContext = withPreviewBaselineAnswers(await loadAuthorizedNormalDurationContext(
         developmentPreview
           ? { developmentPreview: true, now: studyNowStartedAt }
           : supabase && user
             ? { supabase, authenticatedUserId: user.id, now: studyNowStartedAt }
             : { now: studyNowStartedAt },
-      );
+      ), planRequest, developmentPreview);
       const rolloutDecision = personalizationRolloutForNewRoute({
         authenticatedUserId: user?.id ?? null,
         developmentPreview,
@@ -717,13 +726,13 @@ export async function POST(request: Request) {
     // Resolve the accepted subject exactly once before it can influence either
     // deterministic structure or provider copy.
     planRequest = resolvePlanRequestSubjectBoundary(planRequest);
-    initialPlanContext = await loadAuthorizedNormalDurationContext(
+    initialPlanContext = withPreviewBaselineAnswers(await loadAuthorizedNormalDurationContext(
       developmentPreview
         ? { developmentPreview: true, now: normalPlanNow }
         : supabase && user
           ? { supabase, authenticatedUserId: user.id, now: normalPlanNow }
           : { now: normalPlanNow },
-    );
+    ), planRequest, developmentPreview);
     normalPlanComposition = composeNormalPlanEnvelopes({
       request: planRequest,
       learningIntentRecommendation: {
@@ -1155,6 +1164,20 @@ function personalizationRolloutForNewRoute({
   });
 }
 
+function withPreviewBaselineAnswers(
+  context: Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>>,
+  request: PlanGenerationRequest,
+  developmentPreview: boolean,
+): Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>> {
+  if (!developmentPreview || !request.previewOnboardingAnswers) return context;
+  return {
+    ...context,
+    onboardingAnswers: request.previewOnboardingAnswers,
+    profileVersion: `${context.profileVersion}+browser_baseline_v1`,
+    profile: buildAuthorizedNormalDurationProfile(writeOnboardingAnswers([], request.previewOnboardingAnswers)),
+  };
+}
+
 function durationContextForRollout(
   context: Pick<
     Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>>,
@@ -1209,13 +1232,13 @@ async function reliableDraftResponse(
     }
     const reliableNow = new Date(scheduleNowMs);
     reliablePlan = generatePreviewPlan(reliablePlanRequest, reliableNow);
-    resolvedInitialPlanContext ??= await loadAuthorizedNormalDurationContext(
+    resolvedInitialPlanContext ??= withPreviewBaselineAnswers(await loadAuthorizedNormalDurationContext(
       developmentPreview
         ? { developmentPreview: true, now: reliableNow }
         : supabase && userId
           ? { supabase, authenticatedUserId: userId, now: reliableNow }
           : { now: reliableNow },
-    );
+    ), reliablePlanRequest, developmentPreview);
     if (planRequest.intent === "plan") {
       reliablePlan = integrateInitialPlanMethodRoutes({
         plan: reliablePlan,

@@ -1,5 +1,5 @@
 import { expect, test, freezePlanClock, type Page } from "./helpers/frozen-clock";
-import { openPlanSetupPreview } from "./helpers/plan-setup";
+import { activatePreviewPlan, openPlanSetupPreview } from "./helpers/plan-setup";
 import type { LearningPlan } from "../src/lib/domain";
 import type { PlanKnowledgeMap } from "../src/lib/knowledge-map/schema";
 
@@ -43,8 +43,7 @@ async function createAndActivate(page: Page, activate = true) {
   await page.getByRole("button", { name: "Skip placement and build plan" }).click();
   await expect(page.getByRole("region", { name: "Plan grouped by topic" })).toBeVisible({ timeout: 30_000 });
   if (!activate) return;
-  await page.getByRole("button", { name: "Use this plan" }).click();
-  await expect(page.getByRole("region", { name: "Plan grouped by topic" })).toBeVisible();
+  await activatePreviewPlan(page);
 }
 
 async function topicActions(page: Page, topicId: string) {
@@ -56,8 +55,9 @@ async function reviewCoverageChange(page: Page, topicId: string) {
   // Open the reviewed-change composer, then choose coverage. The grouped
   // plan's inline Mark covered action intentionally applies immediately.
   await page.getByRole("button", { name: "Add material", exact: true }).click();
-  await page.getByLabel("Change type", { exact: true }).selectOption("mark_covered");
-  await page.getByLabel("Change topic", { exact: true }).selectOption(topicId);
+  const preview = page.getByRole("region", { name: "Plan change preview" });
+  await preview.getByRole("combobox", { name: /^Change type\b/ }).selectOption("mark_covered");
+  await preview.getByRole("combobox", { name: /^Change topic\b/ }).selectOption(topicId);
   await page.getByRole("button", { name: "Preview change", exact: true }).click();
 }
 
@@ -144,8 +144,8 @@ test("founder journey preserves completed work, previews two topic changes, save
   await reviewCoverageChange(page, WATER);
   await expect(page.getByRole("region", { name: "Plan change preview" })).toBeVisible();
   await page.getByRole("button", { name: "Add another change", exact: true }).click();
-  await page.getByLabel("Change topic").selectOption(CARBON);
-  await page.getByLabel("Change type").selectOption("attach_source");
+  await page.getByRole("combobox", { name: /^Change topic\b/ }).selectOption(CARBON);
+  await page.getByRole("combobox", { name: /^Change type\b/ }).selectOption("attach_source");
   await page.getByLabel("Source URL").fill(VIDEO);
   await page.getByRole("button", { name: "Preview source attachment", exact: true }).click();
   const preview = page.getByRole("region", { name: "Plan change preview" });
@@ -231,9 +231,7 @@ test("draft inline topic edits use the signed delta and keep the other sessions 
   await (await topicActions(page, WATER)).selectOption("mark_covered");
   await expect(page.getByRole("region", { name: "Plan change preview" })).toHaveCount(0);
   await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
-  await page.getByRole("button", { name: "Use this plan" }).click();
-  await expect(page.getByRole("region", { name: "Plan grouped by topic" })).toBeVisible();
-  const after = await snapshot(page);
+  const after = await activatePreviewPlan(page);
   expect(after.sessions.find(session => session.topicIds?.includes(WATER))!.learningMode).toBe("study");
   for (const session of original!.sessions.filter(session => !session.topicIds?.includes(WATER))) {
     const current = after.sessions.find(item => item.id === session.id)!;
@@ -246,7 +244,7 @@ test("draft inline topic edits use the signed delta and keep the other sessions 
 test("the availability editor changes dates through preview without regenerating the draft", async ({ page }) => {
   await createAndActivate(page, false);
   await page.getByRole("button", { name: "Edit plan", exact: true }).click();
-  await page.getByLabel("Time for Monday", { exact: true }).selectOption("Morning");
+  await page.getByRole("region", { name: "Edit plan", exact: true }).getByRole("combobox", { name: /^Time for Monday\b/ }).selectOption("Morning");
   const previewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/plans/adjust" && response.request().postDataJSON()?.action === "preview");
   await page.getByRole("button", { name: "Preview changes", exact: true }).click();
   const body = await (await previewResponse).json();

@@ -783,8 +783,9 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await expect(grouped).toContainText(generated.plan.planModel!.personalizationSentence);
   await page.getByRole("button", { name: "Edit plan",exact:true }).click();
   const editor=page.getByRole("region",{name:"Edit plan",exact:true});
-  await editor.getByLabel("Day for window 1").selectOption("Sunday");
-  await editor.getByLabel("Time for Sunday",{exact:true}).selectOption("Evening");
+  const firstWindow = editor.locator("fieldset > div").filter({ has: page.getByRole("combobox", { name: /^Day for window 1\b/ }) });
+  await firstWindow.getByRole("combobox", { name: /^Day for window 1\b/ }).selectOption("Sunday");
+  await firstWindow.getByRole("combobox", { name: /^Time for Sunday\b/ }).selectOption("Evening");
   await editor.getByRole("button",{name:"Preview changes",exact:true}).click();
   const schedulePreview=page.getByRole("region",{name:"Plan change preview"});
   const savedResponse=page.waitForResponse(response=>new URL(response.url()).pathname==="/api/plans/adjust"&&response.request().postDataJSON().action==="apply");
@@ -834,9 +835,10 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   const activeEditor=page.getByRole("region",{name:"Edit plan",exact:true});
   const removeWindow=activeEditor.getByRole("button",{name:/^Remove window/});
   while(await removeWindow.count()>1)await removeWindow.last().click();
-  await activeEditor.getByLabel("Day for window 1").selectOption("Thursday");
-  await activeEditor.getByLabel("Time for Thursday",{exact:true}).selectOption("Evening");
-  await activeEditor.getByLabel("Minutes for Thursday",{exact:true}).fill("15");
+  const firstActiveWindow = activeEditor.locator("fieldset > div").filter({ has: page.getByRole("combobox", { name: /^Day for window 1\b/ }) });
+  await firstActiveWindow.getByRole("combobox", { name: /^Day for window 1\b/ }).selectOption("Thursday");
+  await firstActiveWindow.getByRole("combobox", { name: /^Time for Thursday\b/ }).selectOption("Evening");
+  await firstActiveWindow.getByRole("spinbutton", { name: /^Minutes for Thursday\b/ }).fill("15");
   const capacityResponse=page.waitForResponse(response=>new URL(response.url()).pathname==="/api/plans/adjust"&&response.request().postDataJSON().action==="preview");
   await activeEditor.getByRole("button",{name:"Preview changes",exact:true}).click();
   const activePreview = page.getByRole("region", { name: "Plan change preview" });

@@ -1,3 +1,4 @@
+import { OnboardingAnswersRequestSchema } from "@/lib/onboarding/request-schema";
 import { studyRouteProvenanceIncludesRouterComponent } from "@/lib/study-route/method-plan-integration";
 import { z } from "zod";
 import { SetupCorrectionsSchema } from "@/lib/plan-generation/setup-corrections";
@@ -123,6 +124,8 @@ export const PlanGenerationRequestSchema = z.object({
    * field and instead loads the authenticated account's canonical profile.
    */
   previewCanonicalProfile: CanonicalLearnerProfileSchema.optional(),
+  /** Local baseline answers; the generation route rejects these outside verified preview. */
+  previewOnboardingAnswers: OnboardingAnswersRequestSchema.optional(),
   knowledgeMap: PlanKnowledgeMapSchema.optional(),
   knowledgeMapReceipt: z.string().min(1).max(512).optional(),
   mapCorrection: z.string().trim().max(800).optional(),

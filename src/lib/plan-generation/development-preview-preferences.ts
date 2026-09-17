@@ -1,3 +1,5 @@
+import type { OnboardingAnswers } from "@/lib/onboarding/answers";
+import { OnboardingAnswersRequestSchema } from "@/lib/onboarding/request-schema";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import {
   CanonicalLearnerProfileSchema,
@@ -8,18 +10,21 @@ import { CanonicalPreferredMethodIdsSchema } from "@/lib/personalization/preferr
 export type DevelopmentPreviewPreferenceRequestInput = {
   previewPreferredMethodIds?: CoreMethodId[];
   previewCanonicalProfile?: CanonicalLearnerProfile;
+  previewOnboardingAnswers?: OnboardingAnswers;
 };
 
 export function developmentPreviewPreferenceRequestInput(
   browserPreviewMode: boolean,
   preferredMethodIds: readonly CoreMethodId[],
   canonicalProfile?: Readonly<CanonicalLearnerProfile> | null,
+  onboardingAnswers?: OnboardingAnswers,
 ): DevelopmentPreviewPreferenceRequestInput {
   if (!browserPreviewMode) return {};
   const canonicalMethodIds = CanonicalPreferredMethodIdsSchema.parse([
     ...preferredMethodIds,
   ]);
   return {
+    ...(onboardingAnswers ? { previewOnboardingAnswers: OnboardingAnswersRequestSchema.parse(onboardingAnswers) } : {}),
     ...(canonicalMethodIds.length > 0
       ? { previewPreferredMethodIds: canonicalMethodIds }
       : {}),

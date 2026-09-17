@@ -4,6 +4,7 @@ import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import { emptyOnboardingAnswers } from "@/lib/onboarding/answers";
 import type { SessionCompletion } from "@/lib/domain";
 import { interleavedKeyPointsForSession, passedRelatedTopicIds, routingEvidenceForTopic, routingInputForSession, sessionTopic } from "./route-for-session";
+import { routeSession } from "./session-route";
 
 const topicId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const materialId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -97,6 +98,18 @@ describe("practice label inputs", () => {
     const completions = [completion(topicId, ["secure", "secure"]), completion(second, ["secure", "needs_review"]), completion(second, ["secure", "secure"]), completion(unrelated, ["secure"])];
     expect(passedRelatedTopicIds({ plan: plan(topics), topic: topics[0]!, completions }).sort()).toEqual([topicId, second].sort());
     expect(passedRelatedTopicIds({ plan: plan(topics), topic: topics[0]!, completions: [completion(second, ["secure", "needs_review"])] })).toEqual([]);
+  });
+
+  it("keeps a persisted independent activity scoped when later history permits interleaving", () => {
+    const input = { plan: plan(topics), session: session({ learningMode: "study" }), topic: topics[0]!, answers: emptyOnboardingAnswers(), completions: [completion(topicId, ["secure"]), completion(second, ["secure"])], now: new Date("2026-09-11T12:00:00.000Z") };
+    const ordinary = routingInputForSession(input);
+    expect(routeSession(ordinary).firstPracticeRound).toBe("interleaved_review");
+    const scoped = routingInputForSession({ ...input, independentWorkload: true });
+    expect(scoped).toEqual({ ...ordinary, passedRelatedTopicIds: [] });
+    expect(routeSession(scoped).firstPracticeRound).toBe("active_recall");
+    const nearDeadline = routingInputForSession({ ...input, plan: { ...input.plan, deadline: "2026-09-13T12:00:00.000Z" }, independentWorkload: true });
+    expect(nearDeadline.daysToDeadline).toBe(2);
+    expect(routeSession(nearDeadline).firstPracticeRound).toBe("practice_test");
   });
 
   it("sweeps the passed related topics' key points for an Interleaved Review, with unique ids", () => {

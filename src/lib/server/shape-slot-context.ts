@@ -1,4 +1,5 @@
 import "server-only";
+import { questionMixForTopicWorkload } from "@/lib/plan-generation/topic-workload-route";
 import { MaterialUnderstandingSchema, PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
 import { applyPlanMaterialUnderstanding } from "@/lib/plan-generation/plan-material-understanding";
 import { TopicWorkloadSchema } from "@/lib/plan-generation/topic-plan-contract";
@@ -16,7 +17,13 @@ export async function hydrateShapeSlotContext(supabase: Awaited<ReturnType<typeo
   const session=await supabase.from("plan_sessions").select("step_data").eq("id",request.planSessionId).eq("plan_id",request.planId).maybeSingle();
   if(session.error || !session.data)throw new Error("The saved session context could not be verified.");
   const stepData=session.data.step_data && typeof session.data.step_data==="object"?session.data.step_data as Record<string,unknown>:{};
-  const workload=stepData.workload==null?null:TopicWorkloadSchema.parse(stepData.workload);
+  const parentWorkload=stepData.workload==null?null:TopicWorkloadSchema.parse(stepData.workload);
+  const segment = parentWorkload?.segments?.find(item => item.segmentId === request.segmentId);
+  if (parentWorkload?.segments ? !segment : request.segmentId !== undefined) throw new Error("Choose a segment from the saved session workload.");
+  const workload = segment?.workload ?? parentWorkload;
+  if (segment && segment.workload.topicSubtopics[0]!.topicId !== request.topic.id) throw new Error("That topic does not belong to the selected segment.");
+  if (segment && request.action === "practice" && request.roundKind === "interleaved_review") throw new Error("A saved topic segment cannot add interleaved topics.");
+  if (workload) request = { ...request, modifiers: { ...request.modifiers, workloadBounded: true, questionCap: Math.max(1, workload.questionCount), questionTarget: Math.max(1, workload.questionCount), questionMix: questionMixForTopicWorkload(request.modifiers.questionMix, workload) } };
   if(workload&&!workload.topicSubtopics.some(topic=>topic.topicId===request.topic.id))throw new Error("That topic is not in the saved session workload.");
   const selected=new Map(workload?workload.topicSubtopics.map(topic=>[topic.topicId,topic.subtopics]):[request.topic,...(request.topic.relatedTopics??[])].map(topic=>[topic.id,topic.subtopics]));
   const ids=[...selected.keys()];
@@ -40,10 +47,13 @@ export async function hydrateShapeSlotContext(supabase: Awaited<ReturnType<typeo
     return workload||subtopics.length?subtopics.filter(subtopic=>item.subtopics.includes(subtopic)):item.subtopics;
   };
   const topic={...request.topic,id:main.id,title:main.title,description:main.description,subtopics:selectedSubtopics(main),
-    taskType:classifyLearningTask([goal,main.title,main.description,...main.subtopics].join(" ")).taskType,learningGoal:goal,
+    taskType:segment?.taskType ?? classifyLearningTask([goal,main.title,main.description,...main.subtopics].join(" ")).taskType,learningGoal:goal,
     ...(accepted.length>1?{relatedTopics:accepted.slice(1).map(item=>({id:item.id,title:item.title,subtopics:selectedSubtopics(item)}))}:{relatedTopics:undefined})};
   if(request.action==="direction")return ShapeSlotRequestSchema.parse({...request,topic,source:source.description,excerpts:source.excerpts});
-  if(request.action==="practice")return ShapeSlotRequestSchema.parse({...request,topic,excerpts:source.excerpts});
+  if(request.action==="practice") {
+    const keyPoints = segment ? request.keyPoints.filter(point => !point.sourceTopicId || point.sourceTopicId === main.id).map(point => ({...point, sourceTopicId: main.id})) : request.keyPoints;
+    return ShapeSlotRequestSchema.parse({...request,topic,keyPoints,excerpts:source.excerpts});
+  }
   if(request.action==="compare")return ShapeSlotRequestSchema.parse({...request,topic,reference:{...request.reference,excerpts:source.excerpts}});
   return ShapeSlotRequestSchema.parse({...request,topic});
 }

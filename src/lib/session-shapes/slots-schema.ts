@@ -70,6 +70,8 @@ const RequestBase = {
   recoveryKey: z.string().uuid(),
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
+  /** Required for persisted multi-activity workloads; authorized by the server. */
+  segmentId: z.string().trim().min(1).max(80).optional(),
   topic: ShapeTopicSchema,
   modifiers: ShapeProfileModifiersSchema,
   /** The hub tips this call writes, with the fired-rule reasons each may draw on (Brief 1.5 item 6). */

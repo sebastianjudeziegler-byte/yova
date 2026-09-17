@@ -3,7 +3,14 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { DELTA_NOW, deltaFixture, deterministicDeltaPlan } from "@/evals/personalization-delta-fixture";
-import type { SessionCompletion } from "@/lib/domain";
+import type { LearningPlan, SessionCompletion } from "@/lib/domain";
+import { emptyOnboardingAnswers } from "@/lib/onboarding/answers";
+import { composeNormalPlanEnvelopes, type NormalPlanEnvelopeInput } from "@/lib/plan-generation/normal-plan-envelopes";
+import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
+import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-plan-pipeline";
+import { PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
+import { ShapeSlotRequestSchema } from "@/lib/session-shapes/slots-schema";
+import { hydrateShapeSlotContext } from "@/lib/server/shape-slot-context";
 
 vi.mock("server-only", () => ({}));
 const clients = vi.hoisted(() => ({ learner: null as unknown as SupabaseClient, admin: null as unknown as SupabaseClient }));
@@ -13,7 +20,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: () => client
 vi.mock("@/lib/supabase/config", async original => ({ ...await original<object>(), isSupabaseConfigured: () => true }));
 import { commitPlanStudyRoutes } from "@/lib/study-route/activation";
 import { persistPlanForAuthenticatedUser } from "@/lib/supabase/plan-repository";
-import { loadAuthenticatedLearningState, readAuthenticatedSessionCompletionReceipt } from "@/lib/supabase/learning-state-repository";
+import { completeAuthenticatedPlanSession, loadAuthenticatedLearningState, readAuthenticatedSessionCompletionReceipt } from "@/lib/supabase/learning-state-repository";
 import { syncBaselineCompletion } from "./baseline-completion-sync";
 import { loadQueuedSessionCompletions } from "./session-completion-outbox";
 
@@ -40,10 +47,13 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
     if (!uuidMap.has(id)) uuidMap.set(id, randomUUID());
     return uuidMap.get(id)!;
   }));
-  const fixture = fresh({ request: deltaFixture(2).request, plan: deterministicDeltaPlan(2) });
+  // These original transport-recovery cases deliberately use short, single-
+  // topic blocks. The separate tests below exercise packed 60-minute blocks.
+  const fixture = fresh({ request: deltaFixture(1).request, plan: deterministicDeltaPlan(1) });
   const plan = commitPlanStudyRoutes({ ...fixture.plan, status: "active" }, DELTA_NOW.toISOString());
   const completion = (index: number): SessionCompletion => {
     const session = plan.sessions[index]!;
+    expect(session.workload?.segments).toBeUndefined();
     return { id: session.id, planId: plan.id, planSessionId: session.id, routeRevisionId: session.studyRoute!.identity.routeRevisionId,
       startedAt: "2026-09-17T10:00:00.000Z", completedAt: "2026-09-17T10:10:00.000Z", plannedMinutes: session.estimatedMinutes,
       actualMinutes: 10, correctAnswers: 2, totalAnswers: 2, feedback: null, observedGap: "No remaining gap identified.", completionMode: "guided", conceptEvidence: [], confidenceEvidence: [] };
@@ -51,6 +61,64 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
   function rows(id: string) {
     if (!/^[a-f\d-]{36}$/i.test(id)) throw new Error("Invalid test id");
     return execFileSync("docker", ["exec", "-i", container!, "psql", "-U", "postgres", "-d", "postgres", "-X", "-At", "-v", "ON_ERROR_STOP=1"], { encoding: "utf8", input: `select count(*) from public.session_attempts where id='${id}' and completed_at is not null;` }).trim();
+  }
+  async function persistSegmentedPlan() {
+    const input: NormalPlanEnvelopeInput = {
+      now: new Date("2026-09-17T08:00:00Z"),
+      learningIntentRecommendation: { intent: "learn", basis: "Use the accepted topic evidence." },
+      durationContext: {
+        profileVersion: "migrated-test:segments",
+        profile: { sustainableMinutes: 60, preferredWindow: null, fatigueRisk: null, startingFrictionRisk: null, evidenceRefs: { sustainableMinutes: [], preferredWindow: [], fatigueRisk: [], startingFrictionRisk: [] } },
+        recentOutcomes: [],
+        onboardingAnswers: { ...emptyOnboardingAnswers(), answers: { session_length: "minutes_45_60", prove_knowing: "answer_questions" } },
+      },
+      request: PlanGenerationRequestSchema.parse({
+        intent: "plan", learningIntent: "learn", goal: "Memorize the French vocabulary terms and definitions for a recall quiz.",
+        materialMode: "none", materials: [], studyMode: "inside", timeZone: "UTC", diagnosticResponses: [], profileSummary: "Use my saved learner profile.",
+        availability: [{ day: "Every day", window: "Morning", minutes: 180 }],
+        knowledgeMap: {
+          version: 1,
+          scopeJudgment: { band: "unit_or_exam", label: "French vocabulary", minimumSessions: 2, recommendedSessions: 4, maximumSessions: 8, minimumTeachingSessions: 1, explanation: "Recall the French words and definitions in each group." },
+          topics: [1, 2].map(index => ({ id: randomUUID(), title: `French vocabulary group ${index}`, description: "Recall the vocabulary terms and their exact definitions from memory.", subtopics: [`Vocabulary set ${index}`], prerequisiteTopicIds: [], status: "not_started", initialEvidence: { source: "learner_report", outcome: "covered_elsewhere", checked: false }, sourceReferences: [], origin: "ai_generated", deferred: null })),
+          placementCheck: { status: "skipped", completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] },
+        },
+      }),
+    };
+    const composition = composeNormalPlanEnvelopes(input);
+    const draft = buildNormalPlanFromFixedEnvelope({ ...input, methodContext: deltaFixture(2).methodContext, composition, fill: buildNormalPlanFallbackFill({ request: input.request, composition }) });
+    const saved = commitPlanStudyRoutes({ ...draft, status: "active" }, input.now.toISOString());
+    expect(saved.sessions).toHaveLength(1);
+    expect(saved.sessions[0]!.workload?.segments).toHaveLength(2);
+    await persistPlanForAuthenticatedUser(saved, input.request, new Date().toISOString());
+    // Read the real persisted workload before using it as completion authority.
+    const stored = await clients.learner.from("plan_sessions").select("step_data").eq("id", saved.sessions[0]!.id).single();
+    expect(stored.error).toBeNull();
+    expect(stored.data?.step_data.workload).toEqual(saved.sessions[0]!.workload);
+    return saved;
+  }
+  function segmentedCompletion(saved: LearningPlan): SessionCompletion {
+    const session = saved.sessions[0]!;
+    const segments = session.workload!.segments!;
+    const segmentCompletions = segments.map(segment => ({ segmentId: segment.segmentId, correctAnswers: segment.workload.questionCount, totalAnswers: segment.workload.questionCount, elapsedSeconds: segment.workload.estimatedMinutes * 60 }));
+    return {
+      id: randomUUID(), planId: saved.id, planSessionId: session.id, routeRevisionId: session.studyRoute!.identity.routeRevisionId,
+      startedAt: "2026-09-17T10:00:00.000Z", completedAt: "2026-09-17T11:00:00.000Z", plannedMinutes: session.estimatedMinutes,
+      actualMinutes: Math.ceil(segmentCompletions.reduce((sum, segment) => sum + segment.elapsedSeconds, 0) / 60),
+      correctAnswers: segmentCompletions.reduce((sum, segment) => sum + segment.correctAnswers, 0), totalAnswers: segmentCompletions.reduce((sum, segment) => sum + segment.totalAnswers, 0),
+      feedback: null, observedGap: "Synthetic checked outcomes from both performed segments.", completionMode: "guided", segmentCompletions,
+      conceptEvidence: segments.map(segment => ({ routeRevisionId: session.studyRoute!.identity.routeRevisionId, topicId: segment.workload.topicSubtopics[0]!.topicId, concept: `${segment.segmentId} vocabulary recall`, outcome: "secure", activityType: "multiple_choice" })),
+      confidenceEvidence: [],
+    };
+  }
+  function completionPayload(event: SessionCompletion): Record<string, unknown> {
+    return {
+      attemptId: event.id, planSessionId: event.planSessionId, routeRevisionId: event.routeRevisionId,
+      startedAt: event.startedAt, completedAt: event.completedAt, plannedMinutes: event.plannedMinutes, actualMinutes: event.actualMinutes,
+      correctAnswers: event.correctAnswers, totalAnswers: event.totalAnswers, feedback: event.feedback, observedGap: event.observedGap,
+      completionMode: event.completionMode, conceptEvidence: event.conceptEvidence, confidenceEvidence: event.confidenceEvidence,
+      segmentCompletions: event.segmentCompletions,
+      completionVariant: "guided", nextSessionAdjustment: null, nextSessionStudyRoute: null, followUpSession: null, continuationSession: null,
+    };
   }
   beforeAll(async () => {
     vi.stubGlobal("window", { localStorage: storage });
@@ -114,6 +182,21 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
     }
   }, 35_000);
 
+  it("accepts omitted and JSON null segment receipts on exact legacy completion retries", async () => {
+    const event = completion(0);
+    const before = await clients.learner.from("session_attempts").select("result_data").eq("id", event.id).single();
+    expect(before.error).toBeNull();
+    expect(before.data?.result_data).not.toHaveProperty("segmentCompletions");
+    for (const segmentCompletions of [null, undefined]) {
+      const replay = await clients.learner.rpc("complete_plan_session_with_route", { payload: { ...completionPayload(event), segmentCompletions } });
+      expect(replay.error).toBeNull();
+      expect(rows(event.id)).toBe("1");
+    }
+    const after = await clients.learner.from("session_attempts").select("result_data").eq("id", event.id).single();
+    expect(after.error).toBeNull();
+    expect(after.data?.result_data).toEqual(before.data?.result_data);
+  }, 30_000);
+
   it("keeps the exact queued event across a reload-style retry and reconnect", async () => {
     const event = completion(1);
     offline = true;
@@ -134,5 +217,99 @@ describe.skipIf(!configured)("baseline Finish against the migrated database", ()
     expect(result.committed).toBe(false);
     expect(rows(invalid.id)).toBe("0");
     expect(await readAuthenticatedSessionCompletionReceipt(randomUUID(), completion(0))).toBe(false);
+  }, 30_000);
+
+  it("hydrates each segment from its own persisted topic slice and refuses missing or foreign selectors", async () => {
+    const saved = await persistSegmentedPlan();
+    const session = saved.sessions[0]!;
+    const segments = session.workload!.segments!;
+    const requestFor = (index: number) => {
+      const segment = segments[index]!;
+      return ShapeSlotRequestSchema.parse({
+        action: "practice", requestId: randomUUID(), recoveryKey: randomUUID(), planId: saved.id, planSessionId: session.id, segmentId: segment.segmentId,
+        topic: { id: segment.workload.topicSubtopics[0]!.topicId, title: "Forged browser title", description: "A browser request cannot choose the scope.", subtopics: ["Invented subject", ...segments.flatMap(item => item.workload.topicSubtopics[0]!.subtopics)], taskType: "conceptual_learning", relatedTopics: saved.knowledgeMap!.topics.map(topic => ({ id: topic.id, title: topic.title, subtopics: topic.subtopics })) },
+        modifiers: { instructionStyle: "standard", questionMix: { recall: 1, application: 2, compare_contrast: 1, prediction: 0, misconception: 1 }, produceStep: null, explanationFocus: null, questionCap: 1, questionTarget: 1 },
+        tips: [], round: 1, attempt: randomUUID(), keyPoints: [], outstandingKeyPointIds: [], excerpts: [{ label: "Forged source", text: "Never trust posted source text." }], roundKind: "active_recall", repairTargets: [],
+      });
+    };
+    for (const [index, segment] of segments.entries()) {
+      const hydrated = await hydrateShapeSlotContext(clients.learner, userId, requestFor(index));
+      const topicId = segment.workload.topicSubtopics[0]!.topicId;
+      expect(hydrated.topic.id).toBe(topicId);
+      expect(hydrated.topic.title).toBe(saved.knowledgeMap!.topics.find(topic => topic.id === topicId)!.title);
+      expect(hydrated.topic.subtopics).toEqual(segment.workload.topicSubtopics[0]!.subtopics);
+      expect(hydrated.topic.taskType).toBe(segment.taskType);
+      expect(hydrated.topic.relatedTopics ?? []).toEqual([]);
+      expect(hydrated.modifiers.questionTarget).toBe(segment.workload.questionCount);
+      expect(hydrated.modifiers.questionCap).toBe(segment.workload.questionCount);
+      expect(hydrated.action === "practice" && hydrated.excerpts).toEqual([]);
+    }
+    const request = requestFor(0);
+    await expect(hydrateShapeSlotContext(clients.learner, userId, { ...request, segmentId: undefined })).rejects.toThrow(/segment/i);
+    await expect(hydrateShapeSlotContext(clients.learner, userId, { ...request, segmentId: "unknown-segment" })).rejects.toThrow(/segment/i);
+    await expect(hydrateShapeSlotContext(clients.learner, userId, { ...request, segmentId: segments[1]!.segmentId })).rejects.toThrow(/topic/i);
+  }, 30_000);
+
+  it("rejects incomplete or forged segment receipts in the real completion RPC without crediting the second topic", async () => {
+    const saved = await persistSegmentedPlan();
+    const event = segmentedCompletion(saved);
+    const receipts = event.segmentCompletions!;
+    const invalid: Array<[string, Record<string, unknown>]> = [
+      ["missing receipt", { segmentCompletions: undefined }],
+      ["JSON null receipt", { segmentCompletions: null }],
+      ["receipt object instead of array", { segmentCompletions: { ...receipts[0] } }],
+      ["unperformed second segment", { segmentCompletions: [receipts[0]], correctAnswers: receipts[0]!.correctAnswers, totalAnswers: receipts[0]!.totalAnswers, conceptEvidence: [event.conceptEvidence[0]] }],
+      ["duplicate segment", { segmentCompletions: [receipts[0], receipts[0]] }],
+      ["unknown segment", { segmentCompletions: [receipts[0], { ...receipts[1], segmentId: "unknown-segment" }] }],
+      ["reversed order", { segmentCompletions: [...receipts].reverse() }],
+      ["parent counts disagree", { correctAnswers: event.correctAnswers - 1, totalAnswers: event.totalAnswers - 1 }],
+      ["string answer count", { segmentCompletions: [receipts[0], { ...receipts[1], totalAnswers: String(receipts[1]!.totalAnswers) }] }],
+      ["second segment underfilled", { segmentCompletions: [receipts[0], { ...receipts[1], correctAnswers: 0, totalAnswers: 0 }], correctAnswers: receipts[0]!.correctAnswers, totalAnswers: receipts[0]!.totalAnswers }],
+      ["foreign evidence topic", { conceptEvidence: [event.conceptEvidence[0], { ...event.conceptEvidence[1], topicId: randomUUID() }] }],
+      ["missing second topic outcome", { conceptEvidence: [event.conceptEvidence[0]] }],
+    ];
+    for (const [label, patch] of invalid) {
+      const id = randomUUID();
+      const result = await clients.learner.rpc("complete_plan_session_with_route", { payload: { ...completionPayload(event), attemptId: id, ...patch } });
+      expect(result.error, label).not.toBeNull();
+      expect(result.error?.code, label).toBe("22023");
+      expect(result.error?.message, label).toMatch(/^topic_segment_completion_/);
+      expect(rows(id), label).toBe("0");
+      const attempts = await clients.learner.from("session_attempts").select("id").eq("id", id);
+      expect(attempts.error).toBeNull();
+      expect(attempts.data, label).toEqual([]);
+      const status = await clients.learner.from("plan_sessions").select("status").eq("id", event.planSessionId).single();
+      expect(status.error).toBeNull();
+      expect(status.data?.status, label).not.toBe("complete");
+    }
+  }, 30_000);
+
+  it("persists both checked origins once and reloads the exact segment receipts after a terminal retry", async () => {
+    const saved = await persistSegmentedPlan();
+    const event = segmentedCompletion(saved);
+    await completeAuthenticatedPlanSession(event, undefined, undefined, undefined, undefined, userId);
+    await completeAuthenticatedPlanSession(event, undefined, undefined, undefined, undefined, userId);
+    expect(rows(event.id)).toBe("1");
+    expect(await readAuthenticatedSessionCompletionReceipt(userId, event)).toBe(true);
+    const reloaded = await loadAuthenticatedLearningState();
+    const attempts = reloaded!.sessionCompletions.filter(item => item.id === event.id);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]!.segmentCompletions).toEqual(event.segmentCompletions);
+    expect(attempts[0]!.conceptEvidence).toEqual(event.conceptEvidence);
+    expect(attempts[0]!.correctAnswers).toBe(event.correctAnswers);
+    expect(attempts[0]!.totalAnswers).toBe(event.totalAnswers);
+    expect(reloaded!.plans.find(item => item.id === saved.id)!.sessions[0]!.status).toBe("complete");
+    const persisted = await clients.learner.from("session_attempts").select("result_data").eq("id", event.id).single();
+    expect(persisted.error).toBeNull();
+    expect(persisted.data?.result_data.segmentCompletions).toEqual(event.segmentCompletions);
+    expect(persisted.data?.result_data.conceptEvidence).toEqual(event.conceptEvidence);
+    const changedReplay = await clients.learner.rpc("complete_plan_session_with_route", { payload: { ...completionPayload(event), segmentCompletions: event.segmentCompletions!.map((segment, index) => index === 0 ? { ...segment, elapsedSeconds: segment.elapsedSeconds + 1 } : segment) } });
+    expect(changedReplay.error).not.toBeNull();
+    expect(changedReplay.error?.code).toBe("40001");
+    expect(changedReplay.error?.message).toBe("study_route_completion_retry_conflict");
+    expect(rows(event.id)).toBe("1");
+    const afterRejectedReplay = await clients.learner.from("session_attempts").select("result_data").eq("id", event.id).single();
+    expect(afterRejectedReplay.error).toBeNull();
+    expect(afterRejectedReplay.data?.result_data).toEqual(persisted.data?.result_data);
   }, 30_000);
 });

@@ -112,11 +112,13 @@ export function planCreatorPreviewPreferenceRequestInput(
   browserPreviewMode: boolean,
   previewPreferredMethodIds: readonly CoreMethodId[],
   previewCanonicalProfile?: Readonly<CanonicalLearnerProfile> | null,
+  onboardingAnswers?: OnboardingAnswers,
 ) {
   return developmentPreviewPreferenceRequestInput(
     browserPreviewMode,
     previewPreferredMethodIds,
     previewCanonicalProfile,
+    onboardingAnswers,
   );
 }
 
@@ -339,6 +341,7 @@ export function PlanCreator({
         browserPreviewMode,
         previewPreferredMethodIds,
         previewCanonicalProfile,
+        onboardingAnswers,
       ),
       ...(diagnosticMap ? { knowledgeMap: diagnosticMap, knowledgeMapReceipt: knowledgeMapReceipt ?? undefined } : {}),
       ...overrides,

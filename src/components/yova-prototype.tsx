@@ -62,6 +62,7 @@ import { PostSessionPersonalizationReceipt } from "@/components/post-session-per
 import { applyTopicWorkloadToRoute } from "@/lib/plan-generation/topic-workload-route";
 import { baselineObservedGap, baselineOutcomeTopicId, nextReadyBaselineSession } from "@/lib/session-shapes/continuation";
 import { BaselineSession, type BaselineSessionResult } from "@/components/baseline-session";
+import { aggregateBaselineSegmentResults } from "@/lib/session-shapes/baseline-session-result";
 import { PreSessionCard } from "@/components/pre-session-card";
 import { browserCheckpointStorage, clearBaselineCheckpoint, loadBaselineCheckpoint, routeFingerprint, saveBaselineCheckpoint, type BaselineCheckpoint, type StudyLocation } from "@/lib/session-shapes/baseline-checkpoint";
 import { baselineSourceForTopics } from "@/lib/session-shapes/source-context";
@@ -204,7 +205,7 @@ import { shouldRequestConfidence } from "@/lib/learning/session-interaction";
 import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import { buildSessionMapDelta } from "@/lib/knowledge-map/session-delta";
 import { displayedTopicStatus } from "@/lib/knowledge-map/displayed-topic-status";
-import { PlanKnowledgeMapSchema, type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
+import { PlanKnowledgeMapSchema, type PlanKnowledgeMap, type KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import {
   checkpointMatchesMethodWorkSession,
   checkpointMatchesSessionResource,
@@ -2578,6 +2579,11 @@ export function YovaPrototype({
   };
 
   const completeBaselineSession = async (targetPlan: LearningPlan, targetSession: LearningPlanSession, route: SessionRoute, result: BaselineSessionResult, continueToNext = false) => {
+    if (targetSession.workload?.segments) {
+      const aggregate = aggregateBaselineSegmentResults(targetSession.workload, result.segments ?? []);
+      if (!aggregate) return false;
+      result = aggregate;
+    }
     const completedAt = new Date().toISOString();
     const activeSeconds = Math.max(1, result.elapsedSeconds);
     const executedRouteRevisionId = selectSessionTerminalRouteRevisionId(targetSession);
@@ -2597,6 +2603,7 @@ export function YovaPrototype({
       actualMinutes: Math.max(1, Math.round(activeSeconds / 60)),
       correctAnswers: result.correctAnswers,
       totalAnswers: result.totalAnswers,
+      ...(result.segments ? { segmentCompletions: result.segments.map(({ segmentId, result: segment }) => ({ segmentId, correctAnswers: segment.correctAnswers, totalAnswers: segment.totalAnswers, elapsedSeconds: segment.elapsedSeconds })) } : {}),
       feedback: null,
       observedGap: baselineObservedGap(result, route.practiceRoundCeiling),
       completionMode: "guided",
@@ -3633,10 +3640,20 @@ export function YovaPrototype({
       ?? null;
     if (!targetSession) return null;
     const topic = sessionTopic(targetPlan, targetSession);
-    const baseRoute = applyTopicWorkloadToRoute(routeSession(routingInputForSession({ plan: targetPlan, session: targetSession, topic, answers: readOnboardingAnswers(answers), completions: sessionCompletions, now: new Date() })), targetSession.workload);
-    const insideRoute = target.produceStep ? withProduceStepOverride(baseRoute, target.produceStep) : baseRoute;
-    const route = target.studyLocation === "outside" ? withStudyOutside(insideRoute) : insideRoute;
-    return { target: { ...target, planSessionId: targetSession.id }, plan: targetPlan, session: targetSession, topic, insideRoute, route, source: baselineSourceForTopics(targetPlan, targetSession.workload ? targetSession.workload.topicSubtopics.flatMap((entry) => targetPlan.knowledgeMap?.topics.filter((candidate) => candidate.id === entry.topicId) ?? []) : topic ? [topic] : []).description };
+    const routesFor = (session: LearningPlanSession, scopedTopic: KnowledgeMapTopic | null, independentWorkload = false) => {
+      const base = applyTopicWorkloadToRoute(routeSession(routingInputForSession({ plan: targetPlan, session, topic: scopedTopic, answers: readOnboardingAnswers(answers), completions: sessionCompletions, now: new Date(), independentWorkload })), session.workload);
+      const inside = target.produceStep ? withProduceStepOverride(base, target.produceStep) : base;
+      return { insideRoute: inside, route: target.studyLocation === "outside" ? withStudyOutside(inside) : inside };
+    };
+    const { insideRoute, route } = routesFor(targetSession, topic);
+    const segmentContexts = targetSession.workload?.segments?.flatMap(segment => {
+      const scopedSession = { ...targetSession, workload: segment.workload, topicIds: segment.workload.topicSubtopics.map(entry => entry.topicId), learningMode: segment.learningMode };
+      const scopedTopic = sessionTopic(targetPlan, scopedSession);
+      if (!scopedTopic) return [];
+      const scopedRoute = routesFor(scopedSession, scopedTopic, true).route;
+      return [{ segmentId: segment.segmentId, topic: scopedTopic, route: scopedRoute, interleavedKeyPoints: [] }];
+    });
+    return { target: { ...target, planSessionId: targetSession.id }, plan: targetPlan, session: targetSession, topic, insideRoute, route, segmentContexts, source: baselineSourceForTopics(targetPlan, targetSession.workload ? targetSession.workload.topicSubtopics.flatMap((entry) => targetPlan.knowledgeMap?.topics.filter((candidate) => candidate.id === entry.topicId) ?? []) : topic ? [topic] : []).description };
   }
 
   function leaveBaselineSession() {
@@ -3780,7 +3797,7 @@ export function YovaPrototype({
     setStage("app");
     setActiveTab("Learning");
   }} />;
-  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("app"); }} onFinish={(plan, studyLocation) => {
+  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} onboardingAnswers={readOnboardingAnswers(answers)} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("app"); }} onFinish={(plan, studyLocation) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -3829,6 +3846,7 @@ export function YovaPrototype({
       topic={targetTopic}
       route={route}
       nextSession={nextUnfinishedSessionAfter(targetPlan.sessions, targetSession.sequence)}
+      segmentContexts={baselineTarget.segmentContexts}
       continuationSession={nextReadyBaselineSession(targetPlan, targetSession.id, new Date())}
       studyLocation={target.studyLocation}
       checkpoint={checkpoint}

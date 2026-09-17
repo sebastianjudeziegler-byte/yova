@@ -11,14 +11,15 @@ const modifiers = { instructionStyle: "standard", questionMix: { recall: 6, appl
 const base = () => ({ requestId: randomUUID(), recoveryKey: randomUUID(), planId: randomUUID(), planSessionId: randomUUID(), topic, modifiers, tips: [] });
 const headers = { "X-Yova-Development-Preview": "guided-session" };
 
-for (const count of [6, 24]) {
+for (const count of [6, 24, 32]) {
   test(`a live ${count}-question ${count === 6 ? "introductory factual" : "application"} workload is complete and preserves topic binding`, async ({ request }, testInfo) => {
     test.setTimeout(180_000);
     const selectedTopic = count === 6 ? { ...topic, title: "Plant cell structures", description: "Identify the cell wall, nucleus, chloroplast and vacuole and recall their functions.", subtopics: ["Cell wall", "Nucleus", "Chloroplast", "Vacuole"], taskType: "memorization", learningGoal: "Learn the basic plant cell structures and their functions for an introductory secondary-school biology quiz." } : topic;
     const input = { ...base(), topic: selectedTopic, action: "learn_block", modifiers: { ...modifiers, ...(count === 6 ? { questionMix: { recall: 6, application: 0, compare_contrast: 0, prediction: 0, misconception: 0 } } : {}), questionCap: count, questionTarget: count } };
+    const started = performance.now();
     const response = await request.post("/api/sessions/shape", { headers, data: input, timeout: 65_000 });
     const body = await response.json();
-    await testInfo.attach(`live-${count}-question-workload.json`, { body: Buffer.from(JSON.stringify({ environment: "CI development-preview; real model; no database", input, status: response.status(), output: body }, null, 2)), contentType: "application/json" });
+    await testInfo.attach(`live-${count}-question-workload.json`, { body: Buffer.from(JSON.stringify({ environment: "CI development-preview; real model; no database", elapsedMs: Math.round(performance.now() - started), input, status: response.status(), output: body }, null, 2)), contentType: "application/json" });
     expect(response.status(), JSON.stringify(body)).toBe(200);
     const parsed = ShapeSlotResponseSchema.parse(body);
     expect(parsed.action).toBe("learn_block");

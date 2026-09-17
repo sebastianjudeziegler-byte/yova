@@ -2452,6 +2452,19 @@ describe("exact baseline completion receipt", () => {
     await expect(readAuthenticatedSessionCompletionReceipt("user-1", completion)).resolves.toBe(false);
     expect(from).not.toHaveBeenCalled();
   });
+  it("requires both exact segment receipts before reconciling a lost reply", async () => {
+    const segmentCompletions = [
+      { segmentId: "first", correctAnswers: 3, totalAnswers: 4, elapsedSeconds: 240 },
+      { segmentId: "second", correctAnswers: 2, totalAnswers: 3, elapsedSeconds: 180 },
+    ];
+    const data = { completed_at: NOW, result_data: { routeRevisionId: ROUTE_REVISION_ID, segmentCompletions } };
+    receipt(data);
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", { ...completion, segmentCompletions })).resolves.toBe(true);
+    receipt(data);
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", { ...completion, segmentCompletions: [...segmentCompletions].reverse() })).resolves.toBe(false);
+    receipt({ ...data, result_data: { routeRevisionId: ROUTE_REVISION_ID, segmentCompletions: segmentCompletions.slice(0, 1) } });
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", { ...completion, segmentCompletions })).resolves.toBe(false);
+  });
   it("bounds an unavailable authentication check", async () => {
     getUser.mockReturnValue(new Promise(() => {}));
     const pending = expect(readAuthenticatedSessionCompletionReceipt("user-1", completion)).rejects.toThrow();

@@ -1,5 +1,6 @@
 "use client";
 
+import type { OnboardingAnswers } from "@/lib/onboarding/answers";
 import { useState } from "react";
 import { AlertCircle, ArrowLeft, ArrowRight, FileText, Trash2 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
@@ -36,8 +37,9 @@ export function studyNowPreviewPreferenceRequestInput(
   browserPreviewMode: boolean,
   previewPreferredMethodIds: readonly CoreMethodId[],
   previewCanonicalProfile?: Readonly<CanonicalLearnerProfile> | null,
+  onboardingAnswers?: OnboardingAnswers,
 ) {
-  return developmentPreviewPreferenceRequestInput(browserPreviewMode, previewPreferredMethodIds, previewCanonicalProfile);
+  return developmentPreviewPreferenceRequestInput(browserPreviewMode, previewPreferredMethodIds, previewCanonicalProfile, onboardingAnswers);
 }
 
 export function StudyNowCreator({
@@ -47,6 +49,7 @@ export function StudyNowCreator({
   browserPreviewMode = false,
   previewPreferredMethodIds = [],
   previewCanonicalProfile = null,
+  onboardingAnswers,
   seed = null,
 }: {
   onExit: () => void;
@@ -55,6 +58,7 @@ export function StudyNowCreator({
   browserPreviewMode?: boolean;
   previewPreferredMethodIds?: readonly CoreMethodId[];
   previewCanonicalProfile?: Readonly<CanonicalLearnerProfile> | null;
+  onboardingAnswers?: OnboardingAnswers;
   seed?: AddIntakeSeed | null;
 }) {
   const [goal, setGoal] = useState(seed ? buildStudyNowRequestSummary(seed) : "");
@@ -140,7 +144,7 @@ export function StudyNowCreator({
         ],
         availability: [{ day: new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(now), window: "Now", minutes }],
         profileSummary,
-        ...studyNowPreviewPreferenceRequestInput(browserPreviewMode, previewPreferredMethodIds, previewCanonicalProfile),
+        ...studyNowPreviewPreferenceRequestInput(browserPreviewMode, previewPreferredMethodIds, previewCanonicalProfile, onboardingAnswers),
       });
       const previewHeaders: Record<string, string> = browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {};
       const generated = await fetchClientJson("/api/plans/generate", {

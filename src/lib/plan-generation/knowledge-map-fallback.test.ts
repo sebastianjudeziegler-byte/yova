@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDeterministicKnowledgeMapFallback } from "@/lib/plan-generation/knowledge-map-fallback";
+import { buildDeterministicKnowledgeMapFallback, buildDevelopmentPreviewKnowledgeMap } from "@/lib/plan-generation/knowledge-map-fallback";
 import { PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
 
 const MATERIAL_ID = "11111111-1111-4111-8111-111111111111";
@@ -9,6 +9,14 @@ const FIRST_CHUNK_ID = "33333333-3333-4333-8333-333333333331";
 const SECOND_CHUNK_ID = "33333333-3333-4333-8333-333333333332";
 
 describe("deterministic knowledge-map fallback", () => {
+  it("keeps a biology presentation preview about making the requested artifact", () => {
+    const { map } = buildDevelopmentPreviewKnowledgeMap(baseRequest({ goal: "I need to build a biology presentation with slides and speaker notes due in 14 days and I have not started yet" }));
+    const scope = map.topics.map(topic => `${topic.title} ${topic.description}`).join(" ");
+    expect(scope).toMatch(/biology presentation/i);
+    expect(scope).toMatch(/slides/i);
+    expect(scope).toMatch(/speaker notes|rehears/i);
+    expect(scope).not.toMatch(/photosynthesis|cellular respiration/i);
+  });
   it("reports a mapping failure instead of silently inventing a new map from material metadata", () => {
     const request = baseRequest({
       materialMode: "upload",

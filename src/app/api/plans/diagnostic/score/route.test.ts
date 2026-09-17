@@ -3,6 +3,7 @@ import { prepareDiagnosticChallenge } from "@/lib/diagnostics/diagnostic-authori
 import { buildPreviewMapDiagnostic } from "@/lib/diagnostics/map-diagnostic";
 import { shortDeadlineRequest } from "@/evals/plan-creation-blocker-cases";
 import { POST } from "@/app/api/plans/diagnostic/score/route";
+import { PlanDiagnosticScoreResponseSchema } from "@/lib/plan-generation/schema";
 
 vi.mock("server-only",()=>({}));
 vi.mock("@/lib/server/development-preview",()=>({isDevelopmentPreviewRequest:()=>true}));
@@ -28,6 +29,8 @@ it("retains an abandoned check's answered prefix without marking unseen question
   const response = await POST(new Request("http://localhost/api/plans/diagnostic/score", {method:"POST",body:JSON.stringify({challengeToken:prepared.challengeToken,answers:[questions[0].correctAnswer]})}));
   expect(response.status).toBe(200);
   const body=await response.json();
+  // The creator parses this exact contract before continuing to generation.
+  expect(PlanDiagnosticScoreResponseSchema.safeParse(body).success).toBe(true);
   expect(body.responses).toHaveLength(1);
   expect(body.knowledgeMap.placementCheck.status).toBe("partial");
   expect(body.knowledgeMap.placementCheck.gapTopicIds).toEqual([]);

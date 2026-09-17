@@ -1,3 +1,5 @@
+import { routingEvidenceForTopic } from "@/lib/routing/route-for-session";
+import { baselineSourceForTopic } from "@/lib/session-shapes/source-context";
 import { startingDifficultyTopicIds } from "./learner-plan-copy";
 import { topicPlanAvailability } from "./topic-plan-availability";
 import { emptyOnboardingAnswers, onboardingAnswerId, onboardingSupportNeeds, type OnboardingAnswers } from "@/lib/onboarding/answers";
@@ -55,7 +57,7 @@ export function estimateTopicBlockRange(map: PlanKnowledgeMap, answers: Onboardi
   const policy=profilePolicy(answers);
   const topics=map.topics.filter(topic=>!topic.deferred && !topic.removed);
   const count=topics.reduce((n,topic)=>n+learnCount(topic,topics,policy.capacity)+1+(policy.extraPractice?1:0),0);
-  return {min:count,max:count};
+  return {min:policy.ceiling >= 41 && topics.length > 1 ? Math.ceil(count / 2) : count,max:count};
 }
 
 function orderedTopics(map: PlanKnowledgeMap) {
@@ -180,7 +182,15 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
     const grouped = topics.flatMap(topic => drafts.filter(draft => draft.topic.id === topic.id));
     drafts.splice(0,drafts.length,...grouped);
   }
+  const consumed = new Set<Draft>();
+  const readyBefore = (topicId: string, start: number) => {
+    const topic = topics.find(item => item.id === topicId)!;
+    if (learnCount(topic, topics, policy.capacity) === 0) return true;
+    const learning = drafts.filter(item => item.topic.id === topicId && item.learn);
+    return learning.length > 0 && learning.every(item => consumed.has(item)) && (completedLearning.get(topicId) ?? Infinity) <= start;
+  };
   for(const [index,draft] of drafts.entries()) {
+    if (consumed.has(draft)) continue;
     const prerequisiteEnd=Math.max(input.now.getTime(),...draft.topic.prerequisiteTopicIds.map(id=>completedLearning.get(id)??input.now.getTime()));
     const priorLearn=completedLearning.get(draft.topic.id) ?? prerequisiteEnd;
     const firstGap=Math.max(0,gap-(policy.support.includes("frequent_check_ins")?1:0)-(policy.extraPractice?1:0));
@@ -211,9 +221,39 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
     if(index===0&&policy.frontload)ceiling=Math.min(ceiling,8);
     let workload=buildWorkload(draft,input,answers,Math.max(8,ceiling),[...rules.keys()]);
     if (input.durationContext.legacyExactDuration && (input.durationContext.learnerOverrideMinutes || legacySourceBudget)) workload = {...workload,estimatedMinutes:Math.min(ceiling,input.durationContext.learnerOverrideMinutes ?? legacySourceBudget!)};
+    const groupedDrafts = [draft];
+    const firstRoute = sweepRoute(draft, input, answers, start);
+    // Additional work is a different ready topic, never extra copies of the
+    // same questions. Keep provider calls and resumable execution bounded.
+    if (!input.revisionContext && !input.durationContext.legacyExactDuration
+      && workload.questionCount === 32 && ceiling - workload.estimatedMinutes >= 8
+      && firstRoute.firstPracticeRound === "active_recall" && !(draft.learn && policy.stepByStep)) {
+      const next = drafts.find((candidate, candidateIndex) => {
+        if (candidateIndex <= index || consumed.has(candidate) || candidate.topic.id === draft.topic.id || candidate.learn !== draft.learn || candidate.round !== draft.round) return false;
+        if (drafts.slice(0, candidateIndex).some(previous => previous.topic.id === candidate.topic.id && previous.learn === candidate.learn && !consumed.has(previous))) return false;
+        if (!candidate.topic.prerequisiteTopicIds.every(id => readyBefore(id, start))) return false;
+        if (!candidate.learn) {
+          if (!readyBefore(candidate.topic.id, start)) return false;
+          const prior = candidate.round === 1 ? completedLearning.get(candidate.topic.id) ?? input.now.getTime() : completedPractice.get(candidate.topic.id);
+          if (prior === undefined || prior + practiceGap * DAY > start) return false;
+        }
+        const route = sweepRoute(candidate, input, answers, start);
+        return route.firstPracticeRound === "active_recall" && sweepRouteSignature(route) === sweepRouteSignature(firstRoute);
+      });
+      if (next) {
+        const nextWorkload = buildWorkload(next, input, answers, Math.floor(ceiling - workload.estimatedMinutes), [...rules.keys()]);
+        const segments = [draft, next].map((item, part) => ({ segmentId: `segment-${part + 1}`, learningMode: item.learn ? "learn" as const : "study" as const, taskType: firstRoute.input.taskType, workload: { ...(part ? nextWorkload : workload), suggestedDate: scheduleMode !== "learner_placed" } })) as NonNullable<TopicWorkload["segments"]>;
+        workload = TopicWorkloadSchema.parse({ ...workload, suggestedDate: scheduleMode !== "learner_placed", segments,
+          topicSubtopics: segments.flatMap(segment => segment.workload.topicSubtopics),
+          ...Object.fromEntries((["questionCount", "recallQuestionCount", "transferQuestionCount", "produceSteps", "sourceReadMinutes", "estimatedMinutes"] as const).map(field => [field, segments.reduce((sum, segment) => sum + segment.workload[field], 0)])),
+        });
+        groupedDrafts.push(next);
+        fire("plan.workload.next_ready_topic", "When useful work leaves room, the block continues with one compatible topic whose prerequisites are already ready.");
+      }
+    }
     const scheduledFor=new Date(start).toISOString();
     const finish=start+workload.estimatedMinutes*MINUTE;
-    if(request.deadline&&finish>Date.parse(request.deadline))constraints.push(`${draft.topic.title}: availability or prerequisites put this suggestion after the deadline; move it or change availability.`);
+    if(request.deadline&&finish>Date.parse(request.deadline))for(const item of groupedDrafts)constraints.push(`${item.topic.title}: availability or prerequisites put this suggestion after the deadline; move it or change availability.`);
     if(index===0&&policy.frontload&&start>input.now.getTime()+DAY)constraints.push("Your next available window is more than 24 hours away, so the first block uses that opportunity.");
     if(peak&&peak!=="varies"&&((draft.learn&&atPeak)||(!draft.learn&&!atPeak)))fire(`P1.energy.${peak}`,"Learning uses your preferred energy window; practice uses other available windows where possible.");
     if(draft.learn&&(policy.get("difficulty_help")==="concrete_example"||policy.get("extra_context")==="examples_before_ready")&&hasWorkedExample(draft.topic,input))fire("P5.difficulty.concrete_example","A learning block with a worked example uses its next available opportunity.");
@@ -223,10 +263,13 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
     const mode=draft.learn?"learn" as const:"study" as const;
     const modeBasis=mode==="learn"?"instruction_required" as const:"independent_attempt" as const;
     const classification=classifyLearningTask([request.goal,request.startingContext??"",draft.topic.title,draft.topic.description,...draft.topic.subtopics].join(" "));
-    envelopes.push({envelopeId:`normal-plan-envelope-${String(index+1).padStart(3,"0")}`,sequence:index+1,kind:draft.learn||initial.learningMode==="study"&&draft.round===1?"initial_coverage":draft.round>1?"additional_practice":"required_practice",topicIds:[draft.topic.id],learningMode:mode,modeBasisCode:modeBasis,targetModeDecisions:[targetDecision],taskFamily:classification.taskType,taskClassification:classification,scheduledFor,availabilityStartsAt:slot.startsAt,availabilityDayIndex:slot.dayIndex,availabilityWindowIndex:slot.windowIndex,hardMaximumMinutes:remaining,timing:{activeMinutes:workload.estimatedMinutes,elapsedMinutes:workload.estimatedMinutes,durationSource:input.durationContext.learnerOverrideMinutes?"learner_override":remaining<policy.ceiling?"availability_cap":q2||input.durationContext.profile.sustainableMinutes?"profile_recommendation":"router_default",hardMaximumMinutes:remaining},contentBudget:contentBudgetForMinutes(workload.estimatedMinutes),durationRouterVersion:NORMAL_DURATION_RECOMMENDER_VERSION,durationRuleTrace:[{ruleId:"plan.workload.content_estimate",result:`${workload.questionCount}_questions_${workload.estimatedMinutes}_minutes`,reason:"The estimate counts the reading, production, questions and answer reveals in this block; the profile is a ceiling.",evidenceRefs:[]}],prerequisiteEvidenceRefs:draft.topic.prerequisiteTopicIds.flatMap(id=>{ const prerequisite=topics.find(t=>t.id===id); if(!prerequisite)return []; const e=measuredPlacementEvidence(prerequisite); return e?.outcome==="gap"?[]:e?.outcome==="demonstrated"?[`placement:${id}:${e.observedAt}`]:["evidenced","secure"].includes(prerequisite.status)?[`knowledge-map-topic:${id}:status:${prerequisite.status}`]:[]; }),modeRuleTrace:[{ruleId:"initial_plan_mode_routing_v1",result:`${mode}:${modeBasis}`,reason:draft.learn?"This subtopic chunk needs instruction before practice.":"Practice checks this topic independently.",evidenceRefs:[...target.evidenceRefs]}],workload:{...workload,suggestedDate:scheduleMode!=="learner_placed"}});
+    envelopes.push({envelopeId:`normal-plan-envelope-${String(index+1).padStart(3,"0")}`,sequence:index+1,kind:draft.learn||initial.learningMode==="study"&&draft.round===1?"initial_coverage":draft.round>1?"additional_practice":"required_practice",topicIds:groupedDrafts.map(item=>item.topic.id),learningMode:mode,modeBasisCode:modeBasis,targetModeDecisions:groupedDrafts.map(item=>item===draft?targetDecision:item.learn?firstMode.get(item.topic.id)!.targetDecisions[0]!:{...firstMode.get(item.topic.id)!.targetDecisions[0]!,learningMode:"study" as const,basisCode:item.round>0&&firstMode.get(item.topic.id)!.learningMode==="learn"?"planned_later_attempt" as const:firstMode.get(item.topic.id)!.targetDecisions[0]!.basisCode}),taskFamily:classification.taskType,taskClassification:classification,scheduledFor,availabilityStartsAt:slot.startsAt,availabilityDayIndex:slot.dayIndex,availabilityWindowIndex:slot.windowIndex,hardMaximumMinutes:remaining,timing:{activeMinutes:workload.estimatedMinutes,elapsedMinutes:workload.estimatedMinutes,durationSource:input.durationContext.learnerOverrideMinutes?"learner_override":remaining<policy.ceiling?"availability_cap":q2||input.durationContext.profile.sustainableMinutes?"profile_recommendation":"router_default",hardMaximumMinutes:remaining},contentBudget:contentBudgetForMinutes(workload.estimatedMinutes),durationRouterVersion:NORMAL_DURATION_RECOMMENDER_VERSION,durationRuleTrace:[{ruleId:"plan.workload.content_estimate",result:`${workload.questionCount}_questions_${workload.estimatedMinutes}_minutes`,reason:"The estimate counts the reading, production, questions and answer reveals in this block; the profile is a ceiling.",evidenceRefs:[]}],prerequisiteEvidenceRefs:groupedDrafts.flatMap(item=>item.topic.prerequisiteTopicIds).flatMap(id=>{ const prerequisite=topics.find(t=>t.id===id); if(!prerequisite)return []; const e=measuredPlacementEvidence(prerequisite); return e?.outcome==="gap"?[]:e?.outcome==="demonstrated"?[`placement:${id}:${e.observedAt}`]:["evidenced","secure"].includes(prerequisite.status)?[`knowledge-map-topic:${id}:status:${prerequisite.status}`]:[]; }),modeRuleTrace:[{ruleId:"initial_plan_mode_routing_v1",result:`${mode}:${modeBasis}`,reason:draft.learn?"This subtopic chunk needs instruction before practice.":"Practice checks this topic independently.",evidenceRefs:[...target.evidenceRefs]}],workload:{...workload,suggestedDate:scheduleMode!=="learner_placed"}});
     used.set(slot.startsAt,Math.ceil((finish-Date.parse(slot.startsAt))/MINUTE)+NORMAL_PLAN_SESSION_RESET_MINUTES);
     usedDays.add(localDay(scheduledFor,request.timeZone));
-    if(draft.learn){learnDays.add(localDay(scheduledFor,request.timeZone));completedLearning.set(draft.topic.id,finish);} else completedPractice.set(draft.topic.id,finish);
+    for (const item of groupedDrafts) {
+      consumed.add(item);
+      if(item.learn){learnDays.add(localDay(scheduledFor,request.timeZone));completedLearning.set(item.topic.id,finish);} else completedPractice.set(item.topic.id,finish);
+    }
   }
   envelopes.sort((left,right)=>Date.parse(left.scheduledFor)-Date.parse(right.scheduledFor)||left.sequence-right.sequence);
   const sequenced=envelopes.map((envelope,index)=>({...envelope,sequence:index+1,envelopeId:`normal-plan-envelope-${String(index+1).padStart(3,"0")}`}));
@@ -234,12 +277,21 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
   return deepFreeze({version:NORMAL_PLAN_ENVELOPE_COMPOSER_VERSION,status:"complete",profileVersion:input.durationContext.profileVersion,envelopes:sequenced,deferrals,planModel});
 }
 
+function sweepRoute(draft: Draft, input: NormalPlanEnvelopeInput, answers: OnboardingAnswers, start: number) {
+  const taskType = classifyLearningTask([input.request.goal, input.request.startingContext ?? "", draft.topic.title, draft.topic.description, ...draft.topic.subtopics].join(" ")).taskType;
+  const hasSource = Boolean(baselineSourceForTopic({ materials: input.request.materials, sourceMode: input.request.materialMode === "upload" ? "user_materials" : "yova_generated" }, draft.topic).description);
+  return routeSession({ taskType, blockKind: draft.learn ? "learn" : "practice", evidence: routingEvidenceForTopic(draft.topic), hasSource, topicHasProblems: taskType === "mixed_assessment" && ["problem_solving", "programming"].includes(classifyLearningTask(`${draft.topic.title} ${draft.topic.description}`).taskType), answers, subtopicCount: draft.topic.subtopics.length, daysToDeadline: input.request.deadline ? Math.max(0, (Date.parse(input.request.deadline) - start) / DAY) : null });
+}
+function sweepRouteSignature(route: ReturnType<typeof routeSession>) {
+  return JSON.stringify([route.input.taskType, route.input.evidence, route.input.hasSource, route.shape, route.shapeVariant, route.learnPath, route.entry, route.produceStep, route.produceBeforeStudy, route.workedStructureBeforeProduce, route.briefStudyStep, route.explanationFocus, route.firstPracticeRound]);
+}
+
 function buildWorkload(draft:Draft,input:Pick<NormalPlanEnvelopeInput,"request">,answers:OnboardingAnswers,ceiling:number,ruleIds:string[]):TopicWorkload {
   const topic=draft.topic;
   const task=classifyLearningTask([input.request.goal,topic.title,topic.description,...draft.subtopics].join(" ")).taskType;
   const source=sourceMinutes(topic,input,1/draft.splitCount);
   const route=routeSession({taskType:task,blockKind:draft.learn?"learn":"practice",evidence:"not_assessed",hasSource:source>0,topicHasProblems:task==="problem_solving",answers,subtopicCount:draft.subtopics.length});
-  const produceSteps=draft.learn&&route.produceStep!=="retrieval_questions"?1:0;
+  const produceSteps=draft.learn&&route.shape==="A"&&route.produceStep!=="retrieval_questions"?1:0;
   const read=draft.learn?Math.min(source||Math.max(2,draft.subtopics.length),Math.max(2,Math.floor(ceiling*.35))):0;
   const fixed=read+produceSteps*3+(draft.learn?2:1);
   const transferRatio=(route.questionMix.application+route.questionMix.compare_contrast+route.questionMix.prediction)/(Object.values(route.questionMix).reduce((sum,count)=>sum+count,0)||1);

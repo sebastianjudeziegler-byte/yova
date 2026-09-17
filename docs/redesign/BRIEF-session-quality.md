@@ -25,7 +25,7 @@ These are observations, not population failure rates. Automated elapsed time is 
 | Map interaction | A small, reliable guided visual map with deterministic layout and accessible controls. Launch reliability takes priority over editor sophistication. |
 | Answer format | Keep practice MCQs. Improve challenge and distractors. Existing explanation/map production and repair remain; no new written-answer practice engine. |
 | Early accurate finish | Offer worthwhile harder or next-ready work, with a finish option, through Brief 2's queue/workload contract. |
-| Undo defect | Explicitly deferred by the founder. It is not a prerequisite to starting this work. Do not silently mark it fixed. |
+| Undo defect | The founder later reinstated it as a merge prerequisite. Separate PR #98 is merged and deployed; change → receipt → Undo → reload passed on a fresh production test plan on 17 September. See `docs/audits/plan-session-launch/PRODUCTION-UNDO.md`. |
 | Product priorities | 1. Paid-launch reliability and generation recovery. 2. Actual usefulness/usability. 3. Essential research-based personalization through the learning profile and its effective routing. |
 
 The founder authorized implementation and declined further refinement questions. These decisions supersede conflicting instructions in the supplied handoff. Preserve visible, tested personalization; reliability must not be achieved by stripping YOVA down to generic sessions.

@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { SHAPE_SLOT_HONEST_ERROR, type CompareRequest, type DirectionRequest, type LearnBlockRequest, type PracticeRequest } from "@/lib/session-shapes/slots-schema";
 
 vi.mock("server-only", () => ({}));
+// These tests isolate slot planning/transport. The real quality review and its
+// delivery/repair gate are covered in practice-quality-review/shape-slot-quality.
+vi.mock("./practice-quality-review", () => ({ reviewPracticeQuestions: async () => ({ ok: true, rejected: [] }) }));
 vi.mock("@/lib/openai/client", () => ({ getOpenAIClient: () => { throw new Error("not used in tests"); } }));
 vi.mock("@/lib/openai/config", () => ({ getOpenAISessionConfig: () => null }));
 

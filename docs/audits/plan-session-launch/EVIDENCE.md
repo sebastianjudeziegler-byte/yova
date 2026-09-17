@@ -1,6 +1,6 @@
 # Brief 2 + dependable sessions — evidence ledger
 
-Branch: `codex/plan-and-session-launch`. Base: main `75ea40a8d87366b41c6308bb5189452d0b493435`. Implementation and verification in progress. No production deployment or settings change.
+Branch: `codex/plan-and-session-launch`. Original base: main `75ea40a8d87366b41c6308bb5189452d0b493435`; merged current main `0ce2292b71f7ca53a5978d637280e71d913debb7` after the separate Undo prerequisite. Implementation and verification in progress. No #97 production deployment or settings change.
 
 ## Evidence boundaries
 
@@ -36,11 +36,11 @@ The focused local map case ultimately passed, including immediate-exit restorati
 
 ## Deliberate exclusions and release conditions
 
-Undo defect remains deferred. No merge/deploy. No old-account data deletion. Legacy plans remain operable after automatic review rejected blocking them without a migration. No promise of zero provider failures or of established learning efficacy. The new migration/readiness contract must pass before production release.
+Separate Undo PR #98 is merged, deployed and verified; see [PRODUCTION-UNDO.md](PRODUCTION-UNDO.md). No merge/deploy. No old-account data deletion. Legacy plans remain operable after automatic review rejected blocking them without a migration. No promise of zero provider failures or of established learning efficacy. The new migration/readiness contract must pass before production release.
 
-Within-block filling from another ordinary-plan topic is deferred: at the 32-question cap, a factual block can honestly estimate 33 minutes under a 60-minute ceiling. Optional continuation can offer the immediately next prerequisite-ready learning block even if its date was only a later suggestion; it does not pull future spaced practice forward. This is a recorded limit against the ZIP's full within-block filling requirement, not completed parity.
+The initial candidate deferred within-block filling; the resumed implementation is closing this gap with two bounded segments. Historical failure: at the 32-question cap, a factual block can honestly estimate 33 minutes under a 60-minute ceiling. Optional continuation can offer the immediately next prerequisite-ready learning block even if its date was only a later suggestion; it does not pull future spaced practice forward. This is a recorded limit against the ZIP's full within-block filling requirement, not completed parity.
 
-The direct Study Now entry also regains existing explicit-time parsing: numeric “in/for/within” minute requests and seeded limits are used exactly, subject to server profile/availability ceilings. Four newly failing entry regressions passed after correction; default remains 25 minutes. The final broad total above includes these checks. SVG title rendering was also normalized to a single string after React warned during the full run; both map render tests pass without that warning. Inline edits reuse the existing receipt/Undo entry point; the deferred underlying Undo defect was not changed.
+The direct Study Now entry also regains existing explicit-time parsing: numeric “in/for/within” minute requests and seeded limits are used exactly, subject to server profile/availability ceilings. Four newly failing entry regressions passed after correction; default remains 25 minutes. The final broad total above includes these checks. SVG title rendering was also normalized to a single string after React warned during the full run; both map render tests pass without that warning. Inline edits reuse the existing receipt/Undo entry point; the underlying Undo defect was subsequently fixed separately in #98 and verified in production.
 
 ## Initial CI review
 
@@ -49,3 +49,17 @@ The direct Study Now entry also regains existing explicit-time parsing: numeric 
 CI [#409](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35238795150) reproduced the reload failure precisely: `/rest/v1/plan_sessions`, HTTP403, PostgreSQL42501, `permission denied for table plan_sessions`. The migrated database had owner RLS but no authenticated SELECT grant. Migration `20260917170001_plan_session_authenticated_reads.sql` supplies only that grant and advances the v6 readiness contract to require it together with the owner policy. Four readiness unit checks first failed; 37 focused checks then passed. Twenty pgTAP assertions now cover real owner/cross-owner reads and denied writes; database replay remains pending the next CI run. This does not prove the same cause for the earlier production timeout.
 
 The production build also passed in #409. The next CI run puts the live session samples and baseline journeys before the larger core suite and uploads live evidence immediately; all existing suites remain required. This changes feedback order, not pass criteria.
+
+
+## Resumed implementation after production Undo
+
+- [Production prerequisite](PRODUCTION-UNDO.md): verified deployment main `0ce2292`; fresh Moon Phases plan changed, confirmed, receipt shown, undone, reloaded. Six original sessions and original content restored. Water Cycle Quiz Foundations untouched.
+- CI #410 is an **incomplete candidate**, not a passing release gate. It passed migrated adjustment/completion checks and unit/build gates but exposed setup/browser failures. See the new findings in PLAN-MODEL.md, PLAN-UI.md and SESSION-RUNTIME.md.
+- [Generated content review](GENERATED-QUALITY-REVIEW.md): the long osmosis set passed structural checks but failed actual content review. Question s12 had no fully correct answer. Retained samples, finite repair/recheck, independent review coverage and broader pair selection now have regression evidence. Live answer-review and 6/24/32 workload gates must verify quality and latency.
+- Integrated unit checkpoint before two-segment completion work: **4,505 passed, 101 gated/skipped**. This does not include the later segment changes and is not a substitute for the final integrated gate.
+- Segment outbox reproduction: both ordered receipts were stripped before retry. `evidence/segment-outbox-red.txt` records the failing assertion; schema, transport, exact lost-reply reconciliation and cloud reload now preserve them. Targeted root persistence/readiness suite: **113 passed**. Real database partial/replay/origin checks are authored for CI, not run locally.
+- New migration `20260917180001_topic_segment_completions.sql` validates and stores both segment receipts inside the existing locked completion transaction. It preserves prior routing/replay guards and advances the service-only readiness contract. No partial block may become a completed session. Client-reported MCQ counts remain execution reports, not proof of learning.
+- The current-main reference is CI #413 on `0ce2292`, once complete. The existing historical comparator is still pinned to `00995f1`; report both honestly and keep new Brief 2 acceptance gates mandatory.
+
+
+Latest integrated local checkpoint: **4,534 unit tests passed,105gated/skipped;25runner checks passed; full lint passed**. Focused two-activity desktop replay passed13.1s, preserving both origins and second-activity draft through reload; video decoded and frame inspected. The Next dev console emitted a router-initialization error during page load despite the passing assertions; final CI review remains necessary. Later-history routing refinements have separate targeted verification and will run in full CI.

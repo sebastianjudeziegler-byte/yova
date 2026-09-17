@@ -1,0 +1,40 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/plan-generation/topic-plan-segments.test.ts (7 tests | 1 failed) 119ms
+     × rebuilds a reviewed combined block as valid single-topic blocks without broadening either saved slice 57ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/plan-generation/topic-plan-segments.test.ts > bounded within-block topic sweep > rebuilds a reviewed combined block as valid single-topic blocks without broadening either saved slice
+AssertionError: expected [ { …(2) } ] to deeply equal [ { …(2) } ]
+
+- Expected
++ Received
+
+  [
+    {
+      "subtopics": [
+        "Vocabulary set 1",
++       "Later unscheduled vocabulary",
+      ],
+      "topicId": "12000000-0000-4000-8000-000000000001",
+    },
+  ]
+
+ ❯ src/lib/plan-generation/topic-plan-segments.test.ts:93:123
+     91|     expect(active).toHaveLength(2);
+     92|     for (const before of plan.sessions[0]!.workload!.topicSubtopics) {
+     93|       expect(active.flatMap(session => session.workload!.topicSubtopic…
+       |                                                                                                                           ^
+     94|     }
+     95|     expect(active.every(session => !session.workload?.segments)).toBe(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+   Start at  18:37:08
+   Duration  527ms (transform 253ms, setup 0ms, import 339ms, tests 119ms, environment 0ms)
+

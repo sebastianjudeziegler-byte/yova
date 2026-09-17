@@ -64,10 +64,10 @@ for (const profile of ["P1", "P2"] as const) {
       await capture("worked-example");
       await page.getByRole("button", { name: "Continue", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Map the concepts and links" })).toBeVisible();
-      await page.getByLabel("Concept 1").fill("Light-dependent reactions");
-      await page.getByLabel("Concept 2").fill("Calvin cycle");
+      await page.getByRole("textbox", { name: "Concept 1", exact: true }).fill("Light-dependent reactions");
+      await page.getByRole("textbox", { name: "Concept 2", exact: true }).fill("Calvin cycle");
       await page.getByRole("button", { name: "Add relationship", exact: true }).click();
-  await page.getByLabel("Link 1 from").selectOption({ label: "Light-dependent reactions" });
+      await page.getByLabel("Link 1 from").selectOption({ label: "Light-dependent reactions" });
       await page.getByLabel("Link 1 label").fill("supply ATP and NADPH to");
       await page.getByLabel("Link 1 to").selectOption({ label: "Calvin cycle" });
       await capture("produce");

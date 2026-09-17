@@ -189,6 +189,13 @@ jobs:
       # Brief 1.5 item 1: live, unmocked practice retries (one and two missed
       # points) to completion on desktop and mobile. Same-repository runs only,
       # where the model key exists; a missing key fails instead of skipping.
+      - name: Verify live MCQ answer review against the retained failure
+        if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        run: pnpm exec vitest run src/evals/practice-answer-quality.live.test.ts --maxWorkers=1
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_RUN_LIVE_PRACTICE_QUALITY: "1"
+
       - name: Run live baseline practice retries
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
         run: |
@@ -238,6 +245,17 @@ jobs:
         if: always()
         run: |
           if test -d test-results; then cp -R test-results artifacts/quality/baseline-browser; fi
+
+      - name: Upload session recovery recordings separately
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: session-launch-recovery-${{ github.run_id }}
+          path: |
+            artifacts/quality/baseline-browser.json
+            artifacts/quality/baseline-browser/baseline-session-launch-*
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Run core learner journey
         if: ${{ !cancelled() }}

@@ -21,7 +21,7 @@ test("an initial topic-map failure keeps setup recoverable and retries the same 
  await page.getByRole("button",{name:/Create it for me/}).click();
  await page.getByRole("button",{name:"Continue",exact:true}).click();
  await expect(page.getByRole("heading",{name:"The topic map is not ready yet"})).toBeVisible();
- await expect(page.getByRole("alert")).toContainText("temporarily unavailable");
+ await expect(page.getByRole("alert").filter({hasText:"temporarily unavailable"})).toBeVisible();
  await page.getByRole("button",{name:"Retry topic map",exact:true}).click();
  await expect(page.getByRole("heading",{name:"What YOVA understood"})).toBeVisible();
  expect(attempts).toBe(2);
@@ -51,7 +51,7 @@ test("setup corrections are atomic, recoverable and do not automatically start p
  await page.getByLabel("Add a topic",{exact:true}).fill("Active transport");
  await page.getByRole("button",{name:"Add topic",exact:true}).click();
  await page.getByRole("button",{name:"Continue",exact:true}).click();
- await expect(page.getByRole("alert")).toContainText("could not be saved");
+ await expect(page.getByRole("alert").filter({hasText:"could not be saved"})).toBeVisible();
  await expect(page.getByLabel("Already covered: Diffusion")).toBeChecked();
  await expect(page.getByText("Active transport",{exact:true})).toBeVisible();
  const corrected=page.waitForResponse(response=>response.url().includes("mode=understanding") && response.request().postDataJSON().setupCorrections);
@@ -83,7 +83,15 @@ test("an abandoned placement keeps answered evidence and ignores unseen question
  const questions=(await (await prepared).json()).questions;
  await page.getByRole("button",{name:questions[0].options[0],exact:true}).click();await page.getByRole("button",{name:"Next question",exact:true}).click();
  const scored=page.waitForResponse(response=>response.url().includes("/diagnostic/score"));
+ const generated=page.waitForResponse(response=>new URL(response.url()).pathname==="/api/plans/generate" && !new URL(response.url()).search);
  await page.getByRole("button",{name:"Skip for now",exact:true}).click();
  const score=await (await scored).json();expect(score.responses).toHaveLength(1);expect(score.knowledgeMap.placementCheck.status).toBe("partial");expect(score.knowledgeMap.placementCheck.gapTopicIds).toEqual([]);
+ const response=await generated;const generation=await response.json();
+ expect(response.ok(),JSON.stringify(generation)).toBe(true);
+ const request=response.request().postDataJSON();
+ expect(request.diagnosticResponses).toEqual(score.responses);
+ expect(request.knowledgeMap).toEqual(score.knowledgeMap);
+ expect(request.knowledgeMapReceipt).toBe(score.knowledgeMapReceipt);
+ expect(generation.plan.knowledgeMap.placementCheck).toEqual(score.knowledgeMap.placementCheck);
  await expect(page.getByRole("region",{name:"Plan grouped by topic"})).toBeVisible();
 });

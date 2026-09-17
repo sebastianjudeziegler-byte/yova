@@ -1,4 +1,5 @@
 import { issueKnowledgeMapReceipt } from "@/lib/diagnostics/diagnostic-authority";
+import { applyDiagnosticAnswers, buildPreviewMapDiagnostic } from "@/lib/diagnostics/map-diagnostic";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalPlanEnvelopeComposition } from "@/lib/plan-generation/normal-plan-envelopes";
 import {
@@ -7,6 +8,8 @@ import {
 } from "@/lib/plan-generation/normal-plan-provider-fill";
 import {
   PlanGenerationRequestSchema,
+  PlanActivationRequestSchema,
+  PlanDiagnosticScoreResponseSchema,
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
 import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
@@ -195,6 +198,32 @@ describe("plan generation route", () => {
     expect(mocks.generatePlan).not.toHaveBeenCalled();
     expect(mocks.generateDiagnostic).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
+  });
+
+  it("continues a signed partial placement into a plan without treating unseen questions as gaps", async () => {
+    const map = planRequest.knowledgeMap!;
+    const questions = buildPreviewMapDiagnostic(map);
+    const scored = applyDiagnosticAnswers(map, questions, [questions[0].correctAnswer], false);
+    const result = PlanDiagnosticScoreResponseSchema.parse({
+      knowledgeMap: scored.map,
+      knowledgeMapReceipt: issueKnowledgeMapReceipt(scored.map, "development-preview", true),
+      responses: scored.responses,
+    });
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(planGenerationRequest({
+      goal: "Teach me the product rule from scratch before my calculus test.",
+      learningIntent: "learn",
+      knowledgeMap: result.knowledgeMap,
+      knowledgeMapReceipt: result.knowledgeMapReceipt,
+      diagnosticResponses: result.responses,
+    }));
+    const body = await response.json();
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.plan.knowledgeMap.placementCheck).toEqual(result.knowledgeMap.placementCheck);
+    expect(body.plan.knowledgeMap.placementCheck.status).toBe("partial");
+    expect(body.plan.knowledgeMap.placementCheck.gapTopicIds).toEqual([]);
+    expect(body.plan.knowledgeMap.topics[0].initialEvidence).toBeNull();
+    expect(body.plan.sessions.some((session: { learningMode: string }) => session.learningMode === "learn")).toBe(true);
   });
 
   it("accepts learner coverage only as a declaration after verifying the original map", async () => {
@@ -513,6 +542,49 @@ describe("plan generation route", () => {
         },
       },
     });
+  });
+
+  it.each(["study_now", "plan"] as const)("honors ID-keyed baseline answers in a verified preview %s request", async intent => {
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const request = planGenerationRequest({
+      intent,
+      availability: [{ day: "Every day", window: intent === "study_now" ? "Now" : "Evening", minutes: 25 }],
+      previewOnboardingAnswers: { version: 1, answers: { session_length: "minutes_10_15", prove_knowing: "answer_questions" }, legacy: {} },
+    });
+    const generationRequest = await request.clone().json();
+    const response = await POST(request);
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(PlanActivationRequestSchema.safeParse({ plan: body.plan, generationRequest: { ...generationRequest, knowledgeMap: body.plan.knowledgeMap } }).success).toBe(true);
+    expect(body.plan.sessions.length).toBeGreaterThan(0);
+    for (const session of body.plan.sessions) {
+      expect(session.workload.ceilingMinutes).toBeLessThanOrEqual(15);
+      expect(session.estimatedMinutes).toBeLessThanOrEqual(15);
+    }
+  });
+
+  it("does not route on preview baseline answers while personalization is disabled", async () => {
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "0");
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(studyNowGenerationRequest(25, {
+      previewOnboardingAnswers: { version: 1, answers: { session_length: "minutes_10_15" }, legacy: {} },
+    }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.plan.sessions[0].workload.ceilingMinutes).toBe(25);
+  });
+
+  it("rejects preview baseline answers on cloud requests before profile reads or metered work", async () => {
+    configureProduction();
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(planGenerationRequest({
+      previewOnboardingAnswers: { version: 1, answers: { session_length: "minutes_10_15" }, legacy: {} },
+    }));
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ code: "preview_onboarding_answers_not_allowed" });
+    expect(mocks.loadDurationContext).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
   });
 
   it("uses structured canonical agency only for a local-preview route", async () => {

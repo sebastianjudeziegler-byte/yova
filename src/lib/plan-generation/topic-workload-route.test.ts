@@ -1,5 +1,5 @@
 import { describe,expect,it } from "vitest";
-import { applyTopicWorkloadToRoute } from "./topic-workload-route";
+import { applyTopicWorkloadToRoute, questionMixForTopicWorkload } from "./topic-workload-route";
 import { immediateTopicWorkload } from "./topic-plan-model";
 import { routeSession } from "@/lib/routing/session-route";
 import { emptyOnboardingAnswers } from "@/lib/onboarding/answers";
@@ -19,4 +19,10 @@ describe("workload projection preserves task-first question routing",()=>{
   expect(work.transferQuestionCount).toBe(0);expect(work.recallQuestionCount).toBe(work.questionCount);
   expect(work.questionCount).toBe(32);expect(work.estimatedMinutes).toBe(33);
  });
+ it("does not move saved recall or transfer work between categories when a posted mix omits a whole group",()=>{
+  const mix=questionMixForTopicWorkload({recall:0,misconception:0,application:0,prediction:0,compare_contrast:0},{recallQuestionCount:4,transferQuestionCount:6});
+  expect(mix.recall+mix.misconception).toBe(4);
+  expect(mix.application+mix.prediction+mix.compare_contrast).toBe(6);
+ });
+
 });

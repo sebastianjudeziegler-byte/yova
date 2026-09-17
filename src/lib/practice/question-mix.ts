@@ -91,13 +91,16 @@ export type QuestionSlot = { slotId: string; type: QuestionType; keyPointIds: st
 
 /**
  * Assigns each question slot its type and key points. One-point types take
- * the least-covered key point; two-point types take the two least-covered
- * distinct points (ties by order), so a first round covers every key point.
+ * the least-covered key point; two-point types first vary the pair, then favor
+ * the least-covered points (ties by order). This prevents longer blocks from
+ * repeating the same small subset of relationships indefinitely.
  * With a single key point (a one-point retry) two-point types become recall.
  */
 export function planQuestionSlots({ keyPointIds, mix: source, count }: { keyPointIds: readonly string[]; mix: QuestionMix; count: number }): QuestionSlot[] {
   if (keyPointIds.length === 0 || count <= 0) return [];
   const coverage = new Map(keyPointIds.map((id) => [id, 0]));
+  const pairCoverage = new Map<string, number>();
+  const pairs = keyPointIds.flatMap((first, index) => keyPointIds.slice(index + 1).map(second => [first, second]));
   const leastCovered = (n: number) => [...keyPointIds]
     .map((id, index) => ({ id, index, covered: coverage.get(id) ?? 0 }))
     .sort((a, b) => a.covered - b.covered || a.index - b.index)
@@ -107,7 +110,11 @@ export function planQuestionSlots({ keyPointIds, mix: source, count }: { keyPoin
   return scaleQuestionMix(source, count).map((planned, index) => {
     const twoPoint = TWO_POINT_QUESTION_TYPES.includes(planned) && keyPointIds.length >= 2;
     const type: QuestionType = TWO_POINT_QUESTION_TYPES.includes(planned) && !twoPoint ? "recall" : planned;
-    const chosen = leastCovered(twoPoint ? 2 : 1);
+    const chosen = twoPoint
+      ? [...pairs].sort((a, b) => (pairCoverage.get(a.join(":")) ?? 0) - (pairCoverage.get(b.join(":")) ?? 0)
+        || a.reduce((sum, id) => sum + coverage.get(id)!, 0) - b.reduce((sum, id) => sum + coverage.get(id)!, 0))[0]!
+      : leastCovered(1);
+    if (twoPoint) pairCoverage.set(chosen.join(":"), (pairCoverage.get(chosen.join(":")) ?? 0) + 1);
     for (const id of chosen) coverage.set(id, (coverage.get(id) ?? 0) + 1);
     return { slotId: `s${index + 1}`, type, keyPointIds: chosen };
   });

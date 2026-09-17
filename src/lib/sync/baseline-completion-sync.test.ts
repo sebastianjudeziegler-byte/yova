@@ -34,6 +34,18 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("baseline completion uses durable terminal recovery", () => {
+  it("preserves both segment receipts through pending save and exact retry", async () => {
+    const segmented = { ...completion, segmentCompletions: [
+      { segmentId: "part-1", correctAnswers: 3, totalAnswers: 3, elapsedSeconds: 360 },
+      { segmentId: "part-2", correctAnswers: 2, totalAnswers: 2, elapsedSeconds: 240 },
+    ] };
+    transport.write.mockRejectedValueOnce(new Error("offline"));
+    await syncBaselineCompletion(userId, segmented);
+    expect(loadQueuedSessionCompletions(userId)[0]?.completion).toEqual(segmented);
+    await syncBaselineCompletion(userId, { ...segmented, completedAt: "2026-09-17T12:12:00.000Z" });
+    expect(transport.write.mock.calls[1][0]).toEqual(segmented);
+  });
+
   it("persists before sending and removes the pending result only after confirmation", async () => {
     transport.write.mockImplementation(async () => {
       expect(loadQueuedSessionCompletions(userId)[0].completion).toEqual(completion);

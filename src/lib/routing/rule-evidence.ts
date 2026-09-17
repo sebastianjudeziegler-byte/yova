@@ -26,6 +26,8 @@ export type HappenedInSession = {
   /** Omit for a preview; set from the actual round/answer history for a receipt. */
   practiceOccurred?: boolean;
   repairRoundOccurred?: boolean;
+  /** A missed round currently offers a retry; this is not evidence that it ran. */
+  repairRoundAvailable?: boolean;
   /** Explicit check-in copy was displayed, rather than a routing flag alone. */
   checkInsShown?: boolean;
 };
@@ -162,7 +164,7 @@ function entriesFor(templates: ReadonlyArray<Template>, route: SessionRoute, hap
 function effectiveRule(id: string, route: SessionRoute, happened: HappenedInSession) {
   const practice = happened.practiceOccurred ?? (route.shape === "C" || route.produceStep === "retrieval_questions");
   if ((id.startsWith("L4.practice.") || id.startsWith("L4.mix.") || id.startsWith("L4.q7.") || id === "L4.q10.forget_during_tests" || id.startsWith("C7.") || id.startsWith("C8.") || id === "L4.difficulty.high.more_questions" || id === "L4.q2.short_band_question_cap") && !practice) return false;
-  if (id === "L4.practice.error_repair.after_missed_round" && happened.repairRoundOccurred === false) return false;
+  if (id === "L4.practice.error_repair.after_missed_round" && happened.repairRoundOccurred === false && !happened.repairRoundAvailable) return false;
   if (id === "L3.q5.try_then_feedback" && (!route.produceBeforeStudy || route.produceStep === "retrieval_questions")) return false;
   if (EXAMPLE_CLAIM_RULE_IDS.has(id) && (!route.workedStructureBeforeProduce || route.produceStep === "retrieval_questions")) return false;
   const produced: Record<string, string> = { "L3.q6.explain_back": "typed_explanation", "L3.q6.map_it": "concept_map", "L3.q6.answer_questions": "retrieval_questions", "L3.q6.solve_it": "worked_solution", "C2.q9_visual_overrides_q6": "concept_map" };

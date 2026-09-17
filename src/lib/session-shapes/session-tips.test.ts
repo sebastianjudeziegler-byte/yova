@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyOnboardingAnswers, withOnboardingAnswer } from "@/lib/onboarding/answers";
 import { routeSession, type RoutingInput } from "@/lib/routing/session-route";
-import { settleTips, tipInstructions, tipRequest, TIP_EXEMPLARS, visibleTip, type SessionTip } from "./session-tips";
+import { settleTips, studyTipRequests, tipInstructions, tipRequest, TIP_EXEMPLARS, visibleTip, type SessionTip } from "./session-tips";
 
 function route(overrides: Partial<RoutingInput> = {}, answers: Record<string, string | string[]> = {}) {
   let record = emptyOnboardingAnswers();
@@ -21,6 +21,16 @@ describe("session tips", () => {
     }
     expect(requested[0]!.reasons[0]!.ruleId).toBe("L3.q6.map_it");
     expect(requested[1]!.reasons[0]!.ruleId).toBe("L4.q9.frequent_check_ins");
+  });
+
+  it("keeps the produce tip when a mapped learning block also includes planned questions", () => {
+    const routed = route({}, { prove_knowing: "map_it" });
+    const requested = studyTipRequests(routed, true);
+    expect(requested.learnBlock.map((tip) => tip.step)).toEqual(["study", "produce", "questions", "round", "end"]);
+    expect(requested.direction.map((tip) => tip.step)).toEqual(["study", "produce"]);
+    expect(requested.learnBlock.find((tip) => tip.step === "produce")?.reasons[0]?.ruleId).toBe("L3.q6.map_it");
+    expect(studyTipRequests(route({ taskType: "memorization" }), true).learnBlock.map((tip) => tip.step)).toEqual(["brief", "questions", "round", "end"]);
+    expect(studyTipRequests(route({}, { prove_knowing: "answer_questions" }), true).learnBlock.map((tip) => tip.step)).not.toContain("produce");
   });
 
   it("keeps a valid generated tip and replaces an invented rule with a template tip on a fired rule", () => {
@@ -63,6 +73,16 @@ describe("session tips", () => {
     expect(visibleTip({ produce: tip }, "produce", routed)).toEqual(tip);
     expect(visibleTip({ produce: { ...tip, ruleId: "L3.q6.explain_back" } }, "produce", routed)).toBeNull();
     expect(visibleTip({}, "produce", routed)).toBeNull();
+  });
+
+  it("shows the offered missed-point retry tip before a second round has actually run", () => {
+    const routed = route({ taskType: "memorization", blockKind: "learn" });
+    const [tip] = settleTips(tipRequest(routed, ["round"], { practiceOccurred: true }), []);
+    expect(tip?.ruleId).toBe("L4.practice.error_repair.after_missed_round");
+    expect(visibleTip({ round: tip }, "round", routed, { practiceOccurred: true, repairRoundOccurred: false, repairRoundAvailable: true })).toMatchObject({
+      step: "round", ruleId: "L4.practice.error_repair.after_missed_round",
+    });
+    expect(visibleTip({ round: tip }, "round", routed, { practiceOccurred: true, repairRoundOccurred: false, repairRoundAvailable: false })).toBeNull();
   });
 
   it("puts the handoff table in the prompt as exemplars, not as copy", () => {

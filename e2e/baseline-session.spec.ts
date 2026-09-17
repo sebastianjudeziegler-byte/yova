@@ -98,12 +98,13 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await expect(page.getByRole("button", { name: "Change method" })).toHaveCount(0);
   await expect(page.getByText("Method: Concept Mapping")).toBeVisible();
   // The workload owns the timer; the saved short-profile answer is its ceiling.
-  const plannedMinutes = await page.evaluate(() => {
+  const plannedWorkload = await page.evaluate(() => {
     const plan = JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.at(-1);
     const session = plan.sessions[0];
     if (session.estimatedMinutes !== session.workload.estimatedMinutes) throw new Error("Session and workload estimates diverged.");
-    return session.estimatedMinutes as number;
+    return { estimatedMinutes: session.estimatedMinutes as number, questionCount: session.workload.questionCount as number };
   });
+  const plannedMinutes = plannedWorkload.estimatedMinutes;
   expect(plannedMinutes).toBeGreaterThanOrEqual(8);
   expect(plannedMinutes).toBeLessThanOrEqual(15);
   await expect(page.getByLabel(/Session timer/)).toContainText("0:");
@@ -133,13 +134,14 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await page.getByRole("button", { name: "Continue" }).click();
   // Q6 map_it: the produce step is a concept map with the source hidden.
   await expect(page.getByRole("heading", { name: "Map the concepts and links" })).toBeVisible();
-  await expect(page.getByText("STEP 2 OF 5")).toBeVisible();
+  // Workload-backed Shape A also shows its planned practice and round review.
+  await expect(page.getByText(`STEP 2 OF ${plannedWorkload.questionCount > 0 ? 7 : 5}`)).toBeVisible();
   await expect(tip).toHaveAttribute("data-tip-step", "produce");
   await expect(tip).toHaveAttribute("data-tip-rule-id", "L3.q6.map_it");
   await page.screenshot({ path: testInfo.outputPath("hub-shape-a-produce.png"), fullPage: true });
   await expect(page.getByText(/Cellular respiration is how a cell releases/)).toHaveCount(0);
-  await page.getByLabel("Concept 1").fill("Glucose");
-  await page.getByLabel("Concept 2").fill("Pyruvate");
+  await page.getByRole("textbox", { name: "Concept 1", exact: true }).fill("Glucose");
+  await page.getByRole("textbox", { name: "Concept 2", exact: true }).fill("Pyruvate");
   await page.getByRole("button", { name: "Add relationship", exact: true }).click();
   await page.getByLabel("Link 1 from").selectOption({ label: "Glucose" });
   await page.getByLabel("Link 1 label").fill("is split into");
@@ -234,6 +236,8 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   await page.getByRole("button", { name: "Finish round" }).click();
   await expect(page.getByRole("heading", { name: "1 point still to pass." })).toBeVisible();
   await expect(page.getByTestId("hub-tip")).toHaveAttribute("data-tip-step", "round");
+  await expect(page.getByTestId("hub-tip")).toHaveAttribute("data-tip-rule-id", "L4.practice.error_repair.after_missed_round");
+  await expect(page.getByTestId("hub-tip")).toContainText("a round after a miss covers only what you missed");
   await page.getByRole("button", { name: "Start round 2" }).click();
   // Round 2 covers only the missed key point, with fresh questions from Slot 4.
   await expect(page.getByTestId("baseline-question")).toContainText("ROUND 2 · QUESTION 1 OF 1");

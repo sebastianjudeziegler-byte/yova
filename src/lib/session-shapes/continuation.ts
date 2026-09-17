@@ -39,12 +39,15 @@ export function nextReadyBaselineSession(plan: LearningPlan, completedSessionId:
 }
 
 /** Completion notes name the assessment they refer to and never turn an unavailable check into a clean result. */
-export function baselineObservedGap(result: {
+type BaselineObservedResult = {
   escalated: boolean;
   comparison: { missing: string[]; incorrect: string[] } | null;
   comparisonUnavailable?: boolean;
   revision?: { status: "checked" | "unchecked"; comparison: { missing: string[]; incorrect: string[] } | null };
-}, roundCeiling: number) {
+  segments?: Array<{ segmentId: string; result: BaselineObservedResult }>;
+};
+export function baselineObservedGap(result: BaselineObservedResult, roundCeiling: number): string {
+  if (result.segments?.length) return result.segments.map((entry, index) => `Activity ${index + 1}: ${baselineObservedGap(entry.result, roundCeiling)}`).join(" | ").slice(0, 500);
   if (result.escalated) return `Some practice points still need review after ${roundCeiling} rounds; passed points remain recorded.`;
   if (result.comparisonUnavailable) return "Comparison unavailable; submitted work was kept without assessment.";
   const comparison = result.revision?.status === "checked" ? result.revision.comparison : result.comparison;

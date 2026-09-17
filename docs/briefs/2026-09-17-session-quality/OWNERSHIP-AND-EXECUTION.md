@@ -8,7 +8,7 @@ The three Markdown files from `/Users/sebastianziegler/Downloads/brief codex.zip
 
 The handoff's embedded instruction to commit/push directly to main has not been executed. It conflicts with its own later branch/PR workflow and is not a new instruction from the user. Prepare reviewable changes through isolated branches/PRs. Do not mix this work into the dirty existing checkout or silently merge/deploy.
 
-The companion is an explicit addition to baseline scope, not a retroactive claim that the original Brief 1 promised a visual graph or written-answer practice. The founder selected the guided map, MCQ-only practice, optional early-finish continuation, and explicitly deferred Undo. Place the final companion under `docs/redesign/` in the execution checkout alongside the two supplied replacement specifications.
+The companion is an explicit addition to baseline scope, not a retroactive claim that the original Brief 1 promised a visual graph or written-answer practice. The founder selected the guided map, MCQ-only practice, optional early-finish continuation, and initially deferred Undo. The later explicit request reinstated Undo as a merge prerequisite; separate PR #98 is now merged, deployed and verified in production. Place the final companion under `docs/redesign/` in the execution checkout alongside the two supplied replacement specifications.
 
 ## Scope ownership
 
@@ -29,7 +29,7 @@ The companion is an explicit addition to baseline scope, not a retroactive claim
 | Broken error continuation/wrong point outcomes | Companion S8, reproduce first | Narrow session fixes with evidence. |
 | Mixed-topic result attribution/unsupported next-method promise | Shared integration | Companion preserves per-point origins/honest copy; Brief 2 owns next-block generation and queue. |
 | Procedural screen lacks an unsolved problem | Companion S6, reproduce first | Supply the concrete task in the exposed path; keep full Shape B deferred. |
-| Revision Undo empty-list mismatch | Explicitly deferred by the founder | Not a start prerequisite; remains a known issue until separately addressed. |
+| Revision Undo empty-list mismatch | Separate prerequisite PR #98 | Merged and deployed on 17 September; fresh-topic change, receipt, Undo and reload passed. See the production evidence. |
 
 ## Current state checked
 
@@ -40,7 +40,7 @@ The current workspace is the divergent `codex/brief-c-source-first-practice` bra
 ## Sequence
 
 1. Use an isolated checkout of verified current main. Preserve unrelated working-tree changes. Read current scope/rules and relevant installed Next.js documentation before code.
-2. Install the supplied Brief 2 specifications and this companion under `docs/redesign/`. The founder's explicit Undo deferral supersedes the archive's prerequisite; do not implement that fix as part of this effort.
+2. Install the supplied Brief 2 specifications and this companion under `docs/redesign/`. The separate Undo prerequisite is satisfied by merged PR #98 and its production replay.
 3. Build the one topic-based plan/workload model with all profile-routing rows and rule IDs. Preserve the research-to-rule-to-visible-behavior chain and contrasting-profile gates.
 4. Implement completion/draft/recovery reliability, truthful session claims, bounded repair rechecks, the simple map, stronger MCQs and optional continuation against that shared contract.
 5. Verify the combined result with deterministic tests, real database seams, actual generated content, recorded journeys and full CI. Open one reviewable PR; do not merge/deploy or delete old plans implicitly.
@@ -65,6 +65,8 @@ Product choices and ownership are resolved. Implementation is complete when the 
 
 Automatic approval review rejected blocking every existing non-Study-Now plan that lacks `planModel`: that could disrupt existing users without a migration. Existing plans therefore retain their compatible session path. New plans use the topic model; any founder-owned deletion of older plans remains a separate action. This is a narrowly scoped reliability exception to the supplied old-plan opening restriction, not a claim that old plans were migrated.
 
-## Bounded fill exception for launch reliability
+## Bounded filling after the prerequisite
 
-Within-block sweeping of the next ordinary-plan topic is deferred. The current shared workload can fill substantive questions up to a 32-question cap, then keeps the actual shorter estimate. A concrete memorization example with a 60-minute ceiling contains 32 questions and reveals estimated at 33 minutes; it displays 33 minutes. Optional next-topic continuation is a separate learner action, not proof that the initial block was filled. This is an explicit gap against the supplied within-block sweep rule and does not constitute complete Brief 2 parity. Implementing sweep safely requires coordinated topic/source/evidence attribution and queue changes; it is not being patched into the composer immediately before launch verification.
+The initial candidate left spare capacity after the single-topic32-question ceiling. The resumed implementation can consume one compatible, independently ready next topic as a second activity, with separate source scope, checkpoint and results under the same<=60-minute block ceiling. A factual fixture now plans54questions across two activities and estimates56minutes under60; these are code estimates, not measured learner durations. Shorter plans remain honest where no eligible work fits.
+
+Each activity retains the32-question cap. Completion requires both ordered receipts and their actual checked topic origins; revisions preserve the exact slices or reconstruct separate valid blocks. Cross-topic interleaving runs in separately scoped review work, not by introducing unrelated topics into these persisted activities. Other profile and deadline effects remain active. Unit and controlled browser checks pass; real database and live content/latency evidence remain required in full CI.

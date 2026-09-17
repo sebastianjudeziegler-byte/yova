@@ -1,6 +1,7 @@
 "use client";
 import { applyPlanMaterialUnderstanding } from "@/lib/plan-generation/plan-material-understanding";
 import { TopicPlanModelSchema, TopicWorkloadSchema } from "@/lib/plan-generation/topic-plan-contract";
+import { readSegmentCompletions } from "@/lib/session-shapes/segment-completion";
 
 import { readPlanSchedulePreferences } from "@/lib/scheduling/plan-schedule-preferences";
 
@@ -344,7 +345,7 @@ async function withinAuthenticatedLearningMutationDeadline<T>(
  * without downloading the learner's whole workspace or guessing from status. */
 export async function readAuthenticatedSessionCompletionReceipt(
   accountId: string,
-  completion: Pick<SessionCompletion, "id" | "planSessionId" | "routeRevisionId">,
+  completion: Pick<SessionCompletion, "id" | "planSessionId" | "routeRevisionId" | "segmentCompletions">,
 ): Promise<boolean> {
   return withinAuthenticatedLearningMutationDeadline(async run => {
     const supabase = createSupabaseBrowserClient();
@@ -359,7 +360,11 @@ export async function readAuthenticatedSessionCompletionReceipt(
     if (error || !data?.completed_at) return false;
     const storedRoute = data.result_data && typeof data.result_data === "object"
       ? (data.result_data as Record<string, unknown>).routeRevisionId : undefined;
-    return (storedRoute ?? undefined) === completion.routeRevisionId;
+    const rawStoredSegments = readProperty(data.result_data, "segmentCompletions");
+    const storedSegments = readSegmentCompletions(rawStoredSegments);
+    if (rawStoredSegments !== undefined && rawStoredSegments !== null && !storedSegments) return false;
+    return (storedRoute ?? undefined) === completion.routeRevisionId
+      && JSON.stringify(storedSegments) === JSON.stringify(readSegmentCompletions(completion.segmentCompletions));
   });
 }
 
@@ -633,6 +638,8 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       ),
       conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
       confidenceEvidence: readConfidenceEvidenceProperty(attempt.result_data),
+      ...(readSegmentCompletions(readProperty(attempt.result_data, "segmentCompletions"))
+        ? { segmentCompletions: readSegmentCompletions(readProperty(attempt.result_data, "segmentCompletions")) } : {}),
     })];
   });
 
@@ -1304,6 +1311,7 @@ export async function completeAuthenticatedPlanSession(
     actualMinutes: normalizedCompletion.actualMinutes,
     correctAnswers: normalizedCompletion.correctAnswers,
     totalAnswers: normalizedCompletion.totalAnswers,
+    ...(normalizedCompletion.segmentCompletions ? { segmentCompletions: normalizedCompletion.segmentCompletions } : {}),
     feedback: normalizedCompletion.feedback,
     observedGap: normalizedCompletion.observedGap,
     completionMode,

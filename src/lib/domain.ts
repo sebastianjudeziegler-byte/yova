@@ -211,6 +211,8 @@ export type SessionCompletion = {
   actualMinutes: number;
   correctAnswers: number;
   totalAnswers: number;
+  /** Ordered receipts for both executed parts of a packed topic block. */
+  segmentCompletions?: Array<{ segmentId: string; correctAnswers: number; totalAnswers: number; elapsedSeconds: number }>;
   feedback: "too_easy" | "about_right" | "too_difficult" | null;
   observedGap: string;
   /**

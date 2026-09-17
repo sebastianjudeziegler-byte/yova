@@ -79,6 +79,17 @@ export function tipRequest(route: SessionRoute, steps: readonly TipStep[], happe
   return steps.slice(0, 5).map((step) => ({ step, reasons: reasonsForStep(step, evidence, route) }));
 }
 
+/** Tips written with the study content; no separate generation request. */
+export function studyTipRequests(route: SessionRoute, questionsInBlock: boolean) {
+  const first: TipStep = route.shape === "C" ? "brief" : "study";
+  const beforePractice: TipStep[] = route.shape === "A" && route.produceStep !== "retrieval_questions" ? [first, "produce"] : [first];
+  const withQuestions: TipStep[] = [...beforePractice, "questions", "round", "end"];
+  return {
+    direction: tipRequest(route, questionsInBlock ? beforePractice : ["study", "produce"], { practiceOccurred: questionsInBlock }),
+    learnBlock: tipRequest(route, questionsInBlock ? withQuestions : ["study", "produce"], { practiceOccurred: questionsInBlock }),
+  };
+}
+
 /** An instruction per step when the model's tip cannot be used; the reason is the evidence sentence itself. */
 const TEMPLATE_TITLE: Record<TipStep, string> = {
   study: "Study for how it works, not for the terms.",

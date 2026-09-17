@@ -85,7 +85,7 @@ reset role;
 -- A migration-ready deployment must not advertise readiness when the exact
 -- privilege or owner predicate needed by reload disappears.
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
-select extensions.is(public.signed_in_generation_readiness_v6()->>'contractVersion','20260917170001',
+select extensions.is(public.signed_in_generation_readiness_v6()->>'contractVersion','20260917180001',
   'the existing v6 RPC advertises the read-grant migration contract');
 select extensions.ok((public.signed_in_generation_readiness_v6()->>'planSessionReads')::boolean,
   'readiness includes the owner-scoped session read capability');

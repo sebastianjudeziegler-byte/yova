@@ -1,4 +1,5 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import type { LearningPlan } from "../../src/lib/domain";
 import { freezePlanClock, PLAN_FIXED_NOW } from "./frozen-clock";
 import { writeOnboardingAnswers } from "../../src/lib/onboarding/answers";
 
@@ -50,4 +51,22 @@ export async function expandGroupedPlanTopics(page: Page) {
     const detail = details.nth(index);
     if (await detail.getAttribute("open") === null) await detail.locator(":scope > summary").click();
   }
+}
+
+/** Draft and saved plans share the grouped view. Wait for the activation
+ * response and its exact plan in durable preview state, not the draft view. */
+export async function activatePreviewPlan(page: Page): Promise<LearningPlan> {
+  const activation = page.waitForResponse(response => new URL(response.url()).pathname === "/api/plans/activate" && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Use this plan", exact: true }).click();
+  const response = await activation;
+  const body = await response.json();
+  expect(response.ok(), JSON.stringify(body)).toBe(true);
+  const plan = body.plan as LearningPlan;
+  expect(plan.id).toBeTruthy();
+  await expect.poll(() => page.evaluate(id => {
+    const state = JSON.parse(localStorage.getItem("yova.preview.v1") ?? "{}");
+    return state.plans?.find((item: LearningPlan) => item.id === id)?.status;
+  }, plan.id)).toBe("active");
+  await expect(page.getByRole("button", { name: "Start next block", exact: true })).toBeVisible();
+  return page.evaluate(id => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.find((item: LearningPlan) => item.id === id), plan.id);
 }

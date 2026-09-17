@@ -61,4 +61,31 @@ describe("authorized shape context",()=>{
   expect(filters).toContainEqual(["plan_sessions","plan_id",request.planId]);
   expect(filters).toContainEqual(["plan_sessions","id",request.planSessionId]);
  });
+ it("authorizes only the selected segment's topic, subtopics, source and workload", async () => {
+  const primary={...map.topics[0]!,subtopics:["Primary selected","Primary later"]};
+  const related={...primary,id:"99999999-9999-4999-8999-999999999999",title:"Second topic",subtopics:["Second selected","Second later"]};
+  const one={version:"topic_workload_v1",topicSubtopics:[{topicId:primary.id,subtopics:["Primary selected"]}],questionCount:10,recallQuestionCount:4,transferQuestionCount:6,produceSteps:0,sourceReadMinutes:0,estimatedMinutes:15,ceilingMinutes:30,practicePlaceholder:true,practiceRound:1,suggestedDate:true,ruleIds:[]};
+  const two={...one,topicSubtopics:[{topicId:related.id,subtopics:["Second selected"]}],questionCount:6,recallQuestionCount:2,transferQuestionCount:4,estimatedMinutes:10,ceilingMinutes:15};
+  const workload={...one,topicSubtopics:[...one.topicSubtopics,...two.topicSubtopics],questionCount:16,recallQuestionCount:6,transferQuestionCount:10,estimatedMinutes:25,segments:[{segmentId:"segment-1",learningMode:"study",taskType:"conceptual_learning",workload:one},{segmentId:"segment-2",learningMode:"study",taskType:"conceptual_learning",workload:two}]};
+  const context=client("scope_outline",{topics:[primary,related],workload});
+  const posted={...request,segmentId:"segment-2",topic:{...request.topic,id:related.id,subtopics:related.subtopics,relatedTopics:[{id:primary.id,title:primary.title,subtopics:primary.subtopics}]}};
+  const result=await hydrateShapeSlotContext(context.supabase,userId,posted);
+  expect(result.topic.id).toBe(related.id);
+  expect(result.topic.subtopics).toEqual(["Second selected"]);
+  expect(result.topic.relatedTopics).toBeUndefined();
+  expect(result.modifiers.questionCap).toBe(6);
+  expect(result.modifiers.questionTarget).toBe(6);
+  expect(Object.values(result.modifiers.questionMix).reduce((n,count)=>n+count,0)).toBe(6);
+  expect(result.action==="practice"&&result.excerpts).toEqual([]);
+  const text="Course scope that is not teaching content.";
+  const reference={materialId,chunkId:"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",chunkIndex:0,startCharacter:0,endCharacter:12,locationLabel:"First section",sectionRole:"content_source" as const};
+  const sources=client("content_source",{topics:[{...primary,sourceReferences:[reference]},{...related,sourceReferences:[{...reference,startCharacter:13,endCharacter:text.length,locationLabel:"Second section"}]}],workload});
+  const sourced=await hydrateShapeSlotContext(sources.supabase,userId,posted);
+  expect(sourced.action==="practice"&&sourced.excerpts.map(excerpt=>excerpt.text)).toEqual([text.slice(13)]);
+  await expect(hydrateShapeSlotContext(context.supabase,userId,{...posted,segmentId:undefined})).rejects.toThrow(/segment/i);
+  await expect(hydrateShapeSlotContext(context.supabase,userId,{...posted,segmentId:"not-saved"})).rejects.toThrow(/segment/i);
+  await expect(hydrateShapeSlotContext(context.supabase,userId,{...posted,topic:request.topic})).rejects.toThrow(/topic/i);
+  await expect(hydrateShapeSlotContext(client().supabase,userId,{...request,segmentId:"segment-1"})).rejects.toThrow(/segment/i);
+ });
+
 });

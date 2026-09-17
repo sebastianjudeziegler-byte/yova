@@ -1,3 +1,5 @@
+import { routingEvidenceForTopic } from "@/lib/routing/route-for-session";
+import { baselineSourceForTopic } from "@/lib/session-shapes/source-context";
 import { topicPlanAvailability } from "./topic-plan-availability";
 import type { PlanGenerationRequest } from "./schema";
 import type { NormalPlanEnvelopeComposition } from "./normal-plan-envelopes";
@@ -22,30 +24,66 @@ export function validateTopicComposition(request:PlanGenerationRequest, composit
   const practice=new Set<string>();
   const scheduled=new Set<string>();
   const intervals:Array<{start:number;end:number}>=[];
+  const learningEnds = new Map<string, number>();
+  const practiceEnds = new Map<string, number>();
+  const deadlineDays = request.deadline ? Math.ceil((Date.parse(request.deadline) - now.getTime()) / 86_400_000) : null;
+  const firstGap = Math.max(0, (deadlineDays === null ? 3 : deadlineDays <= 3 ? 1 : deadlineDays <= 9 ? 2 : 3)
+    - Number(composition.planModel!.ruleIds.includes("P9.support.frequent_check_ins")) - Number(composition.planModel!.ruleIds.includes("P10.extra.forget_during_tests")));
+  const readyBefore = (id: string, start: number) => modeByTopic.get(id) === "study" || (learningEnds.get(id) ?? Infinity) <= start;
   for(const [index,block] of composition.envelopes.entries()) {
     const work=TopicWorkloadSchema.safeParse(block.workload);
     if(!work.success)fail("block workload is invalid");
     const workload=work.data!;
     if(block.sequence!==index+1 || block.envelopeId!==`normal-plan-envelope-${String(index+1).padStart(3,"0")}`)fail("block identity or sequence changed");
-    if(block.topicIds.length!==1 || !topics.has(block.topicIds[0]!))fail("block topic is invalid");
-    const topic=topics.get(block.topicIds[0]!)!;
-    if(topic.deferred||topic.removed)fail("a removed or deferred topic is scheduled");
-    if(workload.topicSubtopics.length!==1||workload.topicSubtopics[0]!.topicId!==topic.id||workload.topicSubtopics[0]!.subtopics.some(part=>!topic.subtopics.includes(part)))fail("block content escaped its topic");
-    if(block.learningMode==="learn") {
-      if(modeByTopic.get(topic.id)!=="learn")fail("teaching contradicts accepted evidence");
-      learningCounts.set(topic.id,(learningCounts.get(topic.id)??0)+1);
-      coverage.set(topic.id,[...(coverage.get(topic.id)??[]),...workload.topicSubtopics[0]!.subtopics]);
-      if(practice.has(topic.id))fail("teaching resumes after practice");
-    } else practice.add(topic.id);
-    if(block.learningMode!==block.targetModeDecisions[0]?.learningMode||block.targetModeDecisions[0]?.topicId!==topic.id)fail("mode target disagrees with block");
-    const classification=classifyLearningTask([request.goal,request.startingContext??"",topic.title,topic.description,...topic.subtopics].join(" "));
-    if(block.taskFamily!==classification.taskType || JSON.stringify(block.taskClassification)!==JSON.stringify(classification))fail("task family changed");
+    const scopeIds = workload.topicSubtopics.map(part => part.topicId);
+    if (JSON.stringify(block.topicIds) !== JSON.stringify(scopeIds) || scopeIds.some(id => !topics.has(id))) fail("block topic is invalid");
+    if (scopeIds.length !== (workload.segments ? 2 : 1)) fail("ordinary blocks require one topic or two isolated segments");
+    if (workload.segments?.some(segment => segment.learningMode !== block.learningMode || segment.taskType !== block.taskFamily)) fail("segment routing escaped the block");
+    const firstTopic = topics.get(scopeIds[0]!)!;
+    const sourcePresent = (topic: typeof firstTopic) => Boolean(baselineSourceForTopic({ materials: request.materials, sourceMode: request.materialMode === "upload" ? "user_materials" : "yova_generated" }, topic).description);
+    if (workload.segments && scopeIds.slice(1).some(id => {
+      const topic = topics.get(id)!;
+      return routingEvidenceForTopic(topic) !== routingEvidenceForTopic(firstTopic) || sourcePresent(topic) !== sourcePresent(firstTopic)
+        || topic.prerequisiteTopicIds.some(prerequisite => scopeIds.includes(prerequisite) && modeByTopic.get(prerequisite) === "learn");
+    })) fail("segments do not have compatible independent entry conditions");
+    if (workload.segments) {
+      const start = Date.parse(block.scheduledFor);
+      for (const segment of workload.segments) {
+        const topic = topics.get(segment.workload.topicSubtopics[0]!.topicId)!;
+        if (!topic.prerequisiteTopicIds.every(id => readyBefore(id, start))) fail("a segment prerequisite is not ready before the block");
+        if (block.learningMode === "study") {
+          if (!readyBefore(topic.id, start)) fail("a practice segment is missing prior learning");
+          const prior = workload.practiceRound === 1 ? learningEnds.get(topic.id) ?? now.getTime() : practiceEnds.get(topic.id);
+          const gap = workload.practiceRound === 1 ? firstGap : deadlineDays === null ? 7 : deadlineDays <= 3 ? 1 : deadlineDays <= 9 ? 3 : 5;
+          if (prior === undefined || start < prior + gap * 86_400_000) fail("a practice segment was swept before its return was due");
+        }
+      }
+    }
+    for (const [partIndex, part] of workload.topicSubtopics.entries()) {
+      const topic = topics.get(part.topicId)!;
+      if(topic.deferred||topic.removed)fail("a removed or deferred topic is scheduled");
+      if(part.subtopics.some(subtopic=>!topic.subtopics.includes(subtopic)))fail("block content escaped its topic");
+      if(block.learningMode==="learn") {
+        if(modeByTopic.get(topic.id)!=="learn")fail("teaching contradicts accepted evidence");
+        learningCounts.set(topic.id,(learningCounts.get(topic.id)??0)+1);
+        coverage.set(topic.id,[...(coverage.get(topic.id)??[]),...part.subtopics]);
+        if(practice.has(topic.id))fail("teaching resumes after practice");
+      } else practice.add(topic.id);
+      if(block.learningMode!==block.targetModeDecisions[partIndex]?.learningMode||block.targetModeDecisions[partIndex]?.topicId!==topic.id)fail("mode target disagrees with block");
+      const classification=classifyLearningTask([request.goal,request.startingContext??"",topic.title,topic.description,...topic.subtopics].join(" "));
+      if(block.taskFamily!==classification.taskType || (partIndex === 0 && JSON.stringify(block.taskClassification)!==JSON.stringify(classification)))fail("task family changed");
+      scheduled.add(topic.id);
+    }
     if(block.timing.activeMinutes!==workload.estimatedMinutes||block.timing.elapsedMinutes!==workload.estimatedMinutes||block.contentBudget.minutes!==workload.estimatedMinutes||JSON.stringify(block.contentBudget)!==JSON.stringify(contentBudgetForMinutes(workload.estimatedMinutes)))fail("duration is not derived from the same workload");
     const slot=slots.find(slot=>slot.startsAt===block.availabilityStartsAt&&slot.dayIndex===block.availabilityDayIndex&&slot.windowIndex===block.availabilityWindowIndex);
     const start=Date.parse(block.scheduledFor), end=start+block.timing.activeMinutes*60_000;
     if(!slot||!Number.isFinite(start)||start<Date.parse(slot.startsAt)||end>Date.parse(slot.endsAt)||block.hardMaximumMinutes!==Math.floor((Date.parse(slot.endsAt)-start)/60_000)||block.timing.hardMaximumMinutes!==block.hardMaximumMinutes)fail("a date escaped strict availability");
     if(intervals.some(i=>start<i.end&&end>i.start))fail("block dates overlap");
-    intervals.push({start,end});scheduled.add(topic.id);
+    intervals.push({start,end});
+    for (const topicId of scopeIds) {
+      if (block.learningMode === "study") practiceEnds.set(topicId, end);
+      else if (JSON.stringify(coverage.get(topicId)) === JSON.stringify(topics.get(topicId)!.subtopics)) learningEnds.set(topicId, end);
+    }
   }
   for(const [topicId,count] of learningCounts){
     const topic=topics.get(topicId)!;

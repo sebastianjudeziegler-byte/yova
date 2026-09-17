@@ -1,3 +1,4 @@
+import { emptyOnboardingAnswers, withOnboardingAnswer } from "@/lib/onboarding/answers";
 import { describe, expect, it } from "vitest";
 import {
   durationLabel,
@@ -21,6 +22,12 @@ describe("durationLabel", () => {
 });
 
 describe("PlanCreator development-preview preferences", () => {
+  it("transports the local baseline profile only in browser preview mode", () => {
+    const answers = withOnboardingAnswer(emptyOnboardingAnswers(), "session_length", "minutes_10_15");
+    expect(planCreatorPreviewPreferenceRequestInput(true, [], null, answers)).toEqual({ previewOnboardingAnswers: answers });
+    expect(planCreatorPreviewPreferenceRequestInput(false, [], null, answers)).toEqual({});
+  });
+
   it("sends canonical method preferences only in browser preview mode", () => {
     const previewCanonicalProfile = createCanonicalLearnerProfile([{
       signalId: "control_mode",

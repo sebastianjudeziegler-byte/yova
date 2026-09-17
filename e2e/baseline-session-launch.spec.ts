@@ -89,3 +89,78 @@ test("comparison transport failure can continue without claiming feedback", asyn
   await expect(page.getByTestId("baseline-question").or(page.getByText("Feedback unavailable", { exact: true }))).toBeVisible();
   await expect(page.getByRole("heading", { name: "What is missing or wrong", exact: true })).toHaveCount(0);
 });
+
+test("two planned activities preserve first activity evidence and the second draft across reload before one completion", async ({ page }, testInfo) => {
+  const requests: Array<{ action: string; segmentId?: string; topicId: string }> = [];
+  await page.route("**/api/sessions/shape", async route => {
+    const request = route.request().postDataJSON();
+    requests.push({ action: request.action, segmentId: request.segmentId, topicId: request.topic.id });
+    const scopedPoints = learn.keyPoints.map(item => ({ ...item, sourceTopicId: request.topic.id }));
+    const scopedQuestions = questions.map((question, index) => ({ ...question, keyPointIds: [scopedPoints[index]!.id] }));
+    await route.fulfill({ status: 200, json: request.action === "learn_block" ? { ...learn, keyPoints: scopedPoints, questions: scopedQuestions } : request.action === "practice" ? { action: "practice", keyPoints: scopedPoints, questions: scopedQuestions, tips: [] } : { action: "compare", feedback: `Fixture feedback for ${request.topic.title}: the submitted relationship is retained.`, missing: [], incorrect: [], itemFeedback: [], tips: [] } });
+  });
+  await openMapSession(page);
+  await page.getByRole("button", { name: "Exit session", exact: true }).click();
+  const topicIds = await page.evaluate(() => {
+    // This test controls the work contract to isolate runtime/checkpoint
+    // behavior. Real planner/authoritative DB coverage is a separate gate.
+    const snapshot = JSON.parse(localStorage.getItem("yova.preview.v1")!);
+    const plan = snapshot.plans.at(-1);
+    const first = plan.knowledgeMap.topics[0];
+    const second = { ...first, id: crypto.randomUUID(), title: "Diffusion", description: "Explain how diffusion follows a concentration gradient.", subtopics: ["Concentration gradient and net movement"], prerequisiteTopicIds: [], sourceReferences: [] };
+    plan.knowledgeMap.topics = [first, second];
+    const single = (topic: typeof first) => ({ version: "topic_workload_v1", topicSubtopics: [{ topicId: topic.id, subtopics: topic.subtopics.slice(0, 3) }], questionCount: 3, recallQuestionCount: 1, transferQuestionCount: 2, produceSteps: 1, sourceReadMinutes: 3, estimatedMinutes: 12, ceilingMinutes: 30, practicePlaceholder: false, practiceRound: 0, suggestedDate: true, ruleIds: ["L3.q6.map_it"] });
+    const left = single(first), right = single(second);
+    plan.sessions[0] = { ...plan.sessions[0], topicIds: [first.id, second.id], estimatedMinutes: 24, workload: { ...left, topicSubtopics: [...left.topicSubtopics, ...right.topicSubtopics], questionCount: 6, recallQuestionCount: 2, transferQuestionCount: 4, produceSteps: 2, sourceReadMinutes: 6, estimatedMinutes: 24, segments: [{ segmentId: "segment-1", learningMode: "learn", taskType: "conceptual_learning", workload: left }, { segmentId: "segment-2", learningMode: "learn", taskType: "conceptual_learning", workload: right }] } };
+    localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+    return [first.id, second.id] as string[];
+  });
+  await page.reload();
+  await page.getByRole("button", { name: /^(Start session|Continue session|Start next block)$/ }).first().click();
+  await expect(page.locator('[data-segment-id="segment-1"]')).toBeVisible();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await enterMap(page);
+  await page.getByRole("button", { name: "Compare my map", exact: true }).click();
+  await expect(page.getByTestId("baseline-comparison")).toBeVisible();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Move on", exact: true }).click();
+  await answerFixtureRound(page);
+  await expect(page.getByRole("button", { name: "Finish", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Continue to next activity", exact: true }).click();
+  await expect(page.locator('[data-segment-id="segment-2"]')).toBeVisible();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await enterMap(page);
+  await page.getByRole("textbox", { name: "Concept 1", exact: true }).fill("Second activity final key Ω");
+  await page.getByRole("button", { name: "Exit session", exact: true }).click();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).sessionCompletions.length)).toBe(0);
+  await page.reload();
+  await page.getByRole("button", { name: /^(Start session|Continue session|Start next block)$/ }).first().click();
+  await expect(page.locator('[data-segment-id="segment-2"]')).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Concept 1", exact: true })).toHaveValue("Second activity final key Ω");
+  await expect(page.getByTestId("completed-activity-work")).toContainText("3 of 3 answers correct");
+  await page.getByRole("button", { name: "Compare my map", exact: true }).click();
+  await expect(page.getByTestId("baseline-comparison")).toBeVisible();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Move on", exact: true }).click();
+  await answerFixtureRound(page);
+  await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await expect(page.locator("[data-segment-id]")).toHaveCount(0);
+  const completed = await page.evaluate(() => JSON.parse(localStorage.getItem("yova.preview.v1")!).sessionCompletions);
+  expect(completed).toHaveLength(1);
+  expect(completed[0]).toMatchObject({ correctAnswers: 6, totalAnswers: 6, segmentCompletions: [{ segmentId: "segment-1", correctAnswers: 3, totalAnswers: 3 }, { segmentId: "segment-2", correctAnswers: 3, totalAnswers: 3 }] });
+  expect(completed[0].conceptEvidence).toHaveLength(6);
+  expect([...new Set(completed[0].conceptEvidence.map((entry: { topicId: string }) => entry.topicId))].sort()).toEqual([...topicIds].sort());
+  for (const request of requests.filter(request => request.segmentId)) expect(request.topicId).toBe(topicIds[request.segmentId === "segment-1" ? 0 : 1]);
+  // Reload resumes generated content; it must not request the first activity again.
+  const firstCalls = requests.filter(request => request.segmentId === "segment-1").length;
+  expect(requests.slice(requests.findIndex(request => request.segmentId === "segment-2")).filter(request => request.segmentId === "segment-1")).toHaveLength(0);
+  await testInfo.attach("two-activity-journey.json", { body: JSON.stringify({ dependencies: "preview plan/workload and model transport fixtures; no live model or database", firstActivityCalls: firstCalls, requests, completion: completed[0] }, null, 2), contentType: "application/json" });
+});
+
+async function answerFixtureRound(page: Page) {
+  for (let index = 0; index < questions.length; index += 1) {
+    await expect(page.getByTestId("baseline-question")).toBeVisible();
+    await page.getByRole("button", { name: "Higher to lower water potential", exact: true }).click();
+    await page.getByRole("button", { name: index === questions.length - 1 ? "Finish round" : "Next question", exact: true }).click();
+  }
+}

@@ -50,6 +50,10 @@ export function selectRevisionSessionScope({ plan, applied, operations, protecti
   for (const [index, operation] of operations.entries()) {
     if (!applied.lines.some(line => line.operationIndex === index)) continue;
     if (operation.op === "set_deadline" || operation.op === "set_availability") {
+      // Method/time controls can add a review line for unchanged availability.
+      // That line authorizes only the selected block, not a calendar repair of
+      // the whole queue (including blocks intentionally beyond a deadline).
+      if (!applied.scheduleChanged) continue;
       for (const session of future) {
         if (fitsSchedule(session)) continue;
         if (protection.get(session.id)?.pinnedTime) {

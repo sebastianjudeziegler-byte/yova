@@ -3,6 +3,7 @@ import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
+import { reviewPracticeQuestions, type PracticeQualityIssue } from "./practice-quality-review";
 import { composePracticeRound, firstRoundKeyPointCount, KeyPointSchema, keyPointsForRound, QuestionDraftSchema, roundQuestionCount, type KeyPoint, type PracticeQuestion } from "@/lib/practice/compose-practice";
 import { planQuestionSlots, type QuestionMix, type QuestionSlot, type QuestionType } from "@/lib/practice/question-mix";
 import { PRACTICE_TEST_QUESTION_COUNT, type PracticeRoundKind } from "@/lib/practice/practice-rounds";
@@ -224,7 +225,7 @@ function explanationsFit(questions: ReadonlyArray<{ explanation: string }>, inst
 
 function questionSlotInstructions(slots: readonly QuestionSlot[], instructionStyle = "standard") {
   const types = [...new Set(slots.map((slot) => slot.type))];
-  return `Write exactly ${slots.length} ${slots.length === 1 ? "question" : "questions"}: one for each slot in input.slots, with slotId set to that slot's id. Each slot names its question type and the key point ids its question may draw on; draw only on those key points. Types: ${types.map((type) => TYPE_GUIDANCE[type]).join(" ")} Every question has exactly four distinct choices, correctChoiceIndex, and ${instructionStyle === "plain_restated" ? `a one-sentence explanation of the correct choice in plain, everyday words, at most ${PLAIN_EXPLANATION_MAX_WORDS} words` : "a one-sentence explanation of the correct choice"}. Each wrong choice is a plausible reasoning error a learner could make about these key points, never an obviously false statement. Match the academic level and learning goal in input.topic.learningGoal. Make transfer questions require reasoning about a changed case, not a disguised definition. Keep choices parallel in length and specificity; do not signal the answer with wording copied from the prompt. Test the subject itself, never what a study guide, syllabus, course outline, or numbered unit lists. Avoid repeating the same question with cosmetic changes.`;
+  return `Write exactly ${slots.length} ${slots.length === 1 ? "question" : "questions"}: one for each slot in input.slots, with slotId set to that slot's id. Each slot names its question type and the key point ids its question may draw on; draw only on those key points. Types: ${types.map((type) => TYPE_GUIDANCE[type]).join(" ")} Every question has exactly four distinct choices, correctChoiceIndex, and ${instructionStyle === "plain_restated" ? `a one-sentence explanation of the correct choice in plain, everyday words, at most ${PLAIN_EXPLANATION_MAX_WORDS} words` : "a one-sentence explanation of the correct choice"}. Solve the problem first, then write one fully correct answer and three plausible reasoning errors. Verify that both the conclusion AND reason in the marked choice agree with the explanation. Supply every condition needed to determine a unique answer. Match the academic level and learning goal in input.topic.learningGoal. Make transfer questions require reasoning about a changed case, not a disguised definition. Vary the inference: interpret supplied data, identify a necessary condition, contrast mechanisms, infer an unknown from an outcome, diagnose an experimental claim, or apply a boundary case; use only demands supported by the assigned key points. Keep choices parallel in length and specificity; do not signal the answer with wording copied from the prompt. Test the subject itself, never what a study guide, syllabus, course outline, or numbered unit lists. Avoid repeating the same inference with cosmetic changes. Each wrong choice is a plausible reasoning error, never an obviously false statement.`;
 }
 
 function derivedKeyPointIds(count: number) {
@@ -262,7 +263,7 @@ function learnBlockInstructions(request: LearnBlockRequest, plan: ReturnType<typ
       : "";
   const count = plan.keyPointIds.length;
   return `You write one bounded learn block for YOVA, in ONE response, from ONE shared context.
-1. explanation: plain prose on exactly the supplied topic, as good as a strong ChatGPT answer. ${focus} ${style}
+1. explanation: plain prose on exactly the supplied topic, matched to topic.learningGoal and its academic level. ${focus} ${style} ${request.modifiers.questionTarget > 12 ? "This substantial practice block needs rich, distinct ideas: teach the mechanism, its necessary conditions and boundaries, and how to reason from evidence. Include enough supported depth for the full workload, not five superficial definitions. Use concise connected paragraphs; do not pad or add unrelated topics." : ""}
 2. keyPoints: exactly ${count} key points derived only from the explanation, with ids ${plan.keyPointIds.join(", ")} in that order.
 3. questions: ${questionSlotInstructions(plan.slots, request.modifiers.instructionStyle)} A question may only test what the explanation states.
 4. structure: the explanation's skeleton as 2–8 short lines, in order, for a learner who wants to see the structure before producing.
@@ -295,7 +296,7 @@ type QuestionBatchInput = {
   slots: QuestionSlot[]; keyPoints: KeyPoint[]; topic: LearnBlockRequest["topic"];
   instructionStyle: string; provider: SlotProvider | null; explanation?: string;
   excerpts?: PracticeRequest["excerpts"]; priorQuestions: Array<{ prompt: string }>;
-  framing?: string; attempt?: string; collisionRepair?: boolean;
+  framing?: string; attempt?: string; collisionRepair?: boolean; qualityIssues?: PracticeQualityIssue[];
 };
 
 // These vary the context of the existing slot types, never the tested topic.
@@ -314,8 +315,8 @@ async function remainingQuestions(input: QuestionBatchInput) {
     const batchIndex = Math.floor((Number(slots[0]!.slotId.slice(1)) - 1) / MAX_BATCH_QUESTIONS);
     const batchAngle = { id: `batch_${batchIndex + 1}`, instruction: BATCH_ANGLES[batchIndex % BATCH_ANGLES.length] };
     const draft = await input.provider!({
-      instructions: `Write further closed-book practice from the supplied immutable key points${input.explanation ? " and explanation; do not test material the explanation did not teach" : ""}. ${input.framing ?? ""} ${questionSlotInstructions(slots, input.instructionStyle)} Avoid priorQuestions. Each batch covers its specific slots with distinct situations. The code-owned batch angle is: ${batchAngle.instruction} Apply it only where compatible with the planned question type; preserve every slot's type and key points. ${input.collisionRepair ? "These slots repeated an accepted question. Replace only these slots with substantively distinct questions; priorQuestions contains every accepted prompt." : ""} ${UNTRUSTED}`,
-      input: JSON.stringify({ topic: input.topic, keyPoints: input.keyPoints, explanation: input.explanation, excerpts: input.excerpts, slots, batchAngle, priorQuestions: input.priorQuestions.map(question => question.prompt), attempt: input.attempt, collisionRepair: input.collisionRepair ?? false }),
+      instructions: `Write further closed-book practice from the supplied immutable key points${input.explanation ? " and explanation; do not test material the explanation did not teach" : ""}. ${input.framing ?? ""} ${questionSlotInstructions(slots, input.instructionStyle)} Avoid priorQuestions. Each batch covers its specific slots with distinct situations. The code-owned batch angle is: ${batchAngle.instruction} Apply it only where compatible with the planned question type; preserve every slot's type and key points. ${input.collisionRepair ? "These slots repeated an accepted question. Replace only these slots with substantively distinct questions; priorQuestions contains every accepted prompt." : ""} ${input.qualityIssues ? "An independent solver found the specific defects in qualityIssues. Replace only these slots, resolving those defects; preserve the immutable teaching context and test a different inference from each accepted priorQuestion." : ""} ${UNTRUSTED}`,
+      input: JSON.stringify({ topic: input.topic, keyPoints: input.keyPoints, explanation: input.explanation, excerpts: input.excerpts, slots, batchAngle, priorQuestions: input.priorQuestions.map(question => question.prompt), attempt: input.attempt, collisionRepair: input.collisionRepair ?? false, qualityIssues: input.qualityIssues?.filter(issue => slots.some(slot => slot.slotId === issue.slotId)) }),
       schema: QuestionBatchSchema, schemaName: "yova_shape_question_batch", maxOutputTokens: 3_000, cacheKey: "yova-shape-question-batch-v2",
     });
     if (!draft) return null;
@@ -348,6 +349,28 @@ async function repairQuestionCollisions(questions: PracticeQuestion[], context: 
   return repaired;
 }
 
+/** One semantic repair phase, with the original provider's shared deadline.
+ * Failed or unavailable review never silently releases unverified questions. */
+async function ensureQuestionQuality(questions: PracticeQuestion[], context: Omit<QuestionBatchInput, "priorQuestions">) {
+  const review = await withOneRetry(async () => {
+    const result = await reviewPracticeQuestions({ ...context, questions }, context.provider!);
+    return result.ok ? result : null;
+  }, context.provider !== null);
+  if (!review.rejected.length) return questions;
+  const rejectedIds = new Set(review.rejected.map(issue => issue.slotId));
+  const accepted = questions.filter(question => !rejectedIds.has(question.slotId));
+  const replacements = await remainingQuestions({ ...context, slots: context.slots.filter(slot => rejectedIds.has(slot.slotId)), priorQuestions: accepted, qualityIssues: review.rejected });
+  const checked = await withOneRetry(async () => {
+    const result = await reviewPracticeQuestions({ ...context, questions: replacements, priorQuestions: accepted }, context.provider!);
+    return result.ok ? result : null;
+  }, context.provider !== null);
+  if (checked.rejected.length) throw new ShapeSlotGenerationError("generation_failed", 2);
+  const bySlot = new Map(replacements.map(question => [question.slotId, question]));
+  const repaired = questions.map(question => bySlot.get(question.slotId) ?? question);
+  if (!distinctPrompts(repaired)) throw new ShapeSlotGenerationError("generation_failed", 2);
+  return repaired;
+}
+
 async function fillLearnBlock(request: LearnBlockRequest, provider: SlotProvider | null): Promise<LearnBlockResponse> {
   const plan = firstRoundPlan(request.modifiers.questionMix, request.modifiers.questionCap, request.modifiers.questionTarget);
   const firstSlots = plan.slots.slice(0, MAX_BATCH_QUESTIONS);
@@ -369,7 +392,7 @@ async function fillLearnBlock(request: LearnBlockRequest, provider: SlotProvider
   }, provider !== null);
   const additional = await remainingQuestions({ slots: plan.slots.slice(MAX_BATCH_QUESTIONS), keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, explanation: initial.explanation, priorQuestions: initial.questions });
   const questions = await repairQuestionCollisions([...initial.questions, ...additional], { slots: plan.slots, keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, explanation: initial.explanation });
-  return { ...initial, questions };
+  return { ...initial, questions: await ensureQuestionQuality(questions, { slots: plan.slots, keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, explanation: initial.explanation }) };
 }
 
 // ------------------------------------------------------------------ Slot 3
@@ -460,5 +483,5 @@ async function fillPractice(request: PracticeRequest, provider: SlotProvider | n
   }, provider !== null);
   const additional = await remainingQuestions({ slots: plan.slots.slice(MAX_BATCH_QUESTIONS), keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, excerpts: request.excerpts, priorQuestions: initial.questions, framing: ROUND_FRAMING[request.roundKind], attempt: request.attempt });
   const questions = await repairQuestionCollisions([...initial.questions, ...additional], { slots: plan.slots, keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, excerpts: request.excerpts, framing: ROUND_FRAMING[request.roundKind], attempt: request.attempt });
-  return { ...initial, questions };
+  return { ...initial, questions: await ensureQuestionQuality(questions, { slots: plan.slots, keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, excerpts: request.excerpts, framing: ROUND_FRAMING[request.roundKind], attempt: request.attempt }) };
 }

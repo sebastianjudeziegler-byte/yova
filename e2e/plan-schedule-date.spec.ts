@@ -1,5 +1,5 @@
 import { expect, test, PLAN_FIXED_NOW } from "./helpers/frozen-clock";
-import { openPlanSetupPreview } from "./helpers/plan-setup";
+import { activatePreviewPlan, openPlanSetupPreview } from "./helpers/plan-setup";
 import type { Page } from "@playwright/test";
 import type { LearningPlan } from "../src/lib/domain";
 import type { PlanKnowledgeMap } from "../src/lib/knowledge-map/schema";
@@ -26,8 +26,8 @@ for(const days of [1,3])test(`a ${days}-day deadline retains the full queue and 
  for(let index=1;index<scheduled.length;index++){const previous=scheduled[index-1]!;expect(Date.parse(scheduled[index]!.scheduledFor)-Date.parse(previous.scheduledFor)-previous.estimatedMinutes*60_000).toBeGreaterThanOrEqual(5*60_000);}
  const late=plan.sessions.some(session=>Date.parse(session.scheduledFor)+session.estimatedMinutes*60_000>Date.parse(plan.deadline!));
  if(late){expect(plan.planModel!.constraints?.join(" ")).toContain("after the deadline");await expect(page.getByRole("region",{name:"Plan grouped by topic"})).toContainText("after the deadline");}
- await page.getByRole("button",{name:"Use this plan",exact:true}).click();await expect(page.getByRole("button",{name:"Start next block",exact:true})).toBeVisible();
- const saved=await page.evaluate(()=>{const state=JSON.parse(localStorage.getItem("yova.preview.v1")??"{}");return{plan:state.plans.at(-1),completions:state.sessionCompletions??[]};});
+ const savedPlan=await activatePreviewPlan(page);
+ const saved={plan:savedPlan,completions:await page.evaluate(()=>JSON.parse(localStorage.getItem("yova.preview.v1")??"{}").sessionCompletions??[])};
  expect(saved.plan.deadline).toBe(plan.deadline);expect(saved.plan.sessions).toHaveLength(plan.sessions.length);expect(saved.completions).toEqual([]);
  await testInfo.attach(`deadline-${days}-queue`,{body:JSON.stringify(saved.plan,null,2),contentType:"application/json"});
 });

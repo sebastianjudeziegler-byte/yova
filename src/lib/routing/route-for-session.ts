@@ -41,7 +41,7 @@ export function taskTypeForSession(plan: Pick<LearningPlan, "topic" | "title">, 
   return classifyLearningTask(`${text} ${plan.topic}`).taskType;
 }
 
-export function routingInputForSession({ plan, session, topic, answers, completions = [], now = new Date() }: {
+export function routingInputForSession({ plan, session, topic, answers, completions = [], now = new Date(), independentWorkload = false }: {
   plan: Pick<LearningPlan, "topic" | "title" | "knowledgeMap" | "materials" | "sourceMode"> & { deadline?: string | null };
   session: Pick<LearningPlanSession, "topicIds" | "studyRoute" | "title" | "objective" | "learningMode">;
   topic: KnowledgeMapTopic | null;
@@ -49,6 +49,8 @@ export function routingInputForSession({ plan, session, topic, answers, completi
   /** Completion records, for Interleaved Review eligibility (Brief 1.5 item 3). */
   completions?: readonly SessionCompletion[];
   now?: Date;
+  /** Persisted packed activities cannot acquire unrelated topic work later. */
+  independentWorkload?: boolean;
 }): RoutingInput {
   const taskType = taskTypeForSession(plan, session, topic);
   const topicOwnType = topic ? classifyLearningTask(`${topic.title}. ${topic.description}`).taskType : taskType;
@@ -63,7 +65,7 @@ export function routingInputForSession({ plan, session, topic, answers, completi
     daysToDeadline: daysUntil(plan.deadline ?? null, now),
     subtopicCount: topic?.subtopics.length ?? 0,
     prerequisiteDepth: topic ? prerequisiteDepth(topic.id, plan.knowledgeMap?.topics ?? []) : 0,
-    passedRelatedTopicIds: passedRelatedTopicIds({ plan, topic, completions }),
+    passedRelatedTopicIds: independentWorkload ? [] : passedRelatedTopicIds({ plan, topic, completions }),
   };
 }
 

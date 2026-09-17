@@ -13,13 +13,12 @@ import type { KeyPoint, PracticeQuestion } from "@/lib/practice/compose-practice
 import { personalizationNote } from "@/lib/routing/personalization-note";
 import { chosenBecause, receiptEvidence } from "@/lib/routing/rule-evidence";
 import { hubRail, timerView } from "@/lib/session-shapes/session-hub";
-import { tipRequest, visibleTip, type SessionTip, type TipStep } from "@/lib/session-shapes/session-tips";
+import { studyTipRequests, tipRequest, visibleTip, type SessionTip, type TipStep } from "@/lib/session-shapes/session-tips";
 import {
   alternativeProduceSteps,
   methodNameForProduceStep,
   type ProduceStep,
   type SessionRoute,
-  type SessionShape,
 } from "@/lib/routing/session-route";
 import {
   currentShapeAStep,
@@ -29,7 +28,6 @@ import {
   produceAsText,
   produceStepLabel,
   shapeAReducer,
-  type ShapeAComparison,
   type ShapeADraft,
   type ShapeAProduceInput,
   type ShapeAState,
@@ -60,6 +58,8 @@ import {
 import styles from "./baseline-session.module.css";
 import { AskYova, HubBriefing, HubHeader, HubShapeCard, HubSourceCard, HubTargetCard, HubTimerCard, HubTipCard, StepHead, StepPosition, type MethodControl } from "./session-hub";
 import hubStyles from "./session-hub.module.css";
+import { aggregateBaselineSegmentResults, baselineSegmentResultFits, type BaselineSessionResult, type BaselineSegmentResult } from "@/lib/session-shapes/baseline-session-result";
+export type { BaselineSessionResult } from "@/lib/session-shapes/baseline-session-result";
 
 /**
  * The baseline session runner. Shape A and Shape C are coded step sequences
@@ -70,23 +70,6 @@ import hubStyles from "./session-hub.module.css";
 export type BaselineSessionSource = {
   description: SourceDescription | null;
   excerpts: SourceExcerpt[];
-};
-
-export type BaselineSessionResult = {
-  shape: SessionShape;
-  methodName: string;
-  ruleIds: string[];
-  noteRuleId: string;
-  correctAnswers: number;
-  totalAnswers: number;
-  keyPointOutcomes: Array<{ keyPointId: string; text: string; sourceTopicId?: string; outcome: "secure" | "needs_review" }>;
-  topicDone: boolean;
-  escalated: boolean;
-  produced: string | null;
-  comparison: ShapeAComparison | null;
-  revision?: { produced: string; comparison: ShapeAComparison | null; status: "checked" | "unchecked" };
-  comparisonUnavailable?: boolean;
-  elapsedSeconds: number;
 };
 
 export type BaselineSessionProps = {
@@ -106,6 +89,8 @@ export type BaselineSessionProps = {
   /** Where the learner left off; the session opens on that step (Brief 1.5 item 8). */
   checkpoint?: BaselineCheckpoint | null;
   onCheckpoint?: (checkpoint: BaselineCheckpoint) => boolean | void;
+  /** Each activity uses its actual topic's profile/evidence/source route. */
+  segmentContexts?: Array<{ segmentId: string; route: SessionRoute; topic: KnowledgeMapTopic; interleavedKeyPoints: KeyPoint[] }>;
 };
 
 type SlotStatus = "idle" | "loading" | "ready" | "error";
@@ -124,7 +109,72 @@ function formatClock(seconds: number) {
 }
 
 export function BaselineSession(props: BaselineSessionProps) {
-  const { plan, session, topic, route: baseRoute, nextSession, continuationSession = null, onChangeProduceStep, onExit, onComplete, interleavedKeyPoints, studyLocation = "inside", checkpoint = null, onCheckpoint } = props;
+  return props.session.workload?.segments ? <SegmentedBaselineSession {...props} /> : <SingleBaselineSession {...props} />;
+}
+
+type SingleBaselineSessionProps = BaselineSessionProps & {
+  segmentId?: string;
+  activityPosition?: { number: number; total: number; totalMinutes: number; elapsedBefore: number; priorCorrectAnswers: number; priorTotalAnswers: number; nextTitle?: string };
+};
+
+function SegmentedBaselineSession(props: BaselineSessionProps) {
+  const onCheckpoint = props.onCheckpoint;
+  const segments = props.session.workload!.segments!;
+  const fingerprint = routeFingerprint(props.route, { workload: props.session.workload, learningGoal: props.plan.planModel?.learningGoal });
+  const initial = props.checkpoint?.segmentProgress;
+  const restoredIndex = initial ? segments.findIndex(segment => segment.segmentId === initial.activeSegmentId) : 0;
+  const restored = initial && restoredIndex >= 0 && Array.isArray(initial.completed) && initial.completed.length === restoredIndex && initial.completed.every((entry, index) => entry?.segmentId === segments[index]?.segmentId && entry.checkpoint && baselineSegmentResultFits(segments[index]!.workload, entry.result)) ? initial : undefined;
+  const [index, setIndex] = useState(restored ? restoredIndex : 0);
+  const [completed, setCompleted] = useState<NonNullable<BaselineCheckpoint["segmentProgress"]>["completed"]>(restored?.completed ?? []);
+  const [activeCheckpoint, setActiveCheckpoint] = useState<BaselineCheckpoint | null>(restored ? props.checkpoint ?? null : null);
+  const checkpointRef = useRef<BaselineCheckpoint | null>(activeCheckpoint);
+  const segment = segments[index]!;
+  const context = props.segmentContexts?.find(item => item.segmentId === segment.segmentId);
+  const wholeCheckpoint = useCallback((checkpoint: BaselineCheckpoint): BaselineCheckpoint => ({ ...checkpoint, routeFingerprint: fingerprint, segmentProgress: { activeSegmentId: segment.segmentId, completed } }), [fingerprint, segment.segmentId, completed]);
+  const saveCheckpoint = useCallback((checkpoint: BaselineCheckpoint) => {
+    const outer = wholeCheckpoint(checkpoint);
+    checkpointRef.current = outer;
+    return onCheckpoint?.(outer);
+  }, [wholeCheckpoint, onCheckpoint]);
+  if (!context || (initial && !restored)) return <div className={styles.card} role="alert"><h2>This activity could not be verified.</h2><p>Your saved work is kept. Return to the plan and try again.</p><button type="button" className="button secondary" onClick={props.onExit}>Back to plan</button></div>;
+  const session = { ...props.session, workload: segment.workload, topicIds: segment.workload.topicSubtopics.map(item => item.topicId), learningMode: segment.learningMode, title: context.topic.title, objective: segment.workload.topicSubtopics.flatMap(item => item.subtopics).join("; ") || context.topic.description, estimatedMinutes: segment.workload.estimatedMinutes };
+  const next = segments[index + 1];
+  const nextContext = props.segmentContexts?.find(item => item.segmentId === next?.segmentId);
+  const completeActivity = async (result: BaselineSegmentResult, continueToNext = false) => {
+    const checkpoint = checkpointRef.current;
+    if (!checkpoint || !baselineSegmentResultFits(segment.workload, result)) return false;
+    if (next) {
+      if (!nextContext) return false;
+      const previousDraft = { ...checkpoint };
+      delete previousDraft.segmentProgress;
+      const done = [...completed, { segmentId: segment.segmentId, result, checkpoint: previousDraft }];
+      const nextRoute = applyTopicWorkloadToRoute(nextContext.route, next.workload);
+      const nextCheckpoint: BaselineCheckpoint = {
+        version: 1, planId: props.plan.id, planSessionId: props.session.id, produceStep: nextRoute.produceStep, studyLocation: props.studyLocation ?? "inside", routeFingerprint: fingerprint,
+        savedAt: new Date().toISOString(), elapsedSeconds: 0, started: true,
+        aState: initialShapeAState(nextRoute), cState: initialShapeCState(nextRoute), direction: null, learnBlock: null, practiceKeyPoints: [], tips: {},
+        timer: checkpoint.timer, segmentProgress: { activeSegmentId: next.segmentId, completed: done },
+      };
+      // Persist the completed work and the exact next entry together before
+      // unmounting the first activity. A failed save leaves its end screen.
+      if (props.onCheckpoint?.(nextCheckpoint) === false) return false;
+      checkpointRef.current = nextCheckpoint;
+      setCompleted(done);
+      setActiveCheckpoint(nextCheckpoint);
+      setIndex(index + 1);
+      return true;
+    }
+    const aggregate = aggregateBaselineSegmentResults(props.session.workload!, [...completed, { segmentId: segment.segmentId, result }]);
+    return aggregate ? props.onComplete(aggregate, continueToNext) : false;
+  };
+  return <>
+    {completed.length > 0 && <details className={styles.receipt} data-testid="completed-activity-work"><summary>Activity 1 completed · work kept in this draft</summary>{completed.map(entry => <div key={entry.segmentId}><p>{entry.result.correctAnswers} of {entry.result.totalAnswers} answers correct.</p>{entry.result.produced && <p>{entry.result.produced}</p>}{entry.result.comparison && <p>Original feedback: {entry.result.comparison.feedback}</p>}{entry.result.revision && <p>Correction ({entry.result.revision.status}): {entry.result.revision.produced}</p>}</div>)}</details>}
+    <SingleBaselineSession {...props} key={segment.segmentId} session={session} route={context.route} topic={context.topic} interleavedKeyPoints={context.interleavedKeyPoints} checkpoint={activeCheckpoint} onCheckpoint={saveCheckpoint} onComplete={completeActivity} continuationSession={next ? null : props.continuationSession} segmentId={segment.segmentId} activityPosition={{ number: index + 1, total: segments.length, totalMinutes: props.session.workload!.estimatedMinutes, elapsedBefore: completed.reduce((sum, entry) => sum + entry.result.elapsedSeconds, 0), priorCorrectAnswers: completed.reduce((sum, entry) => sum + entry.result.correctAnswers, 0), priorTotalAnswers: completed.reduce((sum, entry) => sum + entry.result.totalAnswers, 0), nextTitle: nextContext?.topic.title }} />
+  </>;
+}
+
+function SingleBaselineSession(props: SingleBaselineSessionProps) {
+  const { plan, session, topic, route: baseRoute, nextSession, continuationSession = null, onChangeProduceStep, onExit, onComplete, interleavedKeyPoints, studyLocation = "inside", checkpoint = null, onCheckpoint, segmentId, activityPosition } = props;
   const route = useMemo(() => applyTopicWorkloadToRoute(baseRoute, session.workload), [baseRoute, session.workload]);
   const planMaterials = plan.materials;
   const planSourceMode = plan.sourceMode;
@@ -184,7 +234,8 @@ export function BaselineSession(props: BaselineSessionProps) {
     clockRef.current.runningSince ??= Date.now();
     setTimerPaused(false);
   };
-  const timer = timerView({ elapsedSeconds, timerMinutes: route.timerMinutes, extraMinutes: timerExtraMinutes, acknowledgedLimit });
+  const blockElapsedSeconds = elapsedSeconds + (activityPosition?.elapsedBefore ?? 0);
+  const timer = timerView({ elapsedSeconds: blockElapsedSeconds, timerMinutes: activityPosition?.totalMinutes ?? route.timerMinutes, extraMinutes: timerExtraMinutes, acknowledgedLimit });
 
   // ---------------------------------------------------------------- shapes
   const [aState, dispatchA] = useReducer(shapeAReducer, route, (initial) => checkpoint?.aState ? { ...checkpoint.aState, repairStatus: checkpoint.aState.repairStatus === "pending" ? "error" : checkpoint.aState.repairStatus } : initialShapeAState(initial));
@@ -218,7 +269,7 @@ export function BaselineSession(props: BaselineSessionProps) {
   const shownExample = learnBlock?.example ?? direction?.example ?? null;
   const workedExampleIndex = aState.steps.findIndex((step) => step.kind === "worked_structure");
   const exampleShown = workedExampleIndex >= 0 ? aState.exampleViewed ? true : aState.index > workedExampleIndex ? false : undefined : undefined;
-  const happened = useMemo(() => ({ exampleShown, practiceOccurred: cState.rounds.length > 0, repairRoundOccurred: cState.rounds.length > 1, checkInsShown: route.stoppingPoints === "after_each_step" }), [exampleShown, cState.rounds.length, route.stoppingPoints]);
+  const happened = useMemo(() => ({ exampleShown, practiceOccurred: cState.rounds.length > 0, repairRoundOccurred: cState.rounds.length > 1, repairRoundAvailable: cState.phase === "round_complete", checkInsShown: route.stoppingPoints === "after_each_step" }), [exampleShown, cState.rounds.length, cState.phase, route.stoppingPoints]);
   const note = useMemo(() => personalizationNote(route, happened), [route, happened]);
   const pills = useMemo(() => chosenBecause(route, { exampleShown, practiceOccurred: route.shape === "C" || handoffToQuestions }), [route, exampleShown, handoffToQuestions]);
   // Brief 1.5 item 7: every fired rule is named on the end receipt (the difficulty band only by its effect).
@@ -229,14 +280,7 @@ export function BaselineSession(props: BaselineSessionProps) {
     if (written.length) setTips((current) => ({ ...current, ...Object.fromEntries(written.map((tip) => [tip.step, tip])) }));
   }, []);
   const questionsInBlock = route.shape === "C" || handoffToQuestions;
-  const studyTips = useMemo(() => {
-    const first: TipStep = route.shape === "C" ? "brief" : "study";
-    const withQuestions: TipStep[] = [first, "questions", "round", "end"];
-    return {
-      direction: tipRequest(route, questionsInBlock ? [first] : ["study", "produce"], { practiceOccurred: questionsInBlock }),
-      learnBlock: tipRequest(route, questionsInBlock ? withQuestions : ["study", "produce"], { practiceOccurred: questionsInBlock }),
-    };
-  }, [route, questionsInBlock]);
+  const studyTips = useMemo(() => studyTipRequests(route, questionsInBlock), [route, questionsInBlock]);
   const practiceTips = useMemo(() => tipRequest(route, ["questions", "round", "end"], { exampleShown, practiceOccurred: true }), [route, exampleShown]);
   const compareTips = useMemo(() => tipRequest(route, ["compare", "repair", "end"], { exampleShown, practiceOccurred: false }), [route, exampleShown]);
   const abortRef = useRef<AbortController | null>(null);
@@ -248,9 +292,9 @@ export function BaselineSession(props: BaselineSessionProps) {
   const requestStudySlot = useCallback((signal: AbortSignal) => {
     const outside = route.learnPath === "outside";
     const request = outside || (route.learnPath === "source" && sourceDescription)
-      ? requestDirection({ ...makeSlotIds(), planId, planSessionId, action: "direction", topic: slotTopic, modifiers, source: sourceDescription, entry: route.entry === "brief_review" ? "brief_review" : "study_full", excerpts: outside ? source.excerpts.slice(0, 4) : (route.workedStructureBeforeProduce || route.produceStep === "worked_solution") ? source.excerpts.slice(0, 8) : [], wantsExample: !outside && route.workedStructureBeforeProduce, purpose: outside ? "study_outside" : "study_inside", tips: studyTips.direction }, signal)
+      ? requestDirection({ ...makeSlotIds(), planId, planSessionId, segmentId, action: "direction", topic: slotTopic, modifiers, source: sourceDescription, entry: route.entry === "brief_review" ? "brief_review" : "study_full", excerpts: outside ? source.excerpts.slice(0, 4) : (route.workedStructureBeforeProduce || route.produceStep === "worked_solution") ? source.excerpts.slice(0, 8) : [], wantsExample: !outside && route.workedStructureBeforeProduce, purpose: outside ? "study_outside" : "study_inside", tips: studyTips.direction }, signal)
         .then((result) => { setDirection(result); mergeTips(result.tips); })
-      : requestLearnBlock({ ...makeSlotIds(), planId, planSessionId, action: "learn_block", topic: slotTopic, modifiers, tips: studyTips.learnBlock }, signal)
+      : requestLearnBlock({ ...makeSlotIds(), planId, planSessionId, segmentId, action: "learn_block", topic: slotTopic, modifiers, tips: studyTips.learnBlock }, signal)
         .then((result) => { setLearnBlock(result); setPracticeKeyPoints(result.keyPoints); mergeTips(result.tips); });
     request.then(() => setLearnStatus("ready")).catch((error: unknown) => {
       const message = slotErrorMessage(error);
@@ -258,7 +302,7 @@ export function BaselineSession(props: BaselineSessionProps) {
       setLearnError(message);
       setLearnStatus("error");
     });
-  }, [route.learnPath, route.entry, route.workedStructureBeforeProduce, route.produceStep, source.excerpts, sourceDescription, slotTopic, modifiers, planId, planSessionId, studyTips, mergeTips]);
+  }, [route.learnPath, route.entry, route.workedStructureBeforeProduce, route.produceStep, source.excerpts, sourceDescription, slotTopic, modifiers, planId, planSessionId, segmentId, studyTips, mergeTips]);
 
   const needsStudySlot = started && !inQuestions && (
     (route.shape === "A" && (aStep?.kind === "direct" || aStep?.kind === "explanation" || aStep?.kind === "worked_structure" || (aStep?.kind === "produce" && route.produceStep === "worked_solution")))
@@ -288,6 +332,7 @@ export function BaselineSession(props: BaselineSessionProps) {
       ...makeSlotIds(),
       planId,
       planSessionId,
+      segmentId,
       action: "practice",
       topic: slotTopic,
       modifiers,
@@ -308,7 +353,7 @@ export function BaselineSession(props: BaselineSessionProps) {
       if (message === null) return;
       dispatchC({ type: "questions_failed", message });
     });
-  }, [slotTopic, modifiers, sourceExcerpts, planId, planSessionId, route.firstPracticeRound, interleavedKeyPoints, practiceTips, mergeTips]);
+  }, [slotTopic, modifiers, sourceExcerpts, planId, planSessionId, segmentId, route.firstPracticeRound, interleavedKeyPoints, practiceTips, mergeTips]);
 
   const nextRoundNumber = (currentShapeCRound(cState)?.number ?? 0) + 1;
   const outstandingKeyPointIds = cState.outstandingKeyPointIds;
@@ -355,6 +400,7 @@ export function BaselineSession(props: BaselineSessionProps) {
       ...makeSlotIds(),
       planId,
       planSessionId,
+      segmentId,
       action: "compare",
       topic: slotTopic,
       modifiers,
@@ -372,7 +418,7 @@ export function BaselineSession(props: BaselineSessionProps) {
       setCompareError(message);
       setCompareStatus("error");
     });
-  }, [slotTopic, modifiers, sourceExcerpts, practiceProblem, learnBlock, planId, planSessionId, compareTips, mergeTips]);
+  }, [slotTopic, modifiers, sourceExcerpts, practiceProblem, learnBlock, planId, planSessionId, segmentId, compareTips, mergeTips]);
 
   function startCompare(produce: ShapeAProduceInput) {
     setCompareStatus("loading");
@@ -440,7 +486,7 @@ export function BaselineSession(props: BaselineSessionProps) {
     abortRef.current = controller;
     const deadline = window.setTimeout(() => controller.abort(), 45_000);
     requestComparison({
-      ...makeSlotIds(), planId, planSessionId, action: "compare", topic: slotTopic, modifiers,
+      ...makeSlotIds(), planId, planSessionId, segmentId, action: "compare", topic: slotTopic, modifiers,
       produced: text.slice(0, 6_000),
       revision: { originalProduced: produceAsText(aState.produce).slice(0, 6_000), originalComparison: { feedback: aState.comparison.feedback, missing: aState.comparison.missing, incorrect: aState.comparison.incorrect } },
       mapItems: revisedProduce?.kind === "concept_map" && revisedProduce.map ? conceptMapItems(revisedProduce.map) : [],
@@ -463,7 +509,7 @@ export function BaselineSession(props: BaselineSessionProps) {
   const atEnd = route.shape === "A"
     ? (handoffToQuestions ? ["done", "escalate"].includes(cState.phase) : aStep?.kind === "end")
     : ["done", "escalate"].includes(cState.phase);
-  const canOfferContinuation = cState.phase === "done" && continuationSession !== null && elapsedSeconds < (session.workload?.ceilingMinutes ?? route.timerMinutes) * 60;
+  const canOfferContinuation = cState.phase === "done" && continuationSession !== null && blockElapsedSeconds < (session.workload?.ceilingMinutes ?? route.timerMinutes) * 60;
 
   const finish = async (continueToNext = false) => {
     if (finishing) return;
@@ -499,8 +545,9 @@ export function BaselineSession(props: BaselineSessionProps) {
   // No control at all where there is nothing to change to, or the learner asked not to be offered one.
   const methodControl: MethodControl = route.visibility === "silent" || alternatives.length === 0
     ? "hidden"
-    : !inQuestions && aState.index === 0 && !aState.produce ? "enabled" : "locked";
+    : !inQuestions && aState.index === 0 && !aState.produce && (activityPosition?.number ?? 1) === 1 ? "enabled" : "locked";
   const rail = hubRail({ route, aState, cState, atEnd, inQuestions, workload: session.workload });
+  if (activityPosition?.nextTitle) rail.rows = rail.rows.map(row => row.key === "end" ? { ...row, label: "Activity complete", blurb: "Continue to the next planned activity." } : row);
   const tip = started ? visibleTip(tips, rail.tipStep, route, { ...happened, practiceOccurred: inQuestions || (atEnd && cState.rounds.length > 0) }) : null;
   const acknowledgeTimer = () => {
     setAcknowledgedLimit(timer.limitMinutes);
@@ -508,9 +555,9 @@ export function BaselineSession(props: BaselineSessionProps) {
     dispatchC({ type: "acknowledge_timer" });
   };
 
-  return <div className={styles.shell} data-shape={route.shape} data-method={route.methodId} data-rule-ids={route.ruleIds.join(" ")}>
+  return <div className={styles.shell} data-shape={route.shape} data-method={route.methodId} data-rule-ids={route.ruleIds.join(" ")} data-segment-id={segmentId}>
     <HubHeader
-      eyebrow={`${route.input.blockKind === "learn" ? "LEARN BLOCK" : "PRACTICE BLOCK"} · ${plan.title}`}
+      eyebrow={`${route.input.blockKind === "learn" ? "LEARN BLOCK" : "PRACTICE BLOCK"}${activityPosition ? ` · ACTIVITY ${activityPosition.number} OF ${activityPosition.total}` : ""} · ${plan.title}`}
       topic={topicTitle}
       methodLine={`Method: ${route.methodName}`}
       onExit={exitSession}
@@ -590,14 +637,15 @@ export function BaselineSession(props: BaselineSessionProps) {
             {route.stoppingPoints === "after_each_step" && !atEnd && <p className={styles.restated} data-testid="session-check-in">A stopping point: take a pause if you need one. {checkpointIssue ? "Keep this tab open while draft saving is unavailable." : "You can leave and resume from this point."}</p>}
 
             {atEnd && <section className={styles.card} aria-labelledby="baseline-session-end-title">
-              <StepHead>SESSION COMPLETE</StepHead>
+              <StepHead>{activityPosition?.nextTitle ? "ACTIVITY COMPLETE" : "SESSION COMPLETE"}</StepHead>
               <h2 id="baseline-session-end-title">{cState.phase === "escalate" ? "This one isn't sticking yet." : route.shape === "A" && !handoffToQuestions ? aState.comparisonUnavailable ? "Your work is saved for this session." : "You studied, produced and compared." : cState.phase === "done" ? "A full round passed clean." : "Practice complete."}</h2>
               {cState.phase === "escalate" && <div className={styles.feedback}><strong>{SHAPE_C_ESCALATION_MESSAGE}</strong><p>The points you passed stay recorded. Check the next activity in your plan, or finish here.</p></div>}
               <div className={styles.endGrid}>
-                {totals.total > 0 && <div><span>Questions</span><strong>{totals.correct} of {totals.total} correct</strong><small>{cState.rounds.length} {cState.rounds.length === 1 ? "round" : "rounds"}, checked in code</small></div>}
+                {totals.total > 0 && <div><span>{activityPosition ? "This activity" : "Questions"}</span><strong>{totals.correct} of {totals.total} correct</strong><small>{cState.rounds.length} {cState.rounds.length === 1 ? "round" : "rounds"}, checked in code</small></div>}
+                {activityPosition && !activityPosition.nextTitle && <div><span>Whole block</span><strong>{activityPosition.priorCorrectAnswers + totals.correct} of {activityPosition.priorTotalAnswers + totals.total} correct</strong><small>{activityPosition.total} planned activities completed</small></div>}
                 {aState.comparison && <ComparisonSummary state={aState} />}
                 {aState.comparisonUnavailable && <div><span>Comparison</span><strong>Feedback unavailable</strong><small>Your submitted work was kept.</small></div>}
-                <div><span>What&apos;s next</span><strong>{nextSession ? nextSession.title : "Nothing else queued in this plan"}</strong><small>{nextSession ? `${nextSession.learningMode === "learn" ? "Learn block" : "Practice block"} · ${nextSession.estimatedMinutes} min` : "Add a topic or open another plan"}</small></div>
+                <div><span>What&apos;s next</span><strong>{activityPosition?.nextTitle ?? (nextSession ? nextSession.title : "Nothing else queued in this plan")}</strong><small>{activityPosition?.nextTitle ? "The next planned activity in this block" : nextSession ? `${nextSession.learningMode === "learn" ? "Learn block" : "Practice block"} · ${nextSession.estimatedMinutes} min` : "Add a topic or open another plan"}</small></div>
               </div>
               <p className={styles.note} data-rule-id={note.ruleId}><Sparkles size={16} /> <span>{note.sentence}</span></p>
               <details className={styles.receipt} data-testid="session-receipt">
@@ -608,7 +656,7 @@ export function BaselineSession(props: BaselineSessionProps) {
               {canOfferContinuation && continuationSession && <p>You finished the planned questions with time left in your session allowance. Continue to {continuationSession.title}, or finish here.</p>}
               <div className={styles.actions}>
                 {canOfferContinuation && <button type="button" className="button secondary" disabled={finishing} onClick={() => void finish(true)}>Save and start next activity <ArrowRight size={16} /></button>}
-                <button type="button" className="button primary large" disabled={finishing} onClick={() => void finish()}>{finishing ? "Saving…" : "Finish"} {!finishing && <ArrowRight size={16} />}</button>
+                <button type="button" className="button primary large" disabled={finishing} onClick={() => void finish()}>{finishing ? "Saving…" : activityPosition?.nextTitle ? "Continue to next activity" : "Finish"} {!finishing && <ArrowRight size={16} />}</button>
               </div>
             </section>}
           </div>
@@ -617,7 +665,7 @@ export function BaselineSession(props: BaselineSessionProps) {
         <aside className={hubStyles.rail} aria-label="Session hub">
           {tip && <HubTipCard key={`${tip.step}:${tip.title}`} tip={tip} stepNumber={rail.stepNumber} planId={plan.id} topicTitle={topicTitle} />}
           <HubTimerCard
-            clock={formatClock(elapsedSeconds)}
+            clock={formatClock(blockElapsedSeconds)}
             limitMinutes={timer.limitMinutes}
             progress={timer.progress}
             over={timer.over}
