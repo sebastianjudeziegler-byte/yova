@@ -5,7 +5,7 @@ import {
   isSupabaseAdminConfigured,
 } from "@/lib/supabase/admin";
 
-export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "20260917160001";
+export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "20260917170001";
 
 type ReadinessPayload = {
   contractVersion?: unknown;
@@ -19,6 +19,7 @@ type ReadinessPayload = {
   unansweredCompletionFeedback?: unknown;
   livingPlanRevision?: unknown;
   topicPlanWorkloads?: unknown;
+  planSessionReads?: unknown;
 };
 
 export async function signedInGenerationReadinessStatus(): Promise<"ready" | "unavailable"> {
@@ -43,6 +44,7 @@ export async function signedInGenerationReadinessStatus(): Promise<"ready" | "un
       && data.unansweredCompletionFeedback === true
       && data.livingPlanRevision === true
       && data.topicPlanWorkloads === true
+      && data.planSessionReads === true
       ? "ready"
       : "unavailable";
   } catch {

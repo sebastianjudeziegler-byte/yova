@@ -74,7 +74,7 @@ test("an outside assignment opens one outside-YOVA session", async ({ page }) =>
     .toHaveAttribute("aria-checked", "true");
   const plan = await activateStudyNow(page);
   expect(plan.creationIntent).toBe("study_now");
-  expect(plan.studyMode).toBe("outside");
+  expect(plan.studyMode).toBe("outside_yova");
   expect(plan.sessions).toHaveLength(1);
   await expect(page.getByTestId("pre-session-card")).toBeVisible();
 });
@@ -94,7 +94,7 @@ test("a multi-session assignment skips placement and retains its outside source 
   await expect(page.getByRole("button", { name: "Build my plan", exact: true })).toBeVisible();
   const plan = await generatedPlan(await buildPlanFromSchedule(page));
   expect(diagnosticRequestCount()).toBe(0);
-  expect(plan.studyMode).toBe("outside");
+  expect(plan.studyMode).toBe("outside_yova");
   expect(plan.deadline!.slice(0, 10)).toBe(dateIn(14));
   expect(plan.sessions.length).toBeGreaterThan(1);
   expect(plan.sessions.every(session => session.studyRoute?.target.taskFamily === "writing_argumentation")).toBe(true);
@@ -121,7 +121,7 @@ for (const scenario of [
     await expect(page.getByRole("button", { name: "Build my plan", exact: true })).toBeVisible();
     const plan = await generatedPlan(await buildPlanFromSchedule(page));
     expect(diagnosticRequestCount()).toBe(0);
-    expect(plan.studyMode).toBe("inside");
+    expect(plan.studyMode).toBe("inside_yova");
     expect(plan.sessions.length).toBeGreaterThan(1);
     expect(plan.sessions.every(session => session.studyRoute?.target.taskFamily === "writing_argumentation")).toBe(true);
     expect(plan.sessions.map(session => session.title).join(" ")).toMatch(scenario.subject);
@@ -162,7 +162,7 @@ test("a direct 20-minute product-rule request produces one bounded session", asy
   await expect(page.getByRole("radio", { name: "Inside YOVA", exact: true })).toHaveAttribute("aria-checked", "true");
   const plan = await activateStudyNow(page);
   expect(plan.creationIntent).toBe("study_now");
-  expect(plan.studyMode).toBe("inside");
+  expect(plan.studyMode).toBe("inside_yova");
   expect(plan.sessions).toHaveLength(1);
   expect(plan.sessions[0]!.title).toMatch(/product rule/i);
   expect(plan.sessions[0]!.workload?.version).toBe("topic_workload_v1");

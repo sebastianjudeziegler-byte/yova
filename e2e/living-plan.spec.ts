@@ -53,7 +53,9 @@ async function topicActions(page: Page, topicId: string) {
   return topic.getByRole("combobox", { name: /Topic actions/ });
 }
 async function reviewCoverageChange(page: Page, topicId: string) {
-  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+  // Open the reviewed-change composer, then choose coverage. The grouped
+  // plan's inline Mark covered action intentionally applies immediately.
+  await page.getByRole("button", { name: "Add material", exact: true }).click();
   await page.getByLabel("Change type", { exact: true }).selectOption("mark_covered");
   await page.getByLabel("Change topic", { exact: true }).selectOption(topicId);
   await page.getByRole("button", { name: "Preview change", exact: true }).click();
@@ -86,7 +88,7 @@ async function mockShapeSlots(page: Page) {
 async function completeFirstSession(page: Page) {
   const before = await snapshot(page);
   await mockShapeSlots(page);
-  await page.getByRole("button", { name: "Start next session", exact: true }).click();
+  await page.getByRole("button", { name: "Start next block", exact: true }).click();
   const early = page.getByRole("button", { name: "Start now, keep dates" });
   if (await early.isVisible()) await early.click();
   await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click();

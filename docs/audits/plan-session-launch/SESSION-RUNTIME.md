@@ -47,6 +47,12 @@ The receipt now says YOVA **offered** an explicit stopping point, matching the o
 
 ## Browser evidence prepared; execution not asserted here
 
+### Feature-flag boundary (static verification at `96c871b`)
+
+`YOVA_BASELINE_SESSION_SHAPES=false` does **not** select a separate session engine in the current implementation. `startSession` in `src/components/yova-prototype.tsx` always opens the pre-session card or resumes `baseline-session`, and both render branches are unconditional. `resolveBaselineTarget` applies the persisted workload adapter, and `BaselineSession` receives the complete session in either flag setting. New topic-plan workloads therefore use the same planned question counts and execution path with the flag on or off. The comment in `src/app/page.tsx` saying that switching the flag off makes the old generated runtime reachable is stale.
+
+The flag currently switches the onboarding intro, onboarding questions/profile summary and baseline profile editor. The main Playwright config explicitly sets it to false; the baseline config sets it to true. Consequently, a passing core-browser run is not evidence that the intended baseline profile collection and editor were exercised. Production should keep the flag true (or unset, which defaults to true) for the approved learning-profile experience. This is a profile-experience deployment requirement, not a requirement for the workload execution path. Existing saved baseline answers are still read by session routing. This conclusion is from code inspection only; no browser or deployment change was performed for this check.
+
 `e2e/baseline-session-launch.spec.ts` retains successful videos and has two named transport-fixture journeys:
 
 1. **guided map preserves the last keystroke and original/revised provenance across retry and reload** — immediate Exit after the final keystroke; exact map restoration; correction transport failure; correction restoration and retry; original versus revised map feedback. It attaches a timestamped journey index identifying fixture dependencies.

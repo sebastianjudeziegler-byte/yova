@@ -363,7 +363,11 @@ test("a planning request outage still produces a reviewable plan from YOVA's sav
   await beginPlanFromAdd(page, "I have a biology test in two weeks on cellular respiration.");
   await buildPlanFromSchedule(page);
 
-  await expect(page.getByRole("region", { name: "Plan grouped by topic" })).toBeVisible({ timeout: 30_000 });
+  // This browser-preview-only outage path still uses the legacy local
+  // composer. It must stay reviewable and label its fallback honestly; it is
+  // not evidence of server v2 composition or production offline generation.
+  await expect(page.locator(".generated-plan")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Use this plan", exact: true })).toBeVisible();
   const livePlanningIssue = page.locator(".generation-notice[role='alert']");
   await expect(livePlanningIssue).toContainText("Live AI planning failed");
   await expect(livePlanningIssue.getByRole("button", { name: "Retry live planning" })).toBeVisible();

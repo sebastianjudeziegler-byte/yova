@@ -184,32 +184,8 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm build
 
-      - name: Run core learner journey
-        if: ${{ !cancelled() }}
-        continue-on-error: ${{ github.head_ref == 'codex/brief-b-living-plan' }}
-        run: pnpm test:e2e --reporter=list,json
-        env:
-          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/browser.json
-
-      - name: Preserve core and founder browser evidence
-        if: always()
-        run: |
-          if test -d test-results; then cp -R test-results artifacts/quality/core-browser; fi
-
-      # Baseline session shapes (docs/redesign): the flag-on server and its
-      # own cases, kept separate so the pre-baseline suite above runs
-      # unchanged and this step's result is visible on its own.
-      - name: Run baseline session journey
-        if: ${{ !cancelled() }}
-        run: pnpm test:e2e:baseline --reporter=list,json
-        env:
-          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/baseline-browser.json
-
-      - name: Preserve baseline browser evidence
-        if: always()
-        run: |
-          if test -d test-results; then cp -R test-results artifacts/quality/baseline-browser; fi
-
+      # Exercise changed session/model paths first so their failures are
+      # visible before the larger unchanged learner-journey suite finishes.
       # Brief 1.5 item 1: live, unmocked practice retries (one and two missed
       # points) to completion on desktop and mobile. Same-repository runs only,
       # where the model key exists; a missing key fails instead of skipping.
@@ -235,6 +211,45 @@ jobs:
         if: always()
         run: |
           if test -d test-results; then cp -R test-results artifacts/quality/baseline-live-practice; fi
+
+      # Retain the real generated samples and replays immediately, so they
+      # can be reviewed while the broader browser gates continue.
+      - name: Upload live session evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: session-launch-live-${{ github.run_id }}
+          path: |
+            artifacts/quality/baseline-live-practice.json
+            artifacts/quality/baseline-live-practice
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Baseline session shapes (docs/redesign): the flag-on server and its
+      # own cases, kept separate from the unchanged pre-baseline suite so
+      # this step's result is visible on its own.
+      - name: Run baseline session journey
+        if: ${{ !cancelled() }}
+        run: pnpm test:e2e:baseline --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/baseline-browser.json
+
+      - name: Preserve baseline browser evidence
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/quality/baseline-browser; fi
+
+      - name: Run core learner journey
+        if: ${{ !cancelled() }}
+        continue-on-error: ${{ github.head_ref == 'codex/brief-b-living-plan' }}
+        run: pnpm test:e2e --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/browser.json
+
+      - name: Preserve core and founder browser evidence
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/quality/core-browser; fi
 
       - name: Run public authentication journey
         if: ${{ !cancelled() }}

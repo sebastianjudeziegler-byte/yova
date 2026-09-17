@@ -24,6 +24,7 @@ describe("signed-in generation release capability probe", () => {
       unansweredCompletionFeedback: true,
       livingPlanRevision: true,
       topicPlanWorkloads: true,
+      planSessionReads: true,
     }));
 
     await expect(probeSignedInGenerationDatabase({
@@ -48,6 +49,21 @@ describe("signed-in generation release capability probe", () => {
       }),
     );
     expect(fetchImpl.mock.calls[0]?.[1]?.headers).not.toHaveProperty("Authorization");
+  });
+
+  it.each([false, undefined])("rejects a claimed-ready contract without owner session reads: %s", async planSessionReads => {
+    const result = await probeSignedInGenerationDatabase({
+      supabaseUrl: "https://project.supabase.co", supabaseSecretKey: "server-secret-value",
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+        contractVersion: SIGNED_IN_GENERATION_CONTRACT_VERSION, ready: true,
+        studyRoutesSchema: true, planSessionsRoutePointer: true, requiredRouteRpcs: true,
+        expandedMethodAgencyBoundary: true, methodEligibilityV3Boundary: true,
+        placementEvidenceBoundary: true, unansweredCompletionFeedback: true,
+        livingPlanRevision: true, topicPlanWorkloads: true, planSessionReads,
+      })),
+    });
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("owner-scoped plan-session reads");
   });
 
   it("fails closed when the readiness migration is absent", async () => {
@@ -107,6 +123,7 @@ describe("signed-in generation release capability probe", () => {
       unansweredCompletionFeedback: true,
       livingPlanRevision: true,
       topicPlanWorkloads: true,
+      planSessionReads: true,
     }));
 
     await probeSignedInGenerationDatabase({

@@ -49,6 +49,11 @@ export function GroupedTopicPlan({ plan, onStartBlock, onAddMaterial, onEditPlan
   const renderGroup = (group: ReturnType<typeof groupedPlanTopics>[number]) => <article key={group.topic.id} data-topic-id={group.topic.id} className="generated-topic-map">
     <details><summary><strong>{group.complete ? "✓ " : ""}{group.topic.title}</strong> · {group.blocks.length} {group.blocks.length === 1 ? "block" : "blocks"}{group.complete ? " · Complete" : ""}</summary>
       {group.note && <p>{group.note}</p>}
+      {Boolean(group.topic.attachedSources?.length) && <ul aria-label={`Sources for ${group.topic.title}`}>
+        {group.topic.attachedSources!.map((source, index) => <li key={index}>{"url" in source
+          ? <a href={source.url} target="_blank" rel="noreferrer">{source.url}</a>
+          : plan.materials?.find(material => material.id === source.material_id)?.name ?? "Attached source"}</li>)}
+      </ul>}
       <ol>{group.blocks.map(renderBlock)}</ol>
       {onTopicAction && <label>Topic actions for {group.topic.title}<select aria-label={`Topic actions for ${group.topic.title}`} value="" disabled={busy} onChange={event => { if (event.target.value) onTopicAction(group.topic.id, event.target.value as TopicPlanAction); }}><option value="">Choose an action</option><option value="mark_covered">Mark covered</option>{!onChangeMethod && <option value="change_method">Change method</option>}<option value="attach_source">Attach material</option></select></label>}
     </details>

@@ -6,6 +6,29 @@ test.use({ video: "on" });
 const id=(n:number)=>`91000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 const map:PlanKnowledgeMap={version:1,scopeJudgment:{band:"unit_or_exam",label:"Cell transport",minimumSessions:2,recommendedSessions:4,maximumSessions:8,minimumTeachingSessions:2,explanation:"Understand and apply transport processes to unfamiliar experiments."},topics:["Diffusion","Osmosis"].map((title,index)=>({id:id(index+1),title,description:`Explain ${title.toLowerCase()} in unfamiliar cell transport experiments.`,subtopics:["Direction","Energy"],prerequisiteTopicIds:[],status:"not_started",initialEvidence:null,sourceReferences:[],origin:"ai_generated",deferred:null})),placementCheck:{status:"available",completedAt:null,demonstratedTopicIds:[],gapTopicIds:[]}};
 
+test("an initial topic-map failure keeps setup recoverable and retries the same goal",async({page})=>{
+ const goal="Learn cell transport for my biology test next Friday: diffusion and osmosis.";
+ let attempts=0;
+ await page.route("**/api/plans/generate?mode=understanding",async route=>{
+  expect(route.request().postDataJSON().goal).toBe(goal);
+  attempts++;
+  if(attempts===1){await route.fulfill({status:503,json:{error:"Topic mapping is temporarily unavailable."}});return;}
+  await route.continue({postData:JSON.stringify({...route.request().postDataJSON(),knowledgeMap:map})});
+ });
+ await openPlanSetupPreview(page);
+ await page.getByLabel("Learning goal or deadline").fill(goal);
+ await page.getByRole("button",{name:"Continue",exact:true}).click();
+ await page.getByRole("button",{name:/Create it for me/}).click();
+ await page.getByRole("button",{name:"Continue",exact:true}).click();
+ await expect(page.getByRole("heading",{name:"The topic map is not ready yet"})).toBeVisible();
+ await expect(page.getByRole("alert")).toContainText("temporarily unavailable");
+ await page.getByRole("button",{name:"Retry topic map",exact:true}).click();
+ await expect(page.getByRole("heading",{name:"What YOVA understood"})).toBeVisible();
+ expect(attempts).toBe(2);
+ await page.getByRole("button",{name:"Skip corrections",exact:true}).click();
+ await expect(page.getByRole("heading",{name:"When would you prefer to study this material?"})).toBeVisible();
+});
+
 test("setup corrections are atomic, recoverable and do not automatically start placement",async({page})=>{
  let diagnosticRequests=0; let rejectCorrection=true;
  await page.route("**/api/plans/generate**",async route=>{

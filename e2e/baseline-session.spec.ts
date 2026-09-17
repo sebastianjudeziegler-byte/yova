@@ -97,9 +97,17 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   // Q4 exact_guidance: the method is applied silently, no chooser.
   await expect(page.getByRole("button", { name: "Change method" })).toHaveCount(0);
   await expect(page.getByText("Method: Concept Mapping")).toBeVisible();
-  // Q2 10–15 minutes, Q3 very often, Q9 shorter sections → 11-minute nudge.
+  // The workload owns the timer; the saved short-profile answer is its ceiling.
+  const plannedMinutes = await page.evaluate(() => {
+    const plan = JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.at(-1);
+    const session = plan.sessions[0];
+    if (session.estimatedMinutes !== session.workload.estimatedMinutes) throw new Error("Session and workload estimates diverged.");
+    return session.estimatedMinutes as number;
+  });
+  expect(plannedMinutes).toBeGreaterThanOrEqual(8);
+  expect(plannedMinutes).toBeLessThanOrEqual(15);
   await expect(page.getByLabel(/Session timer/)).toContainText("0:");
-  await expect(page.getByRole("region", { name: "Timer" })).toContainText("/ 11:00");
+  await expect(page.getByRole("region", { name: "Timer" })).toContainText(`/ ${plannedMinutes}:00`);
 
   // Brief 1.5 item 6: the hub. Briefing, reasons, shape, tip — every reason a rule that fired.
   await expect(page.getByRole("region", { name: "How to study this" })).toContainText("Concept Mapping");
@@ -271,6 +279,7 @@ test("a try-it-first learner produces before studying and still gets the compari
   await expect(page.getByTestId("baseline-comparison")).toContainText("you didn't mention the proton gradient");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: "Move on", exact: true }).click();
+  await completeOptionalPlannedPractice(page);
   await expect(page.getByRole("heading", { name: /You studied, produced and compared|A full round passed clean/ })).toBeVisible();
   expect([...new Set(calls)]).toEqual(["learn_block", "compare"]);
 });

@@ -38,6 +38,15 @@ describe("functional plan setup and grouped view",()=>{
   const html=renderToStaticMarkup(createElement(GroupedTopicPlan,{plan:{...plan,planModel:{...plan.planModel!,ruleIds:[]}},onAddMaterial:noop,onEditPlan:noop}));
   expect(html).not.toContain(plan.planModel!.personalizationSentence);
  });
+ it("keeps attached topic URLs accessible and identifies attached files in the grouped plan",()=>{
+  const url="https://example.com/cell-transport";
+  const materialId="33333333-3333-4333-8333-333333333333";
+  const sourced:LearningPlan={...plan,materials:[{id:materialId,name:"Transport notes.pdf",mimeType:"application/pdf",sizeBytes:200,textContent:null,processingStatus:"ready"}],knowledgeMap:{...map,topics:map.topics.map((topic,index)=>index?topic:{...topic,attachedSources:[{url},{material_id:materialId}]})}};
+  const html=renderToStaticMarkup(createElement(GroupedTopicPlan,{plan:sourced,onAddMaterial:noop,onEditPlan:noop}));
+  expect(html).toContain(`href="${url}"`);
+  expect(html).toContain("Transport notes.pdf");
+  expect(html).toContain('aria-label="Sources for Diffusion"');
+ });
  it("lets the learner correct topic sources and covered declarations without pretending these are scores",()=>{
   const html=renderToStaticMarkup(createElement(WhatYovaUnderstood,{knowledgeMap:map,materials:[],onContinue:noop,onSkip:noop,onBack:noop}));
   expect(html).toContain("What YOVA understood");expect(html).toContain("YOVA will teach this");expect(html).toContain("does not mark a topic as known");expect(html).toContain("Remove Diffusion");expect(html).toContain("Add a topic");expect(html).not.toContain("Your materials");

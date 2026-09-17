@@ -1,6 +1,6 @@
 # What this work changes
 
-Status: implemented candidate with passing local checks; full CI and live review pending. Not deployed.
+Status: implemented candidate with passing local checks; full browser, database-repair replay and live review pending. Not deployed.
 
 The long-session problem needs both halves: Brief 2 must plan enough worthwhile work, and the session must actually deliver that work. The new queue carries question counts, reading/production work and an honest estimate into the session. Study Now uses the same workload estimator. A clean first round can still finish; missed points get targeted retries. This does not force learners to wait out a timer.
 
@@ -15,3 +15,5 @@ The integrated local suite passed 4,453 tests. The recorded map recovery journey
 One limit remains explicit: a factual block can run out of legitimate planned work before a long allowance—for example, a 33-minute estimate within 60 minutes. It shows the shorter estimate and can offer the next eligible learning block. It does not yet combine another topic into the same ordinary block. That part of Brief 2 is deferred to keep this release bounded and reliable.
 
 Before calling this launch-ready, review the full CI/database results and the actual generated questions. Browser recordings can reduce the time spent checking flows, but they cannot establish whether real learners find the app engaging or learn from it. Undo remains deferred, as requested. Existing plans remain usable; the new model applies to newly generated plans.
+
+CI has also passed the production build. Its new database test caught a missing read permission: a completion could save, then fail to reload. A narrowly scoped migration and deployment check now cover that gap; the next CI run must verify them against the real database.
