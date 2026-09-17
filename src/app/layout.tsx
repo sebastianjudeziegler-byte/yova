@@ -15,6 +15,8 @@ import "katex/dist/katex.min.css";
 import "./globals.css";
 import "./polish.css";
 import "./calendar.css";
+import "./mobile.css";
+import { MobileViewport } from "@/components/mobile-viewport";
 import type { Metadata, Viewport } from "next";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -56,6 +58,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
   themeColor: "#0B1020",
   colorScheme: "light",
 };
@@ -63,7 +66,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><MobileViewport />{children}</body>
     </html>
   );
 }

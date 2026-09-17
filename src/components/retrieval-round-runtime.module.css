@@ -236,3 +236,13 @@
   line-height: 1.5;
   color: var(--muted);
 }
+
+@media (max-width: 760px) {
+  .round { padding: 16px; gap: 16px; min-width: 0; }
+  .hintButton { min-height: 44px; padding-block: 10px; }
+  .actions { align-items: stretch; }
+  .actions button { width: 100%; }
+  .summary { gap: 6px; }
+  .summary div { padding: 12px 8px; min-width: 0; }
+  .summary dt, .learnerText, .expectedText { overflow-wrap: anywhere; }
+}

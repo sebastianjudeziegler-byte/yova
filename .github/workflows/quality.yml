@@ -159,7 +159,7 @@ jobs:
               print(f'Temporarily isolating hosted-image source: {source.name}')
               shutil.move(str(source), str(Path(sys.argv[1]) / source.name))
           PYTHON
-          pnpm exec playwright install --with-deps chromium
+          pnpm exec playwright install --with-deps chromium webkit
 
       - name: Prepare closeout evidence
         if: ${{ !cancelled() }}

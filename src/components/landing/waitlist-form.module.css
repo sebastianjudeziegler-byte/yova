@@ -187,6 +187,11 @@
   }
 }
 
+@media (max-width: 760px) {
+  .form .consent { min-height: 44px; align-items: center; font-size: 14px; }
+  .form .legalNote { font-size: 12px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .form .submitButton {
     transition: none;
