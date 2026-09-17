@@ -19,7 +19,8 @@ const PROFILES = {
 } as const;
 
 type StepRecord = { step: string; screenshot: string; tip: { step: string; ruleId: string; origin: string; title: string; body: string } | null };
-type ProfileRecord = { profile: string; ruleIds: string[]; pills: string[]; steps: StepRecord[] };
+type WorkloadRecord = { estimatedMinutes: number; ceilingMinutes: number; questionCount: number; recallQuestionCount: number; transferQuestionCount: number };
+type ProfileRecord = { profile: string; onboardingAnswers: unknown; workload: WorkloadRecord; ruleIds: string[]; pills: string[]; steps: StepRecord[] };
 
 const recordPath = (testInfo: TestInfo, profile: string) => join(testInfo.project.outputDir, "hub-profiles", `${profile}.json`);
 
@@ -33,7 +34,33 @@ for (const profile of ["P1", "P2"] as const) {
       const result = await response.json().catch(() => null);
       for (const question of result?.questions ?? []) generatedQuestions.set(question.prompt, question);
     });
-    const record: ProfileRecord = { profile, ruleIds: [], pills: [], steps: [] };
+    // Keep the real request and server-sized work beside the recording. A
+    // difference in tip copy alone must never count as personalization.
+    const generatedPlan = page.waitForResponse(response => response.url().includes("/api/plans/generate")
+      && response.request().postDataJSON()?.intent === "study_now", { timeout: 120_000 });
+    await startStudyNow(page, PROFILES[profile]);
+    const response = await generatedPlan;
+    expect(response.ok()).toBe(true);
+    const request = response.request().postDataJSON();
+    expect(request.previewOnboardingAnswers.answers.session_length).toBe(profile === "P1" ? "minutes_10_15" : "minutes_45_60");
+    const generated = await response.json();
+    const session = generated.plan.sessions[0];
+    const workload: WorkloadRecord = {
+      estimatedMinutes: session.workload.estimatedMinutes,
+      ceilingMinutes: session.workload.ceilingMinutes,
+      questionCount: session.workload.questionCount,
+      recallQuestionCount: session.workload.recallQuestionCount,
+      transferQuestionCount: session.workload.transferQuestionCount,
+    };
+    expect(session.estimatedMinutes).toBe(workload.estimatedMinutes);
+    expect(session.studyRoute.provenance.ruleTrace).toEqual(expect.arrayContaining([
+      expect.objectContaining({ ruleId: "baseline_onboarding_v1" }),
+    ]));
+    if (profile === "P1") {
+      expect(workload.ceilingMinutes).toBeLessThanOrEqual(15);
+      expect(workload.estimatedMinutes).toBeLessThanOrEqual(15);
+    }
+    const record: ProfileRecord = { profile, onboardingAnswers: request.previewOnboardingAnswers, workload, ruleIds: [], pills: [], steps: [] };
     const capture = async (step: string) => {
       const screenshot = testInfo.outputPath(`${profile}-${record.steps.length + 1}-${step}.png`);
       await page.screenshot({ path: screenshot, fullPage: true });
@@ -49,9 +76,9 @@ for (const profile of ["P1", "P2"] as const) {
       record.steps.push({ step, screenshot, tip: shown });
     };
 
-    await startStudyNow(page, PROFILES[profile]);
     const shell = page.locator("[data-shape]");
     await expect(shell).toHaveAttribute("data-shape", "A", { timeout: 120_000 });
+    await expect(page.getByLabel(`Session timer, ${workload.estimatedMinutes} minute nudge`, { exact: true })).toBeVisible();
     record.ruleIds = (await shell.getAttribute("data-rule-ids"))?.split(" ") ?? [];
     record.pills = await page.locator("[data-pill-rule-id]").evaluateAll((pills) => pills.map((pill) => pill.getAttribute("data-pill-rule-id") ?? ""));
     for (const pill of record.pills) expect(record.ruleIds).toContain(pill);
@@ -100,6 +127,7 @@ for (const profile of ["P1", "P2"] as const) {
       await capture("end");
     }
 
+    expect(generatedQuestions.size, "actual generated work matches the persisted workload").toBe(workload.questionCount);
     await testInfo.attach(`${profile}-generated-questions.json`, { body: JSON.stringify([...generatedQuestions.values()], null, 2), contentType: "application/json" });
     mkdirSync(join(testInfo.project.outputDir, "hub-profiles"), { recursive: true });
     writeFileSync(recordPath(testInfo, profile), JSON.stringify(record, null, 2));
@@ -107,8 +135,11 @@ for (const profile of ["P1", "P2"] as const) {
   });
 }
 
-test("the two profiles' hubs differ on rule IDs and tip text", async ({}, testInfo) => {
+test("the two profiles have different actual workloads as well as hub rules and tips", async ({}, testInfo) => {
   const [first, second] = (["P1", "P2"] as const).map((profile) => JSON.parse(readFileSync(recordPath(testInfo, profile), "utf8")) as ProfileRecord);
+  expect(first!.workload.estimatedMinutes).toBeLessThanOrEqual(15);
+  expect(second!.workload.estimatedMinutes).toBeGreaterThanOrEqual(first!.workload.estimatedMinutes + 5);
+  expect(second!.workload.questionCount).toBeGreaterThanOrEqual(first!.workload.questionCount + 2);
   expect(first!.pills).not.toEqual(second!.pills);
   const tipFor = (record: ProfileRecord, step: string) => record.steps.find((entry) => entry.tip?.step === step)?.tip ?? null;
   for (const step of ["study", "produce", "compare", "repair", "end"]) {

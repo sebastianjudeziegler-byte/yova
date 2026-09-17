@@ -1,5 +1,6 @@
 import { writeOnboardingAnswers } from "@/lib/onboarding/answers";
 import { immediateTopicWorkload } from "@/lib/plan-generation/topic-plan-model";
+import { initialPlanBaselineMethod } from "@/lib/study-route/initial-plan-baseline-method";
 import { NextResponse } from "next/server";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
 import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
@@ -651,7 +652,7 @@ export async function POST(request: Request) {
         if (!selectedTopics.length) throw new Error("Study Now needs an accepted topic before workload sizing.");
         const workload = immediateTopicWorkload({ request: planRequest, topic: selectedTopics[0]!, topics: selectedTopics,
           learn: durationDecision.plan.sessions[0]!.learningMode === "learn",
-          answers: rolloutDecision.personalizationEnabled ? durationContext.onboardingAnswers : undefined, ceilingMinutes,
+          answers: durationContext.onboardingAnswers, ceilingMinutes,
         });
         const workloadDecision = { ...durationDecision.decision, routerVersion: `${durationDecision.decision.routerVersion}+topic_workload_v1`,
           timing: { ...durationDecision.decision.timing, activeMinutes: workload.estimatedMinutes, elapsedMinutes: workload.estimatedMinutes },
@@ -751,7 +752,7 @@ export async function POST(request: Request) {
   }
 
   const methodContext = {
-    ...(normalPlanRolloutDecision.personalizationEnabled && initialPlanContext.onboardingAnswers ? { baselineOnboardingAnswers: initialPlanContext.onboardingAnswers } : {}),
+    ...(initialPlanContext.onboardingAnswers ? { baselineOnboardingAnswers: initialPlanContext.onboardingAnswers } : {}),
     profileVersion: initialPlanContext.methodProfileVersion,
     personalization: personalizationForPlanRequest(
       initialPlanContext.methodEvidence.personalization,
@@ -1129,20 +1130,26 @@ function studyNowMethodDecision({
     personalization,
     observedEvidence: context.methodEvidence.observedEvidence,
   });
+  const selection = selectCanonicalStudyMethod({
+    ...methodSelectionContextForStudyRoute(route),
+    currentComparisonKey: methodEvidenceComparisonKey(
+      methodEvidenceComparisonContextForRoute(route),
+    ),
+    learnerChoice: planRequest.methodChoice
+      ? {
+          methodId: planRequest.methodChoice.methodId,
+          evidenceRef: `learner-choice:study-now:${planRequest.methodChoice.methodId}`,
+        }
+      : null,
+    ...routedInputs,
+  });
   return {
-    selection: selectCanonicalStudyMethod({
-      ...methodSelectionContextForStudyRoute(route),
-      currentComparisonKey: methodEvidenceComparisonKey(
-        methodEvidenceComparisonContextForRoute(route),
-      ),
-      learnerChoice: planRequest.methodChoice
-        ? {
-            methodId: planRequest.methodChoice.methodId,
-            evidenceRef: `learner-choice:study-now:${planRequest.methodChoice.methodId}`,
-          }
-        : null,
-      ...routedInputs,
-    }),
+    selection: context.onboardingAnswers && !planRequest.methodChoice
+      ? initialPlanBaselineMethod(selection, context.onboardingAnswers, planRequest, {
+        topicIds: route.target.targetStates.map(target => target.targetId),
+        learningMode: route.approach.mode === "learn" ? "learn" : "study",
+      })
+      : selection,
     profileVersion: context.methodProfileVersion,
     rolloutDecision,
     agencyMode: resolveStudyRouteAgencyMode(
@@ -1192,7 +1199,9 @@ function durationContextForRollout(
   });
   return {
     profileVersion: context.profileVersion,
-    ...(decision.personalizationEnabled && context.onboardingAnswers ? { onboardingAnswers: context.onboardingAnswers } : {}),
+    // Direct baseline choices are the Brief 2 product policy. The older
+    // rollout still gates canonical signals and observed-history adaptation.
+    ...(context.onboardingAnswers ? { onboardingAnswers: context.onboardingAnswers } : {}),
     profile: routedInputs.personalization
       ?? buildAuthorizedNormalDurationProfile([]),
     recentOutcomes: routedInputs.observedEvidence,

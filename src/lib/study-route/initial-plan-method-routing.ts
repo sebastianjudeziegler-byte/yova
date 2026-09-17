@@ -106,7 +106,7 @@ export function integrateInitialPlanMethodRoutes({
     });
     const isFixedPlan = route.provenance.routerVersion.split("+").includes(NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION);
     const profileSelected = isFixedPlan ? initialPlanProfileMethod(canonicalSelection, routedInputs.personalization?.canonicalProfile, Boolean(routedInputs.personalization?.preferredMethodIds?.length || context.methodChoicesBySequence?.[session.sequence])) : canonicalSelection;
-    const selected = context.baselineOnboardingAnswers && rolloutDecision.personalizationEnabled && !context.methodChoicesBySequence?.[session.sequence]
+    const selected = context.baselineOnboardingAnswers && !context.methodChoicesBySequence?.[session.sequence]
       ? initialPlanBaselineMethod(profileSelected, context.baselineOnboardingAnswers, request, session)
       : profileSelected;
     const proposed = methodReasons?.[index];

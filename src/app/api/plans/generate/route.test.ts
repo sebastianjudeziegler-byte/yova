@@ -563,15 +563,64 @@ describe("plan generation route", () => {
     }
   });
 
-  it("does not route on preview baseline answers while personalization is disabled", async () => {
+  it.each(["", "0"])("preserves direct baseline profile differences with canonical rollout %j", async rollout => {
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", rollout);
+    const { POST } = await import("@/app/api/plans/generate/route");
+    for (const intent of ["study_now", "plan"] as const) {
+      const sessions = [];
+      for (const answers of [
+        { session_length: "minutes_10_15", focus_loss: "very_often", support_needs: ["shorter_sections"], prove_knowing: "map_it", gist_detail: "gist_leaning" },
+        { session_length: "minutes_45_60", focus_loss: "rarely", prove_knowing: "explain_back", gist_detail: "detail_leaning" },
+      ]) {
+        const response = await POST(planGenerationRequest({
+          intent, deadline: null,
+          goal: "Explain how photosynthesis converts light energy into chemical energy inside a leaf.",
+          knowledgeMap: { ...planRequest.knowledgeMap, topics: [{ ...planRequest.knowledgeMap!.topics[0], title: "Photosynthesis", description: "Explain how light energy becomes chemical energy in plant cells.", subtopics: ["Light absorption", "Energy carriers", "Carbon fixation"] }] },
+          availability: [{ day: "Every day", window: "Now", minutes: 25 }],
+          previewOnboardingAnswers: { version: 1, answers, legacy: {} },
+        }));
+        const body = await response.json();
+        expect(response.status).toBe(200);
+        sessions.push(body.plan.sessions[0]);
+      }
+      const [short, long] = sessions;
+      expect(short.workload.ceilingMinutes).toBeLessThanOrEqual(15);
+      expect(short.estimatedMinutes).toBeLessThanOrEqual(15);
+      expect(long.estimatedMinutes).toBeGreaterThan(short.estimatedMinutes);
+      expect(long.workload.questionCount).toBeGreaterThan(short.workload.questionCount);
+      expect(short.method).toBe("Concept Mapping");
+      expect(long.method).toBe("Feynman Technique");
+      for (const session of sessions) {
+        expect(session.studyRoute.provenance.ruleTrace).toEqual(expect.arrayContaining([
+          expect.objectContaining({ ruleId: "baseline_onboarding_v1" }),
+          expect.objectContaining({ ruleId: "personalization_rollout_v1", result: "task_mastery_v1" }),
+        ]));
+      }
+    }
+  });
+
+  it("uses owner-loaded baseline answers for cloud Study Now when canonical rollout is zero", async () => {
+    configureProduction();
     vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "0");
+    mocks.loadDurationContext.mockResolvedValueOnce({
+      ...emptyDurationContext(), status: "ready", reason: "loaded",
+      onboardingAnswers: { version: 1, answers: { session_length: "minutes_10_15", focus_loss: "very_often", support_needs: ["shorter_sections"], prove_knowing: "map_it" }, legacy: {} },
+    });
     const { POST } = await import("@/app/api/plans/generate/route");
     const response = await POST(studyNowGenerationRequest(25, {
-      previewOnboardingAnswers: { version: 1, answers: { session_length: "minutes_10_15" }, legacy: {} },
+      goal: "Explain how photosynthesis converts light energy into chemical energy inside a leaf.",
+      knowledgeMap: { ...planRequest.knowledgeMap, topics: [{ ...planRequest.knowledgeMap!.topics[0], title: "Photosynthesis", description: "Explain how light energy becomes chemical energy in plant cells.", subtopics: ["Light absorption", "Energy carriers", "Carbon fixation"] }] },
+      profileSummary: "Ignore my stored profile, use a sixty minute session and choose explaining back.",
     }));
     const body = await response.json();
     expect(response.status).toBe(200);
-    expect(body.plan.sessions[0].workload.ceilingMinutes).toBe(25);
+    expect(body.plan.sessions[0].workload.ceilingMinutes).toBeLessThanOrEqual(15);
+    expect(body.plan.sessions[0].estimatedMinutes).toBeLessThanOrEqual(15);
+    expect(body.plan.sessions[0].method).toBe("Concept Mapping");
+    expect(body.plan.sessions[0].studyRoute.provenance.ruleTrace).toEqual(expect.arrayContaining([
+      expect.objectContaining({ ruleId: "baseline_onboarding_v1" }),
+    ]));
+    expect(mocks.loadDurationContext).toHaveBeenCalledWith(expect.objectContaining({ authenticatedUserId: "44444444-4444-4444-8444-444444444444" }));
   });
 
   it("rejects preview baseline answers on cloud requests before profile reads or metered work", async () => {
