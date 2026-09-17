@@ -49,4 +49,3 @@ AssertionError: expected 172800000 to be greater than or equal to 432000000
       Tests  3 failed | 17 passed (20)
    Start at  15:54:24
    Duration  654ms (transform 188ms, setup 0ms, import 266ms, tests 313ms, environment 0ms)
-

@@ -90,4 +90,3 @@ AssertionError: expected 15 to be 20 // Object.is equality
       Tests  4 failed | 7 passed (11)
    Start at  16:03:23
    Duration  421ms (transform 178ms, setup 0ms, import 337ms, tests 14ms, environment 0ms)
-

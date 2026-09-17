@@ -64,3 +64,7 @@ Product choices and ownership are resolved. Implementation is complete when the 
 ## Compatibility decision during implementation
 
 Automatic approval review rejected blocking every existing non-Study-Now plan that lacks `planModel`: that could disrupt existing users without a migration. Existing plans therefore retain their compatible session path. New plans use the topic model; any founder-owned deletion of older plans remains a separate action. This is a narrowly scoped reliability exception to the supplied old-plan opening restriction, not a claim that old plans were migrated.
+
+## Bounded fill exception for launch reliability
+
+Within-block sweeping of the next ordinary-plan topic is deferred. The current shared workload can fill substantive questions up to a 32-question cap, then keeps the actual shorter estimate. A concrete memorization example with a 60-minute ceiling contains 32 questions and reveals estimated at 33 minutes; it displays 33 minutes. Optional next-topic continuation is a separate learner action, not proof that the initial block was filled. This is an explicit gap against the supplied within-block sweep rule and does not constitute complete Brief 2 parity. Implementing sweep safely requires coordinated topic/source/evidence attribution and queue changes; it is not being patched into the composer immediately before launch verification.
