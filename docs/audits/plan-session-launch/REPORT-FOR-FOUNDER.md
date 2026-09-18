@@ -216,6 +216,22 @@ questions in one go. I suggest adding, after that bullet:
 
 Approved on 18 Sept 2026 and added to `05-PLAN-MODEL.md` section 1 as written.
 
+## The question reviewer: two fixes and an honest measurement
+
+**Warm-up questions are no longer rejected for being warm-up.** With practice in
+parts, the first part is mostly recall. The reviewer was judging those recall
+questions against the session's goal of applying ideas and throwing most of
+them out — 30 of 49 rejections in one run. It now judges each question against
+the kind of question it was planned to be. Recall still has to be correct,
+unambiguous and not answerable by matching wording, and nothing else about the
+check changed. Approved by you.
+
+**How reliable is the reviewer?** The canary — a real past question with no fully
+correct answer — is now reviewed five times per CI run, alongside its corrected
+version five times. It must catch the bad one at least four times out of five
+and accept the good one at least four times out of five. You'll get the actual
+numbers from the next run.
+
 ## What is still open
 
 - The two browser regressions from earlier branch work: a quick-add deadline

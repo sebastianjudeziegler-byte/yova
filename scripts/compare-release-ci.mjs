@@ -38,7 +38,9 @@ const retiredLive = liveIds(isRetired);
 const live = compareLiveReports(main, after, {
   retired: retiredLive,
   renamed: liveIds(isRenamed),
-  scoped: after.rows.filter(row => row.id.includes("History essay using outside sources") && row.file.includes("plan-session-journey") || row.file.includes("personalization-delta")).map(row => row.id),
+  // The History essay journey left the scoped list on 18 Sept 2026 (founder
+  // decision): intermittent, now FLAKY in policy.json and backlogged.
+  scoped: after.rows.filter(row => row.file.includes("personalization-delta")).map(row => row.id),
   quarantined: Object.entries(policy.cases).filter(([, value]) => value.classification === "FLAKY").map(([id]) => id),
 });
 const mainBrowser = read(`${baseline}/main-browser-baseline.json`);

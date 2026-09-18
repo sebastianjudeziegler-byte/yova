@@ -948,3 +948,28 @@ the whole reply was discarded.
 
 4,593 unit tests pass; lint and types clean. The next run's rejection-code tally
 will show whether `demand_not_met` on recall parts stops.
+
+
+### Founder decisions, 18 Sept 2026 (evening)
+
+- **Recall judged against recall — approved.** "Rejecting warm-up questions for
+  being warm-up is the bug." Commit `cde4169` stands as written.
+- **The CI410 canary is sampled.** `src/evals/practice-answer-quality.live.test.ts`
+  now reviews the retained no-correct-option question 5 times and its sound
+  replacement 5 times, each on a fresh provider, in parallel. It requires the
+  bad question caught in at least 4 of 5 and the sound replacement accepted in
+  at least 4 of 5, and prints and saves both rates
+  (`artifacts/quality/canary-hit-rate.json`): caught, missed, accepted, wrongly
+  rejected, and unusable replies. "Most of the time" is set at 4 of 5; the
+  literal majority would be 3 of 5.
+- **History essay is intermittent.** `plan-session-journey` "History essay using
+  outside sources" is FLAKY in `scripts/live-gate/policy.json`, with its
+  history: not among run 427's failures, failed in runs 428 and 430 with no
+  plan-session change between them. It was also hard-coded in the comparator's
+  scoped list, which can never be quarantined, so it is removed from that list.
+  Backlogged.
+- **The deadline priority card was already restored** in `38a9b0a` (earlier on
+  18 Sept) and is in the branch head. In run 430 all five restored browser cases
+  passed on desktop and phone: "explicit 1/3/5/9-minute availability remains a
+  priority card" and "consolidated: a three-minute priority records no
+  completion".
