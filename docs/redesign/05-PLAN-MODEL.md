@@ -56,6 +56,13 @@ value.
   ratio, and sweep in the next ready topic if there is one. The profile
   decides the block size; the content is made to fit it. A 40-minute learner
   must never get five easy questions and a 40-minute timer.
+- **Delivery in parts.** A block's practice is delivered in parts of at most
+  eight questions, easiest first (recall, then application and comparison).
+  Each part is generated and independently reviewed on its own; the next part
+  is prepared while the learner answers the current one. The block's size and
+  timer are unchanged — the profile still decides how much practice a block
+  holds; parts only decide how it arrives. Missed-point repair follows the
+  whole block.
 - The timer shown on a block is that block's estimate. Brief 1.5's hub reads
   `block.estimatedMinutes`, which Brief 2 makes real.
 

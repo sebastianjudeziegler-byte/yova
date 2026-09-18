@@ -214,7 +214,7 @@ questions in one go. I suggest adding, after that bullet:
 >   holds; parts only decide how it arrives. Missed-point repair follows the
 >   whole block.
 
-I have not edited `05-PLAN-MODEL.md`; it's your document.
+Approved on 18 Sept 2026 and added to `05-PLAN-MODEL.md` section 1 as written.
 
 ## What is still open
 
