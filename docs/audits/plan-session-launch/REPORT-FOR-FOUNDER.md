@@ -229,8 +229,21 @@ check changed. Approved by you.
 **How reliable is the reviewer?** The canary — a real past question with no fully
 correct answer — is now reviewed five times per CI run, alongside its corrected
 version five times. It must catch the bad one at least four times out of five
-and accept the good one at least four times out of five. You'll get the actual
-numbers from the next run.
+and accept the good one at least four times out of five. First measurement (CI run
+432): **it caught the bad question 5 times out of 5 and accepted the corrected
+one 5 times out of 5.** Treat that as one small sample, not a guarantee — on
+earlier runs a single review missed the same bad question twice — so the number
+worth watching is the rate across runs.
+
+## Where the branch stands (CI run 432)
+
+**The release gate passes: no regressions versus main.** Every live practice
+check passed, including the 24- and 32-question sessions now delivered in parts.
+The reviewer rejected 8 of 186 questions, down from 49, and only one of those for
+not asking the right kind of thinking — the rest are genuine repeats and one
+ambiguous question. The only red steps are the five browser cases that also fail
+on main, and the raw live list, which goes red whenever any single live check
+fails.
 
 ## What is still open
 

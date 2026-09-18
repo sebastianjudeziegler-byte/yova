@@ -973,3 +973,41 @@ will show whether `demand_not_met` on recall parts stops.
   passed on desktop and phone: "explicit 1/3/5/9-minute availability remains a
   priority card" and "consolidated: a three-minute priority records no
   completion".
+
+
+### CI run 432 on `83a1c49` ([35373491165](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35373491165)) — the gate passes
+
+**Release comparison: "No regressions versus main."** Zero blocking cases against
+main `0ce2292`: 4 no regression, 2 established flaky quarantine, 5 unavailable,
+10 pre-existing. Raw live counts `{"pass":48,"fail":5,"flaky":21,"unavailable":5}`.
+Only two steps are red: the core journey, which fails exactly main's own five
+cases (material drop zone on both projections, three phone calendar cases), and
+the raw live gate, which is red whenever any single live case fails and is read
+through the comparison above.
+
+**Live practice: 17 of 17 passed**, including the 6-, 24- and 32-question
+workloads delivered part by part. The synthetic 32-question trace passed in four
+parts (62.5 s in total).
+
+**The recall fix held.** Across the live step the reviewer checked 186 questions
+and rejected 8 (4.3%), against 49 rejected in run 430:
+
+| Code | Run 430 | Run 432 |
+| --- | --- | --- |
+| `demand_not_met` | 30 | 1 |
+| `repeated` / `duplicate` | 6 / 6 | 5 / 5 |
+| `answer_disagrees` | 3 | 1 |
+| `ambiguous`, `missing_conditions`, `unsupported` | 1, 1, 1 | 1, 1, 0 |
+
+The remaining rejections are the kind the check exists for: repeats, one
+ambiguous stem, one answer that disagreed with its key.
+
+**The canary, first sampled measurement:** `{"samples":5,"required":4,
+"badQuestionCaught":5,"badQuestionMissed":0,"soundReplacementAccepted":5,
+"soundReplacementWronglyRejected":0,"unusableReplies":0}` — the retained
+no-correct-option question was caught in 5 of 5 reviews, and its corrected
+replacement accepted in 5 of 5. One run of five each is a small sample; earlier
+single draws missed the bad question in runs 424 and 430, so the true catch rate
+is not 100%, and the rate across runs is what to watch. The full live gate also
+ran the canary, but its per-file output is not in the step log, so it is not
+counted here.
