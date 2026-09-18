@@ -548,3 +548,39 @@ deterministic refusals as `40001` (for example
 the ten the client classifies as permanent; if one of the others is raised, it
 hangs the same way. Out of scope for the founder's decision, recorded rather
 than fixed.
+
+
+## CI run 424 on `e2d7777` ([35286974561](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35286974561))
+
+The gate's blocking set falls again, **33 → 25**, and the baseline fix does what
+it was meant to: cases that fail on main as well now read as "pre-existing or
+improved" (10, was 5) instead of being charged to this branch. All 18 remaining
+"required case was not executed" entries are the nine `notReplaced` cases across
+two projections — nothing unaccounted for is missing any more. Live practice:
+**16 passed, 1 failed**. Core journey: the same nine, five of them main's own.
+
+Step 11 failed on **my own new boundary test**, not on the migration: assertion
+3 expected `complete_plan_session_with_route` to still contain a `40001` raise,
+and it no longer contains one — every refusal that function raises was on the
+permanent list. The other application-raised `40001`s live in the neighbouring
+route and review writers. The assertion now counts them across the schema, which
+is what it meant to check. The migration's three real assertions passed,
+including readiness reporting `permanentConflictsAnswer`.
+
+Two live cases need a decision rather than another attempt:
+
+**The 32-question workload has now failed in three different places**, always
+within a second or two of the same wall: 46.9 s (quality re-check, run 420),
+48.0 s (additional generation batches, run 423), 48.1 s (quality re-check again,
+run 424), against a 50-second shared budget. Each time a call came back unusable
+twice and `withOneRetry` gave up. The place moves; the wall does not. One topic
+with 32 questions, each independently reviewed, does not fit this budget
+reliably — that is a sizing question, not another patch.
+
+**The retained CI #410 canary missed its own question.** `finds the actual CI410
+no-correct-option failure and accepts a sound replacement` passed in run 423 and
+failed in run 424: the reviewer returned `rejected: []` for the retained
+question that has no fully correct option. Same code, same prompt, different
+answer — the review is a model and is fallible, as the hand-over said. Two
+samples is not enough to call it either broken or noise, and it is the canary
+for the whole quality feature, so it should not be quarantined quietly.
