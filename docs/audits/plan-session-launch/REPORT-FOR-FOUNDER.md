@@ -186,6 +186,36 @@ usage is charged, as it was on main. Its five browser checks are back under
 their original names, and the unit tests that assert it failed first and pass
 now.
 
+## Long sessions now come in parts of eight
+
+Your option B. A long session is still one sitting, sized by the learner's
+answers, but its practice arrives in parts of at most eight questions, built up
+from recall to application and comparison. A 32-question session is four parts;
+a short session looks exactly as before.
+
+Why it fixes the failures: making and checking 32 questions in one go needed
+five model steps in a row inside 50 seconds, and it only fitted when every step
+was quick. Now each part is its own small job — about 25 to 30 seconds — and the
+next part is prepared while the learner answers the current one, so there is
+normally no wait. The counter reads "Part 2 of 3 · Question 1 of 8", the last
+question of a part says "Next part", and missed points are still repaired after
+the whole session, not after each part. If a part can't be built, the learner
+sees that only when they reach it, keeps every answer, and can try again.
+
+**For your approval — a wording change to the plan-model spec.** Section 1,
+"Fill to capacity", still assumes one block can be filled with up to 32
+questions in one go. I suggest adding, after that bullet:
+
+> - **Delivery in parts.** A block's practice is delivered in parts of at most
+>   eight questions, easiest first (recall, then application and comparison).
+>   Each part is generated and independently reviewed on its own; the next part
+>   is prepared while the learner answers the current one. The block's size and
+>   timer are unchanged — the profile still decides how much practice a block
+>   holds; parts only decide how it arrives. Missed-point repair follows the
+>   whole block.
+
+I have not edited `05-PLAN-MODEL.md`; it's your document.
+
 ## What is still open
 
 - The two browser regressions from earlier branch work: a quick-add deadline

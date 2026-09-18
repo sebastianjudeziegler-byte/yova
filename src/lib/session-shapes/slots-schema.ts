@@ -151,7 +151,24 @@ export const PracticeRequestSchema = z.object({
     chosenAnswer: z.string().trim().min(1).max(240),
     correctAnswer: z.string().trim().min(1).max(240),
   }).strict()).max(8).default([]),
+  /**
+   * A later part of a long first pass (founder decision, 18 Sept 2026: one
+   * sitting in parts of at most eight, built up from recall). Absent for a
+   * single-part round. The server recomputes which slots the part holds.
+   */
+  part: z.object({ index: z.number().int().min(1).max(4), count: z.number().int().min(1).max(4) }).strict().optional(),
+  /** Prompts the learner has already been given in this pass, so a later part asks something new. */
+  priorPrompts: z.array(z.string().trim().min(1).max(500)).max(24).optional(),
 }).strict();
+
+/** Why a practice part cannot be served, or null. Structure only; the server checks the count after hydration. */
+export function practicePartProblem(request: Pick<PracticeRequest, "round" | "part" | "keyPoints">): string | null {
+  if (!request.part) return null;
+  if (request.round !== 1) return "Only the first pass is delivered in parts.";
+  if (request.part.index > request.part.count) return "This part is past the end of the pass.";
+  if (request.part.index > 1 && request.keyPoints.length === 0) return "A later part needs the key points the first part established.";
+  return null;
+}
 
 export const ShapeSlotRequestSchema = z.discriminatedUnion("action", [
   DirectionRequestSchema,

@@ -41,6 +41,8 @@ import {
   shapeCReducer,
   shapeCTotals,
   shapeCKeyPointOutcomes,
+  shapeCPartPosition,
+  shapeCPartsRemaining,
   type ShapeCState,
 } from "@/lib/session-shapes/shape-c";
 import { makeSlotIds, requestComparison, requestDirection, requestLearnBlock, requestPractice, ShapeSlotClientError } from "@/lib/session-shapes/slots-client";
@@ -372,6 +374,49 @@ function SingleBaselineSession(props: SingleBaselineSessionProps) {
     return () => controller.abort();
   }, [practiceLoading, nextRoundNumber, outstandingKeyPointIds, practiceKeyPoints, repairTargets, requestPracticeRound]);
   const retryPractice = () => dispatchC({ type: "continue" });
+
+  // A long first pass arrives in parts of at most eight (founder decision,
+  // 18 Sept 2026). The next part is asked for as soon as the current one is
+  // delivered, so it is normally ready before the learner reaches it.
+  const firstRoundQuestions = cState.rounds.length === 1 ? cState.rounds[0]!.questions : null;
+  const priorPrompts = useMemo(() => (firstRoundQuestions ?? []).map((question) => question.prompt).slice(-24), [firstRoundQuestions]);
+  const nextPartIndex = (cState.partsDelivered ?? 1) + 1;
+  const partWanted = started && inQuestions && shapeCPartsRemaining(cState) > 0 && !cState.pendingPart && !cState.partError
+    && ["question", "revealed", "part_loading"].includes(cState.phase);
+  const requestNextPart = useCallback((index: number, count: number, prompts: string[], knownKeyPoints: KeyPoint[], signal: AbortSignal) => {
+    requestPractice({
+      ...makeSlotIds(),
+      planId,
+      planSessionId,
+      segmentId,
+      action: "practice",
+      topic: slotTopic,
+      modifiers,
+      round: 1,
+      part: { index, count },
+      priorPrompts: prompts,
+      keyPoints: knownKeyPoints,
+      outstandingKeyPointIds: [],
+      excerpts: sourceExcerpts.slice(0, 8),
+      attempt: crypto.randomUUID(),
+      roundKind: practiceRoundKind(route.firstPracticeRound, 1),
+      repairTargets: [],
+      tips: [],
+    }, signal).then((result) => {
+      dispatchC({ type: "part_ready", questions: result.questions });
+    }).catch((error: unknown) => {
+      const message = slotErrorMessage(error);
+      if (message === null) return;
+      dispatchC({ type: "part_failed", message });
+    });
+  }, [slotTopic, modifiers, sourceExcerpts, planId, planSessionId, segmentId, route.firstPracticeRound]);
+  const firstPassParts = cState.firstPassParts ?? 1;
+  useEffect(() => {
+    if (!partWanted || !practiceKeyPoints.length) return;
+    const controller = new AbortController();
+    requestNextPart(nextPartIndex, firstPassParts, priorPrompts, practiceKeyPoints, controller.signal);
+    return () => controller.abort();
+  }, [partWanted, nextPartIndex, firstPassParts, priorPrompts, practiceKeyPoints, requestNextPart]);
 
   /**
    * Round 1 of an AI-explained block reuses the questions generated in the
@@ -914,6 +959,9 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
   if (state.phase === "loading") {
     return <section className={styles.card}><StepHead>CLOSED-BOOK PRACTICE</StepHead><p className={styles.loading}><span className="button-spinner dark" /> Writing your questions…</p></section>;
   }
+  if (state.phase === "part_loading") {
+    return <section className={styles.card}><StepHead>PART {(state.partsDelivered ?? 1) + 1} OF {state.firstPassParts ?? 1}</StepHead><p className={styles.loading}><span className="button-spinner dark" /> Preparing the next part…</p></section>;
+  }
   if (state.phase === "failed") {
     return <section className={styles.card}><StepHead>CLOSED-BOOK PRACTICE</StepHead><HonestError message={state.error} onRetry={onRetry} onExit={onExit} /></section>;
   }
@@ -928,8 +976,11 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
   if (!round || !shownQuestion) return null;
   const shownAnswer = revealed ? answer : null;
   const roundKind = practiceRoundKind(route.firstPracticeRound, round.number);
+  const shownIndex = revealed ? answered - 1 : answered;
+  const position = shapeCPartPosition(state, shownIndex);
+  const moreParts = shapeCPartsRemaining(state) > 0;
   return <section className={styles.card} data-testid="baseline-question" data-practice-round={roundKind}>
-    <StepHead>ROUND {round.number} · QUESTION {Math.min(revealed ? answered : answered + 1, round.questions.length)} OF {round.questions.length}</StepHead>
+    <StepHead>{position ? <>PART {position.part} OF {position.parts} · QUESTION {position.question} OF {position.questionsInPart}</> : <>ROUND {round.number} · QUESTION {Math.min(revealed ? answered : answered + 1, round.questions.length)} OF {round.questions.length}</>}</StepHead>
     <p className={styles.progressLine} data-question-kind={shownQuestion.kind}>{PRACTICE_ROUND_LABEL[roundKind]} round. {QUESTION_TYPE_LABEL[shownQuestion.kind]} question. No source shown.</p>
     <h2>{shownQuestion.prompt}</h2>
     {restate && !revealed && <p className={styles.restated}>Task: choose one answer.</p>}
@@ -950,7 +1001,7 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
       <strong>{shownAnswer.correct ? "Correct." : `Not quite. The answer is: ${shownQuestion.choices[shownQuestion.correctChoiceIndex]}`}</strong>
       <p>{shownQuestion.explanation}</p>
       <div className={styles.actions}>
-        <button type="button" className="button primary" onClick={onNext}>{answered < round.questions.length ? "Next question" : "Finish round"} <ArrowRight size={16} /></button>
+        <button type="button" className="button primary" onClick={onNext}>{answered < round.questions.length ? position?.lastInPart ? "Next part" : "Next question" : moreParts ? "Next part" : "Finish round"} <ArrowRight size={16} /></button>
         {!shownAnswer.correct && <AskYova key={shownQuestion.id} planId={planId} question={`Why is "${shownQuestion.choices[shownQuestion.correctChoiceIndex]}" the right answer to: ${shownQuestion.prompt}`} idleLabel="Ask YOVA" buttonClassName="button ghost" answerClassName={styles.feedback} />}
       </div>
     </div>}

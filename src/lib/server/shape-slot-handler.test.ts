@@ -32,6 +32,17 @@ describe("shape slot handler", () => {
     expect(provider).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["a part outside the first pass", { round: 2, part: { index: 2, count: 3 } }],
+    ["a part past the end of the pass", { round: 1, part: { index: 4, count: 3 } }],
+    ["a later part with no key points", { round: 1, part: { index: 2, count: 3 }, keyPoints: [] }],
+  ])("refuses %s before any model spend", async (_label, overrides) => {
+    const provider = vi.fn();
+    const practice = { ...base, action: "practice", tips: [], keyPoints: [{ id: "k1", text: "Glycolysis splits glucose into two pyruvate." }], outstandingKeyPointIds: [], excerpts: [], attempt: "66666666-6666-4666-8666-666666666666", roundKind: "active_recall", repairTargets: [], ...overrides };
+    expect((await handleShapeSlotRequest(post(practice), { provider: provider as never })).status).toBe(422);
+    expect(provider).not.toHaveBeenCalled();
+  });
+
   it("is honest when the provider is not configured, except Slot 1 which templates", async () => {
     const learn = await handleShapeSlotRequest(post({ ...base, action: "learn_block" }), { provider: null });
     expect(learn.status).toBe(503);

@@ -11,31 +11,60 @@ const modifiers = { instructionStyle: "standard", questionMix: { recall: 6, appl
 const base = () => ({ requestId: randomUUID(), recoveryKey: randomUUID(), planId: randomUUID(), planSessionId: randomUUID(), topic, modifiers, tips: [] });
 const headers = { "X-Yova-Development-Preview": "guided-session" };
 
+// Founder decision (18 Sept 2026, option B): a long workload is one sitting in
+// parts of at most eight, built up from recall. These requests follow the
+// session exactly: the learn block writes part one, then each later part is a
+// practice request carrying the key points and every earlier prompt. Every part
+// is its own request with its own time budget, and is independently reviewed.
+const PART_SIZES: Record<number, number[]> = { 6: [6], 24: [8, 8, 8], 32: [8, 8, 8, 8] };
 for (const count of [6, 24, 32]) {
   test(`a live ${count}-question ${count === 6 ? "introductory factual" : "application"} workload is complete and preserves topic binding`, async ({ request }, testInfo) => {
-    test.setTimeout(180_000);
+    test.setTimeout(420_000);
     const selectedTopic = count === 6 ? { ...topic, title: "Plant cell structures", description: "Identify the cell wall, nucleus, chloroplast and vacuole and recall their functions.", subtopics: ["Cell wall", "Nucleus", "Chloroplast", "Vacuole"], taskType: "memorization", learningGoal: "Learn the basic plant cell structures and their functions for an introductory secondary-school biology quiz." } : topic;
-    const input = { ...base(), topic: selectedTopic, action: "learn_block", modifiers: { ...modifiers, ...(count === 6 ? { questionMix: { recall: 6, application: 0, compare_contrast: 0, prediction: 0, misconception: 0 } } : {}), questionCap: count, questionTarget: count } };
-    const started = performance.now();
-    const response = await request.post("/api/sessions/shape", { headers, data: input, timeout: 65_000 });
-    const body = await response.json();
-    await testInfo.attach(`live-${count}-question-workload.json`, { body: Buffer.from(JSON.stringify({ environment: "CI development-preview; real model; no database", elapsedMs: Math.round(performance.now() - started), input, status: response.status(), output: body }, null, 2)), contentType: "application/json" });
-    expect(response.status(), JSON.stringify(body)).toBe(200);
-    const parsed = ShapeSlotResponseSchema.parse(body);
-    expect(parsed.action).toBe("learn_block");
-    if (parsed.action !== "learn_block") return;
-    // A question the independent review still rejects is dropped rather than
-    // refusing the whole block, so the round may be slightly shorter than the
-    // workload asked for. Every question here still passed that review.
-    expect(parsed.questions.length).toBeLessThanOrEqual(count);
-    expect(parsed.questions.length, "a dropped question may shorten a round, never gut it").toBeGreaterThanOrEqual(count - Math.max(1, Math.round(count / 16)));
-    expect(parsed.keyPoints.every(point => point.sourceTopicId === topic.id)).toBe(true);
-    expect(new Set(parsed.questions.map(question => question.prompt)).size).toBe(parsed.questions.length);
-    expect(parsed.questions.some(question => question.kind === (count === 6 ? "recall" : "application"))).toBe(true);
-    for (const question of parsed.questions) {
+    const partModifiers = { ...modifiers, ...(count === 6 ? { questionMix: { recall: 6, application: 0, compare_contrast: 0, prediction: 0, misconception: 0 } } : {}), questionCap: count, questionTarget: count };
+    const ids = base();
+    const parts = PART_SIZES[count]!;
+    const timings: number[] = [];
+    const outputs: unknown[] = [];
+    const questions: Array<{ prompt: string; kind: string; keyPointIds: string[]; choices: string[] }> = [];
+    let keyPoints: Array<{ id: string; sourceTopicId?: string }> = [];
+    for (let index = 1; index <= parts.length; index += 1) {
+      const input = index === 1
+        ? { ...ids, requestId: randomUUID(), recoveryKey: randomUUID(), topic: selectedTopic, action: "learn_block", modifiers: partModifiers }
+        : { ...ids, requestId: randomUUID(), recoveryKey: randomUUID(), topic: selectedTopic, action: "practice", modifiers: partModifiers, round: 1, part: { index, count: parts.length }, priorPrompts: questions.map(question => question.prompt), keyPoints, outstandingKeyPointIds: [], excerpts: [], attempt: randomUUID(), roundKind: "active_recall", repairTargets: [] };
+      const started = performance.now();
+      const response = await request.post("/api/sessions/shape", { headers, data: input, timeout: 65_000 });
+      const body = await response.json();
+      timings.push(Math.round(performance.now() - started));
+      outputs.push({ part: index, status: response.status(), elapsedMs: timings.at(-1), input, output: body });
+      expect(response.status(), `part ${index} of ${parts.length}: ${JSON.stringify(body)}`).toBe(200);
+      const parsed = ShapeSlotResponseSchema.parse(body);
+      if (parsed.action !== "learn_block" && parsed.action !== "practice") throw new Error("Expected questions");
+      if (index === 1) keyPoints = parsed.keyPoints;
+      // A question the independent review still rejects is dropped, never
+      // delivered; a part may run short by one, never gutted.
+      expect(parsed.questions.length).toBeLessThanOrEqual(parts[index - 1]!);
+      expect(parsed.questions.length, `part ${index} delivered`).toBeGreaterThanOrEqual(parts[index - 1]! - 1);
+      questions.push(...parsed.questions);
+    }
+    await testInfo.attach(`live-${count}-question-workload.json`, { body: Buffer.from(JSON.stringify({ environment: "CI development-preview; real model; no database", partTimingsMs: timings, parts: outputs }, null, 2)), contentType: "application/json" });
+    expect(questions.length).toBeLessThanOrEqual(count);
+    expect(questions.length, "a dropped question may shorten the pass, never gut it").toBeGreaterThanOrEqual(count - Math.max(1, Math.round(count / 16)));
+    expect(keyPoints.every(point => point.sourceTopicId === topic.id)).toBe(true);
+    expect(new Set(questions.map(question => question.prompt)).size, "no part repeats an earlier prompt").toBe(questions.length);
+    expect(questions.some(question => question.kind === (count === 6 ? "recall" : "application"))).toBe(true);
+    if (parts.length > 1) {
+      // Built up: difficulty never steps back across the pass, recall opens it,
+      // and the later parts carry the transfer work.
+      const order = ["recall", "misconception", "application", "prediction", "compare_contrast"];
+      for (let index = 1; index < questions.length; index += 1) expect(order.indexOf(questions[index]!.kind)).toBeGreaterThanOrEqual(order.indexOf(questions[index - 1]!.kind));
+      expect(questions[0]!.kind).toBe("recall");
+      expect(questions.slice(parts[0]!).some(question => ["application", "compare_contrast", "prediction"].includes(question.kind))).toBe(true);
+    }
+    for (const question of questions) {
       expect(question.prompt).not.toMatch(/(?:study guide|syllabus|course outline|unit\s+\d+\s+(?:lists|covers))/i);
       expect(question.choices).toHaveLength(4);
-      expect(question.keyPointIds.every(id => parsed.keyPoints.some(point => point.id === id))).toBe(true);
+      expect(question.keyPointIds.every(id => keyPoints.some(point => point.id === id))).toBe(true);
     }
   });
 }

@@ -57,24 +57,52 @@ function followingPrompt(shape: (slots: Slot[], call: ProviderCall) => unknown, 
 const slotsOf = (call: ProviderCall) => JSON.parse(call.input).slots as Slot[];
 
 describe("bounded launch workloads", () => {
-  it.each(["learn_block", "practice"] as const)("fills a 24-question %s workload through bounded calls sharing the same teaching context", async (action) => {
+  // Founder decision (18 Sept 2026, option B): a long workload is one sitting in
+  // parts of at most eight. One request writes one part, so a 24-question block
+  // no longer chains every batch and review inside a single 50-second budget.
+  it.each(["learn_block", "practice"] as const)("delivers a 24-question %s workload as its first part of eight, recall first", async (action) => {
     const { provider, calls } = followingPrompt((slots) => ({ explanation, keyPoints, structure, questions: slots.map(slot => draft(slot.slotId)) }));
-    const request = { ...ids, action, topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24 }, round: 1, keyPoints: [], outstandingKeyPointIds: [], excerpts: [], attempt: ids.requestId, roundKind: "active_recall", repairTargets: [] };
+    const request = { ...ids, action, topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24, workloadBounded: true }, round: 1, keyPoints: [], outstandingKeyPointIds: [], excerpts: [], attempt: ids.requestId, roundKind: "active_recall", repairTargets: [] };
     const result = await fillShapeSlot(request as LearnBlockRequest | PracticeRequest, provider as never);
-    expect(result.action === action && result.questions).toHaveLength(24);
+    if (result.action !== action) throw new Error("Expected the requested slot");
+    expect(result.questions).toHaveLength(8);
+    expect(calls).toHaveLength(1);
+    const slots = slotsOf(calls[0]!);
+    expect(slots).toHaveLength(8);
+    expect(slots.every(slot => ["recall", "misconception"].includes(slot.type))).toBe(true);
     if (action === "learn_block") {
-      const input = JSON.parse(provider.mock.calls[0]![0].input);
+      // The explanation still teaches for the whole workload, not just part one.
+      const input = JSON.parse(calls[0]!.input);
       expect(input.workload.questionCount).toBe(24);
-      expect(Object.values(input.workload.questionMix).reduce((sum: number, count) => sum + Number(count), 0)).toBe(24);
       expect(input.workload.questionMix.application).toBeGreaterThan(0);
       expect(input.workload.questionMix.compare_contrast).toBeGreaterThan(0);
-      expect(input.slots).toHaveLength(8);
     }
-    expect(calls).toHaveLength(3);
-    expect(calls.every(call => slotsOf(call).length <= 8)).toBe(true);
-    const later = JSON.parse(calls[1]!.input);
-    expect(later.keyPoints.map((point: { id: string }) => point.id)).toEqual(keyPoints.map(point => point.id));
-    if (action === "learn_block") expect(later.explanation).toBe(explanation);
+  });
+
+  it("writes a later part from the same plan, harder than the first, and away from every earlier prompt", async () => {
+    const { provider, calls } = followingPrompt((slots) => ({ keyPoints, questions: slots.map(slot => draft(slot.slotId, { prompt: `A part-three question for ${slot.slotId}?` })), tips: [] }));
+    const priorPrompts = Array.from({ length: 16 }, (_, index) => `Earlier question ${index + 1}?`);
+    const request = { ...ids, action: "practice", topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24, workloadBounded: true }, round: 1, part: { index: 3, count: 3 }, priorPrompts, keyPoints, outstandingKeyPointIds: [], excerpts: [], attempt: ids.requestId, roundKind: "active_recall", repairTargets: [] };
+    const result = await fillShapeSlot(request as PracticeRequest, provider as never);
+    if (result.action !== "practice") throw new Error("Expected practice");
+    expect(result.questions).toHaveLength(8);
+    const { scaffoldedPart } = await import("@/lib/practice/practice-parts");
+    const expected = scaffoldedPart({ keyPointIds: keyPoints.map(point => point.id), mix: request.modifiers.questionMix, count: 24 }, 3);
+    expect(slotsOf(calls[0]!).map(slot => slot.slotId)).toEqual(expected.map(slot => slot.slotId));
+    expect(slotsOf(calls[0]!).some(slot => ["application", "compare_contrast", "prediction"].includes(slot.type))).toBe(true);
+    expect(JSON.parse(calls[0]!.input).priorQuestions).toEqual(priorPrompts);
+    expect(calls[0]!.instructions).toMatch(/priorQuestions/);
+  });
+
+  it.each([
+    ["a part outside the first pass", { round: 2, part: { index: 2, count: 3 } }],
+    ["a part number past the plan", { round: 1, part: { index: 4, count: 3 } }],
+    ["a later part with no key points to build on", { round: 1, part: { index: 2, count: 3 }, keyPoints: [] }],
+  ])("refuses %s", async (_label, overrides) => {
+    const { provider } = followingPrompt((slots) => ({ keyPoints, questions: slots.map(slot => draft(slot.slotId)), tips: [] }));
+    const request = { ...ids, action: "practice", topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24, workloadBounded: true }, keyPoints, outstandingKeyPointIds: ["k1"], excerpts: [], attempt: ids.requestId, roundKind: "active_recall", repairTargets: [], ...overrides };
+    await expect(fillShapeSlot(request as PracticeRequest, provider as never)).rejects.toBeTruthy();
+    expect(provider).not.toHaveBeenCalled();
   });
 
   it("refuses a worked-solution lesson without an actual solvable problem and reference", async () => {
@@ -82,54 +110,26 @@ describe("bounded launch workloads", () => {
     await expect(fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers: { ...modifiers, produceStep: "worked_solution" } }, provider as never)).rejects.toMatchObject({ code: "generation_failed" });
   });
 
-  it.each(["learn_block", "practice"] as const)("repairs only cross-batch duplicate slots once in a %s workload", async (action) => {
+  // One request writes one part, so a repeated prompt is inside a single reply:
+  // that reply fails its own check and is retried once, never patched.
+  it("retries a part with a repeated prompt once, then refuses honestly", async () => {
     const repeated = "Which change affects the pathway's net ATP yield?";
-    const { provider, calls } = followingPrompt((slots, call) => {
-      const input = JSON.parse(call.input);
-      return { explanation, keyPoints, structure, questions: slots.map(slot => draft(slot.slotId, {
-        prompt: ["s9", "s17"].includes(slot.slotId) && !input.collisionRepair ? repeated : `Which statement answers slot ${slot.slotId}?`,
-      })) };
-    });
-    const excerpts = [{ label: "Topic notes", text: explanation }];
-    const request = { ...ids, action, topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24 }, round: 1, keyPoints: [], outstandingKeyPointIds: [], excerpts, attempt: ids.requestId, roundKind: "active_recall", repairTargets: [] };
-    const result = await fillShapeSlot(request as LearnBlockRequest | PracticeRequest, provider as never);
-    if (result.action !== "learn_block" && result.action !== "practice") throw new Error("Expected questions");
-    expect(result.questions).toHaveLength(24);
-    expect(new Set(result.questions.map(question => question.prompt)).size).toBe(24);
-    expect(calls).toHaveLength(4);
-    const repair = JSON.parse(calls[3]!.input);
-    expect(repair.collisionRepair).toBe(true);
-    expect(repair.slots.map((slot: Slot) => slot.slotId)).toEqual(["s17"]);
-    expect(repair.priorQuestions).toHaveLength(23);
-    expect(repair.priorQuestions).toContain(repeated);
-    expect(repair.keyPoints.map((point: { id: string }) => point.id)).toEqual(keyPoints.map(point => point.id));
-    expect(JSON.parse(calls[1]!.input).batchAngle).not.toEqual(JSON.parse(calls[2]!.input).batchAngle);
-    if (action === "learn_block") expect(repair.explanation).toBe(explanation);
-    else expect(repair.excerpts).toEqual(excerpts);
-  });
-
-  it("fails honestly after one repair phase still repeats an accepted prompt", async () => {
-    const repeated = "Which change affects the pathway's net ATP yield?";
-    const { provider, calls } = followingPrompt(slots => ({ explanation, keyPoints, structure, questions: slots.map(slot => draft(slot.slotId, { prompt: ["s9", "s17"].includes(slot.slotId) ? repeated : `Which statement answers slot ${slot.slotId}?` })) }));
+    const { provider, calls } = followingPrompt(slots => ({ explanation, keyPoints, structure, questions: slots.map((slot, index) => draft(slot.slotId, { prompt: index < 2 ? repeated : `Which statement answers slot ${slot.slotId}?` })) }));
     await expect(fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24 } }, provider as never)).rejects.toMatchObject({ code: "generation_failed", message: SHAPE_SLOT_HONEST_ERROR });
-    expect(calls).toHaveLength(4);
-    expect(calls.filter(call => JSON.parse(call.input).collisionRepair)).toHaveLength(1);
+    expect(calls).toHaveLength(2);
   });
 
-  it("repairs the maximum 24 colliding extra slots in batches of at most eight", async () => {
-    const { provider, calls } = followingPrompt((slots, call) => {
-      const repairing = JSON.parse(call.input).collisionRepair;
-      return { explanation, keyPoints, structure, questions: slots.map(slot => {
-        const number = Number(slot.slotId.slice(1));
-        return draft(slot.slotId, { prompt: repairing ? `Which new case applies to repaired slot ${number}?` : `Which statement answers shared slot ${(number - 1) % 8 + 1}?` });
-      }) };
+  it("delivers the whole part when the retry comes back distinct", async () => {
+    let attempt = 0;
+    const { provider, calls } = followingPrompt(slots => {
+      attempt += 1;
+      return { explanation, keyPoints, structure, questions: slots.map((slot, index) => draft(slot.slotId, { prompt: attempt === 1 && index < 2 ? "The same question twice?" : `Which statement answers ${slot.slotId}?` })) };
     });
     const result = await fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers: { ...modifiers, questionCap: 32, questionTarget: 32 } }, provider as never);
-    expect(result.action === "learn_block" && result.questions).toHaveLength(32);
-    const repairs = calls.filter(call => JSON.parse(call.input).collisionRepair);
-    expect(calls).toHaveLength(7);
-    expect(repairs).toHaveLength(3);
-    expect(repairs.every(call => slotsOf(call).length === 8 && JSON.parse(call.input).priorQuestions.length === 8)).toBe(true);
+    if (result.action !== "learn_block") throw new Error("Expected learn block");
+    expect(result.questions).toHaveLength(8);
+    expect(new Set(result.questions.map(question => question.prompt)).size).toBe(8);
+    expect(calls).toHaveLength(2);
   });
 });
 
@@ -145,7 +145,8 @@ describe("Slot 2 — learn block in one call", () => {
     if (result.action !== "learn_block") return;
     expect(result.keyPoints).toEqual(keyPoints.map(point => ({ ...point, sourceTopicId: topic.id })));
     const slots = slotsOf(calls[0]!);
-    expect(slots.map((slot) => slot.type)).toEqual(["recall", "application", "application", "compare_contrast", "misconception"]);
+    // Built up within the part too: single-point recall and misconception first.
+    expect(slots.map((slot) => slot.type)).toEqual(["recall", "misconception", "application", "application", "compare_contrast"]);
     expect(result.questions.map((question) => question.kind)).toEqual(slots.map((slot) => slot.type));
     expect(result.questions.map((question) => question.keyPointIds)).toEqual(slots.map((slot) => slot.keyPointIds));
   });

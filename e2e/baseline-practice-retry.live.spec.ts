@@ -191,7 +191,7 @@ async function answerRound(page: Page, questions: Question[], misses: number) {
     if (miss) missed.push(...unseen);
     await card.getByRole("group", { name: "Answer choices" }).getByRole("button").nth(choice).click();
     await expect(page.getByTestId("baseline-reveal")).toHaveAttribute("data-correct", String(!miss));
-    await page.getByRole("button", { name: /^(Next question|Finish round)/ }).click();
+    await page.getByRole("button", { name: /^(Next question|Next part|Finish round)/ }).click();
   }
   return missed;
 }

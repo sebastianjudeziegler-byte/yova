@@ -57,7 +57,9 @@ describe("MCQ quality gate before delivery", () => {
     expect(provider).toHaveBeenCalledTimes(4);
   });
 
-  it("preserves retry context in later batches and their bounded collision repair", async () => {
+  // One request never exceeds a part: a retry round with more missed points than
+  // that is capped at eight in a single call, which carries the retry context.
+  it("caps a retry round at one part of eight and keeps its retry context", async () => {
     const keyPoints = Array.from({ length: 9 }, (_, index) => ({ id: `k${index + 1}`, text: `Osmosis key point ${index + 1}: water moves from higher to lower water potential.` }));
     const repairTargets = [{ keyPointId: "k9", question: "Why does water move from side A to side B?", chosenAnswer: "Water moves toward higher water potential.", correctAnswer: "Water moves toward lower water potential." }];
     const provider = vi.fn(async (call: SlotProviderCall<unknown>) => {
@@ -65,20 +67,15 @@ describe("MCQ quality gate before delivery", () => {
       if (call.schemaName === "yova_practice_quality_review") {
         return { reviews: input.questions.map((question: { slotId: string; choices: string[] }) => ({ slotId: question.slotId, answerIndices: [question.choices.indexOf(good.choices[3])], stemSufficient: true, demandMet: true, issue: "none", reason: "", duplicateOfSlotId: null })) };
       }
-      return { keyPoints, tips: [], questions: input.slots.map((slot: { slotId: string }) => ({ ...good, slotId: slot.slotId, prompt: `Explain the osmosis direction in case ${slot.slotId === "s9" && !input.collisionRepair ? "s1" : slot.slotId}.` })) };
+      return { keyPoints, tips: [], questions: input.slots.map((slot: { slotId: string }) => ({ ...good, slotId: slot.slotId, prompt: `Explain the osmosis direction in case ${slot.slotId}.` })) };
     });
     const response = await fillShapeSlot({ ...request, modifiers: { ...request.modifiers, questionCap: 9, questionTarget: 9 }, keyPoints, outstandingKeyPointIds: keyPoints.map(point => point.id), round: 2, roundKind: "error_repair", repairTargets }, provider as never);
     if (response.action !== "practice") throw new Error("Expected practice");
-    expect(response.questions).toHaveLength(9);
-    expect(new Set(response.questions.map(question => question.prompt)).size).toBe(9);
-    const batches = provider.mock.calls.filter(([call]) => call.schemaName === "yova_shape_question_batch").map(([call]) => JSON.parse(call.input));
-    expect(batches).toHaveLength(2);
-    expect(batches.map(batch => batch.collisionRepair)).toEqual([false, true]);
-    for (const batch of batches) {
-      expect(batch).toMatchObject({ round: 2, roundKind: "error_repair", repairTargets });
-      expect(batch.slots).toEqual([expect.objectContaining({ slotId: "s9" })]);
-    }
-    expect(provider).toHaveBeenCalledTimes(5);
+    expect(response.questions).toHaveLength(8);
+    const writes = provider.mock.calls.filter(([call]) => call.schemaName !== "yova_practice_quality_review").map(([call]) => JSON.parse(call.input));
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ round: 2, roundKind: "error_repair", repairTargets });
+    expect(writes[0].slots).toHaveLength(8);
   });
 
   // CI #415: the reviewer rejected 6 of 32 osmosis questions, the repair fixed

@@ -15,6 +15,7 @@ import { sessionOperationFailure, verifyOperationalPlanSession } from "@/lib/ser
 import {
   SHAPE_SLOT_HONEST_ERROR,
   ShapeSlotRequestSchema,
+  practicePartProblem,
   type ShapeSlotError,
   type ShapeSlotRequest,
 } from "@/lib/session-shapes/slots-schema";
@@ -64,6 +65,9 @@ export async function handleShapeSlotRequest(request: Request, { provider }: Sha
     return failure(422, { error: "YOVA could not read this session step.", code: "invalid_request" });
   }
   let slotRequest = parsed.data;
+  if (slotRequest.action === "practice" && practicePartProblem(slotRequest)) {
+    return failure(422, { error: "YOVA could not read this session step.", code: "invalid_request" });
+  }
 
   if (!developmentPreview && supabase) {
     const operationAccess = await verifyOperationalPlanSession(supabase, {

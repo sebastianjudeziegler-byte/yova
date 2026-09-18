@@ -9,6 +9,7 @@ import { composePracticeRound, firstRoundKeyPointCount, KeyPointSchema, keyPoint
 import { planQuestionSlots, type QuestionMix, type QuestionSlot, type QuestionType } from "@/lib/practice/question-mix";
 import { PRACTICE_TEST_QUESTION_COUNT, type PracticeRoundKind } from "@/lib/practice/practice-rounds";
 import { PRACTICE_QUESTION_MINIMUM } from "@/lib/routing/session-route";
+import { PRACTICE_PART_SIZE, scaffoldedParts } from "@/lib/practice/practice-parts";
 import { settleTips, TipDraftSchema, tipInstructions, type TipRequest } from "@/lib/session-shapes/session-tips";
 import {
   SHAPE_SLOT_HONEST_ERROR,
@@ -24,6 +25,7 @@ import {
   type PracticeResponse,
   type ShapeSlotRequest,
   type ShapeSlotResponse,
+  practicePartProblem,
 } from "@/lib/session-shapes/slots-schema";
 
 /**
@@ -340,7 +342,7 @@ type QuestionBatchInput = {
   slots: QuestionSlot[]; keyPoints: KeyPoint[]; topic: LearnBlockRequest["topic"];
   instructionStyle: string; provider: SlotProvider | null; explanation?: string;
   excerpts?: PracticeRequest["excerpts"]; priorQuestions: Array<{ prompt: string }>;
-  framing?: string; attempt?: string; collisionRepair?: boolean; qualityIssues?: PracticeQualityIssue[];
+  framing?: string; attempt?: string; qualityIssues?: PracticeQualityIssue[];
   round?: PracticeRequest["round"]; roundKind?: PracticeRequest["roundKind"]; repairTargets?: PracticeRequest["repairTargets"];
 };
 
@@ -360,10 +362,10 @@ async function remainingQuestions(input: QuestionBatchInput) {
     const batchIndex = Math.floor((Number(slots[0]!.slotId.slice(1)) - 1) / MAX_BATCH_QUESTIONS);
     const batchAngle = { id: `batch_${batchIndex + 1}`, instruction: BATCH_ANGLES[batchIndex % BATCH_ANGLES.length] };
     const draft = await input.provider!({
-      instructions: `Write further closed-book practice from the supplied immutable key points${input.explanation ? " and explanation; do not test material the explanation did not teach" : ""}. ${input.framing ?? ""} ${questionSlotInstructions(slots, input.instructionStyle)} Avoid priorQuestions. Each batch covers its specific slots with distinct situations. The code-owned batch angle is: ${batchAngle.instruction} Apply it only where compatible with the planned question type; preserve every slot's type and key points. ${input.collisionRepair ? "These slots repeated an accepted question. Replace only these slots with substantively distinct questions; priorQuestions contains every accepted prompt." : ""} ${input.qualityIssues ? "An independent solver found the specific defects in qualityIssues. Replace only these slots, resolving those defects; preserve the immutable teaching context and test a different inference from each accepted priorQuestion." : ""} ${UNTRUSTED}`,
-      input: JSON.stringify({ topic: input.topic, keyPoints: input.keyPoints, explanation: input.explanation, excerpts: input.excerpts, slots, batchAngle, priorQuestions: input.priorQuestions.map(question => question.prompt), attempt: input.attempt, round: input.round, roundKind: input.roundKind, repairTargets: input.repairTargets, collisionRepair: input.collisionRepair ?? false, qualityIssues: input.qualityIssues?.filter(issue => slots.some(slot => slot.slotId === issue.slotId)) }),
+      instructions: `Write further closed-book practice from the supplied immutable key points${input.explanation ? " and explanation; do not test material the explanation did not teach" : ""}. ${input.framing ?? ""} ${questionSlotInstructions(slots, input.instructionStyle)} Avoid priorQuestions. Each batch covers its specific slots with distinct situations. The code-owned batch angle is: ${batchAngle.instruction} Apply it only where compatible with the planned question type; preserve every slot's type and key points. ${input.qualityIssues ? "An independent solver found the specific defects in qualityIssues. Replace only these slots, resolving those defects; preserve the immutable teaching context and test a different inference from each accepted priorQuestion." : ""} ${UNTRUSTED}`,
+      input: JSON.stringify({ topic: input.topic, keyPoints: input.keyPoints, explanation: input.explanation, excerpts: input.excerpts, slots, batchAngle, priorQuestions: input.priorQuestions.map(question => question.prompt), attempt: input.attempt, round: input.round, roundKind: input.roundKind, repairTargets: input.repairTargets, qualityIssues: input.qualityIssues?.filter(issue => slots.some(slot => slot.slotId === issue.slotId)) }),
       schema: QuestionBatchSchema, schemaName: "yova_shape_question_batch", maxOutputTokens: 3_000, cacheKey: "yova-shape-question-batch-v2",
-      questionCount: slots.length, purpose: input.qualityIssues ? "quality_repair" : input.collisionRepair ? "collision_repair" : "additional",
+      questionCount: slots.length, purpose: input.qualityIssues ? "quality_repair" : "additional",
     });
     if (!draft) return null;
     const composed = composePracticeRound({ keyPoints: input.keyPoints, slots, drafts: draft.questions });
@@ -376,24 +378,6 @@ function distinctPrompts(questions: Array<{ prompt: string }>) {
 }
 
 function normalizePrompt(prompt: string) { return prompt.toLowerCase().replace(/\s+/g, " ").trim(); }
-
-/** One collision phase, reusing the original provider and its shared deadline. */
-async function repairQuestionCollisions(questions: PracticeQuestion[], context: Omit<QuestionBatchInput, "priorQuestions" | "collisionRepair">) {
-  const seen = new Set<string>();
-  const duplicates = new Set<string>();
-  const accepted = questions.filter(question => {
-    const prompt = normalizePrompt(question.prompt);
-    if (seen.has(prompt)) { duplicates.add(question.slotId); return false; }
-    seen.add(prompt);
-    return true;
-  });
-  if (!duplicates.size) return questions;
-  const replacements = await remainingQuestions({ ...context, slots: context.slots.filter(slot => duplicates.has(slot.slotId)), priorQuestions: accepted, collisionRepair: true });
-  const bySlot = new Map(replacements.map(question => [question.slotId, question]));
-  const repaired = questions.map(question => bySlot.get(question.slotId) ?? question);
-  if (!distinctPrompts(repaired)) throw new ShapeSlotGenerationError("generation_failed", 2);
-  return repaired;
-}
 
 /** One semantic repair phase, with the original provider's shared deadline.
  * Failed or unavailable review never silently releases unverified questions. */
@@ -431,7 +415,9 @@ async function ensureQuestionQuality(questions: PracticeQuestion[], context: Omi
 
 async function fillLearnBlock(request: LearnBlockRequest, provider: SlotProvider | null): Promise<LearnBlockResponse> {
   const plan = firstRoundPlan(request.modifiers.questionMix, request.modifiers.questionCap, request.modifiers.questionTarget);
-  const firstSlots = plan.slots.slice(0, MAX_BATCH_QUESTIONS);
+  // The learn block writes the first part of the pass, recall first; later parts
+  // are separate practice requests, so one request never exceeds eight.
+  const firstSlots = scaffoldedParts(plan.slots)[0] ?? [];
   const workload = { questionCount: plan.slots.length, questionMix: plan.slots.reduce<QuestionMix>((mix, slot) => { mix[slot.type] += 1; return mix; }, { recall: 0, application: 0, compare_contrast: 0, prediction: 0, misconception: 0 }) };
   const initial = await withOneRetry(async () => {
     const draft = await provider!({
@@ -450,9 +436,9 @@ async function fillLearnBlock(request: LearnBlockRequest, provider: SlotProvider
     if (!composed.ok || !distinctPrompts(composed.questions) || !explanationsFit(composed.questions, request.modifiers.instructionStyle)) return null;
     return { action: "learn_block" as const, explanation: draft.explanation, keyPoints, questions: composed.questions, structure: draft.structure, example: draft.example, ...(draft.practiceProblem ? { practiceProblem: draft.practiceProblem } : {}), tips: settleTips(request.tips, draft.tips ?? [], { exampleShown: true }) };
   }, provider !== null);
-  const additional = await remainingQuestions({ slots: plan.slots.slice(MAX_BATCH_QUESTIONS), keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, explanation: initial.explanation, priorQuestions: initial.questions });
-  const questions = await repairQuestionCollisions([...initial.questions, ...additional], { slots: plan.slots, keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, explanation: initial.explanation });
-  return { ...initial, questions: await ensureQuestionQuality(questions, { slots: plan.slots, keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, explanation: initial.explanation }) };
+  // A repeated prompt inside the part already fails the call's own check and is
+  // retried; one request no longer spans batches that could collide.
+  return { ...initial, questions: await ensureQuestionQuality(initial.questions, { slots: firstSlots, keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, explanation: initial.explanation }) };
 }
 
 // ------------------------------------------------------------------ Slot 3
@@ -500,30 +486,41 @@ const ROUND_FRAMING: Record<PracticeRoundKind, string> = {
 };
 
 async function fillPractice(request: PracticeRequest, provider: SlotProvider | null): Promise<PracticeResponse> {
+  if (practicePartProblem(request)) throw new ShapeSlotGenerationError("generation_failed", 0);
   const provided = request.keyPoints;
   const roundKeyPoints = provided.length ? keyPointsForRound(provided, request.round, request.outstandingKeyPointIds) : [];
   // A practice test is a longer set: eight questions regardless of the profile's usual cap.
   const longer = request.roundKind === "practice_test" && !request.modifiers.workloadBounded;
   const questionCap = longer ? PRACTICE_TEST_QUESTION_COUNT : request.modifiers.questionCap;
   const baseSize = longer ? PRACTICE_TEST_QUESTION_COUNT : request.modifiers.questionTarget;
-  const plan = provided.length
+  const whole = provided.length
     ? (() => {
       const keyPointIds = roundKeyPoints.map((keyPoint) => keyPoint.id);
-      const count = roundQuestionCount({ round: request.round, keyPointCount: keyPointIds.length, questionCap, baseSize });
+      // A retry round covers only what was missed, and one request never exceeds a part.
+      const count = request.round > 1
+        ? Math.min(PRACTICE_PART_SIZE, roundQuestionCount({ round: request.round, keyPointCount: keyPointIds.length, questionCap, baseSize }))
+        : roundQuestionCount({ round: request.round, keyPointCount: keyPointIds.length, questionCap, baseSize });
       return { keyPointIds, slots: planQuestionSlots({ keyPointIds, mix: request.modifiers.questionMix, count }) };
     })()
     : firstRoundPlan(request.modifiers.questionMix, questionCap, baseSize);
+  // The first pass is served one part at a time; the server recomputes the part
+  // from the same plan and refuses a part count that does not match it.
+  const parts = request.round === 1 ? scaffoldedParts(whole.slots) : [whole.slots];
+  const partIndex = request.round === 1 ? request.part?.index ?? 1 : 1;
+  if (request.part && request.part.count !== parts.length) throw new ShapeSlotGenerationError("generation_failed", 0);
+  const plan = { keyPointIds: whole.keyPointIds, slots: parts[partIndex - 1] ?? [] };
   if (plan.slots.length === 0) throw new ShapeSlotGenerationError("generation_failed", 0);
   const keyPointSource = provided.length
     ? "Use ONLY the supplied key points; keep their ids exactly and return them unchanged in keyPoints."
     : request.excerpts.length
       ? `Derive exactly ${plan.keyPointIds.length} key points from the supplied source excerpts, with ids ${plan.keyPointIds.join(", ")} in that order, each answerable from the excerpts.`
       : `Derive exactly ${plan.keyPointIds.length} key points about the topic, with ids ${plan.keyPointIds.join(", ")} in that order.`;
-  const firstSlots = plan.slots.slice(0, MAX_BATCH_QUESTIONS);
+  const firstSlots = plan.slots;
+  const later = partIndex > 1 ? ` This is part ${partIndex} of ${parts.length} of one practice session, built up from recall: the learner has already answered every question in input.priorQuestions. Ask something new for each slot; do not repeat or closely paraphrase any of them.` : "";
   const initial = await withOneRetry(async () => {
     const draft = await provider!({
-      instructions: `You write fresh closed-book multiple-choice practice for one topic in YOVA. ${ROUND_FRAMING[request.roundKind]} ${keyPointSource} Follow keyPointTopics: derive each key point about its assigned subject. ${questionSlotInstructions(firstSlots, request.modifiers.instructionStyle)} Do not repeat questions from earlier attempts; this attempt id is ${request.attempt}. ${tipsPrompt(request.tips)} ${UNTRUSTED}`,
-      input: JSON.stringify({ topic: request.topic, keyPoints: roundKeyPoints, excerpts: request.excerpts, round: request.round, roundKind: request.roundKind, repairTargets: request.repairTargets, keyPointTopics: keyPointTopics(request.topic, plan.keyPointIds), slots: firstSlots, tips: request.tips }),
+      instructions: `You write fresh closed-book multiple-choice practice for one topic in YOVA. ${ROUND_FRAMING[request.roundKind]} ${keyPointSource} Follow keyPointTopics: derive each key point about its assigned subject. ${questionSlotInstructions(firstSlots, request.modifiers.instructionStyle)} Do not repeat questions from earlier attempts or any of input.priorQuestions; this attempt id is ${request.attempt}.${later} ${tipsPrompt(request.tips)} ${UNTRUSTED}`,
+      input: JSON.stringify({ topic: request.topic, keyPoints: roundKeyPoints, excerpts: request.excerpts, round: request.round, roundKind: request.roundKind, repairTargets: request.repairTargets, keyPointTopics: keyPointTopics(request.topic, plan.keyPointIds), slots: firstSlots, priorQuestions: request.priorPrompts ?? [], tips: request.tips }),
       schema: PracticeDraftSchema,
       schemaName: "yova_shape_practice",
       questionCount: firstSlots.length, purpose: "initial",
@@ -543,7 +540,5 @@ async function fillPractice(request: PracticeRequest, provider: SlotProvider | n
     return { action: "practice" as const, keyPoints, questions: composed.questions, tips: settleTips(request.tips, draft.tips ?? []) };
   }, provider !== null);
   const roundContext = { round: request.round, roundKind: request.roundKind, repairTargets: request.repairTargets };
-  const additional = await remainingQuestions({ ...roundContext, slots: plan.slots.slice(MAX_BATCH_QUESTIONS), keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, excerpts: request.excerpts, priorQuestions: initial.questions, framing: ROUND_FRAMING[request.roundKind], attempt: request.attempt });
-  const questions = await repairQuestionCollisions([...initial.questions, ...additional], { ...roundContext, slots: plan.slots, keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, excerpts: request.excerpts, framing: ROUND_FRAMING[request.roundKind], attempt: request.attempt });
-  return { ...initial, questions: await ensureQuestionQuality(questions, { ...roundContext, slots: plan.slots, keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, excerpts: request.excerpts, framing: ROUND_FRAMING[request.roundKind], attempt: request.attempt }) };
+  return { ...initial, questions: await ensureQuestionQuality(initial.questions, { ...roundContext, slots: plan.slots, keyPoints: initial.keyPoints, topic: request.topic, instructionStyle: request.modifiers.instructionStyle, provider, excerpts: request.excerpts, framing: ROUND_FRAMING[request.roundKind], attempt: request.attempt }) };
 }

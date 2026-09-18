@@ -769,3 +769,77 @@ earlier question, an unknown slot or a duplicate). Red first: `names why a
 review reply was unusable, without any question content` failed without the
 change and passes with it, and asserts no question text reaches the diagnostic.
 386 generator and review tests pass; 4,567 overall.
+
+
+## Option B — a long practice pass is one sitting in parts of at most eight (founder decision, 18 Sept 2026)
+
+Runs 427 and 428 settled why 24- and 32-question workloads failed: one request
+chained five model stages — lesson and first questions, the rest of the
+questions, review, rewrite, re-review — into a 50-second budget, and it fit
+only when every call was quick. The founder chose to keep one sitting sized by
+the profile and deliver its practice in scaffolded parts instead.
+
+**What changed.**
+
+- `src/lib/practice/practice-parts.ts` splits a first pass of N questions into
+  ⌈N/8⌉ near-equal parts (32 → 8·8·8·8, 20 → 7·7·6, 10 → 5·5) and orders every
+  planned question easiest first — recall, misconception, application,
+  prediction, comparison — so the pass builds up. The plan is deterministic, so
+  the server recomputes any part from the same key points, mix and count.
+- One request writes one part. The learn block writes part one with its lesson,
+  and still teaches for the whole workload. Each later part is a practice
+  request carrying the key points and every earlier prompt, so it asks something
+  new. Retry rounds are capped at eight too. The old multi-batch fill and its
+  cross-batch collision repair are gone, because a request no longer spans
+  batches; a repeated prompt inside a part already fails that reply's own check
+  and is retried once. Each part is independently reviewed on its own budget.
+- The route refuses a malformed part (outside the first pass, past its end, or
+  a later part with no key points) with 422 before any model spend; the
+  generator refuses a part count that does not match the recomputed plan.
+- The session asks for the next part as soon as the current one arrives, so it
+  is normally waiting when the learner gets there; otherwise a short "Preparing
+  the next part…" card shows. The counter reads "PART 2 OF 3 · QUESTION 1 OF 8",
+  the last question of a part offers "Next part", and a part that cannot be built
+  becomes an honest error only when the learner reaches it, with Try again
+  asking for that part and keeping every answer. The round is judged only after
+  its last part, so missed-point repair still follows the whole pass. A session
+  saved before parts existed resumes as a single part. Short sessions, already
+  at eight or fewer, look exactly as before.
+- The workload is unchanged: a 32-question block is still 32 questions and the
+  same estimate. The profile still sets the size; only the delivery changed.
+
+**Red, then green.**
+
+| Test | Red | Green |
+| --- | --- | --- |
+| `src/lib/practice/practice-parts.test.ts` (12) | module did not exist | pass |
+| `shape-slot-generator.test.ts` "delivers a 24-question learn_block/practice workload as its first part of eight, recall first", "writes a later part from the same plan, harder than the first, and away from every earlier prompt", and three refusals | 6 failed | pass |
+| `shape-c.test.ts` "Shape C first pass in parts" (6) | 5 failed | pass |
+| `shape-slot-handler.test.ts` three malformed-part refusals | 3 failed with the guard removed | pass |
+
+Tests written for the old one-request contract were rewritten to it, not
+relaxed: a part repeating a prompt is retried once and then refused; a retry
+round with nine missed points is capped at eight in one call carrying its retry
+context; the learn block's first slots are built up, recall and misconception
+first.
+
+**Browser proof.** New `e2e/baseline-practice-parts.spec.ts` (stubbed slot
+replies at the network boundary, as in the other baseline specs — not a test of
+generation): a 16-question block shows "PART 1 OF 2 · QUESTION 1 OF 8"; the
+part-two request left while part one was still open, carrying `part {2, 2}`,
+all eight earlier prompts and the lesson's key points; "Next part" hands over to
+"PART 2 OF 2 · QUESTION 1 OF 8"; the round finishes clean after the last part,
+and exactly one part request was made. The one focused local browser run:
+**passed on desktop (3.8 s) and phone (3.3 s).**
+
+**Live gates rewritten to the new shape.** The 6/24/32-question live cases now
+request a workload exactly as the session does, part by part, timing each part.
+They require every part to arrive, at most one question short per part, no
+repeated prompt across parts, difficulty never stepping back across the pass,
+recall first, and transfer work in the later parts. The synthetic 32-question
+trace runs four parts, each with its own provider and budget, requires each
+part under 50 s and reviewed, and records every call by part. The profile
+journey and the retry journey now wait through "Preparing the next part…" and
+press "Next part". These run in CI only.
+
+Local checkpoint: 4,590 unit tests, 26 runner checks, lint and types clean.

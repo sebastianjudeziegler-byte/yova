@@ -177,12 +177,15 @@ async function startStudyNow(page: Page, answers: ReadonlyArray<string | readonl
 /** Real generated content, deterministic answer-key path; not a claim about student learning. */
 async function finishPlannedPractice(page: Page, questions: Map<string, { prompt: string; choices: string[]; correctChoiceIndex: number }>) {
   const end = page.getByRole("heading", { name: /You studied, produced and compared|A full round passed clean/ });
-  await expect(page.getByTestId("baseline-question").or(end)).toBeVisible({ timeout: 180_000 });
-  while (await page.getByTestId("baseline-question").isVisible()) {
+  // A long pass arrives in parts; between parts a short "Preparing the next
+  // part" card may show, so wait for the next question or the end each time.
+  for (;;) {
+    await expect(page.getByTestId("baseline-question").or(end)).toBeVisible({ timeout: 180_000 });
+    if (!await page.getByTestId("baseline-question").isVisible()) break;
     const prompt = await page.getByTestId("baseline-question").getByRole("heading").innerText();
     const question = questions.get(prompt);
     expect(question, `captured real generated question: ${prompt}`).toBeTruthy();
     await page.getByRole("group", { name: "Answer choices" }).getByRole("button").nth(question!.correctChoiceIndex).click();
-    await page.getByRole("button", { name: /^(Next question|Finish round)$/ }).click();
+    await page.getByRole("button", { name: /^(Next question|Next part|Finish round)$/ }).click();
   }
 }
