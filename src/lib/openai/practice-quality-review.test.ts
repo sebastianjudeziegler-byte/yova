@@ -46,11 +46,13 @@ describe("independent practice answer review", () => {
     expect(input.priorQuestions[0]).not.toHaveProperty("correctChoiceIndex");
   });
 
-  it("reports only aggregate rejected counts, never learner content or rejection reasons", async () => {
+  // Counts and the reviewer's fixed codes only (CI #429 needed to know why part
+  // one was rejected); never learner content or the reviewer's own prose.
+  it("reports only aggregate counts and fixed rejection codes, never learner content or the reviewer's prose", async () => {
     const diagnose = vi.fn();
     const provider = Object.assign(vi.fn(async () => ({ reviews: [verdict({ reason: "private rejection content" })] })), { diagnose });
     await reviewPracticeQuestions(context, provider as never);
-    expect(diagnose).toHaveBeenCalledExactlyOnceWith({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "completed", questionCount: 1, rejectedCount: 1 });
+    expect(diagnose).toHaveBeenCalledExactlyOnceWith({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "completed", questionCount: 1, rejectedCount: 1, rejectionCodes: { ambiguous: 1, answer_disagrees: 1 } });
     expect(JSON.stringify(diagnose.mock.calls)).not.toContain("private");
   });
 
@@ -64,6 +66,25 @@ describe("independent practice answer review", () => {
   // CI #427: both live failures were a re-review the provider returned complete
   // and schema-valid, then rejected here, with no record of which check failed.
   // The diagnostic now names it, with counts and codes only - never content.
+  // CI #429: live part one lost 8 of 8 and 6 of 8 questions to review, and the
+  // log said only how many. The completed diagnostic now tallies why, as the
+  // reviewer's own codes - never the question or the reviewer's prose.
+  it("tallies why questions were rejected, as codes only", async () => {
+    const targets = ["s1", "s2", "s3", "s4"].map(slotId => ({ ...question, slotId }));
+    const diagnose = vi.fn();
+    const provider = Object.assign(vi.fn(async () => ({ reviews: [
+      verdict({ slotId: "s1", answerIndices: [question.correctChoiceIndex], issue: "none", reason: "" }),
+      verdict({ slotId: "s2", answerIndices: [question.correctChoiceIndex], issue: "repeated", duplicateOfSlotId: "s1", reason: "Same inference as s1." }),
+      verdict({ slotId: "s3", answerIndices: [question.correctChoiceIndex], issue: "none", demandMet: false, reason: "Recall where application was asked." }),
+      verdict({ slotId: "s4", answerIndices: [], issue: "ambiguous", stemSufficient: false, reason: "The outside solution is not described." }),
+    ] })), { diagnose });
+    const result = await reviewPracticeQuestions({ ...context, questions: targets }, provider as never);
+    expect(result).toMatchObject({ ok: true, rejected: [{ slotId: "s2" }, { slotId: "s3" }, { slotId: "s4" }] });
+    const completed = diagnose.mock.calls.map(([event]) => event).find(event => event.outcome === "completed");
+    expect(completed).toMatchObject({ rejectedCount: 3, rejectionCodes: { repeated: 1, duplicate: 1, demand_not_met: 1, ambiguous: 1, missing_conditions: 1, answer_disagrees: 1 } });
+    expect(JSON.stringify(completed)).not.toMatch(/Same inference|Recall where|outside solution|Osmosis|water/i);
+  });
+
   it("names why a review reply was unusable, without any question content", async () => {
     const targets = [{ ...question, slotId: "s9" }, { ...question, slotId: "s14" }];
     const priorQuestions = [{ ...question, slotId: "s1" }, { ...question, slotId: "s2" }];

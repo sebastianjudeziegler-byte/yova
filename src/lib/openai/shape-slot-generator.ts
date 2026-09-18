@@ -60,6 +60,7 @@ type SlotDiagnosticEvent = {
   stage: "quality"; schemaName: "yova_practice_quality_review";
   outcome: "completed" | "invalid"; questionCount: number; rejectedCount?: number;
   invalidity?: import("./practice-quality-review").ReviewInvalidity;
+  rejectionCodes?: Record<string, number>;
 };
 export type SlotDiagnostic = SlotDiagnosticEvent & { traceId: string; totalElapsedMs: number; remainingBudgetMs: number };
 export type SlotProvider = (<T>(call: SlotProviderCall<T>) => Promise<T | null>) & {
@@ -90,7 +91,7 @@ export function openAIShapeSlotProvider(options: { onDiagnostic?: (event: SlotDi
     // Explicit fields only: never include input, output, reason, exception or user identifiers.
     const summary = event.stage === "provider"
       ? { stage: event.stage, schemaName: event.schemaName, callId: event.callId, outcome: event.outcome, elapsedMs: event.elapsedMs, timeoutMs: event.timeoutMs, ...(event.questionCount === undefined ? {} : { questionCount: event.questionCount }), ...(event.purpose ? { purpose: event.purpose } : {}) }
-      : { stage: event.stage, schemaName: event.schemaName, outcome: event.outcome, questionCount: event.questionCount, ...(event.rejectedCount === undefined ? {} : { rejectedCount: event.rejectedCount }), ...(event.invalidity ? { invalidity: event.invalidity } : {}) };
+      : { stage: event.stage, schemaName: event.schemaName, outcome: event.outcome, questionCount: event.questionCount, ...(event.rejectedCount === undefined ? {} : { rejectedCount: event.rejectedCount }), ...(event.invalidity ? { invalidity: event.invalidity } : {}), ...(event.rejectionCodes ? { rejectionCodes: event.rejectionCodes } : {}) };
     const diagnostic: SlotDiagnostic = { ...summary, traceId, totalElapsedMs: Math.max(0, Date.now() - startedAt), remainingBudgetMs: Math.max(0, deadline - Date.now()) };
     try {
       if (options.onDiagnostic) options.onDiagnostic(diagnostic);

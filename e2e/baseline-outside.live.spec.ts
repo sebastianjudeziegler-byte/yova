@@ -48,15 +48,20 @@ test("outside YOVA: live directions, I'm back, then live practice, with no produ
   await expect(questionCard).toBeVisible({ timeout: 150_000 });
   await expect(page.getByRole("textbox")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("outside-3-practice.png"), fullPage: true });
-  const questions = observed.find((entry) => entry.action === "practice" && entry.status === 200)?.questions ?? [];
-  expect(questions.length).toBeGreaterThan(0);
-  for (let index = 0; index < questions.length; index += 1) {
+  expect(observed.find((entry) => entry.action === "practice" && entry.status === 200)?.questions?.length ?? 0).toBeGreaterThan(0);
+  // A pass over eight questions arrives in parts; later parts are further
+  // practice replies, so look each shown question up across all of them.
+  const end = page.getByRole("heading", { name: "A full round passed clean." });
+  for (;;) {
+    await expect(questionCard.or(end)).toBeVisible({ timeout: 150_000 });
+    if (!await questionCard.isVisible()) break;
     const prompt = (await questionCard.getByRole("heading", { level: 2 }).innerText()).trim();
-    const question = questions.find((item) => item.prompt.trim() === prompt)!;
-    await questionCard.getByRole("group", { name: "Answer choices" }).getByRole("button").nth(question.correctChoiceIndex).click();
-    await page.getByRole("button", { name: /^(Next question|Finish round)/ }).click();
+    const question = observed.filter((entry) => entry.action === "practice" && entry.status === 200).flatMap((entry) => entry.questions ?? []).find((item) => item.prompt.trim() === prompt);
+    expect(question, `shown question came from a live reply: ${prompt}`).toBeTruthy();
+    await questionCard.getByRole("group", { name: "Answer choices" }).getByRole("button").nth(question!.correctChoiceIndex).click();
+    await page.getByRole("button", { name: /^(Next question|Next part|Finish round)/ }).click();
   }
-  await expect(page.getByRole("heading", { name: "A full round passed clean." })).toBeVisible();
+  await expect(end).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("outside-4-end.png"), fullPage: true });
 
   // The whole outside path: one directions call for studying outside, then practice. Nothing else ran.

@@ -21,7 +21,7 @@ export type PracticeReviewContext = {
   excerpts?: Array<{ label: string; text: string }>;
   priorQuestions?: PracticeQuestion[];
 };
-export type PracticeQualityIssue = { slotId: string; reason: string };
+export type PracticeQualityIssue = { slotId: string; reason: string; codes?: string[] };
 /** Why a review reply was unusable: counts and codes only, never content. */
 export type ReviewInvalidity = {
   reason: "no_reply" | "schema" | "coverage";
@@ -53,8 +53,11 @@ export async function reviewPracticeQuestions(context: PracticeReviewContext, pr
   const failed = results.find(result => !result.ok);
   if (failed && !failed.ok) return invalid(failed.invalidity);
   const rejected = results.flatMap(result => result.ok ? result.rejected : []);
-  provider.diagnose?.({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "completed", questionCount: context.questions.length, rejectedCount: rejected.length });
-  return { ok: true, rejected };
+  // Why, as the reviewer's own codes only; never the question or its prose.
+  const rejectionCodes: Record<string, number> = {};
+  for (const code of rejected.flatMap(issue => issue.codes ?? [])) rejectionCodes[code] = (rejectionCodes[code] ?? 0) + 1;
+  provider.diagnose?.({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "completed", questionCount: context.questions.length, rejectedCount: rejected.length, ...(rejected.length ? { rejectionCodes } : {}) });
+  return { ok: true, rejected: rejected.map(({ slotId, reason }) => ({ slotId, reason })) };
 }
 
 async function reviewQuestionBatch(context: PracticeReviewContext, provider: SlotProvider): Promise<ReviewResult> {
@@ -97,7 +100,14 @@ Return exactly one review per target question.slotId, never a review for priorQu
     const review = reviews.get(question.slotId)!;
     if (!review.stemSufficient || !review.demandMet || review.answerIndices.length !== 1 || review.answerIndices[0] !== question.correctChoiceIndex || review.issue !== "none" || review.duplicateOfSlotId !== null) {
       const defects = [!review.stemSufficient ? "missing_conditions" : null, !review.demandMet ? "wrong_type" : null, review.issue].filter(Boolean).join(", ");
-      rejected.push({ slotId: question.slotId, reason: `${defects}; independent valid answer indices: ${review.answerIndices.join(", ") || "none"}. ${review.reason}` });
+      const codes = [
+        review.issue !== "none" ? review.issue : null,
+        !review.stemSufficient ? "missing_conditions" : null,
+        !review.demandMet ? "demand_not_met" : null,
+        review.duplicateOfSlotId !== null ? "duplicate" : null,
+        review.answerIndices.length !== 1 || review.answerIndices[0] !== question.correctChoiceIndex ? "answer_disagrees" : null,
+      ].filter((code): code is string => code !== null);
+      rejected.push({ slotId: question.slotId, reason: `${defects}; independent valid answer indices: ${review.answerIndices.join(", ") || "none"}. ${review.reason}`, codes });
     }
   }
   return { ok: true, rejected };

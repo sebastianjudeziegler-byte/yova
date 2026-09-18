@@ -98,7 +98,9 @@ async function completeFirstSession(page: Page) {
     if (await button.isVisible() && await button.isEnabled()) { await button.click(); return true; }
     return false;
   };
-  for (let step = 0; step < 40; step += 1) {
+  // A pass over eight questions arrives in parts, so a session can take more
+  // steps and offers "Next part" between them.
+  for (let step = 0; step < 90; step += 1) {
     if (await page.getByRole("heading", { name: "You studied, produced and compared." }).or(page.getByRole("heading", { name: "A full round passed clean." })).isVisible()) break;
     await page.waitForTimeout(200);
     const choice = page.getByTestId("baseline-question").getByRole("button", { name: "Correct choice" });
@@ -108,7 +110,7 @@ async function completeFirstSession(page: Page) {
       await produce.fill("Glycolysis splits glucose, the Krebs cycle releases carbon dioxide, and electron transport makes ATP.");
       continue;
     }
-    for (const name of ["I'm going to study it", "Continue", "Start the questions", "Compare with the source", "Save repair", "Move on", "Next question", "Finish round", "Start round 2"]) {
+    for (const name of ["I'm going to study it", "Continue", "Start the questions", "Compare with the source", "Save repair", "Move on", "Next question", "Next part", "Finish round", "Start round 2"]) {
       if (await clickIfVisible(name)) break;
     }
   }

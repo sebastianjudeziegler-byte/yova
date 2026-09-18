@@ -843,3 +843,46 @@ journey and the retry journey now wait through "Preparing the next part…" and
 press "Next part". These run in CI only.
 
 Local checkpoint: 4,590 unit tests, 26 runner checks, lint and types clean.
+
+
+### CI run 429 on `c0fe502` — option B's first run ([35351341107](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35351341107))
+
+**Parts fix the time wall.** Step 20, the synthetic 32-question trace, passed in
+four parts at **14.8, 22.6, 21.7 and 25.6 s** — each well inside its own 50 s
+budget, 32 questions delivered, every part reviewed (founder-authorised artifact
+`session-generation-diagnostics-35351341107`, 22,496 bytes). Its part one, eight
+recall questions, passed review 8 of 8.
+
+**Release gate: INCONCLUSIVE, not blocked.** "14 of 79 live cases were
+unavailable (17.7%, over the 10% ceiling). The provider was degraded, so this
+sample cannot establish a regression either way." A re-run is needed.
+
+**Live practice: 15 of 17 passed** — both profile journeys and their comparison,
+outside study, both retries, Practice Test and Interleaved Review on desktop and
+phone, and the 6-question workload. The two failures are both in **part one of
+the live 24- and 32-question workloads**, and both came fast (22 s and 30 s), so
+not the budget:
+
+| Live request | Review of part one | Rewrite and re-check | Result |
+| --- | --- | --- | --- |
+| 24-question (`e12e432c`) | 6 of 8 rejected | 6 of 6 still rejected | 2 left, under the floor → refused |
+| 32-question (`3130c0f0`) | 8 of 8 rejected | 3 of 8 still rejected | 5 delivered, under the gate's 7 |
+
+The synthetic run, on the same topic and mix, accepted the same kind of part
+8 of 8. The live logs carry only counts, so they cannot say why the reviewer
+rejected so much of part one there — and nothing is inferred. The completed
+review diagnostic now also tallies why, using only the reviewer's fixed codes
+(`repeated`, `ambiguous`, `missing_conditions`, `demand_not_met`, `duplicate`,
+`answer_disagrees`, …), never the question or the reviewer's prose. Red first:
+`tallies why questions were rejected, as codes only`; the privacy test now
+permits the codes and still forbids any private text.
+
+**Three browser regressions of my own making, fixed.** Three journeys answer a
+session by clicking through it, and none knew the new "Next part" button:
+`baseline-session.spec.ts` (the try-it-first learner, whose session now has more
+than eight questions), `living-plan.spec.ts` (the founder journey, which failed
+on both projections at "Finish") and the live outside-study journey. Each now
+waits through "Preparing the next part…", presses "Next part", and the founder
+journey's step allowance rose from 40 to 90. Local focused run: the founder
+journey **passed in 7.7 s**. Core journey otherwise: exactly main's own five
+failures.

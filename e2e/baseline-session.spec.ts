@@ -429,9 +429,12 @@ async function startReadySession(page: Page) {
 /** This transport fixture grades all seeded choices at index zero; it does not evaluate model quality. */
 async function completeOptionalPlannedPractice(page: Page) {
   const end = page.getByRole("heading", { name: /You studied, produced and compared|A full round passed clean/ });
-  await expect(page.getByTestId("baseline-question").or(end)).toBeVisible();
-  while (await page.getByTestId("baseline-question").isVisible()) {
+  // A pass over eight questions arrives in parts, with a short "Preparing the
+  // next part" card between them, so wait for the next question or the end.
+  for (;;) {
+    await expect(page.getByTestId("baseline-question").or(end)).toBeVisible();
+    if (!await page.getByTestId("baseline-question").isVisible()) break;
     await page.getByRole("group", { name: "Answer choices" }).getByRole("button").first().click();
-    await page.getByRole("button", { name: /^(Next question|Finish round)$/ }).click();
+    await page.getByRole("button", { name: /^(Next question|Next part|Finish round)$/ }).click();
   }
 }
