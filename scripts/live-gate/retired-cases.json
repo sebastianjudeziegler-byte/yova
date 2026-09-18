@@ -141,6 +141,30 @@
     {
       "file": "plan-launch-live.spec.ts",
       "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "a natural deadline and an edited date survive every schedule control",
+      "brief": "Brief 2",
+      "reason": "Brief 2 (docs/redesign/05-PLAN-MODEL.md) deliberately deletes the time-first composer: capacity math, splitting by slot and the \"doesn't fit before the deadline\" refusals. These cases asserted that deleted behaviour. Founder decision, 18 Sept 2026."
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "shorter sessions preserve weekly availability and explain insufficient time",
+      "brief": "Brief 2",
+      "reason": "Brief 2 (docs/redesign/05-PLAN-MODEL.md) deliberately deletes the time-first composer: capacity math, splitting by slot and the \"doesn't fit before the deadline\" refusals. These cases asserted that deleted behaviour. Founder decision, 18 Sept 2026."
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "an overfull plan returns to its schedule and recovers without a client crash",
+      "brief": "Brief 2",
+      "reason": "Brief 2 (docs/redesign/05-PLAN-MODEL.md) deliberately deletes the time-first composer: capacity math, splitting by slot and the \"doesn't fit before the deadline\" refusals. These cases asserted that deleted behaviour. Founder decision, 18 Sept 2026."
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "speech and presentation plans bypass placement and use artifact-aware modes",
+      "brief": "Brief 2",
+      "reason": "Brief 2 has one kind of plan. Main's case asserted a separate route for speech and presentation goals: a \"BUILD WITH GUIDANCE\" mode label, a build-rehearse-refine starting approach and no placement request. On this branch those goals go through the same topic-queue path as every other goal. They still get artifact-shaped topics (src/lib/plan-generation/knowledge-map-fallback.ts: audience and argument, evidence and draft, rehearsal), but not the separate mode, label or placement bypass. Behaviour change, not a lost check. Founder decision, 18 Sept 2026."
     }
   ],
   "renamed": {
@@ -227,22 +251,6 @@
   "notReplaced": {
     "reason": "Present in retained main, absent here, and no replacement was identified while reading the branch's specs. They are deliberately NOT excused: the comparator still blocks on them until someone states what happened to the behaviour they covered. The five priority-card cases matter most: src/lib/plan-generation/deadline-priority.ts still ships, so a live feature lost its browser coverage.",
     "cases": [
-      {
-        "file": "plan-schedule-date.spec.ts",
-        "name": "a natural deadline and an edited date survive every schedule control"
-      },
-      {
-        "file": "plan-schedule-date.spec.ts",
-        "name": "shorter sessions preserve weekly availability and explain insufficient time"
-      },
-      {
-        "file": "plan-schedule-date.spec.ts",
-        "name": "an overfull plan returns to its schedule and recovers without a client crash"
-      },
-      {
-        "file": "add-to-yova.spec.ts",
-        "name": "speech and presentation plans bypass placement and use artifact-aware modes"
-      },
       {
         "file": "plan-schedule-date.spec.ts",
         "name": "explicit 1-minute availability remains a priority card",

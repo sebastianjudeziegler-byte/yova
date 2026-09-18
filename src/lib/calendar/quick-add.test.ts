@@ -51,6 +51,27 @@ describe("calendar quick add", () => {
     });
   });
 
+  // CI #420-424: "Lab Report due <date>" was saved as a class, because "lab"
+  // was checked before "due". Something that is due is an outcome - an
+  // assignment, or a test when it names one - never a timetabled class.
+  it.each([
+    ["Lab Report due 2026-10-17", "deadline"],
+    ["Seminar essay due friday", "deadline"],
+    ["Lecture notes summary deadline friday", "deadline"],
+    ["Lab practical exam due friday", "exam"],
+    ["Tutorial quiz due friday", "exam"],
+  ])("classifies %j as a %s, not a class", (input, eventType) => {
+    const draft = parseCalendarQuickAdd(input, { now: new Date("2026-09-02T10:00:00.000Z"), timeZone: "UTC" });
+    expect(draft?.eventType).toBe(eventType);
+    expect(draft?.fixed).toBe(eventType === "exam");
+    expect(draft?.dueAt).not.toBeNull();
+  });
+
+  it("still reads a timetabled lab or lecture with no due date as a class", () => {
+    const draft = parseCalendarQuickAdd("Biology lab tomorrow at 2pm for 1 hour", { now: new Date("2026-09-02T10:00:00.000Z"), timeZone: "UTC" });
+    expect(draft).toMatchObject({ eventType: "class", fixed: true, dueAt: null });
+  });
+
   it("returns null for empty input and falls back safely from an invalid time zone", () => {
     expect(parseCalendarQuickAdd("   ")).toBeNull();
     expect(parseCalendarQuickAdd("Study tonight", {

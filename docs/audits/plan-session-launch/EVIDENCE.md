@@ -584,3 +584,101 @@ question that has no fully correct option. Same code, same prompt, different
 answer — the review is a model and is fallible, as the hand-over said. Two
 samples is not enough to call it either broken or noise, and it is the canary
 for the whole quality feature, so it should not be quarantined quietly.
+
+
+## Founder decisions after run 425 (18 Sept)
+
+Run 425 on `c9511bb` ([35292611954](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35292611954)): step 11
+(database boundaries) is green with the corrected assertion, and the synthetic
+32-question trace **passed**. Live practice: 15 passed, 2 failed — the 24- and
+32-question live workloads.
+
+### The 32-question failure, from the trace and not inferred
+
+Founder-authorised artifact `session-generation-diagnostics-35292611954`
+(31 KB). The synthetic 32-question trace passed in **37.3 s**, delivering 32
+questions:
+
+| Stage | Calls | Result |
+| --- | --- | --- |
+| learn block + three 8-question batches | 1–4 | all returned, 7.6 s then ≤ 7.5 s in parallel |
+| review, four batches of 8 (0/8/16/24 prior) | 5–8 | all returned — none `incomplete` now |
+| review verdict | — | 8 of 32 rejected |
+| repair of those 8 | 9 | returned, 9.4 s |
+| re-review | 10 | returned, 0 rejected |
+
+The allowance change settled the truncation: the fourth batch (24 prior
+questions), which came back `incomplete` twice at 1,230 tokens in run 420,
+completed in 3.0 s. 12.7 s of budget remained.
+
+**What this does not settle:** the two *live* failures in the same run — the
+24-question case at 47.6 s and the 32-question case at 48.1 s, both
+`generation_failed` through `/api/sessions/shape`. That route's own diagnostics
+exist (`YOVA_SHAPE_SLOT`, content-free by design) but were never captured:
+the live Playwright config starts the dev server without piping its output, so
+the step log has zero of those lines and no artifact holds them. Nothing here
+says which live call failed or why, and nothing is inferred. The live config now
+sets `stdout: "pipe"`, so the next run's step log carries each live call's
+stage, outcome, timing and remaining budget.
+
+### Retired, as decided
+
+- `plan-schedule-date.spec.ts`: "a natural deadline and an edited date survive
+  every schedule control", "shorter sessions preserve weekly availability and
+  explain insufficient time", "an overfull plan returns to its schedule and
+  recovers without a client crash" — the capacity maths and "doesn't fit"
+  refusals Brief 2 deliberately deletes.
+- `add-to-yova.spec.ts`: "speech and presentation plans bypass placement and use
+  artifact-aware modes". **Behaviour change:** main gave speech and
+  presentation goals a separate route — a "BUILD WITH GUIDANCE" mode label, a
+  build-rehearse-refine starting approach and no placement request. On this
+  branch there is one kind of plan and they go through the same topic-queue path
+  as every other goal. They still get artifact-shaped topics from
+  `knowledge-map-fallback.ts` (audience and argument, evidence and draft,
+  rehearsal), but not the separate mode, label or placement bypass.
+
+Each is in `retired-cases.json` with its reason, so the comparator reads them as
+retired rather than missing.
+
+### Quick-add read "Lab Report due …" as a class — fixed
+
+Main added this deadline through the old "Add to YOVA → Track the deadline"
+intake route, which Brief 2 removed; the branch's case goes through Calendar
+quick add instead, and that exposed a real classifier bug. `inferEventType`
+tested for "class | lecture | seminar | **lab** | tutorial" before it looked for
+"due", so any title containing "lab" became a timetabled class — fixed, not due,
+and never an outcome.
+
+**Red:** five new cases in `src/lib/calendar/quick-add.test.ts`
+(`Lab Report due …`, `Seminar essay due …`, `Lecture notes summary deadline …`,
+`Lab practical exam due …`, `Tutorial quiz due …`) all failed.
+**Green:** something that is due is now an assignment, or a test when it names
+one; a lab, lecture or seminar is a class only when nothing is due. A timetabled
+"Biology lab tomorrow at 2pm" still reads as a class. 82 calendar tests pass.
+
+### The founder journey's "missing" source link — present, but collapsed
+
+The link was never missing. Brief 2's plan screen groups blocks by topic, each
+group a collapsed disclosure. The attached video belongs to the Carbon topic, so
+it renders inside Carbon's group; the journey opened only Water's group, and a
+link inside a closed disclosure is not in the accessibility tree, hence
+"element(s) not found". The case now also asserts the source is saved on the
+Carbon topic, opens Carbon's group and finds the link in that topic's source
+list with the exact `href`. Red: CI runs 420, 423 and 424 at
+`living-plan.spec.ts:169`. Green: the one focused local browser run the standing
+rules allow, `founder journey preserves completed work, previews two topic
+changes, saves a receipt and undoes the revision` — **passed in 7.2 s**.
+
+### Deadline priority: not restored — it was replaced, and that needs a decision
+
+My earlier note said `deadline-priority.ts` "still ships". That was wrong. The
+module is present and `plan-creator.tsx` can still render its card, but on this
+branch **nothing calls `buildDeadlinePriority`**. Main calls it twice in
+`src/app/api/plans/generate/route.ts` — once before any AI usage is metered,
+once after the subject is resolved. Codex's plan-model commit `66f4c9f` removed
+both calls without recording it, and replaced the behaviour on purpose:
+`route.test.ts` "keeps the full topic queue when only 1/4/5/9 minutes remain and
+explains constrained suggestions" asserts that the same input main answered with
+a priority card now returns the full topic queue with an "after the deadline"
+constraint. Restoring the browser cases would mean reversing that. Held for the
+founder; the five priority cases stay in `notReplaced` and keep blocking.

@@ -166,7 +166,12 @@ test("founder journey preserves completed work, previews two topic changes, save
   const waterAfter = after.sessions.find(session => session.id === waterBefore.id)!;
   await page.locator(`[data-topic-id="${WATER}"] summary`).click();
   await expect(page.locator(`[data-block-id="${waterAfter.id}"]`)).toContainText(waterAfter.method);
-  await expect(page.getByRole("link", { name: VIDEO, exact: true })).toHaveAttribute("href", VIDEO);
+  // Brief 2 groups the plan by topic, each group collapsed until opened. The
+  // attached source belongs to Carbon, so it is shown inside Carbon's group:
+  // saved on the topic, then visible as a link once that group is opened.
+  expect(after.knowledgeMap!.topics.find(topic => topic.id === CARBON)!.attachedSources).toEqual(expect.arrayContaining([expect.objectContaining({ url: VIDEO })]));
+  await page.locator(`[data-topic-id="${CARBON}"] summary`).click();
+  await expect(page.getByRole("list", { name: /^Sources for / }).getByRole("link", { name: VIDEO, exact: true })).toHaveAttribute("href", VIDEO);
   for (const session of before.sessions.filter(item => item.status === "complete" || !item.topicIds?.some(topicId => [WATER, CARBON].includes(topicId)))) {
     expect(after.sessions.find(item => item.id === session.id)).toEqual(session);
   }

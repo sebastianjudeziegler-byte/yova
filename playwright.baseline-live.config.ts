@@ -26,5 +26,9 @@ export default defineConfig({
     // A new directory makes next dev rewrite tsconfig.json mid-run, and that
     // uncommitted change broke the Study Profile comparison's git checkout.
     env: { ...server.env, OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "" },
+    // The route's YOVA_SHAPE_SLOT diagnostics are content-free by design (stage,
+    // call, outcome, timings, budget). Without this they are discarded, and a
+    // live generation failure leaves no trace of which call failed or why.
+    stdout: "pipe",
   },
 });
