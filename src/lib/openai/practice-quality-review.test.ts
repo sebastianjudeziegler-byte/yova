@@ -69,6 +69,34 @@ describe("independent practice answer review", () => {
   // CI #429: live part one lost 8 of 8 and 6 of 8 questions to review, and the
   // log said only how many. The completed diagnostic now tallies why, as the
   // reviewer's own codes - never the question or the reviewer's prose.
+  // CI #430 caught it: asked to review 3 repaired questions, the reviewer also
+  // reviewed 2 of the earlier questions it was only meant to compare against,
+  // and the whole reply was thrown away. Reviews of a known earlier question are
+  // set aside; every target must still be reviewed exactly once.
+  it("sets aside reviews of earlier questions and still requires every target", async () => {
+    const targets = [{ ...question, slotId: "s9" }, { ...question, slotId: "s14" }];
+    const priorQuestions = [{ ...question, slotId: "s1" }, { ...question, slotId: "s2" }];
+    const sound = (slotId: string) => verdict({ slotId, answerIndices: [question.correctChoiceIndex], issue: "none", reason: "" });
+    const withPrior = vi.fn(async () => ({ reviews: [sound("s9"), sound("s1"), sound("s14"), verdict({ slotId: "s2", issue: "repeated" })] }));
+    expect(await reviewPracticeQuestions({ ...context, questions: targets, priorQuestions }, withPrior as never)).toEqual({ ok: true, rejected: [] });
+    const missingTarget = vi.fn(async () => ({ reviews: [sound("s9"), sound("s1")] }));
+    expect(await reviewPracticeQuestions({ ...context, questions: targets, priorQuestions }, missingTarget as never)).toEqual({ ok: false });
+    const invented = vi.fn(async () => ({ reviews: [sound("s9"), sound("s14"), sound("s77")] }));
+    expect(await reviewPracticeQuestions({ ...context, questions: targets, priorQuestions }, invented as never)).toEqual({ ok: false });
+  });
+
+  // CI #430: 30 of 49 live rejections were demand_not_met, mostly whole parts of
+  // recall questions judged against an application learning goal. In a session
+  // built up from recall, each question is judged against its own planned type.
+  it("judges each question's demand against its own planned type, not the whole goal", async () => {
+    const provider = vi.fn(async (call: SlotProviderCall<unknown>) => ({ reviews: JSON.parse(call.input).questions.map((target: { slotId: string }) => verdict({ slotId: target.slotId, answerIndices: [question.correctChoiceIndex], issue: "none", reason: "" })) }));
+    await reviewPracticeQuestions(context, provider as never);
+    const instructions = (provider.mock.calls as unknown as [SlotProviderCall<unknown>][])[0]![0].instructions;
+    expect(instructions).toMatch(/built up from recall/i);
+    expect(instructions).toMatch(/recall or misconception question meets its demand/i);
+    expect(instructions).toMatch(/never a review for priorQuestions/i);
+  });
+
   it("tallies why questions were rejected, as codes only", async () => {
     const targets = ["s1", "s2", "s3", "s4"].map(slotId => ({ ...question, slotId }));
     const diagnose = vi.fn();
@@ -91,7 +119,8 @@ describe("independent practice answer review", () => {
     const cases: Array<[unknown, Record<string, unknown>]> = [
       [null, { reason: "no_reply", expectedCount: 2, returnedCount: null }],
       [{ reviews: "not a list" }, { reason: "schema", expectedCount: 2, returnedCount: null }],
-      [{ reviews: [verdict({ slotId: "s9" }), verdict({ slotId: "s14" }), verdict({ slotId: "s1" })] }, { reason: "coverage", expectedCount: 2, returnedCount: 3, priorReviewedCount: 1, unknownCount: 0, duplicateCount: 0 }],
+      // A review of an earlier question is set aside; here a target is also missing.
+      [{ reviews: [verdict({ slotId: "s9" }), verdict({ slotId: "s1" })] }, { reason: "coverage", expectedCount: 2, returnedCount: 2, priorReviewedCount: 1, unknownCount: 0, duplicateCount: 0 }],
       [{ reviews: [verdict({ slotId: "s9" }), verdict({ slotId: "s9" })] }, { reason: "coverage", expectedCount: 2, returnedCount: 2, priorReviewedCount: 0, unknownCount: 0, duplicateCount: 1 }],
       [{ reviews: [verdict({ slotId: "s9" }), verdict({ slotId: "s77" })] }, { reason: "coverage", expectedCount: 2, returnedCount: 2, priorReviewedCount: 0, unknownCount: 1, duplicateCount: 0 }],
     ];

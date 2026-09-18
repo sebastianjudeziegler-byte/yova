@@ -886,3 +886,65 @@ waits through "Preparing the next part…", presses "Next part", and the founder
 journey's step allowance rose from 40 to 90. Local focused run: the founder
 journey **passed in 7.7 s**. Core journey otherwise: exactly main's own five
 failures.
+
+
+### CI run 430 on `898e2e8` ([35363679614](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35363679614))
+
+**Release gate: BLOCKED on 2**, down from the four and more of earlier runs:
+the live `History essay using outside sources` case (scoped; it passed in run
+427 and failed in 428 and here) and the full live gate's copy of the synthetic
+32-question trace. The founder journey no longer blocks.
+
+- **Step 20:** the synthetic 32-question trace **passed** — four parts, 71.5 s in
+  total. The step failed on the CI410 canary, whose reviewer again returned
+  `rejected: []` for the retained question with no fully correct option. The
+  gate's separate copy of the synthetic trace failed, so that case is
+  intermittent too. Both still await the founder's decision.
+- **Step 22, live practice: 16 of 17** — only the live 32-question workload,
+  whose part one delivered 5 of 8.
+- **Step 25:** the try-it-first journey asserted that only the lesson and the
+  comparison were ever requested; with more than eight planned questions its
+  session now also asks for part two. The stub record now labels part requests,
+  and the three assertions that read it tolerate parts while still refusing any
+  other practice generation.
+
+**Why part one was rejected — from the new rejection-code tally, not inferred.**
+Across the live step, 49 questions were rejected:
+
+| Code | Count |
+| --- | --- |
+| `demand_not_met` | 30 |
+| `repeated` / `duplicate` | 6 / 6 |
+| `answer_disagrees` | 3 |
+| `ambiguous`, `missing_conditions`, `unsupported` | 1 each |
+
+`demand_not_met` hit whole parts of recall questions at once (8 of 8, 6 of 8,
+8 of 8). The osmosis workload's learning goal asks for application; the reviewer
+judged recall questions against it, although its own instructions say not to
+reject recall for being introductory. Parts put recall first by design, so part
+one took the brunt.
+
+The same run also captured the cause of run 427's unexplained invalid
+re-reviews: `{"reason":"coverage","expectedCount":3,"returnedCount":5,
+"priorReviewedCount":2}` — asked to review three repaired questions, the reviewer
+also reviewed two earlier questions it had only been given for comparison, and
+the whole reply was discarded.
+
+**Two fixes, red first.**
+
+1. **Reviews of known earlier questions are set aside.** Every question under
+   review must still be reviewed exactly once; an invented or repeated slot
+   still makes the reply unusable. The reply schema allows up to 32 reviews so a
+   reply containing extra ones can be read at all. Red:
+   `sets aside reviews of earlier questions and still requires every target`.
+2. **Demand is judged against each question's own planned type.** The reviewer
+   is told the session is built up from recall; a recall or misconception
+   question meets its demand when it accurately tests its one key point and
+   cannot be answered by matching wording, and is never marked unmet because the
+   learning goal asks for application. Every other kind is judged as before. The
+   correctness, ambiguity, repetition and explanation checks are unchanged. Red:
+   `judges each question's demand against its own planned type, not the whole
+   goal`. The review cache key moved to v3.
+
+4,593 unit tests pass; lint and types clean. The next run's rejection-code tally
+will show whether `demand_not_met` on recall parts stops.

@@ -72,8 +72,10 @@ function tipsFollowing(requested: TipRequestEntry[] = []) {
 
 async function mockShapeSlots(page: Page, calls: string[]) {
   await page.route("**/api/sessions/shape", async (route: Route) => {
-    const body = route.request().postDataJSON() as { action: string; round?: number; tips?: TipRequestEntry[] };
-    calls.push(body.action);
+    const body = route.request().postDataJSON() as { action: string; round?: number; part?: { index: number }; tips?: TipRequestEntry[] };
+    // A later part of the same first pass is recorded as such, so a test can
+    // tell it apart from a separate practice generation.
+    calls.push(body.action === "practice" && body.part ? "practice:part" : body.action);
     const json = body.action === "learn_block" ? LEARN_BLOCK
       : body.action === "compare" ? COMPARISON
         : body.action === "practice" ? practiceResponse(body.round ?? 1)
@@ -168,7 +170,7 @@ test("a learner is routed through Shape A, produces, compares, and finishes with
   await expectReceiptNamesApplicableRules(page, ruleIds);
   // Development StrictMode mounts twice, so an aborted duplicate of the first
   // request can reach the mock; assert the slots used and their order, not a count.
-  expect([...new Set(calls)].filter((action) => action !== "practice")).toEqual(["learn_block", "compare"]);
+  expect([...new Set(calls)].filter((action) => action !== "practice" && action !== "practice:part")).toEqual(["learn_block", "compare"]);
   await page.getByRole("button", { name: "Finish" }).click();
   await expect(page.locator("[data-shape]")).toHaveCount(0);
   // A Study Now plan has one session, so Home returns to its start state; the completion is recorded.
@@ -249,7 +251,7 @@ test("a memorization learn block runs Shape C closed-book after a brief study st
   await expect(page.getByRole("heading", { name: "A full round passed clean." })).toBeVisible();
   await expect(page.getByText("3 of 4 correct")).toBeVisible();
   await expectReceiptNamesApplicableRules(page, ruleIds);
-  expect([...new Set(calls)]).toEqual(["learn_block", "practice"]);
+  expect([...new Set(calls)].filter((call) => call !== "practice:part")).toEqual(["learn_block", "practice"]);
   expect(calls.indexOf("practice")).toBeGreaterThan(calls.lastIndexOf("learn_block"));
   await page.getByRole("button", { name: "Finish" }).click();
   await expect(page.locator("[data-shape]")).toHaveCount(0);
@@ -285,7 +287,9 @@ test("a try-it-first learner produces before studying and still gets the compari
   await page.getByRole("button", { name: "Move on", exact: true }).click();
   await completeOptionalPlannedPractice(page);
   await expect(page.getByRole("heading", { name: /You studied, produced and compared|A full round passed clean/ })).toBeVisible();
-  expect([...new Set(calls)]).toEqual(["learn_block", "compare"]);
+  // Nothing beyond the lesson and the comparison was generated; a session over
+  // eight questions may also fetch the later parts of the same first pass.
+  expect([...new Set(calls)].filter((call) => call !== "practice:part")).toEqual(["learn_block", "compare"]);
 });
 
 // Brief 1.5 item 6: below ~1100px the rail sits under the card in one column. Functional, NOT designed.
