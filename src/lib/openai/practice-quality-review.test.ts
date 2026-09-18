@@ -58,7 +58,30 @@ describe("independent practice answer review", () => {
     const diagnose = vi.fn();
     const provider = Object.assign(vi.fn(async () => ({ reviews: [] })), { diagnose });
     expect(await reviewPracticeQuestions(context, provider as never)).toEqual({ ok: false });
-    expect(diagnose).toHaveBeenCalledExactlyOnceWith({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "invalid", questionCount: 1 });
+    expect(diagnose).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "invalid", questionCount: 1 }));
+  });
+
+  // CI #427: both live failures were a re-review the provider returned complete
+  // and schema-valid, then rejected here, with no record of which check failed.
+  // The diagnostic now names it, with counts and codes only - never content.
+  it("names why a review reply was unusable, without any question content", async () => {
+    const targets = [{ ...question, slotId: "s9" }, { ...question, slotId: "s14" }];
+    const priorQuestions = [{ ...question, slotId: "s1" }, { ...question, slotId: "s2" }];
+    const cases: Array<[unknown, Record<string, unknown>]> = [
+      [null, { reason: "no_reply", expectedCount: 2, returnedCount: null }],
+      [{ reviews: "not a list" }, { reason: "schema", expectedCount: 2, returnedCount: null }],
+      [{ reviews: [verdict({ slotId: "s9" }), verdict({ slotId: "s14" }), verdict({ slotId: "s1" })] }, { reason: "coverage", expectedCount: 2, returnedCount: 3, priorReviewedCount: 1, unknownCount: 0, duplicateCount: 0 }],
+      [{ reviews: [verdict({ slotId: "s9" }), verdict({ slotId: "s9" })] }, { reason: "coverage", expectedCount: 2, returnedCount: 2, priorReviewedCount: 0, unknownCount: 0, duplicateCount: 1 }],
+      [{ reviews: [verdict({ slotId: "s9" }), verdict({ slotId: "s77" })] }, { reason: "coverage", expectedCount: 2, returnedCount: 2, priorReviewedCount: 0, unknownCount: 1, duplicateCount: 0 }],
+    ];
+    for (const [reply, invalidity] of cases) {
+      const diagnose = vi.fn();
+      const provider = Object.assign(vi.fn(async () => reply), { diagnose });
+      expect(await reviewPracticeQuestions({ ...context, questions: targets, priorQuestions }, provider as never)).toEqual({ ok: false });
+      const event = diagnose.mock.calls[0]![0];
+      expect(event).toMatchObject({ outcome: "invalid", invalidity });
+      expect(JSON.stringify(event)).not.toContain(question.prompt);
+    }
   });
 
   it.each([24, 32])("reviews %i questions in parallel batches of at most eight with complete earlier-question context", async count => {

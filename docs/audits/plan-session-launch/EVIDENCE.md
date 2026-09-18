@@ -719,3 +719,53 @@ CI runs all five. `notReplaced` is now empty and removed from
 
 Local checkpoint: 4,566 unit tests passed, 26 runner checks, lint and types
 clean.
+
+
+## CI run 427 on `38a9b0a` ([35334170263](https://github.com/sebastianjudeziegler-byte/yova/actions/runs/35334170263))
+
+**Release comparison: "No regressions versus main."** First time on this branch.
+Against main `0ce2292`: 4 no regression, 2 established flaky quarantine,
+2 unavailable, 10 pre-existing — **zero blocking**. Raw live counts
+`{"pass":51,"fail":5,"flaky":21,"unavailable":2}`.
+
+- **Core journey: 234 passed, 5 failed** — exactly main's own five (material
+  drop zone on both projections, three mobile calendar cases). The quick-add
+  deadline, the founder journey and all five restored priority-card cases pass.
+- **Live practice: 15 passed, 2 failed** — the live 24- and 32-question
+  workloads. Step 20's synthetic 32-question trace also failed.
+- Steps 34 (the raw live gate, which fails on any live failure by design) and
+  20/22 are red; step 35, the release gate, is green.
+
+### The 24/32-question failures, from the captured trace
+
+`stdout: "pipe"` worked: 109 content-free `YOVA_SHAPE_SLOT` lines in the live
+step log. Plus the founder-authorised artifact
+`session-generation-diagnostics-35334170263` (31,759 bytes).
+
+| Request | What happened | Remaining budget |
+| --- | --- | --- |
+| Live 32 (`3ba96ad4`) | learn block, 3 batches, 4 review batches all `completed`; 3 of 32 rejected; repair `completed`; re-review of 3 against 29 earlier questions: provider `completed` → quality **`invalid`**, twice | 6.4 s left |
+| Live 24 (`4c3a5ea3`) | all `completed`; 6 of 24 rejected; repair `completed`; re-review of 6: provider `completed` → quality **`invalid`**; retry timed out at the edge | 2.0 s |
+| Synthetic 32 | a slow first call (13.0 s); 3 rejected; repair; re-review of 3 against 29 given 7.7 s → `timeout`, then `deadline` | 2.0 s |
+
+So there are two different failures, and both sit in the same place, the
+re-review of the few repaired questions against every question accepted before
+them. The synthetic one is the time budget. The live ones are not: the reviewer
+answered in time, and our own check rejected the answer.
+
+Which check, from the code rather than inference: the provider records
+`completed` only after the reply passes `ReviewSchema`
+(`shape-slot-generator.ts:116-119`), and the reviewer's other rejection paths
+are either impossible here (the target set is 3 or 6 unique repaired slots) or
+the **coverage** check — every target reviewed exactly once, and nothing else.
+What the trace cannot say, because it carries no content by design, is how
+coverage failed: a review of an earlier question, an invented slot, a duplicate
+or a missing target.
+
+That is now recorded. An unusable review reply emits its reason as codes and
+counts only — `no_reply`, `schema` (with issue codes and paths) or `coverage`
+(with expected and returned counts, and how many returned reviews named an
+earlier question, an unknown slot or a duplicate). Red first: `names why a
+review reply was unusable, without any question content` failed without the
+change and passes with it, and asserts no question text reaches the diagnostic.
+386 generator and review tests pass; 4,567 overall.

@@ -22,14 +22,24 @@ export type PracticeReviewContext = {
   priorQuestions?: PracticeQuestion[];
 };
 export type PracticeQualityIssue = { slotId: string; reason: string };
-type ReviewResult = { ok: true; rejected: PracticeQualityIssue[] } | { ok: false };
+/** Why a review reply was unusable: counts and codes only, never content. */
+export type ReviewInvalidity = {
+  reason: "no_reply" | "schema" | "coverage";
+  expectedCount: number;
+  returnedCount: number | null;
+  priorReviewedCount?: number;
+  unknownCount?: number;
+  duplicateCount?: number;
+  schemaIssues?: string[];
+};
+type ReviewResult = { ok: true; rejected: PracticeQualityIssue[] } | { ok: false; invalidity?: ReviewInvalidity };
 
 /** A separate solver sees the displayed options, never the author's answer key.
  * This is a model quality check, not a proof of correctness. Code enforces its
  * complete coverage and prevents unreviewed/failed questions being delivered. */
 export async function reviewPracticeQuestions(context: PracticeReviewContext, provider: SlotProvider): Promise<ReviewResult> {
-  const invalid = () => {
-    provider.diagnose?.({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "invalid", questionCount: context.questions.length });
+  const invalid = (invalidity?: ReviewInvalidity) => {
+    provider.diagnose?.({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "invalid", questionCount: context.questions.length, ...(invalidity ? { invalidity } : {}) });
     return { ok: false } as const;
   };
   if (!context.questions.length || context.questions.length > 32 || new Set(context.questions.map(question => question.slotId)).size !== context.questions.length) return invalid();
@@ -40,7 +50,8 @@ export async function reviewPracticeQuestions(context: PracticeReviewContext, pr
   // Earlier drafts stay visible while their reviews run, so later batches can
   // detect semantic repeats. All calls share the original provider/deadline.
   const results = await Promise.all(batches.map(batch => reviewQuestionBatch(batch, provider)));
-  if (results.some(result => !result.ok)) return invalid();
+  const failed = results.find(result => !result.ok);
+  if (failed && !failed.ok) return invalid(failed.invalidity);
   const rejected = results.flatMap(result => result.ok ? result.rejected : []);
   provider.diagnose?.({ stage: "quality", schemaName: "yova_practice_quality_review", outcome: "completed", questionCount: context.questions.length, rejectedCount: rejected.length });
   return { ok: true, rejected };
@@ -63,14 +74,27 @@ Return exactly one review per target question.slotId, never a review for priorQu
     maxOutputTokens: 1_200 + context.questions.length * 170 + (context.priorQuestions?.length ?? 0) * 25,
     cacheKey: "yova-practice-quality-review-v2",
   });
+  const expectedCount = context.questions.length;
+  const returned = draft && typeof draft === "object" && Array.isArray((draft as { reviews?: unknown }).reviews) ? (draft as { reviews: unknown[] }).reviews : null;
+  if (draft === null || draft === undefined) return { ok: false, invalidity: { reason: "no_reply", expectedCount, returnedCount: null } };
   const parsed = ReviewSchema.safeParse(draft);
-  if (!parsed.success) return { ok: false };
+  if (!parsed.success) {
+    return { ok: false, invalidity: { reason: "schema", expectedCount, returnedCount: returned?.length ?? null,
+      schemaIssues: [...new Set(parsed.error.issues.map(issue => `${issue.code}@${issue.path.filter(part => typeof part === "string").join(".") || "root"}`))].slice(0, 6) } };
+  }
   const reviews = new Map(parsed.data.reviews.map(review => [review.slotId, review]));
-  if (reviews.size !== context.questions.length || parsed.data.reviews.length !== reviews.size) return { ok: false };
+  if (reviews.size !== expectedCount || parsed.data.reviews.length !== reviews.size || context.questions.some(question => !reviews.has(question.slotId))) {
+    const targets = new Set(context.questions.map(question => question.slotId));
+    const prior = new Set((context.priorQuestions ?? []).map(question => question.slotId));
+    const ids = parsed.data.reviews.map(review => review.slotId);
+    return { ok: false, invalidity: { reason: "coverage", expectedCount, returnedCount: ids.length,
+      priorReviewedCount: ids.filter(id => !targets.has(id) && prior.has(id)).length,
+      unknownCount: ids.filter(id => !targets.has(id) && !prior.has(id)).length,
+      duplicateCount: ids.length - new Set(ids).size } };
+  }
   const rejected: PracticeQualityIssue[] = [];
   for (const question of context.questions) {
-    const review = reviews.get(question.slotId);
-    if (!review) return { ok: false };
+    const review = reviews.get(question.slotId)!;
     if (!review.stemSufficient || !review.demandMet || review.answerIndices.length !== 1 || review.answerIndices[0] !== question.correctChoiceIndex || review.issue !== "none" || review.duplicateOfSlotId !== null) {
       const defects = [!review.stemSufficient ? "missing_conditions" : null, !review.demandMet ? "wrong_type" : null, review.issue].filter(Boolean).join(", ");
       rejected.push({ slotId: question.slotId, reason: `${defects}; independent valid answer indices: ${review.answerIndices.join(", ") || "none"}. ${review.reason}` });
