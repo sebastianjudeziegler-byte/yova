@@ -173,11 +173,23 @@ Locally: 4,560 tests pass, nothing failing, lint and types clean. The migration,
 the database cases and the live gates only run in CI, so the next run is the
 real check.
 
+## A behaviour change: the short-deadline priority card is back
+
+Brief 2's plan-model work had quietly replaced it. When someone had only a few
+minutes left before their deadline, YOVA had started showing the full list of
+topics with a note that the work would land "after the deadline". That is the
+wrong thing to show a learner with three minutes left, so on your decision it
+is reversed: they get one quick, useful action again — focus on the first topic,
+here is what to do in the minutes you have — with a clear line that this does
+not count as a finished session or a learned topic. It is checked before any AI
+usage is charged, as it was on main. Its five browser checks are back under
+their original names, and the unit tests that assert it failed first and pass
+now.
+
 ## What is still open
 
 - The two browser regressions from earlier branch work: a quick-add deadline
   whose type reads "class", and the founder journey's missing source link.
-- The four unreplaced cases above.
 - Codex's earlier honest caveats still stand: test counts are not evidence of
   learning, the phone briefing still puts a long list of instructions before the
   task, and automated recordings cannot replace feedback from real learners.

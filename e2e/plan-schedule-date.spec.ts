@@ -13,6 +13,45 @@ async function reachSchedule(page:Page,goal:string){await page.getByLabel("Learn
 async function generate(page:Page){await page.getByRole("button",{name:"Continue",exact:true}).click();const response=page.waitForResponse(response=>new URL(response.url()).pathname==="/api/plans/generate"&&!new URL(response.url()).search);await page.getByRole("button",{name:"Skip placement and build plan",exact:true}).click();return await(await response).json();}
 function dateIn(days:number){const date=new Date(PLAN_FIXED_NOW);date.setUTCDate(date.getUTCDate()+days);return date.toISOString().slice(0,10);}
 
+// The short-deadline degrade ladder (founder decision, 18 Sept 2026: restored as
+// it worked on main, titles kept so the release comparison matches them). When
+// every remaining window before the deadline is under ten minutes, the learner
+// gets one quick priority action, not a plan and not a claim of learning.
+async function expectPriorityCard(page:Page,generated:{kind?:string;priority?:{minutes:number;progressCredit:boolean}},minutes:number){
+ expect(generated).toMatchObject({kind:"deadline_priority",priority:{minutes,progressCredit:false}});
+ expect(generated).not.toHaveProperty("plan");
+ await expect(page.getByRole("heading",{name:`Focus on ${titles[0]}`})).toBeVisible();
+ await expect(page.getByText("This card does not record a completed session or mark the topic as learned.",{exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Use this plan",exact:true})).toHaveCount(0);
+ await expect(page.getByRole("region",{name:"Plan grouped by topic"})).toHaveCount(0);
+}
+for(const minutes of [1,3,5,9])test(`explicit ${minutes}-minute availability remains a priority card`,async({page},testInfo)=>{
+ await acceptedMap(page);await openPlanSetupPreview(page);
+ await reachSchedule(page,`Teach me cellular respiration from scratch for my biology test on ${dateIn(1)}. I can study every day evenings for ${minutes} minutes.`);
+ const generated=await generate(page);
+ await expectPriorityCard(page,generated,minutes);
+ await page.screenshot({path:testInfo.outputPath(`priority-${minutes}-minutes.png`),fullPage:true});
+});
+test("consolidated: a three-minute priority records no completion",async({page},testInfo)=>{
+ // A real server deadline clips an ordinary 45-minute evening window to three
+ // minutes under the frozen clock; nothing about the response is fabricated.
+ const boundary=new Date(PLAN_FIXED_NOW);boundary.setUTCDate(boundary.getUTCDate()+1);boundary.setUTCHours(19,3,0,0);
+ await page.route("**/api/plans/generate**",async route=>{
+  const body=route.request().postDataJSON();
+  const tinyWindow=route.request().url().includes("?mode=")?{}:{deadline:boundary.toISOString(),timeZone:"UTC",availability:[{day:new Intl.DateTimeFormat("en-US",{weekday:"long",timeZone:"UTC"}).format(boundary),window:"Evening",minutes:45}]};
+  await route.continue({postData:JSON.stringify({...body,...(!body.knowledgeMap?{knowledgeMap:topicMap()}:{}),...tinyWindow})});
+ });
+ await openPlanSetupPreview(page);
+ await reachSchedule(page,`Teach me cellular respiration from scratch for my biology test on ${dateIn(1)}. I can study every day evenings for 45 minutes.`);
+ const generated=await generate(page);
+ await expectPriorityCard(page,generated,3);
+ await page.screenshot({path:testInfo.outputPath("priority-three-minutes.png"),fullPage:true});
+ await page.getByRole("button",{name:"Done",exact:true}).click();
+ const state=await page.evaluate(()=>JSON.parse(localStorage.getItem("yova.preview.v1")??"{}"));
+ expect(state.sessionCompletions??[]).toEqual([]);
+ expect((state.plans??[]).filter((plan:{status?:string})=>plan.status==="active")).toEqual([]);
+});
+
 // Accepted-map fixtures isolate calendar/state integration. These tests exercise
 // real receipt, composition, routing and activation endpoints, not AI quality.
 for(const days of [1,3])test(`a ${days}-day deadline retains the full queue and states scheduling conflicts`,async({page},testInfo)=>{

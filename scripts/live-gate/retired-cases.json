@@ -247,35 +247,5 @@
         "replacedBy": "a 3-day deadline retains the full queue and states scheduling conflicts"
       }
     ]
-  },
-  "notReplaced": {
-    "reason": "Present in retained main, absent here, and no replacement was identified while reading the branch's specs. They are deliberately NOT excused: the comparator still blocks on them until someone states what happened to the behaviour they covered. The five priority-card cases matter most: src/lib/plan-generation/deadline-priority.ts still ships, so a live feature lost its browser coverage.",
-    "cases": [
-      {
-        "file": "plan-schedule-date.spec.ts",
-        "name": "explicit 1-minute availability remains a priority card",
-        "note": "deadline_priority still exists in src/lib/plan-generation/deadline-priority.ts"
-      },
-      {
-        "file": "plan-schedule-date.spec.ts",
-        "name": "explicit 3-minute availability remains a priority card",
-        "note": "deadline_priority still exists in src/lib/plan-generation/deadline-priority.ts"
-      },
-      {
-        "file": "plan-schedule-date.spec.ts",
-        "name": "explicit 5-minute availability remains a priority card",
-        "note": "deadline_priority still exists in src/lib/plan-generation/deadline-priority.ts"
-      },
-      {
-        "file": "plan-schedule-date.spec.ts",
-        "name": "explicit 9-minute availability remains a priority card",
-        "note": "deadline_priority still exists in src/lib/plan-generation/deadline-priority.ts"
-      },
-      {
-        "file": "plan-schedule-date.spec.ts",
-        "name": "consolidated: a three-minute priority records no completion",
-        "note": "deadline_priority still exists in src/lib/plan-generation/deadline-priority.ts"
-      }
-    ]
   }
 }

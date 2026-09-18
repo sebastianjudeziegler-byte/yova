@@ -682,3 +682,40 @@ explains constrained suggestions" asserts that the same input main answered with
 a priority card now returns the full topic queue with an "after the deadline"
 constraint. Restoring the browser cases would mean reversing that. Held for the
 founder; the five priority cases stay in `notReplaced` and keep blocking.
+
+
+### Deadline priority restored (founder decision, 18 Sept 2026)
+
+Codex's replacement is reversed. With every remaining window before the
+deadline under ten minutes, the learner again gets one quick priority action —
+"Focus on <first topic>", what to do in the minutes available, and "This card
+does not record a completed session or mark the topic as learned" — instead of
+the full topic queue marked "after the deadline".
+
+**Red:** `src/app/api/plans/generate/route.test.ts` "offers a priority card when
+only 1/4/5/9 minutes remain, without claiming a lesson was completed", restored
+from main in place of Codex's "keeps the full topic queue when only … minutes
+remain", failed four times: `expected { plan: … } to match object { kind:
+'deadline_priority', … }`.
+
+**Green:** `buildDeadlinePriority` is called again at the two points main called
+it in `src/app/api/plans/generate/route.ts`: once before any AI usage is
+reserved, so a three-minute learner costs nothing, and once after the accepted
+subject is resolved, settling the claim. All 61 route tests pass; nothing in
+`deadline-priority.ts` or the card changed.
+
+**Browser coverage restored under main's exact titles**, so the release
+comparison matches them directly rather than through a rename:
+`explicit 1/3/5/9-minute availability remains a priority card` and
+`consolidated: a three-minute priority records no completion`. Each asserts the
+server response is the card with no plan, the card's heading and no-credit
+sentence are visible, and there is no "Use this plan" button and no grouped plan;
+the three-minute case also clicks Done and asserts no completion and no active
+plan were saved. The three-minute case reproduces main's real deadline clipping
+an ordinary 45-minute evening window, nothing fabricated. Local focused run:
+`explicit 3-minute availability remains a priority card` **passed in 2.2 s**;
+CI runs all five. `notReplaced` is now empty and removed from
+`retired-cases.json`.
+
+Local checkpoint: 4,566 unit tests passed, 26 runner checks, lint and types
+clean.

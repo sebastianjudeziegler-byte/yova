@@ -267,7 +267,11 @@ describe("plan generation route", () => {
     expect(mocks.mapMaterial).not.toHaveBeenCalled();
   });
 
-  it.each([1, 4, 5, 9])("keeps the full topic queue when only %i minutes remain and explains constrained suggestions", async (minutes) => {
+  // Founder decision (18 Sept 2026): restored as it worked on main. With only a
+  // few minutes left, a full queue marked "after the deadline" is the wrong thing
+  // to show; the learner gets one useful action and no claim that anything was
+  // learned. Codex's plan-model commit 66f4c9f had replaced this unrecorded.
+  it.each([1, 4, 5, 9])("offers a priority card when only %i minutes remain, without claiming a lesson was completed", async (minutes) => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-07T19:00:00Z"));
     try {
       const { POST } = await import("@/app/api/plans/generate/route");
@@ -277,10 +281,9 @@ describe("plan generation route", () => {
       }));
       const body = await response.json();
       expect(response.status).toBe(200);
-      expect(body.plan.planModel.version).toBe("topic_plan_v2");
-      expect(body.plan.planModel.constraints.join(" ")).toContain("after the deadline");
-      expect(new Set(body.plan.sessions.flatMap((session: { topicIds: string[] }) => session.topicIds)).size).toBe(planRequest.knowledgeMap!.topics.length);
-      expect(mocks.generatePlan).toHaveBeenCalledOnce();
+      expect(body).toMatchObject({kind:"deadline_priority",priority:{minutes,title:`Focus on ${planRequest.knowledgeMap!.topics[0]!.title}`,progressCredit:false,action:expect.stringMatching(/example|notes/i),explanation:expect.stringContaining("ten-minute")}});
+      expect(body).not.toHaveProperty("plan");
+      expect(mocks.generatePlan).not.toHaveBeenCalled();
     } finally {clock.mockRestore();}
   });
 

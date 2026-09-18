@@ -1,5 +1,6 @@
 import { writeOnboardingAnswers } from "@/lib/onboarding/answers";
 import { immediateTopicWorkload } from "@/lib/plan-generation/topic-plan-model";
+import { buildDeadlinePriority } from "@/lib/plan-generation/deadline-priority";
 import { initialPlanBaselineMethod } from "@/lib/study-route/initial-plan-baseline-method";
 import { NextResponse } from "next/server";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
@@ -319,6 +320,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error instanceof Error ? error.message : "YOVA could not apply these topic changes.", code: "setup_corrections_invalid" }, { status: 422 });
     }
   }
+  // When every remaining window before the deadline is under ten minutes, the
+  // learner gets one quick priority action instead of a plan, before any AI
+  // usage is reserved (as on main; restored by founder decision, 18 Sept 2026).
+  const acceptedMapPriority = !diagnosticOnly && !understandingOnly && !planRequest.mapCorrection
+    ? buildDeadlinePriority(planRequest, new Date(scheduleNowMs)) : null;
+  if (acceptedMapPriority) return NextResponse.json(acceptedMapPriority, {
+    headers: {"Cache-Control":"no-store", "X-Yova-Request-Id":requestId},
+  });
   let aiUsageClaimId: string | null = null;
   let forcedNormalPlanFallbackNotice: string | null = null;
   const knowledgeMapFallbackNotice: string | null = null;
@@ -727,6 +736,12 @@ export async function POST(request: Request) {
     // Resolve the accepted subject exactly once before it can influence either
     // deterministic structure or provider copy.
     planRequest = resolvePlanRequestSubjectBoundary(planRequest);
+    // The resolved subject can change the accepted topics, so check again.
+    const priority = buildDeadlinePriority(planRequest, normalPlanNow);
+    if (priority) {
+      await settleSuccessfulPlanClaim(supabase, aiUsageClaimId, requestId);
+      return NextResponse.json(priority, {headers:{"Cache-Control":"no-store", "X-Yova-Request-Id":requestId}});
+    }
     initialPlanContext = withPreviewBaselineAnswers(await loadAuthorizedNormalDurationContext(
       developmentPreview
         ? { developmentPreview: true, now: normalPlanNow }
