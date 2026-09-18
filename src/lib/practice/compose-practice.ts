@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { orderedChoices, referencesLearningDocument } from "@/lib/practice/choice-order";
 import { BASE_MIX_SIZE, QUESTION_TYPES, type QuestionSlot } from "@/lib/practice/question-mix";
 
 /**
@@ -8,6 +9,8 @@ import { BASE_MIX_SIZE, QUESTION_TYPES, type QuestionSlot } from "@/lib/practice
  * the question for each slot.
  */
 export const KeyPointSchema = z.object({
+  /** Code binds generated points to their originating topic, never guesses at completion. */
+  sourceTopicId: z.string().uuid().optional(),
   id: z.string().trim().min(1).max(40),
   text: z.string().trim().min(8).max(400),
 }).strict();
@@ -83,6 +86,7 @@ export function composePracticeRound({ keyPoints, slots, drafts }: {
     const parsed = QuestionDraftSchema.safeParse(candidate);
     if (!parsed.success) return { ok: false, reason: `A question was malformed: ${parsed.error.issues[0]?.message ?? "unknown"}.` };
     if (!planned.has(parsed.data.slotId)) return { ok: false, reason: "A question filled a slot that was not planned." };
+    if (referencesLearningDocument(parsed.data.prompt)) return { ok: false, reason: "A question tested a learning document rather than the subject." };
     if (filled.has(parsed.data.slotId)) return { ok: false, reason: "Two questions filled one slot." };
     if (new Set(parsed.data.choices.map(normalizeChoice)).size !== parsed.data.choices.length) return { ok: false, reason: "A question repeated a choice." };
     filled.set(parsed.data.slotId, parsed.data);
@@ -93,7 +97,8 @@ export function composePracticeRound({ keyPoints, slots, drafts }: {
     ok: true,
     questions: slots.map((slot) => {
       const written = filled.get(slot.slotId)!;
-      return { id: slot.slotId, slotId: slot.slotId, kind: slot.type, keyPointIds: [...slot.keyPointIds], prompt: written.prompt, choices: written.choices, correctChoiceIndex: written.correctChoiceIndex, explanation: written.explanation };
+      const order = orderedChoices(written.choices, written.correctChoiceIndex, `${slot.slotId}:${written.prompt}:${written.choices.join("|")}`);
+      return { id: slot.slotId, slotId: slot.slotId, kind: slot.type, keyPointIds: [...slot.keyPointIds], prompt: written.prompt, ...order, explanation: written.explanation };
     }),
   };
 }

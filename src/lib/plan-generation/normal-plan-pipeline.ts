@@ -1,21 +1,12 @@
+import { validateTopicComposition } from "@/lib/plan-generation/topic-plan-validation";
 import { applyCoveredPracticeSupport, coveredPracticeAmountLabel } from "@/lib/plan-revision/covered-practice-support";
-import { normalPlanAvailability, normalPlanModeDecisions, type NormalPlanRevisionContext } from "@/lib/plan-generation/normal-plan-revision-context";
-import { measuredPlacementEvidence } from "@/lib/knowledge-map/topic-evidence";
+import { type NormalPlanRevisionContext } from "@/lib/plan-generation/normal-plan-revision-context";
 import { normalPlanAmountLabel } from "@/lib/plan-generation/learner-plan-copy";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
-import { LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
-import { classifyLearningTask } from "@/lib/learning/method-router";
-import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
-import {
-  INITIAL_PLAN_MODE_ROUTING_VERSION,
-} from "@/lib/plan-generation/initial-session-mode";
 import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
 import {
-  NORMAL_PLAN_DEFERRAL_REASON_CODES,
   NORMAL_PLAN_ENVELOPE_COMPOSER_VERSION,
-  NORMAL_PLAN_SESSION_RESET_MINUTES,
   type NormalPlanEnvelopeComposition,
-  type NormalPlanSessionEnvelope,
 } from "@/lib/plan-generation/normal-plan-envelopes";
 import {
   assertNormalPlanMethodScaffoldReplaced,
@@ -23,7 +14,6 @@ import {
 } from "@/lib/plan-generation/normal-plan-provider-fill";
 import {
   GeneratedLearningPlanSchema,
-  MAX_GENERATED_PLAN_SESSIONS,
   PlanGenerationRequestSchema,
   type GeneratedPlanDraft,
   type PlanGenerationRequest,
@@ -40,7 +30,6 @@ import {
   NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION,
   integrateNormalPlanEnvelopeRoute,
 } from "@/lib/study-route/normal-plan-envelope-integration";
-import { NORMAL_DURATION_RECOMMENDER_VERSION } from "@/lib/study-route/duration-recommendation";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
 
 export const NORMAL_PLAN_PIPELINE_VERSION = "normal_plan_pipeline_v1" as const;
@@ -57,19 +46,6 @@ export type NormalPlanPipelineInput = Readonly<{
 type AcceptedNormalPlanRequest = PlanGenerationRequest & {
   knowledgeMap: NonNullable<PlanGenerationRequest["knowledgeMap"]>;
 };
-
-const CAPACITY_DEFERRAL_CODES = new Set([
-  "session_cap",
-  "deadline_capacity",
-  "availability_capacity",
-]);
-const DEFERRAL_REASON_CODES = new Set<string>(NORMAL_PLAN_DEFERRAL_REASON_CODES);
-const TASK_FAMILIES = new Set<string>(LEARNING_TASK_TYPES);
-const ENVELOPE_KINDS = new Set([
-  "initial_coverage",
-  "required_practice",
-  "additional_practice",
-]);
 
 /**
  * The only public normal-plan materialization boundary. Provider output can
@@ -172,312 +148,7 @@ function assertCompositionMatchesRequest({
     throw pipelineError("The atomic pipeline received an unsupported envelope composition.");
   }
 
-  const scope = request.knowledgeMap.scopeJudgment;
-  const recovery = composition.capacityRecovery;
-  if (recovery) {
-    const learnCount = normalPlanModeDecisions({
-      learningIntentRecommendation:{intent:request.learningIntent,basis:"Use the accepted starting evidence."},
-      knowledgeMap:request.knowledgeMap,
-      sessions:request.knowledgeMap.topics.filter(topic=>!topic.deferred).map(topic=>({key:topic.id,topicIds:[topic.id]})),
-    }, revisionContext).filter(decision=>decision.learningMode==="learn").length;
-    const reduced = recovery.stage === "reduced_scope" || recovery.stage === "triage";
-    const expectedTeaching = Math.min(reduced ? 1 : scope.minimumTeachingSessions, learnCount);
-    const expectedPractice = recovery.stage === "triage" ? "none" : recovery.stage === "shorter_sessions" ? scope.maximumSessions > 1 ? "all" : "none" : "last_teaching";
-    if (!request.deadline || !["shorter_sessions","last_teaching_practice","reduced_scope","triage"].includes(recovery.stage)
-      || recovery.minimumTeachingSessions !== expectedTeaching || recovery.practiceRequirement !== expectedPractice
-      || typeof recovery.explanation !== "string" || recovery.explanation.length < 10 || recovery.explanation.length > 900
-      || composition.envelopes.some(envelope=>envelope.timing.activeMinutes>(recovery.stage==="shorter_sessions"?45:10))
-      || (recovery.stage==="triage" && (composition.envelopes.length!==1 || composition.envelopes[0]!.topicIds.length!==1))) {
-      throw pipelineError("The deadline recovery no longer matches its bounded teaching and practice policy.");
-    }
-  }
-  const maximumSessions = Math.min(scope.maximumSessions, MAX_GENERATED_PLAN_SESSIONS);
-  if (
-    composition.envelopes.length < (composition.capacityRecovery ? 1 : scope.minimumSessions)
-    || composition.envelopes.length > maximumSessions
-  ) {
-    throw pipelineError("The envelope count no longer matches the accepted scope limits.");
-  }
-  const expectedStatus = composition.deferrals.some((deferral) => (
-    CAPACITY_DEFERRAL_CODES.has(deferral.reasonCode)
-  )) ? "partial" : "complete";
-  if (composition.status !== expectedStatus) {
-    throw pipelineError("The composition status no longer matches its explicit deferrals.");
-  }
-
-  const topicsById = new Map(request.knowledgeMap.topics.map((topic) => [topic.id, topic]));
-  const expectedModes = normalPlanModeDecisions({
-    learningIntentRecommendation: {
-      intent: request.learningIntent,
-      basis: "The accepted request fixes the starting Learn or Practice recommendation.",
-    },
-    knowledgeMap: request.knowledgeMap,
-    sessions: composition.envelopes.map((envelope) => ({
-      key: envelope.envelopeId,
-      topicIds: envelope.topicIds,
-    })),
-  }, revisionContext);
-  const initialTargetIds = new Set<string>();
-  const scheduledTargetIds = new Set<string>();
-  let leftInitialCoverage = false;
-
-  composition.envelopes.forEach((envelope: NormalPlanSessionEnvelope, index: number) => {
-    const expectedMode = expectedModes[index];
-    const firstTopic = topicsById.get(envelope.topicIds[0] ?? "");
-    if (
-      envelope.envelopeId !== expectedEnvelopeId(index + 1)
-      || envelope.sequence !== index + 1
-      || !ENVELOPE_KINDS.has(envelope.kind)
-      || envelope.topicIds.length < 1
-      || envelope.topicIds.length > 6
-      || new Set(envelope.topicIds).size !== envelope.topicIds.length
-      || envelope.topicIds.some((topicId: string) => !topicsById.has(topicId))
-      || !firstTopic
-      || !expectedMode
-    ) {
-      throw pipelineError("An envelope identity, kind, target set, or sequence is invalid.");
-    }
-    if (envelope.kind !== "initial_coverage") leftInitialCoverage = true;
-    if (leftInitialCoverage && envelope.kind === "initial_coverage") {
-      throw pipelineError("Initial target coverage cannot resume after practice has begun.");
-    }
-    if (envelope.kind === "initial_coverage") {
-      for (const topicId of envelope.topicIds) {
-        if (initialTargetIds.has(topicId)) {
-          throw pipelineError("Each scheduled target must have exactly one initial-coverage envelope.");
-        }
-        initialTargetIds.add(topicId);
-      }
-    } else {
-      if (envelope.learningMode !== "study") {
-        throw pipelineError("Required and additional practice envelopes must remain Practice sessions.");
-      }
-      if (envelope.topicIds.some((topicId: string) => !initialTargetIds.has(topicId))) {
-        throw pipelineError("A practice envelope cannot precede the target's initial coverage.");
-      }
-    }
-    envelope.topicIds.forEach((topicId: string) => scheduledTargetIds.add(topicId));
-
-    if (
-      envelope.learningMode !== expectedMode.learningMode
-      || envelope.modeBasisCode !== expectedMode.basisCode
-      || !sameJson(envelope.targetModeDecisions, expectedMode.targetDecisions)
-    ) {
-      throw pipelineError("The envelope's Learn or Practice decision no longer matches accepted evidence.");
-    }
-    const expectedModeTrace = expectedMode.ruleTrace[0]!;
-    const storedModeTrace = envelope.modeRuleTrace.find((entry) => (
-      entry.ruleId === INITIAL_PLAN_MODE_ROUTING_VERSION
-    ));
-    if (
-      !storedModeTrace
-      || storedModeTrace.result !== expectedModeTrace.result
-      || !sameValues(storedModeTrace.evidenceRefs, expectedModeTrace.evidenceRefs)
-    ) {
-      throw pipelineError("The envelope lost the rule trace for its code-owned mode decision.");
-    }
-
-    const expectedClassification = classifyLearningTask(authoritativeTaskText(request, firstTopic));
-    const groupedTaskFamilies = envelope.topicIds.map((topicId: string) => (
-      classifyLearningTask(authoritativeTaskText(request, topicsById.get(topicId)!)).taskType
-    ));
-    if (
-      !TASK_FAMILIES.has(envelope.taskFamily)
-      || groupedTaskFamilies.some((taskFamily: string) => taskFamily !== expectedClassification.taskType)
-      || envelope.taskFamily !== expectedClassification.taskType
-      || !sameJson(envelope.taskClassification, expectedClassification)
-    ) {
-      throw pipelineError("The envelope task family no longer matches the request and accepted map.");
-    }
-
-    const expectedBudget = contentBudgetForMinutes(envelope.timing.activeMinutes);
-    if (
-      envelope.durationRouterVersion !== NORMAL_DURATION_RECOMMENDER_VERSION
-      || envelope.hardMaximumMinutes !== envelope.timing.hardMaximumMinutes
-      || envelope.timing.activeMinutes > envelope.hardMaximumMinutes
-      || !sameJson(envelope.contentBudget, expectedBudget)
-    ) {
-      throw pipelineError("The envelope duration and content budget are inconsistent.");
-    }
-
-    const expectedPrerequisiteRefs = unique<string>(envelope.topicIds.flatMap((topicId: string) => (
-      topicsById.get(topicId)!.prerequisiteTopicIds.flatMap((prerequisiteId: string) => (
-        prerequisiteEvidenceRefs(topicsById.get(prerequisiteId))
-      ))
-    )));
-    if (!sameValues(envelope.prerequisiteEvidenceRefs, expectedPrerequisiteRefs)) {
-      throw pipelineError("The envelope prerequisite evidence no longer matches the accepted map.");
-    }
-  });
-
-  validateDeferrals({
-    request,
-    composition,
-    topicsById,
-    scheduledTargetIds,
-    initialTargetIds,
-  });
-  validateCoveragePolicy({ request, composition, initialTargetIds });
-  validateAvailabilityAllocation({ request, composition, now, revisionContext });
-}
-
-function validateDeferrals({
-  request,
-  composition,
-  topicsById,
-  scheduledTargetIds,
-  initialTargetIds,
-}: {
-  request: AcceptedNormalPlanRequest;
-  composition: NormalPlanEnvelopeComposition;
-  topicsById: ReadonlyMap<string, AcceptedNormalPlanRequest["knowledgeMap"]["topics"][number]>;
-  scheduledTargetIds: ReadonlySet<string>;
-  initialTargetIds: ReadonlySet<string>;
-}) {
-  const deferredIds = new Set<string>();
-  for (const deferral of composition.deferrals) {
-    const topic = topicsById.get(deferral.topicId);
-    const blockedPrerequisiteIds = topic
-      ? topic.prerequisiteTopicIds.filter((prerequisiteId) => (
-          !scheduledTargetIds.has(prerequisiteId)
-          && prerequisiteEvidenceRefs(topicsById.get(prerequisiteId)).length === 0
-        ))
-      : [];
-    const isPrerequisiteDeferral = deferral.reasonCode === "prerequisite_deferred";
-    const expectedPrerequisiteIds = isPrerequisiteDeferral
-      ? blockedPrerequisiteIds
-      : [];
-    const reasonMatchesBlockedPrerequisites = isPrerequisiteDeferral
-      ? blockedPrerequisiteIds.length > 0
-      : deferral.reasonCode === "accepted_map_deferral"
-        || blockedPrerequisiteIds.length === 0;
-    if (
-      !topic
-      || deferredIds.has(deferral.topicId)
-      || scheduledTargetIds.has(deferral.topicId)
-      || !DEFERRAL_REASON_CODES.has(deferral.reasonCode)
-      || !sameValues(deferral.prerequisiteTopicIds, expectedPrerequisiteIds)
-      || !reasonMatchesBlockedPrerequisites
-      || (topic.deferred !== null) !== (deferral.reasonCode === "accepted_map_deferral")
-    ) {
-      throw pipelineError("A composition deferral no longer matches one unscheduled accepted target.");
-    }
-    deferredIds.add(deferral.topicId);
-  }
-  if (request.knowledgeMap.topics.some((topic) => (
-    initialTargetIds.has(topic.id) === deferredIds.has(topic.id)
-  ))) {
-    throw pipelineError("Every accepted target must be covered once or explicitly deferred, but never both.");
-  }
-}
-
-function validateCoveragePolicy({
-  request,
-  composition,
-  initialTargetIds,
-}: {
-  request: AcceptedNormalPlanRequest;
-  composition: NormalPlanEnvelopeComposition;
-  initialTargetIds: ReadonlySet<string>;
-}) {
-  const initialEnvelopes = composition.envelopes.filter((envelope) => (
-    envelope.kind === "initial_coverage"
-  ));
-  const learnTargetCount = initialEnvelopes.reduce((count, envelope) => (
-    count + envelope.targetModeDecisions.filter((target) => target.learningMode === "learn").length
-  ), 0);
-  const minimumTeaching = composition.capacityRecovery?.minimumTeachingSessions ?? Math.min(
-    request.knowledgeMap.scopeJudgment.minimumTeachingSessions,
-    learnTargetCount,
-  );
-  if (initialEnvelopes.filter((envelope) => envelope.learningMode === "learn").length < minimumTeaching) {
-    throw pipelineError("The composition no longer satisfies the accepted teaching minimum.");
-  }
-  if (initialTargetIds.size === 0) {
-    throw pipelineError("A runnable normal plan requires at least one initially covered target.");
-  }
-  const practiceRequirement = composition.capacityRecovery?.practiceRequirement ?? (request.knowledgeMap.scopeJudgment.maximumSessions > 1 ? "all" : "none");
-  if (composition.capacityRecovery && !request.deadline) throw pipelineError("Capacity recovery needs a real deadline.");
-  if (practiceRequirement !== "none") {
-    const teachingEnvelopes = initialEnvelopes.filter((candidate) => (
-      candidate.learningMode === "learn"
-    ));
-    for (const envelope of practiceRequirement === "last_teaching" ? teachingEnvelopes.slice(-1) : teachingEnvelopes) {
-      for (const topicId of envelope.topicIds) {
-        if (!composition.envelopes.some((candidate) => (
-          candidate.sequence > envelope.sequence
-          && candidate.learningMode === "study"
-          && candidate.topicIds.includes(topicId)
-        ))) {
-          throw pipelineError("Every taught target requires a later Practice envelope.");
-        }
-      }
-    }
-  }
-}
-
-function validateAvailabilityAllocation({
-  request,
-  composition,
-  now,
-  revisionContext,
-}: {
-  revisionContext?: NormalPlanRevisionContext;
-  request: AcceptedNormalPlanRequest;
-  composition: NormalPlanEnvelopeComposition;
-  now: Date;
-}) {
-  const searchDays = Math.max(...composition.envelopes.map((envelope) => (
-    envelope.availabilityDayIndex + 1
-  )));
-  if (!Number.isInteger(searchDays) || searchDays < 1 || searchDays > 366) {
-    throw pipelineError("The envelope availability horizon is invalid.");
-  }
-  const slots = normalPlanAvailability({ request, now, searchDays, revisionContext });
-  let slotIndex = 0;
-  let notBefore = now.getTime();
-  const unavailableMinutes = (index: number) => slots[index]
-    ? Math.max(0, Math.ceil((notBefore - Date.parse(slots[index]!.startsAt)) / 60_000))
-    : 0;
-
-  for (const envelope of composition.envelopes) {
-    let usedMinutes = unavailableMinutes(slotIndex);
-    while (
-      slotIndex < slots.length
-      && slots[slotIndex]!.startsAt !== envelope.availabilityStartsAt
-    ) {
-      const skipped = slots[slotIndex]!;
-      if (
-        Date.parse(skipped.startsAt) > Date.parse(envelope.availabilityStartsAt)
-        || skipped.minutes - usedMinutes >= 10
-      ) {
-        throw pipelineError("The composition skipped usable availability or moved backwards in time.");
-      }
-      slotIndex += 1;
-      usedMinutes = unavailableMinutes(slotIndex);
-    }
-    const slot = slots[slotIndex];
-    if (!slot) {
-      throw pipelineError("An envelope is not scheduled inside the learner's canonical availability.");
-    }
-    const expectedScheduledFor = new Date(
-      Date.parse(slot.startsAt) + usedMinutes * 60_000,
-    ).toISOString();
-    const expectedHardMaximum = slot.minutes - usedMinutes;
-    if (
-      envelope.availabilityDayIndex !== slot.dayIndex
-      || envelope.availabilityWindowIndex !== slot.windowIndex
-      || envelope.scheduledFor !== expectedScheduledFor
-      || envelope.hardMaximumMinutes !== expectedHardMaximum
-      || envelope.timing.activeMinutes > expectedHardMaximum
-      || Date.parse(envelope.scheduledFor) + envelope.timing.activeMinutes * 60_000
-        > Date.parse(slot.endsAt)
-    ) {
-      throw pipelineError("An envelope schedule or hard maximum no longer matches canonical availability.");
-    }
-    notBefore = Date.parse(envelope.scheduledFor)
-      + (envelope.timing.activeMinutes + NORMAL_PLAN_SESSION_RESET_MINUTES) * 60_000;
-  }
+  validateTopicComposition(request, composition, now, revisionContext);
 }
 
 function validateFinalPlan({
@@ -608,40 +279,6 @@ function sameSessionProjection(
     && sameValues(session.completionEvidence ?? [], projection.completionEvidence ?? []);
 }
 
-function authoritativeTaskText(
-  request: Pick<PlanGenerationRequest, "goal" | "startingContext">,
-  topic: AcceptedNormalPlanRequest["knowledgeMap"]["topics"][number],
-) {
-  return [
-    request.goal,
-    request.startingContext ?? "",
-    topic.title,
-    topic.description,
-    ...topic.subtopics,
-  ].join(" ");
-}
-
-function prerequisiteEvidenceRefs(
-  topic: AcceptedNormalPlanRequest["knowledgeMap"]["topics"][number] | undefined,
-) {
-  if (!topic) return [];
-  // Current placement evidence wins over a stale recorded status. A topic
-  // marked evidenced before a later gap still blocks an unscheduled dependent.
-  const evidence = measuredPlacementEvidence(topic);
-  if (evidence?.outcome === "gap") return [];
-  if (evidence?.outcome === "demonstrated") {
-    return [`placement:${topic.id}:${evidence.observedAt}`];
-  }
-  if (topic.status === "evidenced" || topic.status === "secure") {
-    return [`knowledge-map-topic:${topic.id}:status:${topic.status}`];
-  }
-  return [];
-}
-
-function expectedEnvelopeId(sequence: number) {
-  return `normal-plan-envelope-${String(sequence).padStart(3, "0")}`;
-}
-
 const amountLabel = normalPlanAmountLabel;
 
 function sameValues(left: readonly string[], right: readonly string[]) {
@@ -659,9 +296,7 @@ function profileComponents(value: string) {
     .filter((component) => component && component !== "legacy_unknown");
 }
 
-function unique<T>(values: readonly T[]) {
-  return [...new Set(values)];
-}
+
 
 function pipelineError(message: string) {
   return new Error(`${NORMAL_PLAN_PIPELINE_VERSION}: ${message}`);

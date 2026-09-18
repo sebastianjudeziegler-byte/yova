@@ -141,6 +141,111 @@
     {
       "file": "plan-launch-live.spec.ts",
       "name": "a live-generated deadline lesson streams, finishes unrated and preserves completion on reload"
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "a natural deadline and an edited date survive every schedule control",
+      "brief": "Brief 2",
+      "reason": "Brief 2 (docs/redesign/05-PLAN-MODEL.md) deliberately deletes the time-first composer: capacity math, splitting by slot and the \"doesn't fit before the deadline\" refusals. These cases asserted that deleted behaviour. Founder decision, 18 Sept 2026."
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "shorter sessions preserve weekly availability and explain insufficient time",
+      "brief": "Brief 2",
+      "reason": "Brief 2 (docs/redesign/05-PLAN-MODEL.md) deliberately deletes the time-first composer: capacity math, splitting by slot and the \"doesn't fit before the deadline\" refusals. These cases asserted that deleted behaviour. Founder decision, 18 Sept 2026."
+    },
+    {
+      "file": "plan-schedule-date.spec.ts",
+      "name": "an overfull plan returns to its schedule and recovers without a client crash",
+      "brief": "Brief 2",
+      "reason": "Brief 2 (docs/redesign/05-PLAN-MODEL.md) deliberately deletes the time-first composer: capacity math, splitting by slot and the \"doesn't fit before the deadline\" refusals. These cases asserted that deleted behaviour. Founder decision, 18 Sept 2026."
+    },
+    {
+      "file": "add-to-yova.spec.ts",
+      "name": "speech and presentation plans bypass placement and use artifact-aware modes",
+      "brief": "Brief 2",
+      "reason": "Brief 2 has one kind of plan. Main's case asserted a separate route for speech and presentation goals: a \"BUILD WITH GUIDANCE\" mode label, a build-rehearse-refine starting approach and no placement request. On this branch those goals go through the same topic-queue path as every other goal. They still get artifact-shaped topics (src/lib/plan-generation/knowledge-map-fallback.ts: audience and argument, evidence and draft, rehearsal), but not the separate mode, label or placement bypass. Behaviour change, not a lost check. Founder decision, 18 Sept 2026."
     }
-  ]
+  ],
+  "renamed": {
+    "brief": "Brief 2 (docs/redesign/05-PLAN-MODEL.md)",
+    "reason": "Brief 2 rewrote intake, scheduling and the inline topic actions, and these cases kept their coverage under new titles. The comparator matches titles exactly, so each retained-main title is listed with the case that carries it now. A pairing belongs here only when the replacement asserts the same learner-visible behaviour; a case whose feature was deleted belongs in `cases` above, and a case with no replacement belongs in neither.",
+    "cases": [
+      {
+        "file": "plan-schedule-date.spec.ts",
+        "name": "explicit study days survive intake and later time changes",
+        "replacedBy": "explicit weekdays and a goal date survive changes to availability"
+      },
+      {
+        "file": "plan-schedule-date.spec.ts",
+        "name": "a historical topic date cannot override the learner's real deadline",
+        "replacedBy": "a historical topic date does not override the real deadline"
+      },
+      {
+        "file": "plan-schedule-date.spec.ts",
+        "name": "changing the goal through Back replaces the old placement map",
+        "replacedBy": "changing the goal through Back replaces the accepted map and date"
+      },
+      {
+        "file": "add-to-yova.spec.ts",
+        "name": "an overdue standalone deadline remains reachable and actionable",
+        "replacedBy": "a saved overdue standalone milestone remains reachable and actionable"
+      },
+      {
+        "file": "add-to-yova.spec.ts",
+        "name": "an outside assignment routes to one outside-YOVA session",
+        "replacedBy": "an outside assignment opens one outside-YOVA session"
+      },
+      {
+        "file": "add-to-yova.spec.ts",
+        "name": "a multi-session assignment skips an irrelevant knowledge quiz",
+        "replacedBy": "a multi-session assignment skips placement and retains its outside source through activation"
+      },
+      {
+        "file": "add-to-yova.spec.ts",
+        "name": "general learning stays deadline-free until the user chooses otherwise",
+        "replacedBy": "general learning stays deadline-free until the user changes the goal"
+      },
+      {
+        "file": "add-to-yova.spec.ts",
+        "name": "a timed product-rule request becomes a specific one-off session",
+        "replacedBy": "a direct 20-minute product-rule request produces one bounded session"
+      },
+      {
+        "file": "add-to-yova.spec.ts",
+        "name": "one account never sees another account's deadline",
+        "replacedBy": "a preview browser context does not inherit another context's deadline"
+      },
+      {
+        "file": "living-plan.spec.ts",
+        "name": "active topics offer learned-elsewhere and source actions without a verification quiz",
+        "replacedBy": "active topics apply learned-elsewhere immediately without a verification quiz"
+      },
+      {
+        "file": "living-plan.spec.ts",
+        "name": "draft topic edits use the reviewed delta and keep the other sessions for activation",
+        "replacedBy": "draft inline topic edits use the signed delta and keep the other sessions for activation"
+      },
+      {
+        "file": "living-plan.spec.ts",
+        "name": "the availability editor can replace a window without regenerating the draft",
+        "replacedBy": "the availability editor changes dates through preview without regenerating the draft"
+      },
+      {
+        "file": "calendar-recurring.spec.ts",
+        "name": "Add recognizes the communications timetable and saves a lasting Monday/Wednesday series",
+        "replacedBy": "Calendar quick add recognizes the communications timetable and saves a lasting Monday/Wednesday series"
+      },
+      {
+        "file": "plan-schedule-date.spec.ts",
+        "name": "consolidated: a 1-day deadline survives placement, plan review and activation",
+        "replacedBy": "a 1-day deadline retains the full queue and states scheduling conflicts"
+      },
+      {
+        "file": "plan-schedule-date.spec.ts",
+        "name": "consolidated: a 3-day deadline survives placement, plan review and activation",
+        "replacedBy": "a 3-day deadline retains the full queue and states scheduling conflicts"
+      }
+    ]
+  }
 }

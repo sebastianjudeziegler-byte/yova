@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { SHAPE_SLOT_HONEST_ERROR, type CompareRequest, type DirectionRequest, type LearnBlockRequest, type PracticeRequest } from "@/lib/session-shapes/slots-schema";
 
 vi.mock("server-only", () => ({}));
+// These tests isolate slot planning/transport. The real quality review and its
+// delivery/repair gate are covered in practice-quality-review/shape-slot-quality.
+vi.mock("./practice-quality-review", () => ({ reviewPracticeQuestions: async () => ({ ok: true, rejected: [] }) }));
 vi.mock("@/lib/openai/client", () => ({ getOpenAIClient: () => { throw new Error("not used in tests"); } }));
 vi.mock("@/lib/openai/config", () => ({ getOpenAISessionConfig: () => null }));
 
@@ -53,6 +56,83 @@ function followingPrompt(shape: (slots: Slot[], call: ProviderCall) => unknown, 
 }
 const slotsOf = (call: ProviderCall) => JSON.parse(call.input).slots as Slot[];
 
+describe("bounded launch workloads", () => {
+  // Founder decision (18 Sept 2026, option B): a long workload is one sitting in
+  // parts of at most eight. One request writes one part, so a 24-question block
+  // no longer chains every batch and review inside a single 50-second budget.
+  it.each(["learn_block", "practice"] as const)("delivers a 24-question %s workload as its first part of eight, recall first", async (action) => {
+    const { provider, calls } = followingPrompt((slots) => ({ explanation, keyPoints, structure, questions: slots.map(slot => draft(slot.slotId)) }));
+    const request = { ...ids, action, topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24, workloadBounded: true }, round: 1, keyPoints: [], outstandingKeyPointIds: [], excerpts: [], attempt: ids.requestId, roundKind: "active_recall", repairTargets: [] };
+    const result = await fillShapeSlot(request as LearnBlockRequest | PracticeRequest, provider as never);
+    if (result.action !== action) throw new Error("Expected the requested slot");
+    expect(result.questions).toHaveLength(8);
+    expect(calls).toHaveLength(1);
+    const slots = slotsOf(calls[0]!);
+    expect(slots).toHaveLength(8);
+    expect(slots.every(slot => ["recall", "misconception"].includes(slot.type))).toBe(true);
+    if (action === "learn_block") {
+      // The explanation still teaches for the whole workload, not just part one.
+      const input = JSON.parse(calls[0]!.input);
+      expect(input.workload.questionCount).toBe(24);
+      expect(input.workload.questionMix.application).toBeGreaterThan(0);
+      expect(input.workload.questionMix.compare_contrast).toBeGreaterThan(0);
+    }
+  });
+
+  it("writes a later part from the same plan, harder than the first, and away from every earlier prompt", async () => {
+    const { provider, calls } = followingPrompt((slots) => ({ keyPoints, questions: slots.map(slot => draft(slot.slotId, { prompt: `A part-three question for ${slot.slotId}?` })), tips: [] }));
+    const priorPrompts = Array.from({ length: 16 }, (_, index) => `Earlier question ${index + 1}?`);
+    const request = { ...ids, action: "practice", topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24, workloadBounded: true }, round: 1, part: { index: 3, count: 3 }, priorPrompts, keyPoints, outstandingKeyPointIds: [], excerpts: [], attempt: ids.requestId, roundKind: "active_recall", repairTargets: [] };
+    const result = await fillShapeSlot(request as PracticeRequest, provider as never);
+    if (result.action !== "practice") throw new Error("Expected practice");
+    expect(result.questions).toHaveLength(8);
+    const { scaffoldedPart } = await import("@/lib/practice/practice-parts");
+    const expected = scaffoldedPart({ keyPointIds: keyPoints.map(point => point.id), mix: request.modifiers.questionMix, count: 24 }, 3);
+    expect(slotsOf(calls[0]!).map(slot => slot.slotId)).toEqual(expected.map(slot => slot.slotId));
+    expect(slotsOf(calls[0]!).some(slot => ["application", "compare_contrast", "prediction"].includes(slot.type))).toBe(true);
+    expect(JSON.parse(calls[0]!.input).priorQuestions).toEqual(priorPrompts);
+    expect(calls[0]!.instructions).toMatch(/priorQuestions/);
+  });
+
+  it.each([
+    ["a part outside the first pass", { round: 2, part: { index: 2, count: 3 } }],
+    ["a part number past the plan", { round: 1, part: { index: 4, count: 3 } }],
+    ["a later part with no key points to build on", { round: 1, part: { index: 2, count: 3 }, keyPoints: [] }],
+  ])("refuses %s", async (_label, overrides) => {
+    const { provider } = followingPrompt((slots) => ({ keyPoints, questions: slots.map(slot => draft(slot.slotId)), tips: [] }));
+    const request = { ...ids, action: "practice", topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24, workloadBounded: true }, keyPoints, outstandingKeyPointIds: ["k1"], excerpts: [], attempt: ids.requestId, roundKind: "active_recall", repairTargets: [], ...overrides };
+    await expect(fillShapeSlot(request as PracticeRequest, provider as never)).rejects.toBeTruthy();
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it("refuses a worked-solution lesson without an actual solvable problem and reference", async () => {
+    const { provider } = followingPrompt(slots => ({ explanation, keyPoints, structure, questions: slots.map(slot => draft(slot.slotId)) }));
+    await expect(fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers: { ...modifiers, produceStep: "worked_solution" } }, provider as never)).rejects.toMatchObject({ code: "generation_failed" });
+  });
+
+  // One request writes one part, so a repeated prompt is inside a single reply:
+  // that reply fails its own check and is retried once, never patched.
+  it("retries a part with a repeated prompt once, then refuses honestly", async () => {
+    const repeated = "Which change affects the pathway's net ATP yield?";
+    const { provider, calls } = followingPrompt(slots => ({ explanation, keyPoints, structure, questions: slots.map((slot, index) => draft(slot.slotId, { prompt: index < 2 ? repeated : `Which statement answers slot ${slot.slotId}?` })) }));
+    await expect(fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers: { ...modifiers, questionCap: 24, questionTarget: 24 } }, provider as never)).rejects.toMatchObject({ code: "generation_failed", message: SHAPE_SLOT_HONEST_ERROR });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("delivers the whole part when the retry comes back distinct", async () => {
+    let attempt = 0;
+    const { provider, calls } = followingPrompt(slots => {
+      attempt += 1;
+      return { explanation, keyPoints, structure, questions: slots.map((slot, index) => draft(slot.slotId, { prompt: attempt === 1 && index < 2 ? "The same question twice?" : `Which statement answers ${slot.slotId}?` })) };
+    });
+    const result = await fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers: { ...modifiers, questionCap: 32, questionTarget: 32 } }, provider as never);
+    if (result.action !== "learn_block") throw new Error("Expected learn block");
+    expect(result.questions).toHaveLength(8);
+    expect(new Set(result.questions.map(question => question.prompt)).size).toBe(8);
+    expect(calls).toHaveLength(2);
+  });
+});
+
 describe("Slot 2 — learn block in one call", () => {
   const request: LearnBlockRequest = { ...ids, action: "learn_block", topic, modifiers };
   const goodBlock = (slots: Slot[]) => ({ explanation, keyPoints, structure, questions: slots.map((slot) => draft(slot.slotId)) });
@@ -63,9 +143,10 @@ describe("Slot 2 — learn block in one call", () => {
     expect(provider).toHaveBeenCalledTimes(1);
     expect(result.action).toBe("learn_block");
     if (result.action !== "learn_block") return;
-    expect(result.keyPoints).toEqual(keyPoints);
+    expect(result.keyPoints).toEqual(keyPoints.map(point => ({ ...point, sourceTopicId: topic.id })));
     const slots = slotsOf(calls[0]!);
-    expect(slots.map((slot) => slot.type)).toEqual(["recall", "application", "application", "compare_contrast", "misconception"]);
+    // Built up within the part too: single-point recall and misconception first.
+    expect(slots.map((slot) => slot.type)).toEqual(["recall", "misconception", "application", "application", "compare_contrast"]);
     expect(result.questions.map((question) => question.kind)).toEqual(slots.map((slot) => slot.type));
     expect(result.questions.map((question) => question.keyPointIds)).toEqual(slots.map((slot) => slot.keyPointIds));
   });
@@ -196,7 +277,7 @@ describe("Slot 4 — fresh practice checked in code", () => {
     const { provider, calls } = followingPrompt(answer(keyPoints));
     const result = await fillShapeSlot({ ...request, keyPoints: [] }, provider as never);
     expect(calls[0]!.instructions).toContain("exactly 5 key points");
-    expect(result.action === "practice" && result.keyPoints).toEqual(keyPoints);
+    expect(result.action === "practice" && result.keyPoints).toEqual(keyPoints.map(point => ({ ...point, sourceTopicId: topic.id })));
   });
 
   it("rejects a provider that invents key point ids", async () => {
@@ -302,10 +383,10 @@ describe("hub tips in the same slot call", () => {
     const { provider, calls } = followingPrompt((slots) => ({ explanation, keyPoints, structure, example: { title: "A sprinting muscle cell", steps: ["Glucose enters.", "Pyruvate becomes lactate."] }, questions: slots.map((slot) => draft(slot.slotId)), tips: [tip("study", "L3.q6.map_it"), tip("produce", "L4.q9.invented")] }));
     const result = await fillShapeSlot({ ...ids, action: "learn_block", topic, modifiers, tips }, provider as never);
     expect(provider).toHaveBeenCalledTimes(1);
-    expect(calls[0]!.instructions).toContain("Follow one glucose end to end.");
+    expect(calls[0]!.instructions).toContain("Follow one process end to end.");
     expect(JSON.parse(calls[0]!.input).tips).toEqual(tips);
     expect(result.tips).toEqual([
-      { ...tip("study", "L3.q6.map_it"), origin: "generated" },
+      { ...tip("study", "L3.q6.map_it"), body: reasons.map.sentence, origin: "generated" },
       { step: "produce", title: "Close the material before you start.", body: reasons.map.sentence, ruleId: "L3.q6.map_it", origin: "template" },
     ]);
   });
@@ -394,4 +475,3 @@ describe("Slot 1 — directions for studying outside YOVA", () => {
     expect(instructions).toMatch(/textbook or notes/);
   });
 });
-

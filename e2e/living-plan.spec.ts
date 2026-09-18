@@ -1,4 +1,5 @@
 import { expect, test, freezePlanClock, type Page } from "./helpers/frozen-clock";
+import { activatePreviewPlan, openPlanSetupPreview } from "./helpers/plan-setup";
 import type { LearningPlan } from "../src/lib/domain";
 import type { PlanKnowledgeMap } from "../src/lib/knowledge-map/schema";
 
@@ -28,35 +29,36 @@ async function createAndActivate(page: Page, activate = true) {
   await freezePlanClock(page, NOW);
   // The accepted topic map is the deterministic fixture. Creation, fixed-slot
   // fill, activation and revision still use their real application routes.
-  await page.route("**/api/plans/generate?mode=diagnostic", async route => {
+  await page.route("**/api/plans/generate?mode=understanding", async route => {
     const response = await route.fetch({ postData: JSON.stringify({ ...route.request().postDataJSON(), knowledgeMap: map }) });
     await route.fulfill({ response });
   });
-  await page.goto("/?qa=preview");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.getByRole("button", { name: "Create an account", exact: true }).click();
-  await page.getByLabel("First name").fill("Learner");
-  await page.getByLabel("Email address").fill("living-plan@example.com");
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole("button", { name: /Personalize YOVA/ }).click();
-  const answers = ["Show a short recommendation and alternatives", "I delay a little, then get going", "20 to 30 minutes", "A concrete example before the rule", "Recalling it without notes, then checking", "I recognize it but cannot recall it", "Give me a small hint", "Show one step at a time", "Clear checkpoints inside the block", "No extra support right now", "Afternoon"];
-  for (const [index, answer] of answers.entries()) {
-    await page.getByRole("button", { name: answer, exact: true }).click();
-    await page.getByRole("button", { name: index === answers.length - 1 ? "Build my setup" : "Continue", exact: true }).click();
-  }
-  await page.getByRole("button", { name: "Open YOVA" }).click();
-  await page.getByRole("button", { name: /New plan|Build my first plan|Create another plan/ }).first().click();
+  await openPlanSetupPreview(page, NOW);
   await page.getByPlaceholder(/I have a biology test/).fill("Teach me AP Biology foundations from scratch for my exam in three weeks: cellular respiration, water polarity, hydrogen bonding, carbon and functional groups. I can study Monday, Wednesday and Friday evenings for 60 minutes.");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole("button", { name: "Continue to placement check" }).click();
-  await page.getByRole("button", { name: "Skip for now" }).click();
-  await page.getByRole("button", { name: "Generate my plan" }).click();
-  await expect(page.getByText("Plan ready", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Skip corrections" }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Skip placement and build plan" }).click();
+  await expect(page.getByRole("region", { name: "Plan grouped by topic" })).toBeVisible({ timeout: 30_000 });
   if (!activate) return;
-  await page.getByRole("button", { name: "Use this plan" }).click();
-  await expect(page.getByRole("heading", { name: "Your plan", exact: true })).toBeVisible();
+  await activatePreviewPlan(page);
+}
+
+async function topicActions(page: Page, topicId: string) {
+  const topic = page.locator(`[data-topic-id="${topicId}"]`);
+  if (await topic.locator("details").getAttribute("open") === null) await topic.locator("summary").click();
+  return topic.getByRole("combobox", { name: /Topic actions/ });
+}
+async function reviewCoverageChange(page: Page, topicId: string) {
+  // Open the reviewed-change composer, then choose coverage. The grouped
+  // plan's inline Mark covered action intentionally applies immediately.
+  await page.getByRole("button", { name: "Add material", exact: true }).click();
+  const preview = page.getByRole("region", { name: "Plan change preview" });
+  await preview.getByRole("combobox", { name: /^Change type\b/ }).selectOption("mark_covered");
+  await preview.getByRole("combobox", { name: /^Change topic\b/ }).selectOption(topicId);
+  await page.getByRole("button", { name: "Preview change", exact: true }).click();
 }
 
 /**
@@ -86,7 +88,7 @@ async function mockShapeSlots(page: Page) {
 async function completeFirstSession(page: Page) {
   const before = await snapshot(page);
   await mockShapeSlots(page);
-  await page.getByRole("button", { name: "Start next session", exact: true }).click();
+  await page.getByRole("button", { name: "Start next block", exact: true }).click();
   const early = page.getByRole("button", { name: "Start now, keep dates" });
   if (await early.isVisible()) await early.click();
   await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click();
@@ -96,7 +98,9 @@ async function completeFirstSession(page: Page) {
     if (await button.isVisible() && await button.isEnabled()) { await button.click(); return true; }
     return false;
   };
-  for (let step = 0; step < 40; step += 1) {
+  // A pass over eight questions arrives in parts, so a session can take more
+  // steps and offers "Next part" between them.
+  for (let step = 0; step < 90; step += 1) {
     if (await page.getByRole("heading", { name: "You studied, produced and compared." }).or(page.getByRole("heading", { name: "A full round passed clean." })).isVisible()) break;
     await page.waitForTimeout(200);
     const choice = page.getByTestId("baseline-question").getByRole("button", { name: "Correct choice" });
@@ -106,7 +110,7 @@ async function completeFirstSession(page: Page) {
       await produce.fill("Glycolysis splits glucose, the Krebs cycle releases carbon dioxide, and electron transport makes ATP.");
       continue;
     }
-    for (const name of ["I'm going to study it", "Continue", "Start the questions", "Compare with the source", "Save repair", "Move on", "Next question", "Finish round", "Start round 2"]) {
+    for (const name of ["I'm going to study it", "Continue", "Start the questions", "Compare with the source", "Save repair", "Move on", "Next question", "Next part", "Finish round", "Start round 2"]) {
       if (await clickIfVisible(name)) break;
     }
   }
@@ -115,15 +119,19 @@ async function completeFirstSession(page: Page) {
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   const openGoal = page.locator(".learning-goal-card").filter({ hasText: before.title }).getByRole("button", { name: "Open goal", exact: true });
   if (await openGoal.isVisible()) await openGoal.click();
-  await expect(page.getByRole("heading", { name: "Your plan", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Plan grouped by topic" })).toBeVisible();
   expect((await snapshot(page)).sessions[0]!.status).toBe("complete");
 }
 
-test("active topics offer learned-elsewhere and source actions without a verification quiz", async ({ page }) => {
+test("active topics apply learned-elsewhere immediately without a verification quiz", async ({ page }) => {
   await createAndActivate(page);
-  const water = page.locator(`.knowledge-topic-list li[data-topic-id="${WATER}"]`);
-  await expect(water.getByRole("button", { name: "I already learned this", exact: true })).toBeVisible();
-  await expect(water.getByRole("button", { name: "Attach a source", exact: true })).toBeVisible();
+  const actions = await topicActions(page, WATER);
+  await expect(actions.locator('option[value="attach_source"]')).toHaveText("Attach material");
+  await actions.selectOption("mark_covered");
+  await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Plan change preview" })).toHaveCount(0);
+  const after = await snapshot(page);
+  expect(after.knowledgeMap!.topics.find(topic => topic.id === WATER)!.initialEvidence).toMatchObject({source:"learner_report",checked:false});
 });
 
 test("founder journey preserves completed work, previews two topic changes, saves a receipt and undoes the revision", async ({ page }, testInfo) => {
@@ -135,11 +143,11 @@ test("founder journey preserves completed work, previews two topic changes, save
   expect(waterBefore.learningMode).toBe("learn");
   await page.screenshot({ path: testInfo.outputPath("01-before.png"), fullPage: true });
 
-  await page.locator(`.knowledge-topic-list li[data-topic-id="${WATER}"]`).getByRole("button", { name: "I already learned this", exact: true }).click();
+  await reviewCoverageChange(page, WATER);
   await expect(page.getByRole("region", { name: "Plan change preview" })).toBeVisible();
   await page.getByRole("button", { name: "Add another change", exact: true }).click();
-  await page.getByLabel("Change topic").selectOption(CARBON);
-  await page.getByLabel("Change type").selectOption("attach_source");
+  await page.getByRole("combobox", { name: /^Change topic\b/ }).selectOption(CARBON);
+  await page.getByRole("combobox", { name: /^Change type\b/ }).selectOption("attach_source");
   await page.getByLabel("Source URL").fill(VIDEO);
   await page.getByRole("button", { name: "Preview source attachment", exact: true }).click();
   const preview = page.getByRole("region", { name: "Plan change preview" });
@@ -158,8 +166,14 @@ test("founder journey preserves completed work, previews two topic changes, save
   const after = await snapshot(page);
   expect(after.sessions.find(session => session.id === waterBefore.id)!.learningMode).toBe("study");
   const waterAfter = after.sessions.find(session => session.id === waterBefore.id)!;
-  await expect(page.locator(".timeline-row").filter({ hasText: waterAfter.title })).toContainText("Practice first");
-  await expect(page.getByRole("link", { name: VIDEO, exact: true })).toHaveAttribute("href", VIDEO);
+  await page.locator(`[data-topic-id="${WATER}"] summary`).click();
+  await expect(page.locator(`[data-block-id="${waterAfter.id}"]`)).toContainText(waterAfter.method);
+  // Brief 2 groups the plan by topic, each group collapsed until opened. The
+  // attached source belongs to Carbon, so it is shown inside Carbon's group:
+  // saved on the topic, then visible as a link once that group is opened.
+  expect(after.knowledgeMap!.topics.find(topic => topic.id === CARBON)!.attachedSources).toEqual(expect.arrayContaining([expect.objectContaining({ url: VIDEO })]));
+  await page.locator(`[data-topic-id="${CARBON}"] summary`).click();
+  await expect(page.getByRole("list", { name: /^Sources for / }).getByRole("link", { name: VIDEO, exact: true })).toHaveAttribute("href", VIDEO);
   for (const session of before.sessions.filter(item => item.status === "complete" || !item.topicIds?.some(topicId => [WATER, CARBON].includes(topicId)))) {
     expect(after.sessions.find(item => item.id === session.id)).toEqual(session);
   }
@@ -195,7 +209,7 @@ test("a failed revision save shows no success receipt and preserves the original
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "The plan change could not be saved. Your current plan is unchanged." }) });
     } else await route.continue();
   });
-  await page.locator(`.knowledge-topic-list li[data-topic-id="${WATER}"]`).getByRole("button", { name: "I already learned this", exact: true }).click();
+  await reviewCoverageChange(page, WATER);
   const preview = page.getByRole("region", { name: "Plan change preview" });
   await preview.getByRole("button", { name: "Confirm changes", exact: true }).click();
   await expect(preview.getByRole("alert")).toContainText("could not be saved");
@@ -211,7 +225,7 @@ test("a failed revision save shows no success receipt and preserves the original
 });
 
 
-test("draft topic edits use the reviewed delta and keep the other sessions for activation", async ({ page }) => {
+test("draft inline topic edits use the signed delta and keep the other sessions for activation", async ({ page }) => {
   let original: LearningPlan | undefined;
   page.on("response", async response => {
     if (new URL(response.url()).pathname === "/api/plans/generate" && response.request().method() === "POST") {
@@ -221,14 +235,10 @@ test("draft topic edits use the reviewed delta and keep the other sessions for a
   });
   await createAndActivate(page, false);
   expect(original).toBeDefined();
-  await page.locator(".generated-topic-map li").filter({ hasText: "1.1 Water polarity" }).getByRole("button", { name: "I already learned this", exact: true }).click();
-  const preview = page.getByRole("region", { name: "Plan change preview" });
-  await expect(preview).toContainText("Practice");
-  await preview.getByRole("button", { name: "Confirm changes", exact: true }).click();
+  await (await topicActions(page, WATER)).selectOption("mark_covered");
+  await expect(page.getByRole("region", { name: "Plan change preview" })).toHaveCount(0);
   await expect(page.getByRole("status").filter({ hasText: "everything else unchanged" })).toBeVisible();
-  await page.getByRole("button", { name: "Use this plan" }).click();
-  await expect(page.getByRole("heading", { name: "Your plan", exact: true })).toBeVisible();
-  const after = await snapshot(page);
+  const after = await activatePreviewPlan(page);
   expect(after.sessions.find(session => session.topicIds?.includes(WATER))!.learningMode).toBe("study");
   for (const session of original!.sessions.filter(session => !session.topicIds?.includes(WATER))) {
     const current = after.sessions.find(item => item.id === session.id)!;
@@ -238,21 +248,15 @@ test("draft topic edits use the reviewed delta and keep the other sessions for a
 });
 
 
-test("the availability editor can replace a window without regenerating the draft", async ({ page }) => {
+test("the availability editor changes dates through preview without regenerating the draft", async ({ page }) => {
   await createAndActivate(page, false);
-  await page.getByRole("button", { name: "Change schedule", exact: true }).click();
-  const editor = page.getByRole("region", { name: "Plan change preview" });
-  const oldWindows = editor.getByRole("checkbox", { name: /^Keep existing window/ });
-  expect(await oldWindows.count()).toBeGreaterThan(0);
-  for (const checkbox of await oldWindows.all()) await checkbox.uncheck();
-  await editor.getByLabel("Day", { exact: true }).selectOption("Monday");
-  await editor.getByLabel("Time window", { exact: true }).fill("20:00–22:00");
-  await editor.getByLabel("Minutes", { exact: true }).fill("120");
+  await page.getByRole("button", { name: "Edit plan", exact: true }).click();
+  await page.getByRole("region", { name: "Edit plan", exact: true }).getByRole("combobox", { name: /^Time for Monday\b/ }).selectOption("Morning");
   const previewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/plans/adjust" && response.request().postDataJSON()?.action === "preview");
-  await editor.getByRole("button", { name: "Preview change", exact: true }).click();
+  await page.getByRole("button", { name: "Preview changes", exact: true }).click();
   const body = await (await previewResponse).json();
-  expect(body.proposal.generationRequest.availability).toEqual([{ day: "Monday", window: "20:00–22:00", minutes: 120 }]);
+  expect(body.proposal.generationRequest.availability.find((slot:{day:string}) => slot.day === "Monday").window).toBe("Morning");
   await expect(page.getByRole("button", { name: "Use this plan" })).toBeDisabled();
-  await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("region", { name: "Plan change preview" }).getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("button", { name: "Use this plan" })).toBeEnabled();
 });

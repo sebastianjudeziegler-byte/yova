@@ -38,7 +38,7 @@ export type SessionTip = z.infer<typeof SessionTipSchema>;
 
 /** The handoff's tip table: style exemplars for the prompt, not shipped copy. */
 export const TIP_EXEMPLARS: Record<TipStep, ReadonlyArray<{ title: string; body: string }>> = {
-  study: [{ title: "Follow one glucose end to end.", body: "You come back with the right terms in the wrong order. Track a single molecule through the ten steps before you look at anything else on the page." }],
+  study: [{ title: "Follow one process end to end.", body: "Tracking one example can help connect the steps; use the material to explain why each step follows." }],
   produce: [{ title: "Write \"because\" after every step.", body: "Feynman asks for causes because a step list can be recited without understanding. If a sentence has no because, it is not finished yet." }],
   compare: [{ title: "Attempt the repair before you reread.", body: "Naming a gap is not closing it. Try the fix from memory first. Rereading now will feel like learning and will not stick." }],
   repair: [{ title: "Fix only the two named lines.", body: "Rewriting the whole explanation feels productive and teaches you least. The named gaps are the only part that is still open." }],
@@ -47,7 +47,7 @@ export const TIP_EXEMPLARS: Record<TipStep, ReadonlyArray<{ title: string; body:
   round: [{ title: "A second round is the method working.", body: "Round 2 covers only what you missed. That is the design, not a penalty. The misses are what still needs the retrieval." }],
   end: [
     { title: "Say it out loud once tonight.", body: "One spoken retelling before you sleep is the cheapest spacing you have, and it catches the parts you skipped in writing." },
-    { title: "Let the spacing do the rest.", body: "Retrieval you never return to fades. Your next round is already placed four days out. Do not pull it forward tonight." },
+    { title: "Check what is next in your plan.", body: "A later attempt can check what you still remember; the plan shows which work is available next." },
   ],
 };
 
@@ -79,6 +79,17 @@ export function tipRequest(route: SessionRoute, steps: readonly TipStep[], happe
   return steps.slice(0, 5).map((step) => ({ step, reasons: reasonsForStep(step, evidence, route) }));
 }
 
+/** Tips written with the study content; no separate generation request. */
+export function studyTipRequests(route: SessionRoute, questionsInBlock: boolean) {
+  const first: TipStep = route.shape === "C" ? "brief" : "study";
+  const beforePractice: TipStep[] = route.shape === "A" && route.produceStep !== "retrieval_questions" ? [first, "produce"] : [first];
+  const withQuestions: TipStep[] = [...beforePractice, "questions", "round", "end"];
+  return {
+    direction: tipRequest(route, questionsInBlock ? beforePractice : ["study", "produce"], { practiceOccurred: questionsInBlock }),
+    learnBlock: tipRequest(route, questionsInBlock ? withQuestions : ["study", "produce"], { practiceOccurred: questionsInBlock }),
+  };
+}
+
 /** An instruction per step when the model's tip cannot be used; the reason is the evidence sentence itself. */
 const TEMPLATE_TITLE: Record<TipStep, string> = {
   study: "Study for how it works, not for the terms.",
@@ -105,7 +116,10 @@ export function settleTips(requested: TipRequest, drafts: readonly TipDraft[], h
     // The first draft for the step on an offered reason; any later one for the same step is ignored.
     const draft = drafts.find((candidate) => candidate.step === step && allowed.has(candidate.ruleId)) ?? null;
     if (draft && !(happened.exampleShown === false && /example/i.test(`${draft.title} ${draft.body}`))) {
-      return [{ ...draft, origin: "generated" as const }];
+      // The instruction can be generated for the task. The personalization
+      // reason is code-owned evidence, so model prose cannot invent history.
+      const reason = usable.find((candidate) => candidate.ruleId === draft.ruleId)!;
+      return [{ ...draft, body: reason.sentence, origin: "generated" as const }];
     }
     const reason = usable[0];
     if (!reason) return [];
@@ -117,11 +131,13 @@ export function settleTips(requested: TipRequest, drafts: readonly TipDraft[], h
 export function tipInstructions(steps: readonly TipStep[]) {
   if (!steps.length) return "";
   const exemplars = steps.flatMap((step) => TIP_EXEMPLARS[step].map((example) => `[${step}] ${example.title} ${example.body}`)).join(" | ");
-  return `tips: one tip for each entry in input.tips, with step set to that entry's step. title is one direct instruction for that step of this session, under 12 words. body is ONE sentence of reason, under 35 words, that draws only on one of that entry's reasons: set ruleId to that reason's ruleId, and do not add any fact about the learner the reason does not state. Coach-like and direct; no rule ids, labels or hedging in the text. Match the style of these examples without copying them: ${exemplars}`;
+  return `tips: one tip for each entry in input.tips, with step set to that entry's step. title is one direct instruction for that step of this session, under 12 words. body is ONE sentence of reason, under 35 words, that draws only on one of that entry's reasons: set ruleId to that reason's ruleId, and do not add any fact about the learner the reason does not state. Give an available action now; do not claim a learner made a particular error, completed a question type, saw an example, or has a scheduled next activity unless explicitly evidenced by the reason. Do not diagnose why a learner was wrong. Coach-like and direct; no rule ids or labels in the text. Match the style of these examples without copying them: ${exemplars}`;
 }
 
 /** The tip the screen may show: only for the current step, and only on a rule in route.ruleIds. */
-export function visibleTip(tips: Partial<Record<TipStep, SessionTip>>, step: TipStep | null, route: SessionRoute): SessionTip | null {
+export function visibleTip(tips: Partial<Record<TipStep, SessionTip>>, step: TipStep | null, route: SessionRoute, happened: HappenedInSession = {}): SessionTip | null {
   const tip = step ? tips[step] : undefined;
-  return tip && route.ruleIds.includes(tip.ruleId) ? tip : null;
+  if (!tip || !route.ruleIds.includes(tip.ruleId)) return null;
+  const reason = [...ruleEvidence(route, happened), defaultEvidence(route)].find((entry) => entry.ruleId === tip.ruleId);
+  return reason ? { ...tip, body: reason.sentence } : null;
 }

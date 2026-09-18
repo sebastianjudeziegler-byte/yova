@@ -556,12 +556,12 @@
       "quarantineSource": "2098e66 complete gate; later captures retained separately"
     },
     "src/evals/plan-session-journey.live.test.ts::live plan-to-session journeys > 'History essay using outside sources'": {
-      "classification": "STALE",
-      "passRate": "0/3",
-      "semanticFailures": 3,
+      "classification": "FLAKY",
+      "passRate": "failed 2 of the last 3 branch runs",
+      "semanticFailures": 2,
       "unavailable": 0,
       "auditId": "A18",
-      "evidence": "No map was supplied: the old rubric rejects 0/0 coverage; the no-map contract has explicitly been a no-op since 6f348ab (Aug 20). Correcting that first assertion also exposed a stale vocabulary filter rejecting policy-backed overview/one-step copy present since bf02043 (Aug 14)."
+      "evidence": "Founder decision, 18 Sept 2026: intermittent. On the plan-and-session-launch branch it was not among the failures in run 427 (35334170263) and failed in runs 428 (35339431210) and 430 (35363679614) with no change to plan-session code between them. Removed from the comparator's scoped list so it can be quarantined; backlogged in docs/audits/BACKLOG.md. Previously STALE (audit A18): the no-map rubric and vocabulary filter it once tripped on were corrected."
     },
     "src/evals/session-quality.live.test.ts::live OpenAI session quality > 'Biology teaching from learner notes'": {
       "classification": "REAL",

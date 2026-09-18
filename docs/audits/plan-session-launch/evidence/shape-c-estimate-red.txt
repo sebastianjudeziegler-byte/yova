@@ -1,0 +1,33 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/plan-generation/topic-plan-segments.test.ts (11 tests | 1 failed) 138ms
+     × retains each independent learning chunk and its later practice without duplicate topic coverage 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/plan-generation/topic-plan-segments.test.ts > bounded within-block topic sweep > retains each independent learning chunk and its later practice without duplicate topic coverage
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/lib/plan-generation/topic-plan-segments.test.ts:45:98
+     43|     expect(learns).toHaveLength(1);
+     44|     expect(learns[0]!.workload!.segments).toHaveLength(2);
+     45|     expect(learns[0]!.workload!.segments!.every(segment => segment.wor…
+       |                                                                                                  ^
+     46|     for (const topic of input.request.knowledgeMap!.topics) {
+     47|       expect(learns.flatMap(block => block.workload!.topicSubtopics.fi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+   Start at  18:39:41
+   Duration  581ms (transform 269ms, setup 0ms, import 369ms, tests 138ms, environment 0ms)
+

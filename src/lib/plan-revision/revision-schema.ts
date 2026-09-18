@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LearningPlanSchema, PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
+import { LearningPlanSchema, MAX_RUNTIME_PLAN_SESSIONS, PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
 import { CORE_METHOD_IDS } from "@/lib/learning/method-catalog";
 import { MapDeltaSchema } from "@/lib/plan-revision/map-delta";
 
@@ -9,8 +9,10 @@ import { MapDeltaSchema } from "@/lib/plan-revision/map-delta";
 export const RevisionPlanSchema = LearningPlanSchema.extend({
   revisionId: z.string().uuid().optional(),
   materials: LearningPlanSchema.shape.materials.optional().default([]),
-  sessions: LearningPlanSchema.shape.sessions.element.loose().array().min(1).max(28),
-}).loose();
+  sessions: LearningPlanSchema.shape.sessions.element.loose().array().min(1).max(MAX_RUNTIME_PLAN_SESSIONS),
+}).loose().superRefine((plan, context) => {
+  if (!plan.planModel && plan.sessions.length > 28) context.addIssue({ code: "custom", path: ["sessions"], message: "A legacy revision may contain at most 28 sessions." });
+});
 
 const currentContext = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("active"), planId: z.string().uuid(), expectedRevisionId: z.string().uuid() }).strict(),

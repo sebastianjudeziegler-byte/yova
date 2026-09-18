@@ -280,7 +280,7 @@ function validatePlacementState(
     }
   }
 
-  if (placement.status !== "completed") {
+  if (placement.status !== "completed" && placement.status !== "partial") {
     if (
       placement.completedAt !== null
       || demonstrated.size > 0
@@ -298,7 +298,7 @@ function validatePlacementState(
   if (!placement.completedAt) {
     throw new InitialPlanModeRoutingError(
       "invalid_placement_state",
-      "A completed placement check requires a completion time.",
+      "A scored placement check requires an observation time.",
     );
   }
   for (const topic of knowledgeMap.topics) {
@@ -315,7 +315,7 @@ function validatePlacementState(
     ) {
       throw new InitialPlanModeRoutingError(
         "placement_evidence_mismatch",
-        `Topic ${topic.id} does not match the completed placement-check ledger.`,
+        `Topic ${topic.id} does not match the scored placement-check ledger.`,
       );
     }
   }

@@ -32,6 +32,9 @@ export const ShapeTopicSchema = z.object({
   description: z.string().trim().min(8).max(400),
   subtopics: z.array(z.string().trim().min(2).max(500)).max(12).default([]),
   taskType: z.enum(LEARNING_TASK_TYPES),
+  /** The course/exam objective survives narrowing the session to one topic. */
+  learningGoal: z.string().trim().min(1).max(1_200).optional(),
+  relatedTopics: z.array(z.object({ id: z.string().uuid(), title: z.string().trim().min(2).max(140), subtopics: z.array(z.string().trim().min(2).max(500)).max(12) }).strict()).max(3).optional(),
 }).strict();
 
 /** Profile modifiers that shape wording. IDs only, never labels or prose. */
@@ -39,17 +42,18 @@ export const ShapeProfileModifiersSchema = z.object({
   instructionStyle: z.enum(["standard", "numbered_steps", "plain_restated"]),
   /** Question-type counts for a five-question round (route.questionMix); code scales and plans slots from it. */
   questionMix: z.object({
-    recall: z.number().int().min(0).max(8),
-    application: z.number().int().min(0).max(8),
-    compare_contrast: z.number().int().min(0).max(8),
-    prediction: z.number().int().min(0).max(8),
-    misconception: z.number().int().min(0).max(8),
+    recall: z.number().int().min(0).max(32),
+    application: z.number().int().min(0).max(32),
+    compare_contrast: z.number().int().min(0).max(32),
+    prediction: z.number().int().min(0).max(32),
+    misconception: z.number().int().min(0).max(32),
   }).strict(),
   produceStep: z.enum(["typed_explanation", "concept_map", "outline", "retrieval_questions", "worked_solution"]).nullable(),
   explanationFocus: z.enum(["concept", "worked_example"]).nullable(),
-  questionCap: z.number().int().min(3).max(8),
+  questionCap: z.number().int().min(1).max(32),
   /** Questions a first round aims for: route.questionTarget (Brief 1.5 item 4). */
-  questionTarget: z.number().int().min(3).max(8),
+  questionTarget: z.number().int().min(1).max(32),
+  workloadBounded: z.boolean().optional(),
 }).strict();
 
 /** Bounded excerpts of the learner's material for Slot 3 and Slot 4. */
@@ -66,6 +70,8 @@ const RequestBase = {
   recoveryKey: z.string().uuid(),
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
+  /** Required for persisted multi-activity workloads; authorized by the server. */
+  segmentId: z.string().trim().min(1).max(80).optional(),
   topic: ShapeTopicSchema,
   modifiers: ShapeProfileModifiersSchema,
   /** The hub tips this call writes, with the fired-rule reasons each may draw on (Brief 1.5 item 6). */
@@ -81,6 +87,7 @@ export const WorkedExampleSchema = z.object({
   steps: z.array(z.string().trim().min(8).max(300)).min(2).max(6),
 }).strict();
 export type WorkedExample = z.infer<typeof WorkedExampleSchema>;
+export const PracticeProblemSchema = z.object({ prompt: z.string().trim().min(12).max(700), referenceSolution: z.string().trim().min(12).max(1_800) }).strict();
 
 export const DirectionRequestSchema = z.object({
   ...RequestBase,
@@ -106,10 +113,22 @@ export const CompareRequestSchema = z.object({
   action: z.literal("compare"),
   /** What the learner produced, as plain text (a concept map is flattened). */
   produced: z.string().trim().min(1).max(6_000),
+  /** A single optional correction check; the original remains separate. */
+  revision: z.object({
+    originalProduced: z.string().trim().min(1).max(6_000),
+    originalComparison: z.object({
+      feedback: z.string().trim().min(1).max(1_200),
+      missing: z.array(z.string().max(240)).max(6),
+      incorrect: z.array(z.string().max(240)).max(6),
+    }).strict(),
+  }).strict().optional(),
+  mapItems: z.array(z.object({ id: z.string().min(1).max(40), kind: z.enum(["concept", "link"]), label: z.string().min(1).max(500) }).strict()).max(30).optional(),
   /** The source excerpts or, on the no-source path, the key points. */
   reference: z.object({
     excerpts: z.array(SourceExcerptSchema).max(8).default([]),
-    keyPoints: z.array(KeyPointSchema).max(8).default([]),
+    keyPoints: z.array(KeyPointSchema).max(24).default([]),
+    /** Generated task context is separate from server-authorized uploaded excerpts. */
+    practiceProblem: PracticeProblemSchema.optional(),
   }).strict(),
 }).strict();
 
@@ -118,8 +137,8 @@ export const PracticeRequestSchema = z.object({
   action: z.literal("practice"),
   round: z.number().int().min(1).max(6),
   /** Key points from an earlier learn block, when the topic has them; otherwise the topic is the source. */
-  keyPoints: z.array(KeyPointSchema).max(8).default([]),
-  outstandingKeyPointIds: z.array(z.string().trim().min(1).max(40)).max(8).default([]),
+  keyPoints: z.array(KeyPointSchema).max(24).default([]),
+  outstandingKeyPointIds: z.array(z.string().trim().min(1).max(40)).max(24).default([]),
   excerpts: z.array(SourceExcerptSchema).max(8).default([]),
   /** A nonce so every attempt gets fresh questions rather than a cached bank. */
   attempt: z.string().uuid(),
@@ -132,7 +151,24 @@ export const PracticeRequestSchema = z.object({
     chosenAnswer: z.string().trim().min(1).max(240),
     correctAnswer: z.string().trim().min(1).max(240),
   }).strict()).max(8).default([]),
+  /**
+   * A later part of a long first pass (founder decision, 18 Sept 2026: one
+   * sitting in parts of at most eight, built up from recall). Absent for a
+   * single-part round. The server recomputes which slots the part holds.
+   */
+  part: z.object({ index: z.number().int().min(1).max(4), count: z.number().int().min(1).max(4) }).strict().optional(),
+  /** Prompts the learner has already been given in this pass, so a later part asks something new. */
+  priorPrompts: z.array(z.string().trim().min(1).max(500)).max(24).optional(),
 }).strict();
+
+/** Why a practice part cannot be served, or null. Structure only; the server checks the count after hydration. */
+export function practicePartProblem(request: Pick<PracticeRequest, "round" | "part" | "keyPoints">): string | null {
+  if (!request.part) return null;
+  if (request.round !== 1) return "Only the first pass is delivered in parts.";
+  if (request.part.index > request.part.count) return "This part is past the end of the pass.";
+  if (request.part.index > 1 && request.keyPoints.length === 0) return "A later part needs the key points the first part established.";
+  return null;
+}
 
 export const ShapeSlotRequestSchema = z.discriminatedUnion("action", [
   DirectionRequestSchema,
@@ -155,6 +191,7 @@ export const DirectionResponseSchema = z.object({
   origin: z.enum(["generated", "template"]),
   /** A worked example drawn only from the learner's material; null when none could be shown. */
   example: WorkedExampleSchema.nullable(),
+  practiceProblem: PracticeProblemSchema.nullable().optional(),
   tips: ResponseTips,
 }).strict();
 
@@ -167,11 +204,12 @@ export const LearnBlockResponseSchema = z.object({
   action: z.literal("learn_block"),
   explanation: z.string().trim().min(200).max(6_000),
   keyPoints: z.array(KeyPointSchema).min(3).max(5),
-  questions: z.array(PracticeQuestionSchema).min(3).max(8),
+  questions: z.array(PracticeQuestionSchema).min(1).max(32),
   /** The worked structure shown before producing, when the profile asks for one. */
   structure: z.array(z.string().trim().min(2).max(200)).min(2).max(8),
   /** The explanation's own concrete example, restated as steps (Brief 1.5 item 5). */
   example: WorkedExampleSchema,
+  practiceProblem: PracticeProblemSchema.nullable().optional(),
   tips: ResponseTips,
 }).strict();
 
@@ -181,14 +219,15 @@ export const CompareResponseSchema = z.object({
   feedback: z.string().trim().min(20).max(1_200),
   missing: z.array(z.string().trim().min(2).max(240)).max(6),
   incorrect: z.array(z.string().trim().min(2).max(240)).max(6),
+  itemFeedback: z.array(z.object({ targetId: z.string().min(1).max(40), message: z.string().min(2).max(240) }).strict()).max(18).optional(),
   tips: ResponseTips,
 }).strict();
 
 /** Slot 4 — fresh questions per attempt, checked in code. */
 export const PracticeResponseSchema = z.object({
   action: z.literal("practice"),
-  keyPoints: z.array(KeyPointSchema).min(1).max(8),
-  questions: z.array(PracticeQuestionSchema).min(1).max(8),
+  keyPoints: z.array(KeyPointSchema).min(1).max(24),
+  questions: z.array(PracticeQuestionSchema).min(1).max(32),
   tips: ResponseTips,
 }).strict();
 

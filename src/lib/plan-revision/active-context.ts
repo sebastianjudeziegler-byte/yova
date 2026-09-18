@@ -1,3 +1,5 @@
+import { applyPlanMaterialUnderstanding } from "@/lib/plan-generation/plan-material-understanding";
+import { TopicPlanModelSchema } from "@/lib/plan-generation/topic-plan-contract";
 import "server-only";
 import { z } from "zod";
 import { RevisionPlanSchema } from "@/lib/plan-revision/revision-schema";
@@ -19,9 +21,15 @@ const ActiveRevisionContextSchema = z.object({
 export async function loadActiveRevisionContext(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, planId: string) {
   const result = await supabase.rpc("read_plan_revision_context", { target_plan_id: planId });
   if (result.error || !result.data) throw new Error("YOVA could not load this saved plan safely. Nothing was changed.");
-  const context = ActiveRevisionContextSchema.parse(result.data);
+  // The owner-scoped RPC stores the model in generation inputs, not in its
+  // plan projection. Hydrate this validated marker before selecting the v2
+  // runtime bound; otherwise a complete queue looks like an oversized legacy plan.
+  const parsedPlanModel = TopicPlanModelSchema.safeParse(result.data.generationRequest?.planModel);
+  const context = ActiveRevisionContextSchema.parse(parsedPlanModel.success
+    ? { ...result.data, plan: { ...result.data.plan, planModel: parsedPlanModel.data } }
+    : result.data);
   if (context.plan.id !== planId || context.plan.status !== "active" || !context.plan.knowledgeMap) throw new Error("This plan is no longer available for revision.");
-  const plan = context.plan;
+  const plan = { ...context.plan, materials: applyPlanMaterialUnderstanding(context.plan.materials, context.generationRequest), ...(parsedPlanModel.success ? { planModel: parsedPlanModel.data } : {}) };
   const generationRequest = PlanGenerationRequestSchema.parse({
     ...context.generationRequest, intent: "plan", learningIntent: plan.learningIntent,
     goal: context.generationRequest.goal ?? plan.title, knowledgeMap: plan.knowledgeMap,
@@ -31,5 +39,5 @@ export async function loadActiveRevisionContext(supabase: Awaited<ReturnType<typ
     availability: plan.schedulePreferences?.availability ?? context.generationRequest.availability,
     profileSummary: context.generationRequest.profileSummary ?? "No established behavioral preferences yet.",
   });
-  return { ...context, generationRequest };
+  return { ...context, plan, generationRequest };
 }

@@ -1,0 +1,192 @@
+{
+  "environment": "CI development-preview; real model; no database",
+  "input": {
+    "requestId": "b5048361-a9e8-4fd2-a586-a53d05e1e84c",
+    "recoveryKey": "83aad8c4-506a-484a-8e3a-957c5976499e",
+    "planId": "5778f3de-5022-49b3-8563-4f3216d8d175",
+    "planSessionId": "0d029d3d-1afa-45b2-903d-55e4570709b4",
+    "topic": {
+      "id": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
+      "title": "Plant cell structures",
+      "description": "Identify the cell wall, nucleus, chloroplast and vacuole and recall their functions.",
+      "subtopics": [
+        "Cell wall",
+        "Nucleus",
+        "Chloroplast",
+        "Vacuole"
+      ],
+      "taskType": "memorization",
+      "learningGoal": "Learn the basic plant cell structures and their functions for an introductory secondary-school biology quiz."
+    },
+    "modifiers": {
+      "instructionStyle": "standard",
+      "questionMix": {
+        "recall": 6,
+        "application": 0,
+        "compare_contrast": 0,
+        "prediction": 0,
+        "misconception": 0
+      },
+      "produceStep": "typed_explanation",
+      "explanationFocus": "concept",
+      "questionCap": 6,
+      "questionTarget": 6,
+      "workloadBounded": true
+    },
+    "tips": [],
+    "action": "learn_block"
+  },
+  "status": 200,
+  "output": {
+    "action": "learn_block",
+    "explanation": "A plant cell has several main structures that each do a different job. The cell wall is a rigid outer layer that supports the cell and helps it keep its shape. The nucleus controls the cell’s activities by containing genetic material. Chloroplasts are the sites of photosynthesis, where light energy is used to make food. The vacuole is a large fluid-filled space that stores cell sap and helps keep the cell firm. For example, in a leaf cell, chloroplasts capture light to make sugar, while the vacuole stays full so the cell does not collapse.",
+    "keyPoints": [
+      {
+        "id": "k1",
+        "text": "The cell wall is a rigid outer layer that supports the plant cell and helps it keep its shape.",
+        "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+      },
+      {
+        "id": "k2",
+        "text": "The nucleus contains the genetic material and controls the cell’s activities.",
+        "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+      },
+      {
+        "id": "k3",
+        "text": "Chloroplasts carry out photosynthesis using light energy to make food.",
+        "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+      },
+      {
+        "id": "k4",
+        "text": "The vacuole stores cell sap and helps keep the cell firm.",
+        "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+      },
+      {
+        "id": "k5",
+        "text": "These structures work together to let the plant cell stay supported, controlled, fed, and firm.",
+        "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+      }
+    ],
+    "questions": [
+      {
+        "id": "s1",
+        "slotId": "s1",
+        "kind": "recall",
+        "keyPointIds": [
+          "k1"
+        ],
+        "prompt": "Which part of a plant cell acts like a tough outer support layer and helps the cell keep its shape?",
+        "choices": [
+          "Cell wall",
+          "Nucleus",
+          "Chloroplast",
+          "Vacuole"
+        ],
+        "correctChoiceIndex": 0,
+        "explanation": "The cell wall is the rigid outer layer that supports the cell and helps it keep its shape."
+      },
+      {
+        "id": "s2",
+        "slotId": "s2",
+        "kind": "recall",
+        "keyPointIds": [
+          "k2"
+        ],
+        "prompt": "Which structure holds the cell’s genetic material and directs what the cell does?",
+        "choices": [
+          "Cell wall",
+          "Chloroplast",
+          "Vacuole",
+          "Nucleus"
+        ],
+        "correctChoiceIndex": 3,
+        "explanation": "The nucleus contains the genetic material and controls the cell’s activities."
+      },
+      {
+        "id": "s3",
+        "slotId": "s3",
+        "kind": "recall",
+        "keyPointIds": [
+          "k3"
+        ],
+        "prompt": "A leaf cell is using light energy to make sugar. Which structure is doing this job?",
+        "choices": [
+          "Cell wall",
+          "Nucleus",
+          "Vacuole",
+          "Chloroplast"
+        ],
+        "correctChoiceIndex": 3,
+        "explanation": "Chloroplasts are the sites of photosynthesis, where light energy is used to make food."
+      },
+      {
+        "id": "s4",
+        "slotId": "s4",
+        "kind": "recall",
+        "keyPointIds": [
+          "k4"
+        ],
+        "prompt": "Which structure is most closely linked to keeping a plant cell firm by storing cell sap?",
+        "choices": [
+          "Cell wall",
+          "Vacuole",
+          "Nucleus",
+          "Chloroplast"
+        ],
+        "correctChoiceIndex": 1,
+        "explanation": "The vacuole stores cell sap and helps keep the cell firm."
+      },
+      {
+        "id": "s5",
+        "slotId": "s5",
+        "kind": "recall",
+        "keyPointIds": [
+          "k5"
+        ],
+        "prompt": "Which pairing best matches the structure with its main job in a plant cell?",
+        "choices": [
+          "Chloroplast — carries out photosynthesis",
+          "Nucleus — stores cell sap",
+          "Vacuole — controls genetic material",
+          "Cell wall — makes food from light"
+        ],
+        "correctChoiceIndex": 0,
+        "explanation": "Chloroplasts carry out photosynthesis, while the other choices mix up the functions."
+      },
+      {
+        "id": "s6",
+        "slotId": "s6",
+        "kind": "recall",
+        "keyPointIds": [
+          "k1"
+        ],
+        "prompt": "If a plant cell lost the rigid layer around its outside, what would be the most likely result?",
+        "choices": [
+          "It would be less able to keep its shape and support",
+          "It would lose its ability to make food from light",
+          "It would stop storing cell sap",
+          "It would no longer contain genetic material"
+        ],
+        "correctChoiceIndex": 0,
+        "explanation": "Without the cell wall, the cell would be much less supported and less able to keep its shape."
+      }
+    ],
+    "structure": [
+      "Plant cell structures have different jobs.",
+      "Cell wall: support and shape.",
+      "Nucleus: control and genetic material.",
+      "Chloroplast: photosynthesis.",
+      "Vacuole: storage and firmness."
+    ],
+    "example": {
+      "title": "Leaf cell example",
+      "steps": [
+        "A leaf cell gets light.",
+        "Chloroplasts use that light to make food.",
+        "The vacuole stays full of cell sap.",
+        "The cell wall helps the cell keep its shape."
+      ]
+    },
+    "tips": []
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "provenance": "CI #410, commit 8fc64ce, real model output; synthetic osmosis journey; reviewed invalid question s12 (no fully correct answer).",
+  "topic": {
+    "id": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
+    "title": "Osmosis",
+    "description": "Predict net water movement from water potential and explain the role of a partially permeable membrane.",
+    "subtopics": [
+      "Water potential",
+      "Membrane permeability",
+      "Plant cell turgor"
+    ],
+    "taskType": "conceptual_learning",
+    "learningGoal": "Prepare for A-level Biology application questions: predict the effect of unfamiliar conditions on water movement and justify the mechanism."
+  },
+  "explanation": "Osmosis is the net movement of water molecules across a partially permeable membrane from a region of higher water potential to a region of lower water potential. Water potential is higher where a solution is more dilute and lower where it is more concentrated, so water moves down the water potential gradient until balance is reached. The membrane must be partially permeable so that water can cross but many dissolved solutes cannot. In plant cells, water entering by osmosis makes the vacuole swell and the cell contents press against the cell wall, creating turgor; for example, a plant cell placed in dilute solution becomes turgid as water enters.",
+  "keyPoints": [
+    {
+      "id": "k1",
+      "text": "Osmosis is the net movement of water molecules across a partially permeable membrane.",
+      "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+    },
+    {
+      "id": "k2",
+      "text": "Water moves from a higher water potential to a lower water potential.",
+      "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+    },
+    {
+      "id": "k3",
+      "text": "Higher water potential means a more dilute solution, while lower water potential means a more concentrated solution.",
+      "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+    },
+    {
+      "id": "k4",
+      "text": "A partially permeable membrane lets water pass but restricts many dissolved solutes.",
+      "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+    },
+    {
+      "id": "k5",
+      "text": "Water entering a plant cell increases turgor as the vacuole swells and the cell presses on the wall.",
+      "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+    }
+  ],
+  "question": {
+    "id": "s12",
+    "slotId": "s12",
+    "kind": "application",
+    "keyPointIds": [
+      "k2",
+      "k3"
+    ],
+    "prompt": "Two sides of a membrane are equal in temperature and pressure, but side A is more dilute than side B. Which statement best predicts the net water movement?",
+    "choices": [
+      "Water moves from side B to side A because dilute solutions have higher water potential.",
+      "No water moves because only solute concentration, not water potential, matters.",
+      "Water moves equally in both directions because the temperatures are the same.",
+      "Water moves from side A to side B because dilute solutions have lower water potential."
+    ],
+    "correctChoiceIndex": 0,
+    "explanation": "The more dilute side has the higher water potential, so water moves from side A to side B."
+  }
+}

@@ -7,21 +7,40 @@ import { canonicalBrowserCaseName, classifyComparisonOutcome, compareLiveReports
 import { normalizeBrowserReport } from "./live-gate/core.mjs";
 if (!process.env.GITHUB_ACTIONS) throw new Error("Release comparison runs only in GitHub Actions.");
 const read = path => JSON.parse(readFileSync(path, "utf8"));
-// Retained main: run 35098660639 on 00995f1 (2026-09-16), refreshed from its
-// full-live-gate and yova-quality-evidence artifacts. Refresh it when main has
+// Retained main: run 35251019423 on 0ce2292 (2026-09-17), main's own full run.
+// Its live half is that run's full-live-gate artifact; its browser half is the
+// same run's core-journey step log, parsed case by case (the alternative was a
+// 196 MB artifact for the same pass/fail list). The previous baseline, run
+// 35098660639 on 00995f1, stays in docs/audits/brief-b/evidence for history:
+// it predated Brief 2's rewritten intake and scheduling titles, so most of its
+// cases no longer exist under those names. Refresh this one when main has
 // moved far enough that the sample no longer reflects main's current tests.
-const baseline = "docs/audits/brief-b/evidence";
+const baseline = "docs/audits/plan-session-launch/main-baseline-413";
 const main = read(`${baseline}/main-live/report.json`);
-if (main.commit !== "00995f11bd33415137ca6015d5f8ca27eaaf588d") throw new Error("Unexpected main baseline revision.");
+if (main.commit !== "0ce2292b71f7ca53a5978d637280e71d913debb7") throw new Error("Unexpected main baseline revision.");
 const after = read("test-results/live-gate/report.json");
 const policy = read("scripts/live-gate/policy.json");
-// Cases removed on purpose with the feature they tested; absence alone is excused.
-const retiredCases = read("scripts/live-gate/retired-cases.json").cases;
-const isRetired = (file, name) => retiredCases.some(entry => file.replace(/^e2e\//, "") === entry.file && name === entry.name);
-const retiredLive = main.rows.filter(row => { const [file, , name] = row.id.split("::"); return name !== undefined && isRetired(file, name); }).map(row => row.id);
+// Cases removed on purpose with the feature they tested; absence alone is
+// excused. Renamed cases are listed separately with their replacement, so the
+// table says which happened instead of reporting both as an absence.
+const retirement = read("scripts/live-gate/retired-cases.json");
+const retiredCases = retirement.cases;
+const renamedCases = retirement.renamed?.cases ?? [];
+const matches = (entries, file, name) => entries.some(entry => file.replace(/^e2e\//, "") === entry.file && name === entry.name);
+const isRetired = (file, name) => matches(retiredCases, file, name);
+const isRenamed = (file, name) => matches(renamedCases, file, name);
+for (const entry of renamedCases) {
+  if (matches(retiredCases, entry.file, entry.name)) throw new Error(`A case is listed as both retired and renamed: ${entry.file} ${entry.name}`);
+  if (!entry.replacedBy) throw new Error(`A renamed case must name its replacement: ${entry.file} ${entry.name}`);
+}
+const liveIds = (predicate) => main.rows.filter(row => { const [file, , name] = row.id.split("::"); return name !== undefined && predicate(file, name); }).map(row => row.id);
+const retiredLive = liveIds(isRetired);
 const live = compareLiveReports(main, after, {
   retired: retiredLive,
-  scoped: after.rows.filter(row => row.id.includes("History essay using outside sources") && row.file.includes("plan-session-journey") || row.file.includes("personalization-delta")).map(row => row.id),
+  renamed: liveIds(isRenamed),
+  // The History essay journey left the scoped list on 18 Sept 2026 (founder
+  // decision): intermittent, now FLAKY in policy.json and backlogged.
+  scoped: after.rows.filter(row => row.file.includes("personalization-delta")).map(row => row.id),
   quarantined: Object.entries(policy.cases).filter(([, value]) => value.classification === "FLAKY").map(([id]) => id),
 });
 const mainBrowser = read(`${baseline}/main-browser-baseline.json`);
@@ -42,8 +61,11 @@ const observed = normalized.cases.flatMap((row, index) => (runs[index]?.length ?
 }))).filter(row => row.state !== "skipped");
 const scopedBrowser = normalized.cases.filter(row => row.file.includes("living-plan") || /visibly shortened inside recipe|10-minute outside teaching-first session|overdue outside teaching-first session|overdue arbitrary inside session|scheduled-review setup stays fixed|shorter sessions preserve weekly availability/.test(row.name)).map(key);
 const browserFlakes = normalized.cases.filter((_row, index) => runs[index].some(result => result.status === "passed") && runs[index].some(result => ["failed", "timedOut"].includes(result.status))).map(key);
-const browser = compareLiveReports({ rows: mainBrowser.rows.map(row => ({ ...row, id: key(row), state: "passed" })) }, { rows: observed }, {
+// Main's own failures are retained with their outcome, so a case that fails
+// on both sides reads as pre-existing instead of as this branch's regression.
+const browser = compareLiveReports({ rows: mainBrowser.rows.map(row => ({ ...row, id: key(row), state: row.status === "fail" ? "failed" : "passed" })) }, { rows: observed }, {
   retired: mainBrowser.rows.filter(row => isRetired(row.file, row.name)).map(key),
+  renamed: mainBrowser.rows.filter(row => isRenamed(row.file, row.name)).map(key),
   scoped: scopedBrowser,
   quarantined: [...browserFlakes,
     // Explicitly pre-existing in the brief and reproduced on main e03a082.

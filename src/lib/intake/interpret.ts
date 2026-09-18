@@ -220,7 +220,7 @@ function inferProgress(description: string) {
   return "";
 }
 
-function inferRequestedMinutes(description: string) {
+export function inferRequestedMinutes(description: string) {
   const match = description.match(/\b(?:in|for|within)\s+(\d{1,3})\s*(?:minutes?|mins?)\b/i);
   if (!match) return null;
   const minutes = Number(match[1]);

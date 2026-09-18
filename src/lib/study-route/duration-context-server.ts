@@ -1,3 +1,4 @@
+import { readOnboardingAnswers, type OnboardingAnswers } from "@/lib/onboarding/answers";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import "server-only";
 import type {
@@ -58,6 +59,7 @@ export type AuthorizedNormalDurationContextReason =
   | "history_read_failed";
 
 export type AuthorizedNormalDurationContext = Readonly<{
+  onboardingAnswers?: OnboardingAnswers;
   status: "ready" | "empty" | "degraded";
   reason: AuthorizedNormalDurationContextReason;
   /** Schema provenance plus a bounded revision of the exact stored profile edit. */
@@ -291,6 +293,7 @@ export async function loadAuthorizedNormalDurationContext(
       reason: "loaded",
       profileVersion,
       profile: buildAuthorizedNormalDurationProfile(answers),
+      onboardingAnswers: readOnboardingAnswers(answers),
       profileSummary: buildPlanProfileSummary([...answers]),
       recentOutcomes: buildAuthorizedNormalDurationOutcomes({
         answers,
@@ -765,6 +768,7 @@ function degradedContextWithAuthorizedProfile(
     reason: "history_read_failed",
     profileVersion,
     profile: buildAuthorizedNormalDurationProfile(answers),
+      onboardingAnswers: readOnboardingAnswers(answers),
       profileSummary: buildPlanProfileSummary([...answers]),
     recentOutcomes: [],
     methodProfileVersion: methodProfileVersionFromDurationVersion(profileVersion),

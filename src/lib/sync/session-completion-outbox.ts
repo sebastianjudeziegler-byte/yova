@@ -1,6 +1,7 @@
 "use client";
 
 import { z } from "zod";
+import { SegmentCompletionsSchema } from "@/lib/session-shapes/segment-completion";
 import type { LearningPlanSession, NextSessionAdaptation, SessionCompletion } from "@/lib/domain";
 import { ConceptEvidenceSchema } from "@/lib/learning/concept-evidence";
 import { ConfidenceEvidenceSchema } from "@/lib/learning/confidence-calibration";
@@ -45,11 +46,18 @@ const SessionCompletionSchema = z.object({
   actualMinutes: z.number().int().min(1).max(360),
   correctAnswers: z.number().int().min(0),
   totalAnswers: z.number().int().min(0),
+  segmentCompletions: SegmentCompletionsSchema.optional(),
   feedback: z.enum(["too_easy", "about_right", "too_difficult"]).nullable(),
   observedGap: z.string().min(1).max(2_000),
   completionMode: z.enum(["guided", "unguided_practice"]).default("guided"),
   conceptEvidence: RoutedConceptEvidenceListSchema.default([]),
   confidenceEvidence: RoutedConfidenceEvidenceListSchema.default([]),
+}).superRefine((completion, context) => {
+  if (completion.segmentCompletions && (
+    completion.completionMode !== "guided"
+    || completion.segmentCompletions.reduce((sum, segment) => sum + segment.totalAnswers, 0) !== completion.totalAnswers
+    || completion.segmentCompletions.reduce((sum, segment) => sum + segment.correctAnswers, 0) !== completion.correctAnswers
+  )) context.addIssue({ code: "custom", message: "Segment receipts must match the guided completion totals", path: ["segmentCompletions"] });
 }).transform(normalizeSessionCompletionProvenance);
 
 const NextSessionAdaptationSchema = z.object({

@@ -39,6 +39,16 @@ describe("study schedule personalization", () => {
       .toBe("2026-08-10");
   });
 
+  it("recognizes an explicitly dated personal goal without treating topic dates as deadlines", () => {
+    const now = new Date("2026-09-02T10:00:00.000Z");
+    expect(deadlineDateFromGoal("Learn household budgeting and compound interest for my personal goal on 2026-09-23.", now, "Europe/London"))
+      .toBe("2026-09-23");
+    expect(deadlineDateFromGoal("Learn about the goal scored on September 23, 2025.", now, "Europe/London"))
+      .toBe("");
+    expect(deadlineDateFromGoal("My personal goal is to understand the events on 2026-09-23.", now, "Europe/London"))
+      .toBe("");
+  });
+
   it("does not prefill a historical date and lets a later real deadline win", () => {
     const now = new Date("2026-08-21T12:00:00.000Z");
 

@@ -115,11 +115,17 @@ test("a practice block within three days of the deadline runs a live Practice Te
   await startReadyPractice(page);
   expect(await ruleIds(page)).toContain("L4.practice.practice_test.deadline_within_3_days");
   await expect(page.getByTestId("baseline-question")).toHaveAttribute("data-practice-round", "practice_test", { timeout: 120_000 });
-  await expect(page.getByTestId("baseline-question")).toContainText("QUESTION 1 OF 8");
   await expect(page.getByText("Method: Practice Test")).toBeVisible();
   const practice = replies.find((reply) => reply.body?.action === "practice");
   expect(practice?.status).toBe(200);
   expect(practice!.request?.roundKind).toBe("practice_test");
+  // A Practice Test plans eight questions; a question the independent review
+  // still rejects is dropped rather than failing the whole round, so the
+  // learner's counter must match what this round actually delivered.
+  const delivered = practice!.body!.questions!.length;
+  expect(delivered).toBeGreaterThanOrEqual(6);
+  expect(delivered).toBeLessThanOrEqual(8);
+  await expect(page.getByTestId("baseline-question")).toContainText(`QUESTION 1 OF ${delivered}`);
   await page.screenshot({ path: testInfo.outputPath("label-practice-test.png"), fullPage: true });
   await answerRound(page, practice!.body!.questions!, 0);
   await expect(page.getByRole("heading", { name: "A full round passed clean." })).toBeVisible();
@@ -185,7 +191,7 @@ async function answerRound(page: Page, questions: Question[], misses: number) {
     if (miss) missed.push(...unseen);
     await card.getByRole("group", { name: "Answer choices" }).getByRole("button").nth(choice).click();
     await expect(page.getByTestId("baseline-reveal")).toHaveAttribute("data-correct", String(!miss));
-    await page.getByRole("button", { name: /^(Next question|Finish round)/ }).click();
+    await page.getByRole("button", { name: /^(Next question|Next part|Finish round)/ }).click();
   }
   return missed;
 }

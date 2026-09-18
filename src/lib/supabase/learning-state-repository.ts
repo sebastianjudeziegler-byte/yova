@@ -1,4 +1,7 @@
 "use client";
+import { applyPlanMaterialUnderstanding } from "@/lib/plan-generation/plan-material-understanding";
+import { TopicPlanModelSchema, TopicWorkloadSchema } from "@/lib/plan-generation/topic-plan-contract";
+import { readSegmentCompletions } from "@/lib/session-shapes/segment-completion";
 
 import { readPlanSchedulePreferences } from "@/lib/scheduling/plan-schedule-preferences";
 
@@ -250,17 +253,28 @@ const NON_RETRYABLE_COMPLETION_SERVER_FAILURES = new Map<string, NonRetryableSes
   ["P0001:Session timing is not valid.", "invalid_payload"],
   ["P0001:The delayed verification session is not valid.", "invalid_payload"],
 
-  // These application-defined 40001 reasons prove that the exact terminal
-  // payload or its immutable receipt conflicts. Other 40001 responses remain
-  // retryable because ordering and real serialization failures are ambiguous.
+  // These application-defined reasons prove that the exact terminal payload or
+  // its immutable receipt conflicts. Since 20260917190001 the writer raises
+  // them as PT409, so the refusal answers instead of being retried as a
+  // serialization failure; the 40001 spellings stay listed for a database that
+  // has not taken that migration yet. Other 40001 responses remain retryable
+  // because ordering and real serialization failures are ambiguous.
   ["40001:study_route_evidence_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_evidence_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_retry_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_completion_retry_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_completion_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_event_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_completion_event_conflict", "incompatible_cloud_state"],
   ["40001:study_route_revision_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_revision_conflict", "incompatible_cloud_state"],
   ["40001:post_session_study_route_coverage_conflict", "incompatible_cloud_state"],
+  ["PT409:post_session_study_route_coverage_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_session_not_ready", "incompatible_cloud_state"],
+  ["PT409:study_route_completion_session_not_ready", "incompatible_cloud_state"],
   ["40001:post_session_adaptation_target_conflict", "incompatible_cloud_state"],
+  ["PT409:post_session_adaptation_target_conflict", "incompatible_cloud_state"],
   ["P0002:study_route_session_not_found", "incompatible_cloud_state"],
   ["P0002:study_route_plan_not_found", "incompatible_cloud_state"],
   ["P0001:Unguided completion identity is not valid.", "invalid_payload"],
@@ -278,8 +292,11 @@ const NON_RETRYABLE_COMPLETION_SERVER_FAILURES = new Map<string, NonRetryableSes
 const NON_RETRYABLE_INTERRUPTION_SERVER_FAILURES = new Map<string, NonRetryableSessionTerminalRejection>([
   ["P0001:Interrupted-session evidence is not valid.", "invalid_payload"],
   ["40001:study_route_evidence_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_evidence_conflict", "incompatible_cloud_state"],
   ["40001:study_route_interruption_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_interruption_conflict", "incompatible_cloud_state"],
   ["40001:study_route_interruption_event_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_interruption_event_conflict", "incompatible_cloud_state"],
 ]);
 
 function nonRetryableTerminalServerRejection(
@@ -336,6 +353,33 @@ async function withinAuthenticatedLearningMutationDeadline<T>(
   } finally {
     if (timeoutId !== null) clearTimeout(timeoutId);
   }
+}
+
+/** Resolve an ambiguous Finish reply using the exact authenticated attempt,
+ * without downloading the learner's whole workspace or guessing from status. */
+export async function readAuthenticatedSessionCompletionReceipt(
+  accountId: string,
+  completion: Pick<SessionCompletion, "id" | "planSessionId" | "routeRevisionId" | "segmentCompletions">,
+): Promise<boolean> {
+  return withinAuthenticatedLearningMutationDeadline(async run => {
+    const supabase = createSupabaseBrowserClient();
+    const auth = await run(supabase.auth.getUser());
+    if (auth.error || auth.data.user?.id !== accountId) return false;
+    const { data, error } = await run(supabase.from("session_attempts")
+      .select("id,plan_session_id,completed_at,result_data")
+      .eq("id", completion.id)
+      .eq("plan_session_id", completion.planSessionId)
+      .not("completed_at", "is", null)
+      .maybeSingle());
+    if (error || !data?.completed_at) return false;
+    const storedRoute = data.result_data && typeof data.result_data === "object"
+      ? (data.result_data as Record<string, unknown>).routeRevisionId : undefined;
+    const rawStoredSegments = readProperty(data.result_data, "segmentCompletions");
+    const storedSegments = readSegmentCompletions(rawStoredSegments);
+    if (rawStoredSegments !== undefined && rawStoredSegments !== null && !storedSegments) return false;
+    return (storedRoute ?? undefined) === completion.routeRevisionId
+      && JSON.stringify(storedSegments) === JSON.stringify(readSegmentCompletions(completion.segmentCompletions));
+  });
 }
 
 export async function loadAuthenticatedLearningStateWithRetry(
@@ -488,7 +532,9 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       : storedResource;
     const amountLabel = readTextProperty(row.step_data, "amountLabel")
       || `${row.estimated_minutes} min`;
+    const workload = TopicWorkloadSchema.safeParse(readProperty(row.step_data, "workload"));
     const session: LearningPlanSession = {
+      ...(workload.success ? { workload: workload.data } : {}),
       ...(readStringArrayProperty(row.step_data, "revisionEditedFields").length ? { revisionEditedFields: readStringArrayProperty(row.step_data, "revisionEditedFields").filter((field): field is NonNullable<LearningPlanSession["revisionEditedFields"]>[number] => ["title", "objective", "method", "methodReason", "scheduledFor", "estimatedMinutes"].includes(field)) } : {}),
       id: row.id,
       sequence: row.sequence,
@@ -548,9 +594,11 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     sessions.sort((left, right) => left.sequence - right.sequence);
     const knowledgeMap = readPlanKnowledgeMap(planRow.knowledge_map);
     const topic = resolveLearningTopic(item.topic, item.title);
+    const planModel = TopicPlanModelSchema.safeParse(readProperty(planRow.generation_inputs, "planModel"));
 
     return [{
       id: planRow.id,
+      ...(planModel.success ? { planModel: planModel.data } : {}),
       revisionId: planRow.current_revision_id ?? planRow.id,
       learningItemId: item.id,
       title: resolveLearningTitle(item.title, topic),
@@ -567,7 +615,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       rationale: planRow.rationale,
       createdAt: planRow.created_at || item.created_at,
       knowledgeMap,
-      materials: (materialsByItemId.get(item.id) ?? []).filter(material => !Array.isArray(readProperty(planRow.generation_inputs, "revisionMaterialIds")) || readStringArrayProperty(planRow.generation_inputs, "revisionMaterialIds").includes(material.id)),
+      materials: applyPlanMaterialUnderstanding((materialsByItemId.get(item.id) ?? []).filter(material => !Array.isArray(readProperty(planRow.generation_inputs, "revisionMaterialIds")) || readStringArrayProperty(planRow.generation_inputs, "revisionMaterialIds").includes(material.id)), planRow.generation_inputs),
       sessions,
     }];
   });
@@ -604,6 +652,8 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       ),
       conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
       confidenceEvidence: readConfidenceEvidenceProperty(attempt.result_data),
+      ...(readSegmentCompletions(readProperty(attempt.result_data, "segmentCompletions"))
+        ? { segmentCompletions: readSegmentCompletions(readProperty(attempt.result_data, "segmentCompletions")) } : {}),
     })];
   });
 
@@ -1275,6 +1325,7 @@ export async function completeAuthenticatedPlanSession(
     actualMinutes: normalizedCompletion.actualMinutes,
     correctAnswers: normalizedCompletion.correctAnswers,
     totalAnswers: normalizedCompletion.totalAnswers,
+    ...(normalizedCompletion.segmentCompletions ? { segmentCompletions: normalizedCompletion.segmentCompletions } : {}),
     feedback: normalizedCompletion.feedback,
     observedGap: normalizedCompletion.observedGap,
     completionMode,

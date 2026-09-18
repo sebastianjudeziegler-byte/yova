@@ -10,13 +10,15 @@ const server = baseline.webServer && !Array.isArray(baseline.webServer) ? baseli
 
 export default defineConfig({
   ...baseline,
-  testMatch: /(^|\/)baseline-(practice-retry|hub-profiles|outside)\.live\.spec\.ts$/,
+  // Keep successful named journeys for founder review, not only failures.
+  use: { ...baseline.use, video: "on" },
+  testMatch: /(^|\/)baseline-(practice-retry|hub-profiles|outside|session-quality)\.live\.spec\.ts$/,
   retries: 0,
   workers: 1,
   // The two-profile hub sessions are captured at desktop width only. Leaving them out of the
   // phone project, rather than skipping inside the test, keeps "no live case skipped" meaningful.
   projects: (baseline.projects ?? []).map((project) => (
-    project.name?.includes("mobile") ? { ...project, testIgnore: /(^|\/)baseline-hub-profiles\.live\.spec\.ts$/ } : project
+    project.name?.includes("mobile") ? { ...project, testIgnore: /(^|\/)baseline-(hub-profiles|session-quality)\.live\.spec\.ts$/ } : project
   )),
   webServer: server && {
     ...server,
@@ -24,5 +26,9 @@ export default defineConfig({
     // A new directory makes next dev rewrite tsconfig.json mid-run, and that
     // uncommitted change broke the Study Profile comparison's git checkout.
     env: { ...server.env, OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "" },
+    // The route's YOVA_SHAPE_SLOT diagnostics are content-free by design (stage,
+    // call, outcome, timings, budget). Without this they are discarded, and a
+    // live generation failure leaves no trace of which call failed or why.
+    stdout: "pipe",
   },
 });

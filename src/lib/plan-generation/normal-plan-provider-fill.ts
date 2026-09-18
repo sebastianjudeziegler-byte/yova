@@ -326,7 +326,8 @@ function validateContract(
       || !Number.isFinite(Date.parse(envelope.availabilityStartsAt))
       || Date.parse(envelope.scheduledFor) < Date.parse(envelope.availabilityStartsAt)
       || (
-        request.deadline !== null
+        !composition.planModel
+        && request.deadline !== null
         && Date.parse(envelope.scheduledFor) + envelope.timing.activeMinutes * 60_000
           > Date.parse(request.deadline)
       )

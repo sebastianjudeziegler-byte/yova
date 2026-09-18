@@ -19,7 +19,8 @@ const PROFILES = {
 } as const;
 
 type StepRecord = { step: string; screenshot: string; tip: { step: string; ruleId: string; origin: string; title: string; body: string } | null };
-type ProfileRecord = { profile: string; ruleIds: string[]; pills: string[]; steps: StepRecord[] };
+type WorkloadRecord = { estimatedMinutes: number; ceilingMinutes: number; questionCount: number; recallQuestionCount: number; transferQuestionCount: number };
+type ProfileRecord = { profile: string; onboardingAnswers: unknown; workload: WorkloadRecord; ruleIds: string[]; pills: string[]; steps: StepRecord[] };
 
 const recordPath = (testInfo: TestInfo, profile: string) => join(testInfo.project.outputDir, "hub-profiles", `${profile}.json`);
 
@@ -27,7 +28,39 @@ const recordPath = (testInfo: TestInfo, profile: string) => join(testInfo.projec
 for (const profile of ["P1", "P2"] as const) {
   test(`${profile} runs a live session with the hub`, async ({ page }, testInfo) => {
     test.setTimeout(420_000);
-    const record: ProfileRecord = { profile, ruleIds: [], pills: [], steps: [] };
+    const generatedQuestions = new Map<string, { prompt: string; choices: string[]; correctChoiceIndex: number }>();
+    page.on("response", async (response) => {
+      if (!response.url().includes("/api/sessions/shape") || !response.ok()) return;
+      const result = await response.json().catch(() => null);
+      for (const question of result?.questions ?? []) generatedQuestions.set(question.prompt, question);
+    });
+    // Keep the real request and server-sized work beside the recording. A
+    // difference in tip copy alone must never count as personalization.
+    const generatedPlan = page.waitForResponse(response => response.url().includes("/api/plans/generate")
+      && response.request().postDataJSON()?.intent === "study_now", { timeout: 120_000 });
+    await startStudyNow(page, PROFILES[profile]);
+    const response = await generatedPlan;
+    expect(response.ok()).toBe(true);
+    const request = response.request().postDataJSON();
+    expect(request.previewOnboardingAnswers.answers.session_length).toBe(profile === "P1" ? "minutes_10_15" : "minutes_45_60");
+    const generated = await response.json();
+    const session = generated.plan.sessions[0];
+    const workload: WorkloadRecord = {
+      estimatedMinutes: session.workload.estimatedMinutes,
+      ceilingMinutes: session.workload.ceilingMinutes,
+      questionCount: session.workload.questionCount,
+      recallQuestionCount: session.workload.recallQuestionCount,
+      transferQuestionCount: session.workload.transferQuestionCount,
+    };
+    expect(session.estimatedMinutes).toBe(workload.estimatedMinutes);
+    expect(session.studyRoute.provenance.ruleTrace).toEqual(expect.arrayContaining([
+      expect.objectContaining({ ruleId: "baseline_onboarding_v1" }),
+    ]));
+    if (profile === "P1") {
+      expect(workload.ceilingMinutes).toBeLessThanOrEqual(15);
+      expect(workload.estimatedMinutes).toBeLessThanOrEqual(15);
+    }
+    const record: ProfileRecord = { profile, onboardingAnswers: request.previewOnboardingAnswers, workload, ruleIds: [], pills: [], steps: [] };
     const capture = async (step: string) => {
       const screenshot = testInfo.outputPath(`${profile}-${record.steps.length + 1}-${step}.png`);
       await page.screenshot({ path: screenshot, fullPage: true });
@@ -43,9 +76,9 @@ for (const profile of ["P1", "P2"] as const) {
       record.steps.push({ step, screenshot, tip: shown });
     };
 
-    await startStudyNow(page, PROFILES[profile]);
     const shell = page.locator("[data-shape]");
     await expect(shell).toHaveAttribute("data-shape", "A", { timeout: 120_000 });
+    await expect(page.getByLabel(`Session timer, ${workload.estimatedMinutes} minute nudge`, { exact: true })).toBeVisible();
     record.ruleIds = (await shell.getAttribute("data-rule-ids"))?.split(" ") ?? [];
     record.pills = await page.locator("[data-pill-rule-id]").evaluateAll((pills) => pills.map((pill) => pill.getAttribute("data-pill-rule-id") ?? ""));
     for (const pill of record.pills) expect(record.ruleIds).toContain(pill);
@@ -58,11 +91,12 @@ for (const profile of ["P1", "P2"] as const) {
       await capture("worked-example");
       await page.getByRole("button", { name: "Continue", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Map the concepts and links" })).toBeVisible();
-      await page.getByLabel("Concept 1").fill("Light-dependent reactions");
-      await page.getByLabel("Concept 2").fill("Calvin cycle");
-      await page.getByLabel("Link 1 from").fill("Light-dependent reactions");
+      await page.getByRole("textbox", { name: "Concept 1", exact: true }).fill("Light-dependent reactions");
+      await page.getByRole("textbox", { name: "Concept 2", exact: true }).fill("Calvin cycle");
+      await page.getByRole("button", { name: "Add relationship", exact: true }).click();
+      await page.getByLabel("Link 1 from").selectOption({ label: "Light-dependent reactions" });
       await page.getByLabel("Link 1 label").fill("supply ATP and NADPH to");
-      await page.getByLabel("Link 1 to").fill("Calvin cycle");
+      await page.getByLabel("Link 1 to").selectOption({ label: "Calvin cycle" });
       await capture("produce");
       await page.getByRole("button", { name: "Compare my map" }).click();
       await expect(page.getByTestId("baseline-comparison")).toBeVisible({ timeout: 150_000 });
@@ -71,7 +105,8 @@ for (const profile of ["P1", "P2"] as const) {
       await expect(page.getByRole("heading", { name: "Address the named gaps, or move on." })).toBeVisible();
       await capture("repair");
       await page.getByRole("button", { name: "Move on", exact: true }).click();
-      await expect(page.getByRole("heading", { name: "You studied, produced and compared." })).toBeVisible();
+      await finishPlannedPractice(page, generatedQuestions);
+      await expect(page.getByRole("heading", { name: /You studied, produced and compared|A full round passed clean/ })).toBeVisible();
       await capture("end");
     } else {
       await expect(page.getByRole("heading", { name: "Explain it in your own words" })).toBeVisible();
@@ -87,18 +122,24 @@ for (const profile of ["P1", "P2"] as const) {
       await expect(page.getByRole("heading", { name: "Address the named gaps, or move on." })).toBeVisible();
       await capture("repair");
       await page.getByRole("button", { name: "Move on", exact: true }).click();
-      await expect(page.getByRole("heading", { name: "You studied, produced and compared." })).toBeVisible();
+      await finishPlannedPractice(page, generatedQuestions);
+      await expect(page.getByRole("heading", { name: /You studied, produced and compared|A full round passed clean/ })).toBeVisible();
       await capture("end");
     }
 
+    expect(generatedQuestions.size, "actual generated work matches the persisted workload").toBe(workload.questionCount);
+    await testInfo.attach(`${profile}-generated-questions.json`, { body: JSON.stringify([...generatedQuestions.values()], null, 2), contentType: "application/json" });
     mkdirSync(join(testInfo.project.outputDir, "hub-profiles"), { recursive: true });
     writeFileSync(recordPath(testInfo, profile), JSON.stringify(record, null, 2));
     await testInfo.attach(`${profile}-hub.json`, { path: recordPath(testInfo, profile), contentType: "application/json" });
   });
 }
 
-test("the two profiles' hubs differ on rule IDs and tip text", async ({}, testInfo) => {
+test("the two profiles have different actual workloads as well as hub rules and tips", async ({}, testInfo) => {
   const [first, second] = (["P1", "P2"] as const).map((profile) => JSON.parse(readFileSync(recordPath(testInfo, profile), "utf8")) as ProfileRecord);
+  expect(first!.workload.estimatedMinutes).toBeLessThanOrEqual(15);
+  expect(second!.workload.estimatedMinutes).toBeGreaterThanOrEqual(first!.workload.estimatedMinutes + 5);
+  expect(second!.workload.questionCount).toBeGreaterThanOrEqual(first!.workload.questionCount + 2);
   expect(first!.pills).not.toEqual(second!.pills);
   const tipFor = (record: ProfileRecord, step: string) => record.steps.find((entry) => entry.tip?.step === step)?.tip ?? null;
   for (const step of ["study", "produce", "compare", "repair", "end"]) {
@@ -131,4 +172,20 @@ async function startStudyNow(page: Page, answers: ReadonlyArray<string | readonl
   await page.getByLabel("Study Now topic or result").fill(GOAL);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByTestId("pre-session-card").getByRole("button", { name: "Start", exact: true }).click({ timeout: 120_000 });
+}
+
+/** Real generated content, deterministic answer-key path; not a claim about student learning. */
+async function finishPlannedPractice(page: Page, questions: Map<string, { prompt: string; choices: string[]; correctChoiceIndex: number }>) {
+  const end = page.getByRole("heading", { name: /You studied, produced and compared|A full round passed clean/ });
+  // A long pass arrives in parts; between parts a short "Preparing the next
+  // part" card may show, so wait for the next question or the end each time.
+  for (;;) {
+    await expect(page.getByTestId("baseline-question").or(end)).toBeVisible({ timeout: 180_000 });
+    if (!await page.getByTestId("baseline-question").isVisible()) break;
+    const prompt = await page.getByTestId("baseline-question").getByRole("heading").innerText();
+    const question = questions.get(prompt);
+    expect(question, `captured real generated question: ${prompt}`).toBeTruthy();
+    await page.getByRole("group", { name: "Answer choices" }).getByRole("button").nth(question!.correctChoiceIndex).click();
+    await page.getByRole("button", { name: /^(Next question|Next part|Finish round)$/ }).click();
+  }
 }

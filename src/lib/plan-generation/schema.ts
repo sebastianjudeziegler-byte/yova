@@ -1,4 +1,8 @@
+import { OnboardingAnswersRequestSchema } from "@/lib/onboarding/request-schema";
+import { studyRouteProvenanceIncludesRouterComponent } from "@/lib/study-route/method-plan-integration";
 import { z } from "zod";
+import { SetupCorrectionsSchema } from "@/lib/plan-generation/setup-corrections";
+import { TopicPlanModelSchema, TopicWorkloadSchema } from "@/lib/plan-generation/topic-plan-contract";
 import { diagnosticResponsesFromMap } from "@/lib/diagnostics/placement-summary";
 import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
@@ -11,7 +15,7 @@ import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architec
 import { StudyRouteSchema } from "@/lib/study-route/schema";
 import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-levels";
 
-export const MAX_GENERATED_PLAN_SESSIONS = 14;
+export const MAX_GENERATED_PLAN_SESSIONS = 200;
 // Generated curriculum stays capped above. Runtime-only verification sessions
 // may add at most one evidence check for each generated session.
 export const MAX_RUNTIME_PLAN_SESSIONS = MAX_GENERATED_PLAN_SESSIONS * 2;
@@ -75,6 +79,8 @@ export const PlanDiagnosticPreparationResponseSchema = z.object({
 });
 
 export const PlanGenerationRequestSchema = z.object({
+  setupCorrections: SetupCorrectionsSchema.optional(),
+  deadlinePurpose: z.enum(["test", "assignment", "personal"]).optional(),
   intent: z.enum(["plan", "study_now"]).default("plan"),
   learningIntent: z.enum(["learn", "study"]),
   goal: z.string().trim().min(10).max(600),
@@ -118,6 +124,8 @@ export const PlanGenerationRequestSchema = z.object({
    * field and instead loads the authenticated account's canonical profile.
    */
   previewCanonicalProfile: CanonicalLearnerProfileSchema.optional(),
+  /** Local baseline answers; the generation route rejects these outside verified preview. */
+  previewOnboardingAnswers: OnboardingAnswersRequestSchema.optional(),
   knowledgeMap: PlanKnowledgeMapSchema.optional(),
   knowledgeMapReceipt: z.string().min(1).max(512).optional(),
   mapCorrection: z.string().trim().max(800).optional(),
@@ -195,6 +203,7 @@ export const ProviderGeneratedPlanDraftSchema = GeneratedPlanDraftSchema.extend(
 });
 
 export const LearningPlanSchema = z.object({
+  planModel: TopicPlanModelSchema.optional(),
   revisionId: z.string().uuid().optional(),
   id: z.string().min(1),
   learningItemId: z.string().min(1),
@@ -217,6 +226,7 @@ export const LearningPlanSchema = z.object({
   knowledgeMap: PlanKnowledgeMapSchema.optional(),
   materials: z.array(StoredMaterialSchema).max(5),
   sessions: z.array(z.object({
+    workload: TopicWorkloadSchema.optional(),
     revisionEditedFields: z.array(z.enum(["title", "objective", "method", "methodReason", "scheduledFor", "estimatedMinutes"])).max(6).optional(),
     id: z.string().min(1),
     sequence: z.number().int().positive(),
@@ -380,6 +390,12 @@ export const PlanActivationRequestSchema = z.object({
       const normalDuration = NORMAL_STUDY_DURATION_LEVELS.some((minutes) => (
         minutes === route.timing.activeMinutes
       ));
+      const contentDerivedDuration = Boolean(session.workload
+        && session.workload.estimatedMinutes === route.timing.activeMinutes
+        && session.workload.ceilingMinutes <= hardMaximumMinutes
+        && JSON.stringify(session.workload.topicSubtopics.map(topic => topic.topicId)) === JSON.stringify(session.topicIds)
+        && studyRouteProvenanceIncludesRouterComponent(route.provenance, "topic_workload_v1")
+        && route.provenance.ruleTrace.some(entry => entry.ruleId === "plan.workload.content_estimate"));
       const currentDurationSource = ![
         "scheduled_review",
         "legacy_reconstruction",
@@ -388,7 +404,7 @@ export const PlanActivationRequestSchema = z.object({
         entry.ruleId.startsWith("duration.")
       ));
       if (
-        !normalDuration
+        !(session.workload ? contentDerivedDuration : normalDuration)
         || route.timing.activeMinutes > hardMaximumMinutes
         || route.timing.hardMaximumMinutes !== hardMaximumMinutes
         || !currentDurationSource

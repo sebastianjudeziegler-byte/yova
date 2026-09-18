@@ -1,0 +1,51 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/plan-generation/topic-workload-route.test.ts (2 tests | 2 failed) 104ms
+     × retains prediction and misconception slots when scaling a reading task 8ms
+     × sizes memorization work from its recall-focused task mix 94ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/plan-generation/topic-workload-route.test.ts > workload projection preserves task-first question routing > retains prediction and misconception slots when scaling a reading task
+AssertionError: expected { recall: 12, application: 8, …(3) } to deeply equal { recall: 8, misconception: 4, …(3) }
+
+- Expected
++ Received
+
+  {
+-   "application": 4,
++   "application": 8,
+    "compare_contrast": 0,
+-   "misconception": 4,
+-   "prediction": 4,
+-   "recall": 8,
++   "misconception": 0,
++   "prediction": 0,
++   "recall": 12,
+  }
+
+ ❯ src/lib/plan-generation/topic-workload-route.test.ts:13:33
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/plan-generation/topic-workload-route.test.ts > workload projection preserves task-first question routing > sizes memorization work from its recall-focused task mix
+AssertionError: expected 14 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 14
+
+ ❯ src/lib/plan-generation/topic-workload-route.test.ts:19:38
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  15:45:41
+   Duration  1.21s (transform 736ms, setup 0ms, import 966ms, tests 104ms, environment 0ms)

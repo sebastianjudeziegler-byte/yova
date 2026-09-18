@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { applyTopicWorkloadToRoute } from "@/lib/plan-generation/topic-workload-route";
+import { GuidedConceptMap } from "./guided-concept-map";
+import { conceptMapAsProduce, conceptMapCanSubmit, conceptMapItems } from "@/lib/session-shapes/concept-map";
 import { QUESTION_TYPE_LABEL } from "@/lib/practice/question-mix";
 import { PRACTICE_ROUND_LABEL, practiceRoundKind } from "@/lib/practice/practice-rounds";
 import { AlertCircle, ArrowRight, Check, Clock3, RotateCcw, Sparkles, X } from "lucide-react";
@@ -10,22 +13,22 @@ import type { KeyPoint, PracticeQuestion } from "@/lib/practice/compose-practice
 import { personalizationNote } from "@/lib/routing/personalization-note";
 import { chosenBecause, receiptEvidence } from "@/lib/routing/rule-evidence";
 import { hubRail, timerView } from "@/lib/session-shapes/session-hub";
-import { tipRequest, visibleTip, type SessionTip, type TipStep } from "@/lib/session-shapes/session-tips";
+import { studyTipRequests, tipRequest, visibleTip, type SessionTip, type TipStep } from "@/lib/session-shapes/session-tips";
 import {
   alternativeProduceSteps,
   methodNameForProduceStep,
   type ProduceStep,
   type SessionRoute,
-  type SessionShape,
 } from "@/lib/routing/session-route";
 import {
   currentShapeAStep,
   entersCompare,
   initialShapeAState,
+  initialShapeADraft,
   produceAsText,
   produceStepLabel,
   shapeAReducer,
-  type ShapeAComparison,
+  type ShapeADraft,
   type ShapeAProduceInput,
   type ShapeAState,
 } from "@/lib/session-shapes/shape-a";
@@ -37,11 +40,14 @@ import {
   SHAPE_C_ESCALATION_MESSAGE,
   shapeCReducer,
   shapeCTotals,
+  shapeCKeyPointOutcomes,
+  shapeCPartPosition,
+  shapeCPartsRemaining,
   type ShapeCState,
 } from "@/lib/session-shapes/shape-c";
 import { makeSlotIds, requestComparison, requestDirection, requestLearnBlock, requestPractice, ShapeSlotClientError } from "@/lib/session-shapes/slots-client";
 import { routeFingerprint, type BaselineCheckpoint, type StudyLocation } from "@/lib/session-shapes/baseline-checkpoint";
-import { baselineSourceForTopic } from "@/lib/session-shapes/source-context";
+import { baselineSourceForTopics } from "@/lib/session-shapes/source-context";
 import { CORE_METHOD_CATALOG } from "@/lib/learning/method-catalog";
 import {
   SHAPE_SLOT_HONEST_ERROR,
@@ -54,6 +60,8 @@ import {
 import styles from "./baseline-session.module.css";
 import { AskYova, HubBriefing, HubHeader, HubShapeCard, HubSourceCard, HubTargetCard, HubTimerCard, HubTipCard, StepHead, StepPosition, type MethodControl } from "./session-hub";
 import hubStyles from "./session-hub.module.css";
+import { aggregateBaselineSegmentResults, baselineSegmentResultFits, type BaselineSessionResult, type BaselineSegmentResult } from "@/lib/session-shapes/baseline-session-result";
+export type { BaselineSessionResult } from "@/lib/session-shapes/baseline-session-result";
 
 /**
  * The baseline session runner. Shape A and Shape C are coded step sequences
@@ -66,21 +74,6 @@ export type BaselineSessionSource = {
   excerpts: SourceExcerpt[];
 };
 
-export type BaselineSessionResult = {
-  shape: SessionShape;
-  methodName: string;
-  ruleIds: string[];
-  noteRuleId: string;
-  correctAnswers: number;
-  totalAnswers: number;
-  keyPointOutcomes: Array<{ keyPointId: string; text: string; outcome: "secure" | "needs_review" }>;
-  topicDone: boolean;
-  escalated: boolean;
-  produced: string | null;
-  comparison: ShapeAComparison | null;
-  elapsedSeconds: number;
-};
-
 export type BaselineSessionProps = {
   plan: LearningPlan;
   session: LearningPlanSession;
@@ -89,14 +82,17 @@ export type BaselineSessionProps = {
   nextSession: LearningPlanSession | null;
   onChangeProduceStep: (step: ProduceStep) => void;
   onExit: () => void;
-  onComplete: (result: BaselineSessionResult) => Promise<boolean>;
+  onComplete: (result: BaselineSessionResult, continueToNext?: boolean) => Promise<boolean>;
+  continuationSession?: LearningPlanSession | null;
   /** Interleaved Review only: the key points of related topics that each passed once (Brief 1.5 item 3). */
   interleavedKeyPoints?: KeyPoint[];
   /** Inside or outside YOVA, chosen on the pre-session card (Brief 1.5 item 8). */
   studyLocation?: StudyLocation;
   /** Where the learner left off; the session opens on that step (Brief 1.5 item 8). */
   checkpoint?: BaselineCheckpoint | null;
-  onCheckpoint?: (checkpoint: BaselineCheckpoint) => void;
+  onCheckpoint?: (checkpoint: BaselineCheckpoint) => boolean | void;
+  /** Each activity uses its actual topic's profile/evidence/source route. */
+  segmentContexts?: Array<{ segmentId: string; route: SessionRoute; topic: KnowledgeMapTopic; interleavedKeyPoints: KeyPoint[] }>;
 };
 
 type SlotStatus = "idle" | "loading" | "ready" | "error";
@@ -115,12 +111,81 @@ function formatClock(seconds: number) {
 }
 
 export function BaselineSession(props: BaselineSessionProps) {
-  const { plan, session, topic, route, nextSession, onChangeProduceStep, onExit, onComplete, interleavedKeyPoints, studyLocation = "inside", checkpoint = null, onCheckpoint } = props;
+  return props.session.workload?.segments ? <SegmentedBaselineSession {...props} /> : <SingleBaselineSession {...props} />;
+}
+
+type SingleBaselineSessionProps = BaselineSessionProps & {
+  segmentId?: string;
+  activityPosition?: { number: number; total: number; totalMinutes: number; elapsedBefore: number; priorCorrectAnswers: number; priorTotalAnswers: number; nextTitle?: string };
+};
+
+function SegmentedBaselineSession(props: BaselineSessionProps) {
+  const onCheckpoint = props.onCheckpoint;
+  const segments = props.session.workload!.segments!;
+  const fingerprint = routeFingerprint(props.route, { workload: props.session.workload, learningGoal: props.plan.planModel?.learningGoal });
+  const initial = props.checkpoint?.segmentProgress;
+  const restoredIndex = initial ? segments.findIndex(segment => segment.segmentId === initial.activeSegmentId) : 0;
+  const restored = initial && restoredIndex >= 0 && Array.isArray(initial.completed) && initial.completed.length === restoredIndex && initial.completed.every((entry, index) => entry?.segmentId === segments[index]?.segmentId && entry.checkpoint && baselineSegmentResultFits(segments[index]!.workload, entry.result)) ? initial : undefined;
+  const [index, setIndex] = useState(restored ? restoredIndex : 0);
+  const [completed, setCompleted] = useState<NonNullable<BaselineCheckpoint["segmentProgress"]>["completed"]>(restored?.completed ?? []);
+  const [activeCheckpoint, setActiveCheckpoint] = useState<BaselineCheckpoint | null>(restored ? props.checkpoint ?? null : null);
+  const checkpointRef = useRef<BaselineCheckpoint | null>(activeCheckpoint);
+  const segment = segments[index]!;
+  const context = props.segmentContexts?.find(item => item.segmentId === segment.segmentId);
+  const wholeCheckpoint = useCallback((checkpoint: BaselineCheckpoint): BaselineCheckpoint => ({ ...checkpoint, routeFingerprint: fingerprint, segmentProgress: { activeSegmentId: segment.segmentId, completed } }), [fingerprint, segment.segmentId, completed]);
+  const saveCheckpoint = useCallback((checkpoint: BaselineCheckpoint) => {
+    const outer = wholeCheckpoint(checkpoint);
+    checkpointRef.current = outer;
+    return onCheckpoint?.(outer);
+  }, [wholeCheckpoint, onCheckpoint]);
+  if (!context || (initial && !restored)) return <div className={styles.card} role="alert"><h2>This activity could not be verified.</h2><p>Your saved work is kept. Return to the plan and try again.</p><button type="button" className="button secondary" onClick={props.onExit}>Back to plan</button></div>;
+  const session = { ...props.session, workload: segment.workload, topicIds: segment.workload.topicSubtopics.map(item => item.topicId), learningMode: segment.learningMode, title: context.topic.title, objective: segment.workload.topicSubtopics.flatMap(item => item.subtopics).join("; ") || context.topic.description, estimatedMinutes: segment.workload.estimatedMinutes };
+  const next = segments[index + 1];
+  const nextContext = props.segmentContexts?.find(item => item.segmentId === next?.segmentId);
+  const completeActivity = async (result: BaselineSegmentResult, continueToNext = false) => {
+    const checkpoint = checkpointRef.current;
+    if (!checkpoint || !baselineSegmentResultFits(segment.workload, result)) return false;
+    if (next) {
+      if (!nextContext) return false;
+      const previousDraft = { ...checkpoint };
+      delete previousDraft.segmentProgress;
+      const done = [...completed, { segmentId: segment.segmentId, result, checkpoint: previousDraft }];
+      const nextRoute = applyTopicWorkloadToRoute(nextContext.route, next.workload);
+      const nextCheckpoint: BaselineCheckpoint = {
+        version: 1, planId: props.plan.id, planSessionId: props.session.id, produceStep: nextRoute.produceStep, studyLocation: props.studyLocation ?? "inside", routeFingerprint: fingerprint,
+        savedAt: new Date().toISOString(), elapsedSeconds: 0, started: true,
+        aState: initialShapeAState(nextRoute), cState: initialShapeCState(nextRoute), direction: null, learnBlock: null, practiceKeyPoints: [], tips: {},
+        timer: checkpoint.timer, segmentProgress: { activeSegmentId: next.segmentId, completed: done },
+      };
+      // Persist the completed work and the exact next entry together before
+      // unmounting the first activity. A failed save leaves its end screen.
+      if (props.onCheckpoint?.(nextCheckpoint) === false) return false;
+      checkpointRef.current = nextCheckpoint;
+      setCompleted(done);
+      setActiveCheckpoint(nextCheckpoint);
+      setIndex(index + 1);
+      return true;
+    }
+    const aggregate = aggregateBaselineSegmentResults(props.session.workload!, [...completed, { segmentId: segment.segmentId, result }]);
+    return aggregate ? props.onComplete(aggregate, continueToNext) : false;
+  };
+  return <>
+    {completed.length > 0 && <details className={styles.receipt} data-testid="completed-activity-work"><summary>Activity 1 completed · work kept in this draft</summary>{completed.map(entry => <div key={entry.segmentId}><p>{entry.result.correctAnswers} of {entry.result.totalAnswers} answers correct.</p>{entry.result.produced && <p>{entry.result.produced}</p>}{entry.result.comparison && <p>Original feedback: {entry.result.comparison.feedback}</p>}{entry.result.revision && <p>Correction ({entry.result.revision.status}): {entry.result.revision.produced}</p>}</div>)}</details>}
+    <SingleBaselineSession {...props} key={segment.segmentId} session={session} route={context.route} topic={context.topic} interleavedKeyPoints={context.interleavedKeyPoints} checkpoint={activeCheckpoint} onCheckpoint={saveCheckpoint} onComplete={completeActivity} continuationSession={next ? null : props.continuationSession} segmentId={segment.segmentId} activityPosition={{ number: index + 1, total: segments.length, totalMinutes: props.session.workload!.estimatedMinutes, elapsedBefore: completed.reduce((sum, entry) => sum + entry.result.elapsedSeconds, 0), priorCorrectAnswers: completed.reduce((sum, entry) => sum + entry.result.correctAnswers, 0), priorTotalAnswers: completed.reduce((sum, entry) => sum + entry.result.totalAnswers, 0), nextTitle: nextContext?.topic.title }} />
+  </>;
+}
+
+function SingleBaselineSession(props: SingleBaselineSessionProps) {
+  const { plan, session, topic, route: baseRoute, nextSession, continuationSession = null, onChangeProduceStep, onExit, onComplete, interleavedKeyPoints, studyLocation = "inside", checkpoint = null, onCheckpoint, segmentId, activityPosition } = props;
+  const route = useMemo(() => applyTopicWorkloadToRoute(baseRoute, session.workload), [baseRoute, session.workload]);
   const planMaterials = plan.materials;
   const planSourceMode = plan.sourceMode;
+  const selectedTopics = useMemo(() => session.workload
+    ? session.workload.topicSubtopics.flatMap((entry) => plan.knowledgeMap?.topics.filter((candidate) => candidate.id === entry.topicId) ?? [])
+    : topic ? [topic] : [], [session.workload, plan.knowledgeMap, topic]);
   const source: BaselineSessionSource = useMemo(
-    () => baselineSourceForTopic({ materials: planMaterials, sourceMode: planSourceMode }, topic),
-    [planMaterials, planSourceMode, topic],
+    () => baselineSourceForTopics({ materials: planMaterials, sourceMode: planSourceMode }, selectedTopics),
+    [planMaterials, planSourceMode, selectedTopics],
   );
   const topicId = topic?.id ?? session.topicIds?.[0] ?? null;
   const topicTitle = topic?.title ?? session.title;
@@ -128,9 +193,11 @@ export function BaselineSession(props: BaselineSessionProps) {
     id: topicId ?? "00000000-0000-4000-8000-000000000000",
     title: topicTitle,
     description: (topic?.description ?? session.objective).slice(0, 400).padEnd(8, "."),
-    subtopics: (topic?.subtopics ?? []).slice(0, 12),
+    subtopics: (session.workload?.topicSubtopics.find((entry) => entry.topicId === topicId)?.subtopics ?? topic?.subtopics ?? []).slice(0, 12),
+    relatedTopics: selectedTopics.filter((candidate) => candidate.id !== topicId).map((candidate) => ({ id: candidate.id, title: candidate.title, subtopics: (session.workload?.topicSubtopics.find((entry) => entry.topicId === candidate.id)?.subtopics ?? candidate.subtopics).slice(0, 12) })),
+    learningGoal: (plan.planModel?.learningGoal ?? [plan.title, plan.topic, plan.rationale, session.objective].join(". ")).slice(0, 1_200),
     taskType: route.input.taskType,
-  }), [route.input.taskType, session.objective, topic, topicId, topicTitle]);
+  }), [route.input.taskType, session.objective, session.workload, plan.planModel, plan.title, plan.topic, plan.rationale, topic, topicId, topicTitle, selectedTopics]);
   const modifiers = useMemo(() => ({
     instructionStyle: route.instructionStyle,
     questionMix: route.questionMix,
@@ -138,7 +205,8 @@ export function BaselineSession(props: BaselineSessionProps) {
     explanationFocus: route.explanationFocus,
     questionCap: route.questionCap,
     questionTarget: route.questionTarget,
-  }), [route.explanationFocus, route.instructionStyle, route.produceStep, route.questionCap, route.questionMix, route.questionTarget]);
+    workloadBounded: Boolean(session.workload),
+  }), [route.explanationFocus, route.instructionStyle, route.produceStep, route.questionCap, route.questionMix, route.questionTarget, session.workload]);
 
   // ---------------------------------------------------------------- timer
   // Pause freezes only this counter; nothing server-side pauses. Hidden, +5 and
@@ -146,18 +214,18 @@ export function BaselineSession(props: BaselineSessionProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(checkpoint?.elapsedSeconds ?? 0);
   const [elapsedSecondsRestored] = useState(checkpoint?.elapsedSeconds ?? 0);
   const clockRef = useRef<{ accumulatedMs: number; runningSince: number | null }>({ accumulatedMs: elapsedSecondsRestored * 1_000, runningSince: null });
-  const [timerPaused, setTimerPaused] = useState(false);
-  const [timerHidden, setTimerHidden] = useState(false);
-  const [timerExtraMinutes, setTimerExtraMinutes] = useState(0);
-  const [acknowledgedLimit, setAcknowledgedLimit] = useState<number | null>(null);
+  const [timerPaused, setTimerPaused] = useState(checkpoint?.timer?.paused ?? false);
+  const [timerHidden, setTimerHidden] = useState(checkpoint?.timer?.hidden ?? false);
+  const [timerExtraMinutes, setTimerExtraMinutes] = useState(checkpoint?.timer?.extraMinutes ?? 0);
+  const [acknowledgedLimit, setAcknowledgedLimit] = useState<number | null>(checkpoint?.timer?.acknowledgedLimit ?? null);
   useEffect(() => {
     const clock = clockRef.current;
-    clock.runningSince ??= Date.now();
+    if (!checkpoint?.timer?.paused) clock.runningSince ??= Date.now();
     const interval = window.setInterval(() => {
       setElapsedSeconds(Math.floor((clock.accumulatedMs + (clock.runningSince === null ? 0 : Date.now() - clock.runningSince)) / 1_000));
     }, 1_000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [checkpoint?.timer?.paused]);
   const pauseTimer = () => {
     const clock = clockRef.current;
     if (clock.runningSince !== null) clock.accumulatedMs += Date.now() - clock.runningSince;
@@ -168,13 +236,14 @@ export function BaselineSession(props: BaselineSessionProps) {
     clockRef.current.runningSince ??= Date.now();
     setTimerPaused(false);
   };
-  const timer = timerView({ elapsedSeconds, timerMinutes: route.timerMinutes, extraMinutes: timerExtraMinutes, acknowledgedLimit });
+  const blockElapsedSeconds = elapsedSeconds + (activityPosition?.elapsedBefore ?? 0);
+  const timer = timerView({ elapsedSeconds: blockElapsedSeconds, timerMinutes: activityPosition?.totalMinutes ?? route.timerMinutes, extraMinutes: timerExtraMinutes, acknowledgedLimit });
 
   // ---------------------------------------------------------------- shapes
-  const [aState, dispatchA] = useReducer(shapeAReducer, route, (initial) => checkpoint?.aState ?? initialShapeAState(initial));
+  const [aState, dispatchA] = useReducer(shapeAReducer, route, (initial) => checkpoint?.aState ? { ...checkpoint.aState, repairStatus: checkpoint.aState.repairStatus === "pending" ? "error" : checkpoint.aState.repairStatus } : initialShapeAState(initial));
   const [cState, dispatchC] = useReducer(shapeCReducer, route, (initial) => checkpoint?.cState ?? initialShapeCState(initial));
   // Active Recall: Shape A's study step hands off to closed-book questions.
-  const handoffToQuestions = route.shape === "A" && route.produceStep === "retrieval_questions";
+  const handoffToQuestions = route.shape === "A" && (route.produceStep === "retrieval_questions" || (session.workload?.questionCount ?? 0) > 0);
   const aStep = currentShapeAStep(aState);
   // A memorization learn block is Shape C but opens on a brief study step, so
   // "in questions" cannot simply mean "this route is Shape C".
@@ -200,27 +269,22 @@ export function BaselineSession(props: BaselineSessionProps) {
   const [practiceKeyPoints, setPracticeKeyPoints] = useState<KeyPoint[]>(checkpoint?.practiceKeyPoints ?? []);
   // Brief 1.5 item 5: examples-first may only be claimed when an example was shown.
   const shownExample = learnBlock?.example ?? direction?.example ?? null;
-  const exampleShown = route.workedStructureBeforeProduce ? shownExample !== null : undefined;
-  const note = useMemo(() => personalizationNote(route, { exampleShown }), [route, exampleShown]);
-  const pills = useMemo(() => chosenBecause(route, { exampleShown }), [route, exampleShown]);
+  const workedExampleIndex = aState.steps.findIndex((step) => step.kind === "worked_structure");
+  const exampleShown = workedExampleIndex >= 0 ? aState.exampleViewed ? true : aState.index > workedExampleIndex ? false : undefined : undefined;
+  const happened = useMemo(() => ({ exampleShown, practiceOccurred: cState.rounds.length > 0, repairRoundOccurred: cState.rounds.length > 1, repairRoundAvailable: cState.phase === "round_complete", checkInsShown: route.stoppingPoints === "after_each_step" }), [exampleShown, cState.rounds.length, cState.phase, route.stoppingPoints]);
+  const note = useMemo(() => personalizationNote(route, happened), [route, happened]);
+  const pills = useMemo(() => chosenBecause(route, { exampleShown, practiceOccurred: route.shape === "C" || handoffToQuestions }), [route, exampleShown, handoffToQuestions]);
   // Brief 1.5 item 7: every fired rule is named on the end receipt (the difficulty band only by its effect).
-  const receipt = useMemo(() => receiptEvidence(route, { exampleShown }), [route, exampleShown]);
+  const receipt = useMemo(() => receiptEvidence(route, happened), [route, happened]);
   // Brief 1.5 item 6: each slot call writes the tips for the steps it covers.
   const [tips, setTips] = useState<Partial<Record<TipStep, SessionTip>>>(checkpoint?.tips ?? {});
   const mergeTips = useCallback((written: SessionTip[]) => {
     if (written.length) setTips((current) => ({ ...current, ...Object.fromEntries(written.map((tip) => [tip.step, tip])) }));
   }, []);
-  const questionsInBlock = route.shape === "C" || route.produceStep === "retrieval_questions";
-  const studyTips = useMemo(() => {
-    const first: TipStep = route.shape === "C" ? "brief" : "study";
-    const withQuestions: TipStep[] = [first, "questions", "round", "end"];
-    return {
-      direction: tipRequest(route, questionsInBlock ? [first] : ["study", "produce"]),
-      learnBlock: tipRequest(route, questionsInBlock ? withQuestions : ["study", "produce"]),
-    };
-  }, [route, questionsInBlock]);
-  const practiceTips = useMemo(() => tipRequest(route, ["questions", "round", "end"], { exampleShown }), [route, exampleShown]);
-  const compareTips = useMemo(() => tipRequest(route, ["compare", "repair", "end"], { exampleShown }), [route, exampleShown]);
+  const questionsInBlock = route.shape === "C" || handoffToQuestions;
+  const studyTips = useMemo(() => studyTipRequests(route, questionsInBlock), [route, questionsInBlock]);
+  const practiceTips = useMemo(() => tipRequest(route, ["questions", "round", "end"], { exampleShown, practiceOccurred: true }), [route, exampleShown]);
+  const compareTips = useMemo(() => tipRequest(route, ["compare", "repair", "end"], { exampleShown, practiceOccurred: false }), [route, exampleShown]);
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => () => abortRef.current?.abort(), []);
   const planId = plan.id;
@@ -230,9 +294,9 @@ export function BaselineSession(props: BaselineSessionProps) {
   const requestStudySlot = useCallback((signal: AbortSignal) => {
     const outside = route.learnPath === "outside";
     const request = outside || (route.learnPath === "source" && sourceDescription)
-      ? requestDirection({ ...makeSlotIds(), planId, planSessionId, action: "direction", topic: slotTopic, modifiers, source: sourceDescription, entry: route.entry === "brief_review" ? "brief_review" : "study_full", excerpts: outside ? source.excerpts.slice(0, 4) : route.workedStructureBeforeProduce ? source.excerpts.slice(0, 8) : [], wantsExample: !outside && route.workedStructureBeforeProduce, purpose: outside ? "study_outside" : "study_inside", tips: studyTips.direction }, signal)
+      ? requestDirection({ ...makeSlotIds(), planId, planSessionId, segmentId, action: "direction", topic: slotTopic, modifiers, source: sourceDescription, entry: route.entry === "brief_review" ? "brief_review" : "study_full", excerpts: outside ? source.excerpts.slice(0, 4) : (route.workedStructureBeforeProduce || route.produceStep === "worked_solution") ? source.excerpts.slice(0, 8) : [], wantsExample: !outside && route.workedStructureBeforeProduce, purpose: outside ? "study_outside" : "study_inside", tips: studyTips.direction }, signal)
         .then((result) => { setDirection(result); mergeTips(result.tips); })
-      : requestLearnBlock({ ...makeSlotIds(), planId, planSessionId, action: "learn_block", topic: slotTopic, modifiers, tips: studyTips.learnBlock }, signal)
+      : requestLearnBlock({ ...makeSlotIds(), planId, planSessionId, segmentId, action: "learn_block", topic: slotTopic, modifiers, tips: studyTips.learnBlock }, signal)
         .then((result) => { setLearnBlock(result); setPracticeKeyPoints(result.keyPoints); mergeTips(result.tips); });
     request.then(() => setLearnStatus("ready")).catch((error: unknown) => {
       const message = slotErrorMessage(error);
@@ -240,10 +304,10 @@ export function BaselineSession(props: BaselineSessionProps) {
       setLearnError(message);
       setLearnStatus("error");
     });
-  }, [route.learnPath, route.entry, route.workedStructureBeforeProduce, source.excerpts, sourceDescription, slotTopic, modifiers, planId, planSessionId, studyTips, mergeTips]);
+  }, [route.learnPath, route.entry, route.workedStructureBeforeProduce, route.produceStep, source.excerpts, sourceDescription, slotTopic, modifiers, planId, planSessionId, segmentId, studyTips, mergeTips]);
 
   const needsStudySlot = started && !inQuestions && (
-    (route.shape === "A" && (aStep?.kind === "direct" || aStep?.kind === "explanation" || aStep?.kind === "worked_structure"))
+    (route.shape === "A" && (aStep?.kind === "direct" || aStep?.kind === "explanation" || aStep?.kind === "worked_structure" || (aStep?.kind === "produce" && route.produceStep === "worked_solution")))
     || (route.shape === "C" && cState.phase === "brief_study")
   );
   // The effect owns its request: an unmount (including StrictMode's
@@ -261,6 +325,7 @@ export function BaselineSession(props: BaselineSessionProps) {
   const studyLoading = learnStatus === "idle" && needsStudySlot;
 
   const sourceExcerpts = source.excerpts;
+  const practiceProblem = learnBlock?.practiceProblem ?? direction?.practiceProblem;
   const requestPracticeRound = useCallback((round: number, outstandingKeyPointIds: string[], knownKeyPoints: KeyPoint[], repairTargets: RepairTarget[], signal: AbortSignal) => {
     // Brief 1.5 item 3: the round kind is code's choice, and each kind is a different round.
     const roundKind = practiceRoundKind(route.firstPracticeRound, round);
@@ -269,6 +334,7 @@ export function BaselineSession(props: BaselineSessionProps) {
       ...makeSlotIds(),
       planId,
       planSessionId,
+      segmentId,
       action: "practice",
       topic: slotTopic,
       modifiers,
@@ -289,7 +355,7 @@ export function BaselineSession(props: BaselineSessionProps) {
       if (message === null) return;
       dispatchC({ type: "questions_failed", message });
     });
-  }, [slotTopic, modifiers, sourceExcerpts, planId, planSessionId, route.firstPracticeRound, interleavedKeyPoints, practiceTips, mergeTips]);
+  }, [slotTopic, modifiers, sourceExcerpts, planId, planSessionId, segmentId, route.firstPracticeRound, interleavedKeyPoints, practiceTips, mergeTips]);
 
   const nextRoundNumber = (currentShapeCRound(cState)?.number ?? 0) + 1;
   const outstandingKeyPointIds = cState.outstandingKeyPointIds;
@@ -309,6 +375,49 @@ export function BaselineSession(props: BaselineSessionProps) {
   }, [practiceLoading, nextRoundNumber, outstandingKeyPointIds, practiceKeyPoints, repairTargets, requestPracticeRound]);
   const retryPractice = () => dispatchC({ type: "continue" });
 
+  // A long first pass arrives in parts of at most eight (founder decision,
+  // 18 Sept 2026). The next part is asked for as soon as the current one is
+  // delivered, so it is normally ready before the learner reaches it.
+  const firstRoundQuestions = cState.rounds.length === 1 ? cState.rounds[0]!.questions : null;
+  const priorPrompts = useMemo(() => (firstRoundQuestions ?? []).map((question) => question.prompt).slice(-24), [firstRoundQuestions]);
+  const nextPartIndex = (cState.partsDelivered ?? 1) + 1;
+  const partWanted = started && inQuestions && shapeCPartsRemaining(cState) > 0 && !cState.pendingPart && !cState.partError
+    && ["question", "revealed", "part_loading"].includes(cState.phase);
+  const requestNextPart = useCallback((index: number, count: number, prompts: string[], knownKeyPoints: KeyPoint[], signal: AbortSignal) => {
+    requestPractice({
+      ...makeSlotIds(),
+      planId,
+      planSessionId,
+      segmentId,
+      action: "practice",
+      topic: slotTopic,
+      modifiers,
+      round: 1,
+      part: { index, count },
+      priorPrompts: prompts,
+      keyPoints: knownKeyPoints,
+      outstandingKeyPointIds: [],
+      excerpts: sourceExcerpts.slice(0, 8),
+      attempt: crypto.randomUUID(),
+      roundKind: practiceRoundKind(route.firstPracticeRound, 1),
+      repairTargets: [],
+      tips: [],
+    }, signal).then((result) => {
+      dispatchC({ type: "part_ready", questions: result.questions });
+    }).catch((error: unknown) => {
+      const message = slotErrorMessage(error);
+      if (message === null) return;
+      dispatchC({ type: "part_failed", message });
+    });
+  }, [slotTopic, modifiers, sourceExcerpts, planId, planSessionId, segmentId, route.firstPracticeRound]);
+  const firstPassParts = cState.firstPassParts ?? 1;
+  useEffect(() => {
+    if (!partWanted || !practiceKeyPoints.length) return;
+    const controller = new AbortController();
+    requestNextPart(nextPartIndex, firstPassParts, priorPrompts, practiceKeyPoints, controller.signal);
+    return () => controller.abort();
+  }, [partWanted, nextPartIndex, firstPassParts, priorPrompts, practiceKeyPoints, requestNextPart]);
+
   /**
    * Round 1 of an AI-explained block reuses the questions generated in the
    * same call as the explanation: practice cannot test what the explanation
@@ -321,6 +430,7 @@ export function BaselineSession(props: BaselineSessionProps) {
 
   const continueShapeA = () => {
     const next = shapeAReducer(aState, { type: "continue" });
+    if (aStep?.kind === "worked_structure" && shownExample) dispatchA({ type: "example_viewed" });
     dispatchA({ type: "continue" });
     if (handoffToQuestions && currentShapeAStep(next)?.kind === "end") enterQuestionsFromLearnBlock();
     // Try-it-first: produced earlier, arrives at Compare from the study step.
@@ -335,15 +445,17 @@ export function BaselineSession(props: BaselineSessionProps) {
       ...makeSlotIds(),
       planId,
       planSessionId,
+      segmentId,
       action: "compare",
       topic: slotTopic,
       modifiers,
       produced: produceAsText(produce).slice(0, 6_000),
-      reference: { excerpts: sourceExcerpts.slice(0, 8), keyPoints: learnBlock?.keyPoints ?? [] },
+      mapItems: produce.kind === "concept_map" && produce.map ? conceptMapItems(produce.map) : [],
+      reference: { excerpts: sourceExcerpts.slice(0, 8), keyPoints: learnBlock?.keyPoints ?? [], ...(practiceProblem ? { practiceProblem } : {}) },
       tips: compareTips,
     }, controller.signal).then((result) => {
       mergeTips(result.tips);
-      dispatchA({ type: "comparison_ready", comparison: { feedback: result.feedback, missing: result.missing, incorrect: result.incorrect } });
+      dispatchA({ type: "comparison_ready", comparison: { feedback: result.feedback, missing: result.missing, incorrect: result.incorrect, itemFeedback: result.itemFeedback } });
       setCompareStatus("ready");
     }).catch((error: unknown) => {
       const message = slotErrorMessage(error);
@@ -351,7 +463,7 @@ export function BaselineSession(props: BaselineSessionProps) {
       setCompareError(message);
       setCompareStatus("error");
     });
-  }, [slotTopic, modifiers, sourceExcerpts, learnBlock, planId, planSessionId, compareTips, mergeTips]);
+  }, [slotTopic, modifiers, sourceExcerpts, practiceProblem, learnBlock, planId, planSessionId, segmentId, compareTips, mergeTips]);
 
   function startCompare(produce: ShapeAProduceInput) {
     setCompareStatus("loading");
@@ -373,34 +485,82 @@ export function BaselineSession(props: BaselineSessionProps) {
   };
 
   // ---------------------------------------------------------------- resume
-  // Saved as the learner goes, so leaving and coming back opens this same step.
-  const savedTick = Math.floor(elapsedSeconds / 10);
-  const fingerprint = routeFingerprint(route);
-  const elapsedRef = useRef(elapsedSeconds);
-  useEffect(() => { elapsedRef.current = elapsedSeconds; }, [elapsedSeconds]);
+  // Draft changes checkpoint synchronously in the input event, before React can
+  // unmount the card. This includes the final keystroke before Exit or reload.
+  const fingerprint = routeFingerprint(route, { workload: session.workload, learningGoal: plan.planModel?.learningGoal });
+  const [checkpointIssue, setCheckpointIssue] = useState(false);
+  const snapshot: BaselineCheckpoint = {
+    version: 1, planId, planSessionId, produceStep: route.produceStep, studyLocation, routeFingerprint: fingerprint,
+    savedAt: new Date().toISOString(), elapsedSeconds, started, aState, cState, direction, learnBlock, practiceKeyPoints, tips,
+    timer: { paused: timerPaused, hidden: timerHidden, extraMinutes: timerExtraMinutes, acknowledgedLimit },
+  };
+  const checkpointRef = useRef(snapshot);
   useEffect(() => {
-    onCheckpoint?.({
-      version: 1, planId, planSessionId, produceStep: route.produceStep, studyLocation, routeFingerprint: fingerprint,
-      savedAt: new Date().toISOString(), elapsedSeconds: elapsedRef.current, started,
-      aState, cState, direction, learnBlock, practiceKeyPoints, tips,
-    });
-  }, [onCheckpoint, planId, planSessionId, route.produceStep, studyLocation, fingerprint, started, aState, cState, direction, learnBlock, practiceKeyPoints, tips, savedTick]);
+    checkpointRef.current = snapshot;
+    const failed = onCheckpoint?.(snapshot) === false;
+    let cancelled = false;
+    if (failed !== checkpointIssue) queueMicrotask(() => { if (!cancelled) setCheckpointIssue(failed); });
+    return () => { cancelled = true; };
+  });
+  const checkpointDraft = (draft: ShapeADraft) => {
+    const updated = { ...checkpointRef.current, aState: shapeAReducer(aState, { type: "edit_draft", draft }), savedAt: new Date().toISOString() };
+    checkpointRef.current = updated;
+    setCheckpointIssue(onCheckpoint?.(updated) === false);
+    dispatchA({ type: "edit_draft", draft });
+  };
+  const flushCheckpoint = useCallback(() => {
+    const clock = clockRef.current;
+    const seconds = Math.floor((clock.accumulatedMs + (clock.runningSince === null ? 0 : Date.now() - clock.runningSince)) / 1_000);
+    onCheckpoint?.({ ...checkpointRef.current, elapsedSeconds: seconds, savedAt: new Date().toISOString() });
+  }, [onCheckpoint]);
+  useEffect(() => {
+    window.addEventListener("pagehide", flushCheckpoint);
+    return () => window.removeEventListener("pagehide", flushCheckpoint);
+  }, [flushCheckpoint]);
+  const exitSession = () => { flushCheckpoint(); onExit(); };
+
+  const [repairError, setRepairError] = useState<string | null>(null);
+  const repairBusy = useRef(false);
+  const submitRepair = (text: string, revisedProduce?: ShapeAProduceInput) => {
+    if (!text.trim() || repairBusy.current || aState.repairStatus === "checked" || !aState.produce || !aState.comparison) return;
+    repairBusy.current = true;
+    setRepairError(null);
+    dispatchA({ type: "submit_repair", text, produce: revisedProduce });
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
+    const deadline = window.setTimeout(() => controller.abort(), 45_000);
+    requestComparison({
+      ...makeSlotIds(), planId, planSessionId, segmentId, action: "compare", topic: slotTopic, modifiers,
+      produced: text.slice(0, 6_000),
+      revision: { originalProduced: produceAsText(aState.produce).slice(0, 6_000), originalComparison: { feedback: aState.comparison.feedback, missing: aState.comparison.missing, incorrect: aState.comparison.incorrect } },
+      mapItems: revisedProduce?.kind === "concept_map" && revisedProduce.map ? conceptMapItems(revisedProduce.map) : [],
+      reference: { excerpts: sourceExcerpts.slice(0, 8), keyPoints: learnBlock?.keyPoints ?? [], ...(practiceProblem ? { practiceProblem } : {}) }, tips: [],
+    }, controller.signal).then((result) => {
+      dispatchA({ type: "repair_comparison_ready", comparison: { feedback: result.feedback, missing: result.missing, incorrect: result.incorrect, itemFeedback: result.itemFeedback } });
+    }).catch((error: unknown) => {
+      dispatchA({ type: "repair_failed" });
+      setRepairError(slotErrorMessage(error) ?? "The check took too long. Your correction is saved and remains unchecked.");
+    }).finally(() => { window.clearTimeout(deadline); repairBusy.current = false; });
+  };
+  const skipRepair = () => {
+    if (aStep?.kind === "compare") dispatchA({ type: "skip_comparison" });
+    else dispatchA({ type: "skip_repair" });
+    if (handoffToQuestions) enterQuestionsFromLearnBlock();
+  };
 
   // ---------------------------------------------------------------- end
   const totals = shapeCTotals(cState);
   const atEnd = route.shape === "A"
     ? (handoffToQuestions ? ["done", "escalate"].includes(cState.phase) : aStep?.kind === "end")
     : ["done", "escalate"].includes(cState.phase);
+  const canOfferContinuation = cState.phase === "done" && continuationSession !== null && blockElapsedSeconds < (session.workload?.ceilingMinutes ?? route.timerMinutes) * 60;
 
-  const finish = async () => {
+  const finish = async (continueToNext = false) => {
     if (finishing) return;
     setFinishing(true);
     setFinishIssue(null);
-    const outcomes = practiceKeyPoints.map((keyPoint) => ({
-      keyPointId: keyPoint.id,
-      text: keyPoint.text,
-      outcome: cState.outstandingKeyPointIds.includes(keyPoint.id) || cState.phase === "escalate" ? "needs_review" as const : "secure" as const,
-    })).filter(() => totals.total > 0);
+    const outcomes = shapeCKeyPointOutcomes(cState, practiceKeyPoints);
     const ok = await onComplete({
       shape: route.shape,
       methodName: route.methodName,
@@ -413,8 +573,10 @@ export function BaselineSession(props: BaselineSessionProps) {
       escalated: cState.phase === "escalate",
       produced: aState.produce ? produceAsText(aState.produce) : null,
       comparison: aState.comparison,
+      comparisonUnavailable: aState.comparisonUnavailable,
+      ...(aState.repair ? { revision: { produced: aState.repair, comparison: aState.repairComparison ?? null, status: aState.repairStatus === "checked" ? "checked" as const : "unchecked" as const } } : {}),
       elapsedSeconds,
-    });
+    }, continueToNext).catch(() => false);
     if (!ok) {
       setFinishing(false);
       setFinishIssue("YOVA could not save this session. Your work is still on screen; try again.");
@@ -428,28 +590,30 @@ export function BaselineSession(props: BaselineSessionProps) {
   // No control at all where there is nothing to change to, or the learner asked not to be offered one.
   const methodControl: MethodControl = route.visibility === "silent" || alternatives.length === 0
     ? "hidden"
-    : !inQuestions && aState.index === 0 && !aState.produce ? "enabled" : "locked";
-  const rail = hubRail({ route, aState, cState, atEnd, inQuestions });
-  const tip = started ? visibleTip(tips, rail.tipStep, route) : null;
+    : !inQuestions && aState.index === 0 && !aState.produce && (activityPosition?.number ?? 1) === 1 ? "enabled" : "locked";
+  const rail = hubRail({ route, aState, cState, atEnd, inQuestions, workload: session.workload });
+  if (activityPosition?.nextTitle) rail.rows = rail.rows.map(row => row.key === "end" ? { ...row, label: "Activity complete", blurb: "Continue to the next planned activity." } : row);
+  const tip = started ? visibleTip(tips, rail.tipStep, route, { ...happened, practiceOccurred: inQuestions || (atEnd && cState.rounds.length > 0) }) : null;
   const acknowledgeTimer = () => {
     setAcknowledgedLimit(timer.limitMinutes);
     dispatchA({ type: "acknowledge_timer" });
     dispatchC({ type: "acknowledge_timer" });
   };
 
-  return <div className={styles.shell} data-shape={route.shape} data-method={route.methodId} data-rule-ids={route.ruleIds.join(" ")}>
+  return <div className={styles.shell} data-shape={route.shape} data-method={route.methodId} data-rule-ids={route.ruleIds.join(" ")} data-segment-id={segmentId}>
     <HubHeader
-      eyebrow={`${route.input.blockKind === "learn" ? "LEARN BLOCK" : "PRACTICE BLOCK"} · ${plan.title}`}
+      eyebrow={`${route.input.blockKind === "learn" ? "LEARN BLOCK" : "PRACTICE BLOCK"}${activityPosition ? ` · ACTIVITY ${activityPosition.number} OF ${activityPosition.total}` : ""} · ${plan.title}`}
       topic={topicTitle}
-      methodLine={`Method: ${route.methodName}${route.visibility === "silent" ? "" : " · chosen from your profile"}`}
-      onExit={onExit}
+      methodLine={`Method: ${route.methodName}`}
+      onExit={exitSession}
       exitIcon={<X size={16} />}
     />
 
     <div className={hubStyles.page}>
+      {checkpointIssue && <p className={styles.issue} role="status">Your work remains in this tab, but this browser could not save the draft. Keep this tab open to avoid losing it.</p>}
       <HubBriefing route={route} pills={pills} methodControl={methodControl} methodPanelOpen={methodPanelOpen} onToggleMethodPanel={() => setMethodPanelOpen((open) => !open)} />
 
-      {timer.banner && !atEnd && <div className={styles.nudge} role="status">
+      {timer.banner && route.pacePrompts && !atEnd && <div className={styles.nudge} role="status">
         <span><Clock3 size={16} /> Your {timer.limitMinutes}-minute timer is up. Stop at a natural break, or keep going.</span>
         <button type="button" className="button secondary" onClick={acknowledgeTimer}>Keep going</button>
       </div>}
@@ -469,6 +633,7 @@ export function BaselineSession(props: BaselineSessionProps) {
 
             {started && !atEnd && !inQuestions && route.shape === "A" && aStep && <ShapeAStepCard
               step={aStep.kind}
+              sourceReadMinutes={session.workload?.sourceReadMinutes ?? route.timerMinutes}
               route={route}
               state={aState}
               restate={restate}
@@ -484,9 +649,11 @@ export function BaselineSession(props: BaselineSessionProps) {
               onRetryCompare={retryCompare}
               onContinue={continueShapeA}
               onSubmitProduce={submitProduce}
-              onSubmitRepair={(text) => dispatchA({ type: "submit_repair", text })}
-              onSkipRepair={() => dispatchA({ type: "skip_repair" })}
-              onExit={onExit}
+              onSubmitRepair={submitRepair}
+              repairError={repairError}
+              onDraftChange={checkpointDraft}
+              onSkipRepair={skipRepair}
+              onExit={exitSession}
             />}
 
             {started && !atEnd && route.shape === "C" && cState.phase === "brief_study" && <section className={styles.card}>
@@ -509,17 +676,21 @@ export function BaselineSession(props: BaselineSessionProps) {
               onStartNextRound={() => dispatchC({ type: "start_next_round" })}
               onRetry={retryPractice}
               planId={plan.id}
-              onExit={onExit}
+              onExit={exitSession}
             />}
 
+            {route.stoppingPoints === "after_each_step" && !atEnd && <p className={styles.restated} data-testid="session-check-in">A stopping point: take a pause if you need one. {checkpointIssue ? "Keep this tab open while draft saving is unavailable." : "You can leave and resume from this point."}</p>}
+
             {atEnd && <section className={styles.card} aria-labelledby="baseline-session-end-title">
-              <StepHead>SESSION COMPLETE</StepHead>
-              <h2 id="baseline-session-end-title">{cState.phase === "escalate" ? "This one isn't sticking yet." : route.shape === "A" && !handoffToQuestions ? "You studied, produced and compared." : cState.phase === "done" ? "A full round passed clean." : "Practice complete."}</h2>
-              {cState.phase === "escalate" && <div className={styles.feedback}><strong>{SHAPE_C_ESCALATION_MESSAGE}</strong><p>Your next learn block on this topic will use a different produce step.</p></div>}
+              <StepHead>{activityPosition?.nextTitle ? "ACTIVITY COMPLETE" : "SESSION COMPLETE"}</StepHead>
+              <h2 id="baseline-session-end-title">{cState.phase === "escalate" ? "This one isn't sticking yet." : route.shape === "A" && !handoffToQuestions ? aState.comparisonUnavailable ? "Your work is saved for this session." : "You studied, produced and compared." : cState.phase === "done" ? "A full round passed clean." : "Practice complete."}</h2>
+              {cState.phase === "escalate" && <div className={styles.feedback}><strong>{SHAPE_C_ESCALATION_MESSAGE}</strong><p>The points you passed stay recorded. Check the next activity in your plan, or finish here.</p></div>}
               <div className={styles.endGrid}>
-                {totals.total > 0 && <div><span>Questions</span><strong>{totals.correct} of {totals.total} correct</strong><small>{cState.rounds.length} {cState.rounds.length === 1 ? "round" : "rounds"}, checked in code</small></div>}
-                {aState.comparison && <div><span>Compared</span><strong>{aState.comparison.missing.length === 0 && aState.comparison.incorrect.length === 0 ? "Nothing named as missing" : `${aState.comparison.missing.length} missing · ${aState.comparison.incorrect.length} to correct`}</strong><small>Feedback, not a verdict</small></div>}
-                <div><span>What&apos;s next</span><strong>{nextSession ? nextSession.title : "Nothing else queued in this plan"}</strong><small>{nextSession ? `${nextSession.learningMode === "learn" ? "Learn block" : "Practice block"} · ${nextSession.estimatedMinutes} min` : "Add a topic or open another plan"}</small></div>
+                {totals.total > 0 && <div><span>{activityPosition ? "This activity" : "Questions"}</span><strong>{totals.correct} of {totals.total} correct</strong><small>{cState.rounds.length} {cState.rounds.length === 1 ? "round" : "rounds"}, checked in code</small></div>}
+                {activityPosition && !activityPosition.nextTitle && <div><span>Whole block</span><strong>{activityPosition.priorCorrectAnswers + totals.correct} of {activityPosition.priorTotalAnswers + totals.total} correct</strong><small>{activityPosition.total} planned activities completed</small></div>}
+                {aState.comparison && <ComparisonSummary state={aState} />}
+                {aState.comparisonUnavailable && <div><span>Comparison</span><strong>Feedback unavailable</strong><small>Your submitted work was kept.</small></div>}
+                <div><span>What&apos;s next</span><strong>{activityPosition?.nextTitle ?? (nextSession ? nextSession.title : "Nothing else queued in this plan")}</strong><small>{activityPosition?.nextTitle ? "The next planned activity in this block" : nextSession ? `${nextSession.learningMode === "learn" ? "Learn block" : "Practice block"} · ${nextSession.estimatedMinutes} min` : "Add a topic or open another plan"}</small></div>
               </div>
               <p className={styles.note} data-rule-id={note.ruleId}><Sparkles size={16} /> <span>{note.sentence}</span></p>
               <details className={styles.receipt} data-testid="session-receipt">
@@ -527,8 +698,10 @@ export function BaselineSession(props: BaselineSessionProps) {
                 <ul>{receipt.map((entry) => <li key={entry.ruleId} data-receipt-rule-id={entry.ruleId}>{entry.sentence}</li>)}</ul>
               </details>
               {finishIssue && <div className={styles.issue}><AlertCircle size={16} /><span>{finishIssue}</span></div>}
+              {canOfferContinuation && continuationSession && <p>You finished the planned questions with time left in your session allowance. Continue to {continuationSession.title}, or finish here.</p>}
               <div className={styles.actions}>
-                <button type="button" className="button primary large" disabled={finishing} onClick={() => void finish()}>{finishing ? "Saving…" : "Finish"} {!finishing && <ArrowRight size={16} />}</button>
+                {canOfferContinuation && <button type="button" className="button secondary" disabled={finishing} onClick={() => void finish(true)}>Save and start next activity <ArrowRight size={16} /></button>}
+                <button type="button" className="button primary large" disabled={finishing} onClick={() => void finish()}>{finishing ? "Saving…" : activityPosition?.nextTitle ? "Continue to next activity" : "Finish"} {!finishing && <ArrowRight size={16} />}</button>
               </div>
             </section>}
           </div>
@@ -537,7 +710,7 @@ export function BaselineSession(props: BaselineSessionProps) {
         <aside className={hubStyles.rail} aria-label="Session hub">
           {tip && <HubTipCard key={`${tip.step}:${tip.title}`} tip={tip} stepNumber={rail.stepNumber} planId={plan.id} topicTitle={topicTitle} />}
           <HubTimerCard
-            clock={formatClock(elapsedSeconds)}
+            clock={formatClock(blockElapsedSeconds)}
             limitMinutes={timer.limitMinutes}
             progress={timer.progress}
             over={timer.over}
@@ -577,8 +750,11 @@ function HonestError({ message, onRetry, onExit }: { message: string | null; onR
   </div>;
 }
 
-function ShapeAStepCard({ step, route, state, restate, why, whyRuleId, direction, learnBlock, learnStatus, learnError, compareStatus, compareError, onRetryStudy, onRetryCompare, onContinue, onSubmitProduce, onSubmitRepair, onSkipRepair, onExit }: {
+function ShapeAStepCard({ step, sourceReadMinutes, repairError, onDraftChange, route, state, restate, why, whyRuleId, direction, learnBlock, learnStatus, learnError, compareStatus, compareError, onRetryStudy, onRetryCompare, onContinue, onSubmitProduce, onSubmitRepair, onSkipRepair, onExit }: {
   step: ShapeAState["steps"][number]["kind"];
+  sourceReadMinutes: number;
+  repairError: string | null;
+  onDraftChange: (draft: ShapeADraft) => void;
   route: SessionRoute;
   why: string;
   whyRuleId: string;
@@ -594,14 +770,15 @@ function ShapeAStepCard({ step, route, state, restate, why, whyRuleId, direction
   onRetryCompare: () => void;
   onContinue: () => void;
   onSubmitProduce: (produce: ShapeAProduceInput) => void;
-  onSubmitRepair: (text: string) => void;
+  onSubmitRepair: (text: string, produce?: ShapeAProduceInput) => void;
   onSkipRepair: () => void;
   onExit: () => void;
 }) {
-  const [text, setText] = useState("");
-  const [concepts, setConcepts] = useState<string[]>(["", "", ""]);
-  const [links, setLinks] = useState<Array<{ from: string; to: string; label: string }>>([{ from: "", to: "", label: "" }]);
-  const [repair, setRepair] = useState("");
+  const draft = state.draft ?? initialShapeADraft();
+  const text = draft.text;
+  const repair = draft.repairText;
+  const setText = (text: string) => onDraftChange({ ...draft, text });
+  const setRepair = (repairText: string) => onDraftChange({ ...draft, repairText });
   const numbered = route.instructionStyle === "numbered_steps";
 
   if (step === "direct" && route.learnPath === "outside") {
@@ -616,7 +793,7 @@ function ShapeAStepCard({ step, route, state, restate, why, whyRuleId, direction
       {direction && <>
         <div><span className={styles.groupLabel}>WHAT TO STUDY</span><p>{direction.whatToLookAt}</p></div>
         <div><span className={styles.groupLabel}>HOW TO APPROACH IT</span><p>{direction.howToApproach}</p></div>
-        <div><span className={styles.groupLabel}>SUGGESTED TIME</span><p>{route.timerMinutes} minutes</p></div>
+        <div><span className={styles.groupLabel}>SUGGESTED TIME</span><p>{sourceReadMinutes} minutes</p></div>
         {restate && <p className={styles.restated}>Task: study it outside YOVA, then press I&apos;m back.</p>}
         <div className={styles.actions}><button type="button" className="button primary large" onClick={onContinue}>I&apos;m back <ArrowRight size={16} /></button><small>Next: closed-book questions on it.</small></div>
       </>}
@@ -680,18 +857,21 @@ function ShapeAStepCard({ step, route, state, restate, why, whyRuleId, direction
   if (step === "produce") {
     const produceStep = route.produceStep ?? "typed_explanation";
     const label = produceStepLabel(produceStep);
+    const problem = learnBlock?.practiceProblem ?? direction?.practiceProblem;
     return <section className={styles.card}>
       <StepHead>PRODUCE · SOURCE HIDDEN</StepHead>
       <h2>{label}</h2>
+      {produceStep === "worked_solution" && problem && <p className={styles.keyPointBlock} data-testid="practice-problem">{problem.prompt}</p>}
+      {produceStep === "worked_solution" && !problem && learnStatus === "loading" && <p className={styles.loading}>Writing your practice problem…</p>}
+      {produceStep === "worked_solution" && !problem && learnStatus !== "loading" && <HonestError message="The concrete problem is unavailable. Your work is saved; retry the task or return to your plan." onRetry={onRetryStudy} onExit={onExit} />}
       {restate && <p className={styles.restated}>Task: {label.toLowerCase()}, without looking at the material.</p>}
       {numbered && <ol className={styles.structure}><li>Close the material.</li><li>{label}.</li><li>Submit it; YOVA names what is missing or wrong.</li></ol>}
       {produceStep === "concept_map" ? <div className={styles.mapGrid}>
-        <div><strong>Concepts</strong><div className={styles.mapConcepts}>{concepts.map((concept, index) => <input key={index} aria-label={`Concept ${index + 1}`} value={concept} placeholder={`Concept ${index + 1}`} onChange={(event) => setConcepts(concepts.map((value, at) => (at === index ? event.target.value : value)))} />)}</div><button type="button" className="button ghost" onClick={() => setConcepts([...concepts, ""])}>Add concept</button></div>
-        <div><strong>Labelled links</strong>{links.map((link, index) => <div className={styles.mapRow} key={index}><input aria-label={`Link ${index + 1} from`} placeholder="From" value={link.from} onChange={(event) => setLinks(links.map((value, at) => (at === index ? { ...value, from: event.target.value } : value)))} /><input aria-label={`Link ${index + 1} label`} placeholder="relationship" value={link.label} onChange={(event) => setLinks(links.map((value, at) => (at === index ? { ...value, label: event.target.value } : value)))} /><input aria-label={`Link ${index + 1} to`} placeholder="To" value={link.to} onChange={(event) => setLinks(links.map((value, at) => (at === index ? { ...value, to: event.target.value } : value)))} /><button type="button" className="button ghost" aria-label={`Remove link ${index + 1}`} onClick={() => setLinks(links.filter((_, at) => at !== index))}><X size={14} /></button></div>)}<button type="button" className="button ghost" onClick={() => setLinks([...links, { from: "", to: "", label: "" }])}>Add link</button></div>
-        <div className={styles.actions}><button type="button" className="button primary" onClick={() => onSubmitProduce({ kind: "concept_map", concepts, links })}>Compare my map <ArrowRight size={16} /></button><small>Needs at least one concept and one labelled link.</small></div>
+        <GuidedConceptMap value={draft.map} onChange={(map) => onDraftChange({ ...draft, map })} />
+        <div className={styles.actions}><button type="button" className="button primary" disabled={!conceptMapCanSubmit(draft.map)} onClick={() => onSubmitProduce(conceptMapAsProduce(draft.map))}>Compare my map <ArrowRight size={16} /></button><small>Connect two named concepts with a relationship.</small></div>
       </div> : <>
-        <textarea className={styles.textarea} aria-label={label} value={text} placeholder={produceStep === "worked_solution" ? "Work the comparable problem step by step." : produceStep === "outline" ? "Your claim, then the supporting reasons in order." : "Explain it in your own words."} onChange={(event) => setText(event.target.value)} />
-        <div className={styles.actions}><button type="button" className="button primary" disabled={!text.trim()} onClick={() => onSubmitProduce({ kind: produceStep === "outline" || produceStep === "worked_solution" ? produceStep : "typed_explanation", text })}>Compare with the source <ArrowRight size={16} /></button></div>
+        <textarea className={styles.textarea} aria-label={label} maxLength={6_000} value={text} placeholder={produceStep === "worked_solution" ? "Work the comparable problem step by step." : produceStep === "outline" ? "Your claim, then the supporting reasons in order." : "Explain it in your own words."} onChange={(event) => setText(event.target.value)} />
+        <div className={styles.actions}><button type="button" className="button primary" disabled={!text.trim() || (produceStep === "worked_solution" && !problem)} onClick={() => onSubmitProduce({ kind: produceStep === "outline" || produceStep === "worked_solution" ? produceStep : "typed_explanation", text })}>Compare with the source <ArrowRight size={16} /></button></div>
       </>}
     </section>;
   }
@@ -702,6 +882,7 @@ function ShapeAStepCard({ step, route, state, restate, why, whyRuleId, direction
       {compareStatus === "loading" && <p className={styles.loading}><span className="button-spinner dark" /> Comparing with the source…</p>}
       {compareStatus === "idle" && state.produce && !state.comparison && <div className={styles.actions}><button type="button" className="button primary" onClick={onRetryCompare}>Compare with the source <ArrowRight size={16} /></button><small>Your work was kept while you were away.</small></div>}
       {compareStatus === "error" && <div className={styles.issue} role="alert"><AlertCircle size={18} /><div><p>{compareError ?? SHAPE_SLOT_HONEST_ERROR}</p><div className={styles.actions}><button type="button" className="button secondary" onClick={onRetryCompare}><RotateCcw size={14} /> Try again</button><button type="button" className="button ghost" onClick={onSkipRepair}>Move on without feedback</button></div></div></div>}
+      {state.produce?.kind === "concept_map" && state.produce.map && <GuidedConceptMap label="Submitted map" value={state.produce.map} feedback={state.comparison?.itemFeedback} />}
       {state.comparison && <div className={styles.feedback} data-testid="baseline-comparison">
         <p>{state.comparison.feedback}</p>
         {state.comparison.missing.length > 0 && <div><span className={styles.groupLabel}>MISSING</span><ul>{state.comparison.missing.map((item) => <li key={item}>{item}</li>)}</ul></div>}
@@ -713,19 +894,45 @@ function ShapeAStepCard({ step, route, state, restate, why, whyRuleId, direction
   }
   if (step === "repair") {
     const gaps = [...(state.comparison?.missing ?? []), ...(state.comparison?.incorrect ?? [])];
+    const map = state.produce?.kind === "concept_map" ? draft.repairMap ?? state.produce.map : null;
+    const checked = state.repairStatus === "checked";
+    const pending = state.repairStatus === "pending";
+    const comparison = state.repairComparison;
     return <section className={styles.card}>
       <StepHead>REPAIR · OPTIONAL</StepHead>
-      <h2>Address the named gaps, or move on.</h2>
-      {gaps.length > 0 ? <Bullets items={gaps} /> : <p>Nothing was named as missing. You can add anything you want to fix.</p>}
-      {restate && <p className={styles.restated}>Task: write the missing parts, or press Move on.</p>}
-      <textarea className={styles.textarea} aria-label="Repair" value={repair} placeholder="Add or correct the parts named above." onChange={(event) => setRepair(event.target.value)} />
+      <h2>{checked ? "Your correction was checked." : "Address the named gaps, or move on."}</h2>
+      {!checked && (gaps.length > 0 ? <Bullets items={gaps} /> : <p>Nothing was named as missing. You can add anything you want to fix.</p>)}
+      {map ? <GuidedConceptMap label={checked ? "Revised map" : "Revise your map"} value={map} onChange={checked || pending ? undefined : (repairMap) => onDraftChange({ ...draft, repairMap })} feedback={checked ? comparison?.itemFeedback : state.comparison?.itemFeedback} />
+        : <textarea className={styles.textarea} aria-label="Repair" maxLength={6_000} disabled={checked || pending} value={repair} placeholder="Add or correct the parts named above." onChange={(event) => setRepair(event.target.value)} />}
+      {pending && <p className={styles.loading} role="status"><span className="button-spinner dark" /> Checking your correction…</p>}
+      {state.repairStatus === "error" && <p className={styles.issue} role="alert">{repairError ?? "Your correction is saved but has not been checked. Retry, or continue with it marked unchecked."}</p>}
+      {checked && comparison && <div className={styles.feedback} data-testid="repair-comparison">
+        <p>{comparison.feedback}</p>
+        {comparison.missing.length > 0 && <><strong>Still missing</strong><Bullets items={comparison.missing} /></>}
+        {comparison.incorrect.length > 0 && <><strong>Still to correct</strong><Bullets items={comparison.incorrect} /></>}
+        {!comparison.missing.length && !comparison.incorrect.length && <p>No remaining gaps were named in this correction.</p>}
+        <small>This feedback does not itself change topic status. You can finish without another correction.</small>
+      </div>}
+      <details><summary>Original answer and feedback</summary>
+        {state.produce?.kind === "concept_map" && state.produce.map ? <GuidedConceptMap label="Original map" value={state.produce.map} feedback={state.comparison?.itemFeedback} /> : <p className={styles.explanation}>{state.produce ? produceAsText(state.produce) : ""}</p>}
+        <p>{state.comparison?.feedback}</p>
+      </details>
       <div className={styles.actions}>
-        <button type="button" className="button primary" disabled={!repair.trim()} onClick={() => onSubmitRepair(repair)}>Save repair <ArrowRight size={16} /></button>
-        <button type="button" className="button ghost" onClick={onSkipRepair}>Move on</button>
+        {!checked && <button type="button" className="button primary" disabled={pending || (map ? !conceptMapCanSubmit(map) : !repair.trim())} onClick={() => {
+          const revised = map ? conceptMapAsProduce(map) : undefined;
+          onSubmitRepair(revised ? produceAsText(revised) : repair, revised);
+        }}>{state.repairStatus === "error" ? "Retry correction check" : "Check correction"} <ArrowRight size={16} /></button>}
+        <button type="button" className={checked ? "button primary" : "button ghost"} disabled={pending} onClick={checked ? onContinue : onSkipRepair}>{checked ? "Continue" : state.repairStatus === "error" ? "Continue unchecked" : "Move on"}</button>
       </div>
     </section>;
   }
   return null;
+}
+
+function ComparisonSummary({ state }: { state: ShapeAState }) {
+  const comparison = state.repairStatus === "checked" ? state.repairComparison : state.comparison;
+  if (!comparison) return null;
+  return <div><span>{state.repairStatus === "checked" ? "After correction" : "Original comparison"}</span><strong>{comparison.missing.length === 0 && comparison.incorrect.length === 0 ? "No gaps named" : `${comparison.missing.length} missing · ${comparison.incorrect.length} to correct`}</strong><small>{state.repair && state.repairStatus !== "checked" ? "Your correction remains unchecked" : "Feedback, not a verdict"}</small></div>;
 }
 
 function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound, onRetry, planId, onExit }: {
@@ -752,6 +959,9 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
   if (state.phase === "loading") {
     return <section className={styles.card}><StepHead>CLOSED-BOOK PRACTICE</StepHead><p className={styles.loading}><span className="button-spinner dark" /> Writing your questions…</p></section>;
   }
+  if (state.phase === "part_loading") {
+    return <section className={styles.card}><StepHead>PART {(state.partsDelivered ?? 1) + 1} OF {state.firstPassParts ?? 1}</StepHead><p className={styles.loading}><span className="button-spinner dark" /> Preparing the next part…</p></section>;
+  }
   if (state.phase === "failed") {
     return <section className={styles.card}><StepHead>CLOSED-BOOK PRACTICE</StepHead><HonestError message={state.error} onRetry={onRetry} onExit={onExit} /></section>;
   }
@@ -766,8 +976,11 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
   if (!round || !shownQuestion) return null;
   const shownAnswer = revealed ? answer : null;
   const roundKind = practiceRoundKind(route.firstPracticeRound, round.number);
+  const shownIndex = revealed ? answered - 1 : answered;
+  const position = shapeCPartPosition(state, shownIndex);
+  const moreParts = shapeCPartsRemaining(state) > 0;
   return <section className={styles.card} data-testid="baseline-question" data-practice-round={roundKind}>
-    <StepHead>ROUND {round.number} · QUESTION {Math.min(revealed ? answered : answered + 1, round.questions.length)} OF {round.questions.length}</StepHead>
+    <StepHead>{position ? <>PART {position.part} OF {position.parts} · QUESTION {position.question} OF {position.questionsInPart}</> : <>ROUND {round.number} · QUESTION {Math.min(revealed ? answered : answered + 1, round.questions.length)} OF {round.questions.length}</>}</StepHead>
     <p className={styles.progressLine} data-question-kind={shownQuestion.kind}>{PRACTICE_ROUND_LABEL[roundKind]} round. {QUESTION_TYPE_LABEL[shownQuestion.kind]} question. No source shown.</p>
     <h2>{shownQuestion.prompt}</h2>
     {restate && !revealed && <p className={styles.restated}>Task: choose one answer.</p>}
@@ -788,7 +1001,7 @@ function ShapeCCard({ state, route, restate, onAnswer, onNext, onStartNextRound,
       <strong>{shownAnswer.correct ? "Correct." : `Not quite. The answer is: ${shownQuestion.choices[shownQuestion.correctChoiceIndex]}`}</strong>
       <p>{shownQuestion.explanation}</p>
       <div className={styles.actions}>
-        <button type="button" className="button primary" onClick={onNext}>{answered < round.questions.length ? "Next question" : "Finish round"} <ArrowRight size={16} /></button>
+        <button type="button" className="button primary" onClick={onNext}>{answered < round.questions.length ? position?.lastInPart ? "Next part" : "Next question" : moreParts ? "Next part" : "Finish round"} <ArrowRight size={16} /></button>
         {!shownAnswer.correct && <AskYova key={shownQuestion.id} planId={planId} question={`Why is "${shownQuestion.choices[shownQuestion.correctChoiceIndex]}" the right answer to: ${shownQuestion.prompt}`} idleLabel="Ask YOVA" buttonClassName="button ghost" answerClassName={styles.feedback} />}
       </div>
     </div>}

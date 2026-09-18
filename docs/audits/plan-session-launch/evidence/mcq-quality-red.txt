@@ -1,0 +1,101 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/openai/shape-slot-quality.test.ts (2 tests | 2 failed) 10ms
+     × repairs the actual no-correct-option CI failure and independently rechecks the replacement 6ms
+     × never delivers an invalid repair and does not create an endless repair loop 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/shape-slot-quality.test.ts > MCQ quality gate before delivery > repairs the actual no-correct-option CI failure and independently rechecks the replacement
+AssertionError: expected 'Water moves from side B to side A bec…' to be 'Water moves from side A to side B bec…' // Object.is equality
+
+Expected: "Water moves from side A to side B because dilute solutions have higher water potential."
+Received: "Water moves from side B to side A because dilute solutions have higher water potential."
+
+ ❯ src/lib/openai/shape-slot-quality.test.ts:37:59
+     35|     if (response.action !== "practice") throw new Error("Expected prac…
+     36|     const question = response.questions[0]!;
+     37|     expect(question.choices[question.correctChoiceIndex]).toBe(good.ch…
+       |                                                           ^
+     38|     expect(provider.mock.calls.filter(([call]) => call.schemaName === …
+     39|     expect(provider.mock.calls.filter(([call]) => JSON.parse(call.inpu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/openai/shape-slot-quality.test.ts > MCQ quality gate before delivery > never delivers an invalid repair and does not create an endless repair loop
+AssertionError: promise resolved "{ action: 'practice', …(3) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "action": "practice",
++   "keyPoints": [
++     {
++       "id": "k1",
++       "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++       "text": "Osmosis is the net movement of water molecules across a partially permeable membrane.",
++     },
++     {
++       "id": "k2",
++       "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++       "text": "Water moves from a higher water potential to a lower water potential.",
++     },
++     {
++       "id": "k3",
++       "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++       "text": "Higher water potential means a more dilute solution, while lower water potential means a more concentrated solution.",
++     },
++     {
++       "id": "k4",
++       "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++       "text": "A partially permeable membrane lets water pass but restricts many dissolved solutes.",
++     },
++     {
++       "id": "k5",
++       "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++       "text": "Water entering a plant cell increases turgor as the vacuole swells and the cell presses on the wall.",
++     },
++   ],
++   "questions": [
++     {
++       "choices": [
++         "Water moves equally in both directions because the temperatures are the same.",
++         "No water moves because only solute concentration, not water potential, matters.",
++         "Water moves from side B to side A because dilute solutions have higher water potential.",
++         "Water moves from side A to side B because dilute solutions have lower water potential.",
++       ],
++       "correctChoiceIndex": 2,
++       "explanation": "The more dilute side has the higher water potential, so water moves from side A to side B.",
++       "id": "s1",
++       "keyPointIds": [
++         "k1",
++         "k2",
++       ],
++       "kind": "application",
++       "prompt": "Two sides of a membrane are equal in temperature and pressure, but side A is more dilute than side B. Which statement best predicts the net water movement?",
++       "slotId": "s1",
++     },
++   ],
++   "tips": [],
+  }
+
+ ❯ src/lib/openai/shape-slot-quality.test.ts:44:60
+     42|   it("never delivers an invalid repair and does not create an endless …
+     43|     const provider = fixture(false);
+     44|     await expect(fillShapeSlot(request, provider as never)).rejects.to…
+       |                                                            ^
+     45|     expect(provider).toHaveBeenCalledTimes(4);
+     46|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  18:27:02
+   Duration  324ms (transform 122ms, setup 0ms, import 220ms, tests 10ms, environment 0ms)
+

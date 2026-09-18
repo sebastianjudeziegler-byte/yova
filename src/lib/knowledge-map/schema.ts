@@ -126,7 +126,7 @@ export const InitialTopicEvidenceSchema = z.union([
 ]).nullable().default(null);
 
 export const PlacementCheckStateSchema = z.object({
-  status: z.enum(["available", "skipped", "completed"]).default("available"),
+  status: z.enum(["available", "skipped", "partial", "completed"]).default("available"),
   completedAt: z.string().datetime({ offset: true }).nullable().default(null),
   demonstratedTopicIds: z.array(z.string().uuid()).max(40).default([]),
   gapTopicIds: z.array(z.string().uuid()).max(40).default([]),

@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import { buildSessionEvaluationCases } from "@/evals/session-cases";
 import { evaluateSessionDraft } from "@/evals/session-rubric";
+import { unsupportedLearnerClaimEvidence } from "@/evals/session-claim-evidence";
 
 vi.mock("server-only", () => ({}));
 
@@ -36,6 +37,13 @@ describe.skipIf(!liveEvaluationEnabled)("live OpenAI session quality", () => {
     console.info("");
     for (const check of result.checks) {
       console.info(`${check.passed ? "PASS" : "FAIL"}  ${check.label} (${check.earned}/${check.points}) · ${check.detail}`);
+    }
+    if (result.checks.some((check) => check.id === "no_personality_overclaim" && !check.passed)) {
+      // This runner uses only the fixed synthetic cases above. Keep enough
+      // evidence to inspect the gate failure, never the input/profile payload.
+      const evidence = unsupportedLearnerClaimEvidence(generated.draft);
+      for (const match of evidence) console.info(`Claim evidence · ${match.field} · ${JSON.stringify(match)}`);
+      if (!evidence.length) console.info("Claim evidence · combined-text guard matched, but no individual field match was retained; inspect the synthetic case before changing the guard.");
     }
 
     expect(result.requiredFailures).toEqual([]);

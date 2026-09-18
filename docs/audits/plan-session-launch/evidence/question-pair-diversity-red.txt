@@ -1,0 +1,33 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/practice/question-mix.test.ts (17 tests | 1 failed) 7ms
+     × uses all available concept pairs before recycling them in a substantial application block 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/practice/question-mix.test.ts > question slots > uses all available concept pairs before recycling them in a substantial application block
+AssertionError: expected 5 to be 10 // Object.is equality
+
+- Expected
++ Received
+
+- 10
++ 5
+
+ ❯ src/lib/practice/question-mix.test.ts:79:73
+     77|   it("uses all available concept pairs before recycling them in a subs…
+     78|     const slots = planQuestionSlots({ keyPointIds: five, mix: mix(0, 1…
+     79|     expect(new Set(slots.map(slot => slot.keyPointIds.join(":"))).size…
+       |                                                                         ^
+     80|     const coverage = five.map(id => slots.filter(slot => slot.keyPoint…
+     81|     expect(coverage).toEqual([4, 4, 4, 4, 4]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+   Start at  18:29:22
+   Duration  115ms (transform 25ms, setup 0ms, import 34ms, tests 7ms, environment 0ms)
+

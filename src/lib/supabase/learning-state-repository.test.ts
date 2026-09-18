@@ -48,6 +48,7 @@ import {
   deleteAuthenticatedActiveSessionCheckpoint,
   loadAuthenticatedLearningState,
   loadAuthenticatedLearningStateWithRetry,
+  readAuthenticatedSessionCompletionReceipt,
   recordAuthenticatedSessionInterruption as persistAuthenticatedSessionInterruption,
   saveAuthenticatedActiveSessionCheckpoint,
   saveAuthenticatedLearnerProfile,
@@ -958,11 +959,11 @@ describe("recordAuthenticatedSessionInterruption", () => {
 });
 
 describe("completeAuthenticatedPlanSession", () => {
-  it("classifies an allowlisted permanent completion conflict without exposing database detail", async () => {
+  it.each(["40001", "PT409"])("classifies an allowlisted permanent completion conflict (%s) without exposing database detail", async (code) => {
     rpc.mockResolvedValueOnce({
       data: null,
       error: {
-        code: "40001",
+        code,
         message: "study_route_completion_retry_conflict",
         details: "private completion detail",
       },
@@ -2426,3 +2427,48 @@ function mockCloudQueries({
     return builder;
   });
 }
+
+
+describe("exact baseline completion receipt", () => {
+  const completion = { id: "00000000-0000-4000-8000-000000000111", planSessionId: "00000000-0000-4000-8000-000000000112", routeRevisionId: ROUTE_REVISION_ID };
+  function receipt(data: unknown, error: unknown = null) {
+    const query = { select: vi.fn(), eq: vi.fn(), not: vi.fn(), maybeSingle: vi.fn().mockResolvedValue({ data, error }) };
+    query.select.mockReturnValue(query); query.eq.mockReturnValue(query); query.not.mockReturnValue(query);
+    from.mockReturnValue(query); return query;
+  }
+  it("reads only the exact completed attempt and route for the authenticated account", async () => {
+    const query = receipt({ id: completion.id, plan_session_id: completion.planSessionId, completed_at: NOW, result_data: { routeRevisionId: ROUTE_REVISION_ID } });
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", completion)).resolves.toBe(true);
+    expect(from).toHaveBeenCalledWith("session_attempts");
+    expect(query.eq.mock.calls).toEqual([["id", completion.id], ["plan_session_id", completion.planSessionId]]);
+    expect(query.not).toHaveBeenCalledWith("completed_at", "is", null);
+  });
+  it.each([null, { completed_at: null }, { completed_at: NOW, result_data: { routeRevisionId: "another-route" } }])("does not infer a commit from missing or mismatched provenance", async data => {
+    receipt(data);
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", completion)).resolves.toBe(false);
+  });
+  it("does not read another account after an account switch", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-2" } }, error: null });
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", completion)).resolves.toBe(false);
+    expect(from).not.toHaveBeenCalled();
+  });
+  it("requires both exact segment receipts before reconciling a lost reply", async () => {
+    const segmentCompletions = [
+      { segmentId: "first", correctAnswers: 3, totalAnswers: 4, elapsedSeconds: 240 },
+      { segmentId: "second", correctAnswers: 2, totalAnswers: 3, elapsedSeconds: 180 },
+    ];
+    const data = { completed_at: NOW, result_data: { routeRevisionId: ROUTE_REVISION_ID, segmentCompletions } };
+    receipt(data);
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", { ...completion, segmentCompletions })).resolves.toBe(true);
+    receipt(data);
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", { ...completion, segmentCompletions: [...segmentCompletions].reverse() })).resolves.toBe(false);
+    receipt({ ...data, result_data: { routeRevisionId: ROUTE_REVISION_ID, segmentCompletions: segmentCompletions.slice(0, 1) } });
+    await expect(readAuthenticatedSessionCompletionReceipt("user-1", { ...completion, segmentCompletions })).resolves.toBe(false);
+  });
+  it("bounds an unavailable authentication check", async () => {
+    getUser.mockReturnValue(new Promise(() => {}));
+    const pending = expect(readAuthenticatedSessionCompletionReceipt("user-1", completion)).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS);
+    await pending;
+  });
+});

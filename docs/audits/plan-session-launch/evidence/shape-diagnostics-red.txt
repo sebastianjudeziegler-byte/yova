@@ -1,0 +1,99 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/openai/practice-quality-review.test.ts (14 tests | 2 failed) 7ms
+     × reports only aggregate rejected counts, never learner content or rejection reasons 2ms
+     × distinguishes incomplete review coverage from zero rejected questions 0ms
+ ❯ src/lib/openai/shape-slot-provider.test.ts (5 tests | 4 failed) 10ms
+     × records bounded 'completed' timing without provider content 2ms
+     × records bounded 'incomplete' timing without provider content 0ms
+     × records bounded 'invalid' timing without provider content 1ms
+     × distinguishes a timeout from a deadline refusal without logging error messages 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/practice-quality-review.test.ts > independent practice answer review > reports only aggregate rejected counts, never learner content or rejection reasons
+AssertionError: expected "vi.fn()" to be called once with arguments: [ { stage: 'quality', …(4) } ]
+
+Number of calls: 0
+
+ ❯ src/lib/openai/practice-quality-review.test.ts:52:22
+     50|     const provider = Object.assign(vi.fn(async () => ({ reviews: [verd…
+     51|     await reviewPracticeQuestions(context, provider as never);
+     52|     expect(diagnose).toHaveBeenCalledExactlyOnceWith({ stage: "quality…
+       |                      ^
+     53|     expect(JSON.stringify(diagnose.mock.calls)).not.toContain("private…
+     54|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  src/lib/openai/practice-quality-review.test.ts > independent practice answer review > distinguishes incomplete review coverage from zero rejected questions
+AssertionError: expected "vi.fn()" to be called once with arguments: [ { stage: 'quality', …(3) } ]
+
+Number of calls: 0
+
+ ❯ src/lib/openai/practice-quality-review.test.ts:60:22
+     58|     const provider = Object.assign(vi.fn(async () => ({ reviews: [] })…
+     59|     expect(await reviewPracticeQuestions(context, provider as never)).…
+     60|     expect(diagnose).toHaveBeenCalledExactlyOnceWith({ stage: "quality…
+       |                      ^
+     61|   });
+     62| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  src/lib/openai/shape-slot-provider.test.ts > shape provider route budget > records bounded 'completed' timing without provider content
+ FAIL  src/lib/openai/shape-slot-provider.test.ts > shape provider route budget > records bounded 'incomplete' timing without provider content
+ FAIL  src/lib/openai/shape-slot-provider.test.ts > shape provider route budget > records bounded 'invalid' timing without provider content
+AssertionError: expected "vi.fn()" to be called once with arguments: [ { traceId: Any<String>, …(8) } ]
+
+Number of calls: 0
+
+ ❯ src/lib/openai/shape-slot-provider.test.ts:36:26
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  src/lib/openai/shape-slot-provider.test.ts > shape provider route budget > distinguishes a timeout from a deadline refusal without logging error messages
+AssertionError: expected [] to deeply equal [ Array(2) ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "callId": 1,
+-     "elapsedMs": 20000,
+-     "outcome": "timeout",
+-     "remainingBudgetMs": 30000,
+-     "schemaName": "test_shape",
+-     "stage": "provider",
+-     "timeoutMs": 20000,
+-     "totalElapsedMs": 20000,
+-     "traceId": Any<String>,
+-   },
+-   {
+-     "callId": 2,
+-     "elapsedMs": 0,
+-     "outcome": "deadline",
+-     "remainingBudgetMs": 1000,
+-     "schemaName": "test_shape",
+-     "stage": "provider",
+-     "timeoutMs": 0,
+-     "totalElapsedMs": 49000,
+-     "traceId": Any<String>,
+-   },
+- ]
++ []
+
+ ❯ src/lib/openai/shape-slot-provider.test.ts:50:61
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  6 failed | 13 passed (19)
+   Start at  18:58:34
+   Duration  336ms (transform 89ms, setup 0ms, import 184ms, tests 17ms, environment 0ms)
+

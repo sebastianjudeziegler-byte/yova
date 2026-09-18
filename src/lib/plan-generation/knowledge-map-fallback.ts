@@ -7,6 +7,8 @@ import {
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
+import { workProductKindForPlan } from "@/lib/learning/work-product-plan";
+import { deriveLearningTitle } from "@/lib/intake/interpret";
 
 export type DeterministicKnowledgeMapResult = {
   map: PlanKnowledgeMap;
@@ -43,13 +45,25 @@ export function buildDevelopmentPreviewKnowledgeMap(
         }],
       }
     : request;
-  const preview = generatePreviewPlan(semanticSeedRequest);
+  const artifact = request.intent === "plan" ? workProductKindForPlan(request.goal) : null;
+  // Preview-only semantic seeds must keep artifact work scoped to the actual
+  // goal too. A subject keyword such as biology must not silently turn a
+  // presentation into a different curriculum before the learner reviews it.
+  const artifactTitle = deriveLearningTitle(request.goal, "assignment");
+  const artifactTargets = artifact === "presentation"
+    ? [`Content and slide structure for ${artifactTitle}`, `Slides and speaker notes for ${artifactTitle}`, `Rehearsal and revision of ${artifactTitle}`]
+    : artifact === "speech"
+      ? [`Audience and argument for ${artifactTitle}`, `Evidence and speech draft for ${artifactTitle}`, `Rehearsal and revision of ${artifactTitle}`]
+      : artifact === "writing"
+        ? [`Argument and evidence for ${artifactTitle}`, `Draft and structure for ${artifactTitle}`, `Revision and final checks for ${artifactTitle}`]
+        : null;
+  const preview = artifactTargets ? null : generatePreviewPlan(semanticSeedRequest);
   const titles = Array.from(new Set(
-    preview.sessions.flatMap((session) => session.contentTargets ?? [])
+    (artifactTargets ?? preview!.sessions.flatMap((session) => session.contentTargets ?? []))
       .map((title) => title.trim().slice(0, 140))
       .filter((title) => title.length >= 2),
   )).slice(0, 40);
-  const topicTitles = titles.length ? titles : [preview.topic.trim().slice(0, 140)];
+  const topicTitles = titles.length ? titles : [preview!.topic.trim().slice(0, 140)];
   const ids = topicTitles.map(() => crypto.randomUUID());
   const map = PlanKnowledgeMapSchema.parse({
     version: 1,

@@ -1,3 +1,4 @@
+import { refreshTopicPlanMetadata } from "@/lib/plan-generation/refresh-topic-plan-metadata";
 import { z } from "zod";
 import { makeUuid, type LearningPlan, type LearningPlanSession } from "@/lib/domain";
 import type { PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
@@ -110,6 +111,7 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
   const prepared: Array<{ unit: Unit; fixed: NormalPlanProviderFillInputOptions; protection?: RevisionSessionProtection }> = [];
   let capacity: RevisionCapacity = { status: "fits", explanation: "These changes fit alongside your other active plans and fixed events.", choices: [] };
   const blockers = [...scope.blockers];
+  if (plan.planModel?.version === "topic_plan_v2" && acceptedEdits.some(edit=>edit.durationMinutes)) blockers.push({topicId:"",message:"Availability changes move this topic queue; they do not split practice or discard planned work. Keep this block or move its date."});
   const remaining = [...units].sort((a, b) => a.order - b.order);
 
   while (remaining.length && blockers.length === 0) {
@@ -133,6 +135,13 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
       break;
     }
     const subRequest = scopedRequest(applied.request, [topic.id], unit!.maximumSessions);
+    // A reviewed combined block can become separate valid blocks. Retain each
+    // consumed chunk's exact scope instead of expanding back to the full map.
+    const savedSegment = unit!.original?.workload?.segments?.find(segment => segment.workload.topicSubtopics[0]!.topicId === topic.id);
+    if (savedSegment) {
+      const selected = savedSegment.workload.topicSubtopics[0]!.subtopics;
+      subRequest.knowledgeMap!.topics = subRequest.knowledgeMap!.topics.map(item => ({ ...item, subtopics: selected.filter(subtopic => item.subtopics.includes(subtopic)) }));
+    }
     const priorSessions = plan.sessions.filter(session => session.status !== "skipped" && unit!.original && session.sequence < unit!.original.sequence && session.topicIds?.includes(topic.id)).map(session => ({ key: `existing:${session.id}`, topicIds: [topic.id] }));
     const previousParts = prepared.filter(item => item.unit.original?.id === unit!.original?.id && item.unit.topicId === topic.id);
     const revisionContext: NormalPlanRevisionContext = { reservations: [...reservations], earliestStart: selectedTime ?? new Date(earliest).toISOString(),
@@ -148,7 +157,7 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     try {
       const composition = composeNormalPlanEnvelopes({
         request: subRequest, now, revisionContext,
-        durationContext: { ...durationContext, ...(selectedDuration ? { learnerOverrideMinutes: selectedDuration } : sourceBudget ? { sourceStudyBudgetMinutes: sourceBudget as 10 | 15 | 25 | 45 | 60 } : {}) },
+        durationContext: { ...durationContext, ...(!plan.planModel ? { legacyExactDuration: true } : {}), ...(selectedDuration ? { learnerOverrideMinutes: selectedDuration } : sourceBudget ? { sourceStudyBudgetMinutes: sourceBudget as 10 | 15 | 25 | 45 | 60 } : {}) },
         learningIntentRecommendation: { intent: subRequest.learningIntent, basis: "Apply the accepted topic change while keeping all other work unchanged." },
       });
       if (edit?.durationMinutes && composition.envelopes.some(envelope => envelope.timing.activeMinutes !== edit.durationMinutes)) {
@@ -185,7 +194,7 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     }
   }
   const addedCount = prepared.reduce((sum, item) => sum + item.fixed.composition.envelopes.length - (item.unit.keepOriginalId ? 1 : 0), 0);
-  if (plan.sessions.length + addedCount > (contextKind === "draft" ? 14 : 28)) blockers.push({ topicId: "", message: "This change needs more session space. Shorten scope or finish existing work before adding it." });
+  if (plan.sessions.length + addedCount > (plan.planModel?.version === "topic_plan_v2" ? (contextKind === "draft" ? 200 : 400) : (contextKind === "draft" ? 14 : 28))) blockers.push({ topicId: "", message: "This change needs more session space. Shorten scope or finish existing work before adding it." });
   if (blockers.length === 0) {
     for (const { unit, fixed, protection } of prepared) {
       const generated = buildNormalPlanFromFixedEnvelope({ ...fixed, methodContext: fixed.methodContext!, fill: await fill(fixed) });
@@ -215,7 +224,7 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
     sessions = assignFutureSequence(sessions, new Set([...protectedIds, ...plan.sessions.filter(session => !affected.has(session.id)).map(session => session.id)]));
   }
   const revisionId = makeUuid();
-  const after = { ...plan, sourceMode: applied.request.materialMode === "upload" ? "user_materials" as const : "yova_generated" as const, materials: applied.request.materials.map(material => ({ ...material, textContent: null })), revisionId, deadline: applied.request.deadline, knowledgeMap: nextMap, schedulePreferences: { timeZone: applied.request.timeZone, availability: applied.request.availability }, sessions };
+  const after = refreshTopicPlanMetadata({ ...plan, sourceMode: applied.request.materialMode === "upload" ? "user_materials" as const : "yova_generated" as const, materials: applied.request.materials.map(material => ({ ...material, textContent: null })), revisionId, deadline: applied.request.deadline, knowledgeMap: nextMap, schedulePreferences: { timeZone: applied.request.timeZone, availability: applied.request.availability }, sessions });
   const lines: RevisionLine[] = applied.lines.map(line => {
     const beforeSessions = plan.sessions.filter(session => line.topicId ? session.topicIds?.includes(line.topicId) && affected.has(session.id) : affected.has(session.id));
     const afterSessions = sessions.filter(session => line.topicId ? session.topicIds?.includes(line.topicId) && (affected.has(session.id) || addedSessions.some(added => added.id === session.id)) : affected.has(session.id) || addedSessions.some(added => added.id === session.id));

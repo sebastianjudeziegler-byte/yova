@@ -1,0 +1,501 @@
+{
+  "provenance": "Exact synthetic final response from CI414 run35254727222, live-24-question-workload.json; endpoint returned200 after39104ms despite the listed defects.",
+  "topic": {
+    "id": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
+    "title": "Osmosis",
+    "description": "Predict net water movement from water potential and explain the role of a partially permeable membrane.",
+    "subtopics": [
+      "Water potential",
+      "Membrane permeability",
+      "Plant cell turgor"
+    ],
+    "taskType": "conceptual_learning",
+    "learningGoal": "Prepare for A-level Biology application questions: predict the effect of unfamiliar conditions on water movement and justify the mechanism."
+  },
+  "explanation": "Osmosis is the net movement of water molecules from a region of higher water potential to a region of lower water potential across a partially permeable membrane. The membrane is essential because it allows water to pass but restricts many dissolved solutes, so the difference in water potential can drive a one-way net movement. Water potential is lowered by dissolved substances, so a solution with more solute has a more negative water potential than a more dilute solution.\n\nIn plant cells, osmosis affects turgor. If water enters a cell, the vacuole swells and the cytoplasm presses the cell membrane against the cell wall, making the cell turgid. If water leaves, the cell becomes less firm and may plasmolyse if the water potential outside is much lower. The direction of net movement is always set by the water potential gradient, not by the concentration of water alone, and osmosis stops when the water potentials on both sides are equal.\n\nExample: if a plant cell is placed in a dilute solution with a higher water potential than the cell sap, water moves into the cell through the partially permeable membrane, the vacuole expands, and the cell becomes turgid.",
+  "keyPoints": [
+    {
+      "id": "k1",
+      "text": "Osmosis is the net movement of water molecules from higher water potential to lower water potential across a partially permeable membrane.",
+      "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+    },
+    {
+      "id": "k2",
+      "text": "A partially permeable membrane lets water pass but limits many solute particles, so it is required for osmosis to create a directional net flow.",
+      "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+    },
+    {
+      "id": "k3",
+      "text": "Lower water potential means more negative potential, usually because the solution contains more dissolved solute.",
+      "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+    },
+    {
+      "id": "k4",
+      "text": "In plant cells, water entry increases turgor and water loss reduces firmness, with severe loss causing plasmolysis.",
+      "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+    },
+    {
+      "id": "k5",
+      "text": "Net movement stops when the water potentials on both sides are equal.",
+      "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138"
+    }
+  ],
+  "questions": [
+    {
+      "id": "s1",
+      "slotId": "s1",
+      "kind": "recall",
+      "keyPointIds": [
+        "k1"
+      ],
+      "prompt": "Which statement best describes what happens in osmosis?",
+      "choices": [
+        "Water molecules move overall from a region with more negative water potential to a region with less negative water potential across a fully permeable membrane.",
+        "Water moves overall from a region with less negative water potential to a region with more negative water potential across a partially permeable membrane.",
+        "Solute molecules move overall from high concentration to low concentration across a partially permeable membrane.",
+        "Water moves in both directions at equal rates because the membrane blocks dissolved substances."
+      ],
+      "correctChoiceIndex": 1,
+      "explanation": "Osmosis is the net movement of water from higher to lower water potential across a partially permeable membrane."
+    },
+    {
+      "id": "s2",
+      "slotId": "s2",
+      "kind": "recall",
+      "keyPointIds": [
+        "k2"
+      ],
+      "prompt": "Why is a partially permeable membrane needed for osmosis?",
+      "choices": [
+        "It actively pumps water to the side with the higher solute concentration.",
+        "It lets all particles pass equally, which prevents any concentration differences from forming.",
+        "It allows water to pass while restricting many solutes, so a water-potential difference can produce net movement.",
+        "It makes water move only when the solution is warm enough."
+      ],
+      "correctChoiceIndex": 2,
+      "explanation": "Osmosis needs a membrane that separates solutions but allows water through more readily than solute."
+    },
+    {
+      "id": "s3",
+      "slotId": "s3",
+      "kind": "recall",
+      "keyPointIds": [
+        "k3"
+      ],
+      "prompt": "Two solutions are separated by a membrane: one has a higher water potential. What does that mean about its solute level?",
+      "choices": [
+        "It has the same solute level, but a different temperature only.",
+        "It must be pure water.",
+        "It contains fewer dissolved solutes and is more dilute.",
+        "It contains more dissolved solutes and is more concentrated."
+      ],
+      "correctChoiceIndex": 2,
+      "explanation": "Higher water potential usually means the solution is more dilute and therefore has less dissolved solute."
+    },
+    {
+      "id": "s4",
+      "slotId": "s4",
+      "kind": "recall",
+      "keyPointIds": [
+        "k4"
+      ],
+      "prompt": "What change is most likely in a plant cell placed in a solution with much lower water potential than its own cytoplasm?",
+      "choices": [
+        "It becomes more turgid as water enters the vacuole.",
+        "It remains unchanged because the cell wall blocks all movement.",
+        "It loses water and may plasmolyse.",
+        "It gains solute until the outside becomes more dilute."
+      ],
+      "correctChoiceIndex": 2,
+      "explanation": "A lower external water potential drives water out of the cell, which can cause plasmolysis."
+    },
+    {
+      "id": "s5",
+      "slotId": "s5",
+      "kind": "recall",
+      "keyPointIds": [
+        "k5"
+      ],
+      "prompt": "When does net osmosis stop across a membrane?",
+      "choices": [
+        "When the membrane becomes impermeable to water.",
+        "When both sides have the same solute type.",
+        "When the water concentration is zero on both sides.",
+        "When both sides have the same water potential."
+      ],
+      "correctChoiceIndex": 3,
+      "explanation": "Net movement stops at equilibrium, when there is no water-potential gradient."
+    },
+    {
+      "id": "s6",
+      "slotId": "s6",
+      "kind": "recall",
+      "keyPointIds": [
+        "k1"
+      ],
+      "prompt": "A cell is transferred from a concentrated sugar solution to a more dilute one. What is the most likely direction of net water movement?",
+      "choices": [
+        "Out of the cell, because the dilute solution has the lower water potential.",
+        "Out of the cell, because sugar molecules can cross faster than water.",
+        "No net movement, because the membrane prevents any change.",
+        "Into the cell, because the dilute solution has the higher water potential."
+      ],
+      "correctChoiceIndex": 3,
+      "explanation": "The more dilute solution has higher water potential, so water moves into the cell."
+    },
+    {
+      "id": "s7",
+      "slotId": "s7",
+      "kind": "application",
+      "keyPointIds": [
+        "k2",
+        "k3"
+      ],
+      "prompt": "A sealed bag made of partially permeable membrane contains a concentrated solution and is placed in pure water. Which outcome best fits osmosis?",
+      "choices": [
+        "Water leaves the bag because pure water has the lower water potential.",
+        "Nothing moves because the membrane blocks water and solute equally.",
+        "Water enters the bag because the outside has the higher water potential.",
+        "Solute enters the bag first, then water follows."
+      ],
+      "correctChoiceIndex": 2,
+      "explanation": "Pure water has a higher water potential than the concentrated solution, so water moves into the bag."
+    },
+    {
+      "id": "s8",
+      "slotId": "s8",
+      "kind": "application",
+      "keyPointIds": [
+        "k4",
+        "k5"
+      ],
+      "prompt": "A plant cell becomes fully turgid after being placed in a dilute solution. Which explanation best accounts for this result?",
+      "choices": [
+        "Solute left the cell, so pressure inside the vacuole rose.",
+        "Water left the cell, making the wall press harder on the cytoplasm.",
+        "The membrane became fully permeable, so all substances moved equally.",
+        "Water entered by osmosis, increasing vacuole volume and pushing the membrane against the cell wall."
+      ],
+      "correctChoiceIndex": 3,
+      "explanation": "Water entry by osmosis expands the vacuole and creates turgor pressure against the cell wall."
+    },
+    {
+      "id": "s9",
+      "slotId": "s9",
+      "kind": "application",
+      "keyPointIds": [
+        "k1",
+        "k2"
+      ],
+      "prompt": "A dialysis tubing bag filled with concentrated sucrose solution is placed in a beaker of distilled water. What happens first, and why?",
+      "choices": [
+        "No net movement occurs because the membrane blocks all particles equally.",
+        "Water moves out of the bag because distilled water has a lower water potential and the tubing blocks water.",
+        "Water moves into the bag because the bag solution has a lower water potential and the tubing allows water through but not most solute.",
+        "Sucrose moves out of the bag because the bag solution has a lower water potential and the tubing allows water through but not most solute."
+      ],
+      "correctChoiceIndex": 2,
+      "explanation": "Water enters because the concentrated sucrose solution has the lower water potential, and the partially permeable tubing allows water but limits solute movement."
+    },
+    {
+      "id": "s10",
+      "slotId": "s10",
+      "kind": "application",
+      "keyPointIds": [
+        "k3",
+        "k4"
+      ],
+      "prompt": "A plant cell is moved from a dilute solution into a more concentrated salt solution. What change is most likely in the cell?",
+      "choices": [
+        "It bursts because the membrane forces salt into the cell.",
+        "It becomes less firm because water leaves toward the lower water potential outside.",
+        "It stays unchanged because solute concentration does not affect water movement.",
+        "It becomes more turgid because water enters from the lower solute concentration."
+      ],
+      "correctChoiceIndex": 1,
+      "explanation": "The more concentrated salt solution has a lower water potential, so water leaves the plant cell and it becomes less firm."
+    },
+    {
+      "id": "s11",
+      "slotId": "s11",
+      "kind": "application",
+      "keyPointIds": [
+        "k1",
+        "k5"
+      ],
+      "prompt": "Two solutions are separated by a partially permeable membrane. Solution A has higher water potential than solution B at the start. After some time, what must be true if net osmosis has stopped?",
+      "choices": [
+        "Solution A now contains more solute than solution B.",
+        "Water has moved until both sides have equal water potential.",
+        "The membrane has become fully permeable to solute.",
+        "All water molecules have stopped moving across the membrane."
+      ],
+      "correctChoiceIndex": 1,
+      "explanation": "Net osmosis stops when the water potentials on both sides become equal."
+    },
+    {
+      "id": "s12",
+      "slotId": "s12",
+      "kind": "application",
+      "keyPointIds": [
+        "k2",
+        "k4"
+      ],
+      "prompt": "A plant cell is placed in a solution that makes it lose water, but the cell membrane is removed from the cell wall before the test. Which statement best explains the role of the membrane in this outcome?",
+      "choices": [
+        "Solute particles move faster because the cell wall is no longer present.",
+        "The cell becomes turgid because water always enters plant cells in any solution.",
+        "Water cannot move at all because osmosis requires a rigid cell wall.",
+        "Water can still move by osmosis because the membrane is needed to limit solute movement and create a net flow."
+      ],
+      "correctChoiceIndex": 3,
+      "explanation": "Osmosis needs a partially permeable membrane to allow water through while limiting many solutes, creating a net directional flow."
+    },
+    {
+      "id": "s13",
+      "slotId": "s13",
+      "kind": "application",
+      "keyPointIds": [
+        "k3",
+        "k5"
+      ],
+      "prompt": "A cell is in a solution with the same water potential as its cytoplasm. What is the best prediction about net water movement?",
+      "choices": [
+        "Water moves into the cell because the outside is always more dilute.",
+        "Water moves out of the cell because the cytoplasm contains dissolved substances.",
+        "Water continues moving in only one direction because solute concentration still differs.",
+        "There is no net movement because the water potentials are equal."
+      ],
+      "correctChoiceIndex": 3,
+      "explanation": "When the water potentials are equal, there is no net osmosis in either direction."
+    },
+    {
+      "id": "s14",
+      "slotId": "s14",
+      "kind": "application",
+      "keyPointIds": [
+        "k1",
+        "k3"
+      ],
+      "prompt": "Two solutions are separated by a partially permeable membrane. Solution X has more dissolved solute than solution Y. Which statement best describes the water potential relationship and expected net water movement?",
+      "choices": [
+        "Solution X has the same water potential, so no water can pass.",
+        "Solution X has a lower water potential, so solute moves from X to Y.",
+        "Solution X has a lower water potential, so water moves from Y to X.",
+        "Solution X has a higher water potential, so water moves from X to Y."
+      ],
+      "correctChoiceIndex": 2,
+      "explanation": "More dissolved solute means a more negative, lower water potential, so water moves from the less negative side to the more negative side."
+    },
+    {
+      "id": "s15",
+      "slotId": "s15",
+      "kind": "application",
+      "keyPointIds": [
+        "k2",
+        "k5"
+      ],
+      "prompt": "A glucose solution and pure water are separated by a partially permeable membrane. In one test the two sides start with equal water potential; in a second test the glucose solution starts with a lower water potential than the water. Which statement best predicts the water movement?",
+      "choices": [
+        "Net movement into the glucose solution in both tests because water always moves toward the side with more solute.",
+        "Net movement into the water side in both tests because water crosses the membrane until the solutions are mixed.",
+        "No water movement in either test because a partially permeable membrane blocks all particles equally.",
+        "No net water movement in the first test, and net movement into the glucose solution in the second because the membrane allows osmosis only when a water potential difference exists."
+      ],
+      "correctChoiceIndex": 3,
+      "explanation": "Osmosis needs a partially permeable membrane and a water potential gradient, so equal potentials give no net movement while the lower-water-potential glucose side draws water in."
+    },
+    {
+      "id": "s16",
+      "slotId": "s16",
+      "kind": "application",
+      "keyPointIds": [
+        "k1",
+        "k4"
+      ],
+      "prompt": "A plant cell placed in pure water becomes firm after a short time. Which sequence best explains the change?",
+      "choices": [
+        "Water leaves the cell, the vacuole shrinks, and the cell becomes flaccid.",
+        "Water enters the cell, the membrane disappears, and plasmolysis is prevented.",
+        "Salt enters the cell, the cytoplasm thickens, and the cell wall expands.",
+        "Water enters the cell, the vacuole swells, and turgor increases."
+      ],
+      "correctChoiceIndex": 3,
+      "explanation": "Water enters by osmosis, the vacuole swells, and the cell becomes more turgid."
+    },
+    {
+      "id": "s17",
+      "slotId": "s17",
+      "kind": "application",
+      "keyPointIds": [
+        "k2",
+        "k3"
+      ],
+      "prompt": "A dialysis bag containing sucrose solution is placed in a surrounding solution. The bag has a higher water potential than the outside, and the membrane is partially permeable. Which outcome is best explained by the biology given?",
+      "choices": [
+        "Water moves out of the bag because the outside has the lower water potential, and the membrane lets water pass.",
+        "Water moves into the bag because sucrose can cross first and pull water with it.",
+        "Water moves into the bag because the bag always gains water when it contains sucrose.",
+        "No net water movement occurs because any partially permeable membrane stops osmosis once solute is present."
+      ],
+      "correctChoiceIndex": 0,
+      "explanation": "Water moves by osmosis from higher water potential to lower water potential across a partially permeable membrane, so the outside draws water out of the bag."
+    },
+    {
+      "id": "s18",
+      "slotId": "s18",
+      "kind": "application",
+      "keyPointIds": [
+        "k4",
+        "k5"
+      ],
+      "prompt": "A plant cell is placed in a solution with the same water potential as its cell sap. Which prediction best fits the cell's condition after the initial adjustment?",
+      "choices": [
+        "The cell stays at roughly the same firmness because there is no net water movement when the water potentials are equal.",
+        "The cell becomes more turgid because equal water potential still causes a net inward movement.",
+        "The cell bursts because the membrane allows water but not solutes to enter.",
+        "The cell plasmolyses because equal water potential forces water out of the cell."
+      ],
+      "correctChoiceIndex": 0,
+      "explanation": "When the water potentials are equal, there is no net osmosis, so the cell does not gain extra turgor or lose firmness overall."
+    },
+    {
+      "id": "s19",
+      "slotId": "s19",
+      "kind": "compare_contrast",
+      "keyPointIds": [
+        "k1",
+        "k2"
+      ],
+      "prompt": "Which statement correctly compares osmosis with the role of a partially permeable membrane?",
+      "choices": [
+        "Osmosis can occur without a membrane if the solution is dilute enough.",
+        "Osmosis is the movement of solute, and the membrane is needed to let water pass in both directions.",
+        "Osmosis is the movement of water, and the membrane is needed so solutes cannot freely remove the gradient.",
+        "The membrane is the cause of lower water potential on the side with more water."
+      ],
+      "correctChoiceIndex": 2,
+      "explanation": "Osmosis is water movement, and the membrane is essential because it restricts many solutes so a directional water potential gradient can drive net flow."
+    },
+    {
+      "id": "s20",
+      "slotId": "s20",
+      "kind": "compare_contrast",
+      "keyPointIds": [
+        "k3",
+        "k4"
+      ],
+      "prompt": "Two solutions are separated by a membrane. Solution A has a less negative water potential than solution B. Which pair of statements correctly relates the water potential and the likely plant-cell effect if A is outside the cell?",
+      "choices": [
+        "A has more solute; the cell is more likely to gain water and become turgid.",
+        "A has less solute; the cell is more likely to lose water and plasmolyse.",
+        "A has less solute; the cell is more likely to gain water and become turgid.",
+        "A has more solute; the cell is more likely to lose water and become less firm."
+      ],
+      "correctChoiceIndex": 2,
+      "explanation": "Less negative water potential means less solute, and if that solution is outside the cell, water tends to enter and increase turgor."
+    },
+    {
+      "id": "s21",
+      "slotId": "s21",
+      "kind": "compare_contrast",
+      "keyPointIds": [
+        "k1",
+        "k5"
+      ],
+      "prompt": "Which outcome best distinguishes osmosis from simple diffusion in this context?",
+      "choices": [
+        "Water moves from high concentration to low concentration in any medium, even without a membrane.",
+        "Water moves from higher to lower water potential across a partially permeable membrane until the potentials equalise.",
+        "Water moves only when solute particles are also able to cross the membrane freely.",
+        "Water movement stops as soon as one side contains any dissolved solute."
+      ],
+      "correctChoiceIndex": 1,
+      "explanation": "Osmosis is defined by movement of water across a partially permeable membrane down a water potential gradient until equilibrium is reached."
+    },
+    {
+      "id": "s22",
+      "slotId": "s22",
+      "kind": "compare_contrast",
+      "keyPointIds": [
+        "k2",
+        "k4"
+      ],
+      "prompt": "A plant cell is placed in a solution that allows water through the boundary but blocks most dissolved solutes. Which change is most likely if the outside solution has a lower water potential than the cell sap?",
+      "choices": [
+        "The cell gains water because lower water potential always means more water enters the solution.",
+        "The cell loses water and may become plasmolysed if the difference is large.",
+        "The cell gains turgor because solutes are prevented from moving out.",
+        "The cell stays fully unchanged because the membrane blocks all movement."
+      ],
+      "correctChoiceIndex": 1,
+      "explanation": "A lower external water potential drives water out of the cell through the partially permeable boundary, reducing firmness and possibly causing plasmolysis."
+    },
+    {
+      "id": "s23",
+      "slotId": "s23",
+      "kind": "compare_contrast",
+      "keyPointIds": [
+        "k3",
+        "k5"
+      ],
+      "prompt": "Which pair correctly contrasts a solution with lower water potential and a condition where osmosis has stopped?",
+      "choices": [
+        "Lower water potential is less negative and can drive net water entry; osmosis has stopped when the membrane becomes fully permeable.",
+        "Lower water potential means the same as equal water potential; osmosis has stopped when solute has moved across the membrane.",
+        "Lower water potential is more negative and can drive net water entry; osmosis has stopped when both sides have equal water potential.",
+        "Lower water potential is caused by fewer dissolved particles; osmosis has stopped when water concentration is identical on both sides."
+      ],
+      "correctChoiceIndex": 2,
+      "explanation": "A lower water potential is a more negative water potential, and net osmosis stops once the water potentials on both sides are equal."
+    },
+    {
+      "id": "s24",
+      "slotId": "s24",
+      "kind": "compare_contrast",
+      "keyPointIds": [
+        "k1",
+        "k3"
+      ],
+      "prompt": "A beaker contains two solutions separated by a partially permeable membrane. One side is more negative in water potential because it has more dissolved solute. Which statement correctly compares the two sides?",
+      "choices": [
+        "The more dilute side has the lower water potential and draws water toward it.",
+        "Both sides have the same water potential because water can cross the membrane.",
+        "The side with more dissolved solute has a higher water potential because it contains more water molecules.",
+        "The more concentrated side has the lower water potential and attracts net water movement."
+      ],
+      "correctChoiceIndex": 3,
+      "explanation": "More dissolved solute makes water potential more negative, so the more concentrated side has the lower water potential and receives net water movement."
+    }
+  ],
+  "expectedDefects": {
+    "missingConditions": [
+      "s6",
+      "s10",
+      "s20"
+    ],
+    "duplicatePairs": [
+      [
+        "s7",
+        "s9"
+      ],
+      [
+        "s8",
+        "s16"
+      ],
+      [
+        "s4",
+        "s22"
+      ],
+      [
+        "s14",
+        "s24"
+      ]
+    ],
+    "wrongDemand": [
+      "s19",
+      "s21",
+      "s22"
+    ]
+  }
+}

@@ -166,7 +166,7 @@ describe("Brief 1 permanent personalization delta", () => {
     expect(secondTips.map((tip) => tip.step)).toEqual(HUB_STEPS);
     for (const tip of firstTips) expect(first.ruleIds).toContain(tip.ruleId);
     for (const tip of secondTips) expect(second.ruleIds).toContain(tip.ruleId);
-    expect(Object.fromEntries(firstTips.map((tip) => [tip.step, tip.ruleId]))).toEqual({ study: "L3.q5.concrete_example", produce: "L3.q6.map_it", compare: "L3.q6.map_it", repair: "L4.q9.simpler_repeated_instructions", end: "L4.q10.forget_during_tests" });
+    expect(Object.fromEntries(firstTips.map((tip) => [tip.step, tip.ruleId]))).toEqual({ study: "L3.q5.concrete_example", produce: "L3.q6.map_it", compare: "L3.q6.map_it", repair: "L4.q9.simpler_repeated_instructions", end: "L4.q3.very_often" });
     expect(Object.fromEntries(secondTips.map((tip) => [tip.step, tip.ruleId]))).toEqual({ study: "L3.q5.try_then_feedback", produce: "L3.q6.explain_back", compare: "L3.q5.try_then_feedback", repair: "L3.q6.explain_back", end: "L4.q2.minutes_45_60" });
     for (const [index, tip] of firstTips.entries()) expect(tip.body).not.toBe(secondTips[index]!.body);
   });

@@ -1,0 +1,92 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/components/study-now-creator.test.ts (11 tests | 4 failed) 14ms
+     × honors a direct 20-minute request without rounding up 3ms
+     × honors a direct 40-minute request without rounding up 0ms
+     × honors a direct 17-minute request without rounding up 0ms
+     × preserves a seeded ceiling and lets an edited explicit duration replace it 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/study-now-creator.test.ts > StudyNowCreator request summary > honors a direct 20-minute request without rounding up
+AssertionError: expected 25 to be 20 // Object.is equality
+
+- Expected
++ Received
+
+- 20
++ 25
+
+ ❯ src/components/study-now-creator.test.ts:32:106
+     30| describe("StudyNowCreator request summary", () => {
+     31|   it.each([20, 40, 17])("honors a direct %i-minute request without rou…
+     32|     expect(studyNowAvailableMinutes(`Help me understand the product ru…
+       |                                                                                                          ^
+     33|   });
+     34|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/components/study-now-creator.test.ts > StudyNowCreator request summary > honors a direct 40-minute request without rounding up
+AssertionError: expected 25 to be 40 // Object.is equality
+
+- Expected
++ Received
+
+- 40
++ 25
+
+ ❯ src/components/study-now-creator.test.ts:32:106
+     30| describe("StudyNowCreator request summary", () => {
+     31|   it.each([20, 40, 17])("honors a direct %i-minute request without rou…
+     32|     expect(studyNowAvailableMinutes(`Help me understand the product ru…
+       |                                                                                                          ^
+     33|   });
+     34|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/components/study-now-creator.test.ts > StudyNowCreator request summary > honors a direct 17-minute request without rounding up
+AssertionError: expected 25 to be 17 // Object.is equality
+
+- Expected
++ Received
+
+- 17
++ 25
+
+ ❯ src/components/study-now-creator.test.ts:32:106
+     30| describe("StudyNowCreator request summary", () => {
+     31|   it.each([20, 40, 17])("honors a direct %i-minute request without rou…
+     32|     expect(studyNowAvailableMinutes(`Help me understand the product ru…
+       |                                                                                                          ^
+     33|   });
+     34|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/components/study-now-creator.test.ts > StudyNowCreator request summary > preserves a seeded ceiling and lets an edited explicit duration replace it
+AssertionError: expected 15 to be 20 // Object.is equality
+
+- Expected
++ Received
+
+- 20
++ 15
+
+ ❯ src/components/study-now-creator.test.ts:36:113
+     34|
+     35|   it("preserves a seeded ceiling and lets an edited explicit duration …
+     36|     expect(studyNowAvailableMinutes("Help me understand the product ru…
+       |                                                                                                                 ^
+     37|     expect(studyNowAvailableMinutes("Help me understand the product ru…
+     38|     expect(studyNowAvailableMinutes("Help me understand the product ru…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 7 passed (11)
+   Start at  16:03:23
+   Duration  421ms (transform 178ms, setup 0ms, import 337ms, tests 14ms, environment 0ms)

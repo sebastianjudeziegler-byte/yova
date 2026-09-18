@@ -124,6 +124,9 @@ export type CalendarSessionStartTarget = {
 export type CalendarScreenProps = {
   accountId: string;
   initialCalendarDescription?: string | null;
+  initialOpenEvent?: boolean;
+  onEventOpened?: () => void;
+  onStartLearningPlan?: () => void;
   onCalendarDescriptionConsumed?: () => void;
   plans: LearningPlan[];
   milestones: DeadlineMilestone[];
@@ -152,10 +155,16 @@ export type CalendarScreenProps = {
   onAskAdjust?: () => void;
 };
 
+export function newCalendarEvent(now: Date): ManualCalendarEvent {
+  return { id: makeUuid(), title: "", eventType: "personal", startsAt: now.toISOString(), endsAt: new Date(now.getTime() + DEFAULT_EVENT_MINUTES * 60000).toISOString(), dueAt: null, fixed: false, deadlineOnly: false, done: false, courseId: null, courseLabel: null, outcomeId: null, createdAt: now.toISOString(), updatedAt: now.toISOString() };
+}
+
 export function CalendarScreen(props: CalendarScreenProps) {
   const {
     accountId,
     initialCalendarDescription,
+    initialOpenEvent,
+    onEventOpened,
     onCalendarDescriptionConsumed,
     plans,
     milestones,
@@ -178,6 +187,8 @@ export function CalendarScreen(props: CalendarScreenProps) {
     onConvertMilestone,
     onSkipSession,
   } = props;
+  const [newEvent, setNewEvent] = useState<ManualCalendarEvent | null>(() => initialOpenEvent ? newCalendarEvent(new Date()) : null);
+  useEffect(() => { if (initialOpenEvent) onEventOpened?.(); }, [initialOpenEvent, onEventOpened]);
   const [calendarState, setCalendarState] = useState<CalendarPrototypeState>(() => (
     emptyCalendarPrototypeState(accountId)
   ));
@@ -1248,10 +1259,15 @@ export function CalendarScreen(props: CalendarScreenProps) {
         title="Plan the work that gets you there"
         description={calendarDescription}
       />
-      <button className="button primary agenda-add-button" type="button" onClick={() => onOpenAdd()}>
-        <Plus size={18} /> Add to YOVA
+      <button className="button primary agenda-add-button" type="button" onClick={() => { setActionError(null); setNewEvent(newCalendarEvent(new Date())); }}>
+        <Plus size={18} /> Add event
       </button>
     </div>
+    {newEvent && <section className="section-block" aria-label="New calendar event"><h2>Add an event</h2><button className="button ghost" onClick={() => { setNewEvent(null); props.onStartLearningPlan?.(); }}>Start a learning plan instead</button>{stateLoaded ? <ManualEventEditor key={newEvent.id} event={newEvent} mode="create" onCancel={() => setNewEvent(null)} onSave={async (_before, after) => {
+      const saved = await commitCalendarState(current => ({ ...current, manualEvents: [...current.manualEvents, after], changeLog: appendChange(current.changeLog, manualChangeEntry({ before: null, after }, `Added ${after.title} to the calendar.`)) }));
+      if (!saved) throw new Error("The event could not be saved. Your entries are kept; try again.");
+      setNewEvent(null); setSelectedBlockId(firstCalendarBlockId(after));
+    }} /> : <p role="status">Opening your calendar…</p>}</section>}
     {actionError && !selectedBlock && !quickAddDraft && <div className="chat-error calendar-action-error" role="alert">
       <AlertCircle size={16} />
       <span>{actionError}</span>

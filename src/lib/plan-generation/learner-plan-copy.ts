@@ -76,7 +76,7 @@ export function personalizedMethodReason({ request, session, proposed }: {
 export function startingDifficultyRationale(request: PlanGenerationRequest) {
   const ids = startingDifficultyTopicIds(request);
   const names = request.knowledgeMap?.topics.filter(topic => ids.has(topic.id) && !topic.deferred).map(topic => topic.title) ?? [];
-  return names.length ? ` You said ${wordBoundedText(names.join(", "), 150)} was difficult, so it comes earlier after its prerequisites, with extra study time where capacity allows.` : "";
+  return names.length ? ` You said ${wordBoundedText(names.join(", "), 150)} was difficult, so it comes earlier after its prerequisites.` : "";
 }
 
 export function normalPlanAmountLabel(topicCount: number, evidenceCount: number, minutes: number) {

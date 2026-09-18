@@ -5,13 +5,14 @@ import { rankPlansForHome } from "@/lib/learning/home-recommendations";
 const now = new Date("2026-08-07T17:00:00-07:00");
 
 describe("home recommendation ranking", () => {
-  it("places overdue work first, then urgent deadlines, then the next scheduled session", () => {
+  it("places overdue practice first, then the nearest deadline, then the next scheduled session", () => {
     const plans = [
       plan("later", "2026-08-10T18:00:00-07:00", null),
       plan("urgent", "2026-08-08T18:00:00-07:00", "2026-08-09T17:00:00-07:00"),
       plan("overdue", "2026-08-06T18:00:00-07:00", null),
     ];
 
+    plans[2]!.sessions[0]!.learningMode="study";
     expect(rankPlansForHome(plans, now).map((item) => item.id)).toEqual([
       "overdue",
       "urgent",
@@ -19,6 +20,21 @@ describe("home recommendation ranking", () => {
     ]);
   });
 
+  it("puts overdue practice before a closer deadline, and a closer deadline before overdue teaching",()=>{
+    const practice=plan("practice","2026-08-06T18:00:00-07:00",null);
+    practice.sessions[0]!.learningMode="study";
+    const teaching=plan("teaching","2026-08-06T18:00:00-07:00",null);
+    const deadline=plan("deadline","2026-08-08T18:00:00-07:00","2026-08-20T17:00:00-07:00");
+    expect(rankPlansForHome([teaching,deadline,practice],now).map(p=>p.id)).toEqual(["practice","deadline","teaching"]);
+  });
+  it("uses Q1 energy to choose between today's equally urgent plans",()=>{
+    const clock=new Date("2026-08-08T19:00:00Z");
+    const learn=plan("learn","2026-08-08T20:00:00Z",null);
+    const practice=plan("practice","2026-08-08T19:30:00Z",null);practice.sessions[0]!.learningMode="study";
+    const answers={version:1 as const,answers:{energy_window:"evening"},legacy:{}};
+    expect(rankPlansForHome([practice,learn],clock,answers)[0]?.id).toBe("learn");
+    expect(rankPlansForHome([learn,practice],clock,{...answers,answers:{energy_window:"morning"}})[0]?.id).toBe("practice");
+  });
   it("omits plans that do not have a ready session", () => {
     const complete = plan("complete", "2026-08-06T18:00:00-07:00", null);
     complete.sessions[0].status = "complete";

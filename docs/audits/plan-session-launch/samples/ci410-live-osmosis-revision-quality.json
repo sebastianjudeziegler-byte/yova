@@ -1,0 +1,141 @@
+[
+  {
+    "label": "incorrect",
+    "input": {
+      "requestId": "e5d6f2e5-945f-4e23-b139-ef4b4efe060c",
+      "recoveryKey": "cb8aeb74-a24a-49d9-848d-e926b88f94f3",
+      "planId": "21312e40-6351-4a2b-b665-e32da5edce42",
+      "planSessionId": "e4e139f3-07f8-4833-a0ad-efbc6a2ead62",
+      "topic": {
+        "id": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
+        "title": "Osmosis",
+        "description": "Predict net water movement from water potential and explain the role of a partially permeable membrane.",
+        "subtopics": [
+          "Water potential",
+          "Membrane permeability",
+          "Plant cell turgor"
+        ],
+        "taskType": "conceptual_learning",
+        "learningGoal": "Prepare for A-level Biology application questions: predict the effect of unfamiliar conditions on water movement and justify the mechanism."
+      },
+      "modifiers": {
+        "instructionStyle": "standard",
+        "questionMix": {
+          "recall": 6,
+          "application": 12,
+          "compare_contrast": 6,
+          "prediction": 0,
+          "misconception": 0
+        },
+        "produceStep": "typed_explanation",
+        "explanationFocus": "concept",
+        "questionCap": 24,
+        "questionTarget": 24,
+        "workloadBounded": true
+      },
+      "tips": [],
+      "action": "compare",
+      "produced": "Water moves from the more concentrated solution to the more dilute solution across the membrane.",
+      "reference": {
+        "excerpts": [
+          {
+            "label": "Teaching notes",
+            "text": "Osmosis is the net movement of water across a partially permeable membrane from higher water potential to lower water potential. In dilute solutions under the same pressure, increasing solute concentration lowers water potential. Water therefore moves from the more dilute solution toward the more concentrated solution. The solute cannot cross the membrane."
+          }
+        ],
+        "keyPoints": []
+      },
+      "revision": {
+        "originalProduced": "Water moves by osmosis from higher solute concentration to lower solute concentration.",
+        "originalComparison": {
+          "feedback": "The direction of water movement is reversed.",
+          "missing": [],
+          "incorrect": [
+            "Water moves toward lower water potential, not away from it."
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "output": {
+      "action": "compare",
+      "feedback": "You still have the direction reversed: water moves from the more dilute solution (higher water potential) to the more concentrated solution (lower water potential), across a partially permeable membrane. You also did not state that this is net movement or that water potential is the key reason for the movement.",
+      "missing": [
+        "higher water potential to lower water potential",
+        "partially permeable membrane",
+        "net movement of water",
+        "solute cannot cross the membrane"
+      ],
+      "incorrect": [
+        "Water moves from the more concentrated solution to the more dilute solution."
+      ],
+      "tips": []
+    }
+  },
+  {
+    "label": "correct",
+    "input": {
+      "requestId": "fda195f2-abd7-4173-bcde-4466021df266",
+      "recoveryKey": "ec723f1a-5cf7-408d-8dc1-ca466b6dc7ea",
+      "planId": "67e7d6a5-2703-4535-8e53-a23a4284821b",
+      "planSessionId": "9b66cab5-1d32-44df-8d62-e0d2afdc72fa",
+      "topic": {
+        "id": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
+        "title": "Osmosis",
+        "description": "Predict net water movement from water potential and explain the role of a partially permeable membrane.",
+        "subtopics": [
+          "Water potential",
+          "Membrane permeability",
+          "Plant cell turgor"
+        ],
+        "taskType": "conceptual_learning",
+        "learningGoal": "Prepare for A-level Biology application questions: predict the effect of unfamiliar conditions on water movement and justify the mechanism."
+      },
+      "modifiers": {
+        "instructionStyle": "standard",
+        "questionMix": {
+          "recall": 6,
+          "application": 12,
+          "compare_contrast": 6,
+          "prediction": 0,
+          "misconception": 0
+        },
+        "produceStep": "typed_explanation",
+        "explanationFocus": "concept",
+        "questionCap": 24,
+        "questionTarget": 24,
+        "workloadBounded": true
+      },
+      "tips": [],
+      "action": "compare",
+      "produced": "Across a partially permeable membrane, net water movement is from higher to lower water potential. Under equal pressure, that means from the more dilute side to the more concentrated side; the solute cannot cross.",
+      "reference": {
+        "excerpts": [
+          {
+            "label": "Teaching notes",
+            "text": "Osmosis is the net movement of water across a partially permeable membrane from higher water potential to lower water potential. In dilute solutions under the same pressure, increasing solute concentration lowers water potential. Water therefore moves from the more dilute solution toward the more concentrated solution. The solute cannot cross the membrane."
+          }
+        ],
+        "keyPoints": []
+      },
+      "revision": {
+        "originalProduced": "Water moves by osmosis from higher solute concentration to lower solute concentration.",
+        "originalComparison": {
+          "feedback": "The direction of water movement is reversed.",
+          "missing": [],
+          "incorrect": [
+            "Water moves toward lower water potential, not away from it."
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "output": {
+      "action": "compare",
+      "feedback": "You now describe the correct water potential gradient and the dilute-to-concentrated direction under equal pressure, and you include the partially permeable membrane and the fact that solute cannot cross. No clear gaps remain from the original statement.",
+      "missing": [],
+      "incorrect": [],
+      "tips": []
+    }
+  }
+]

@@ -33,7 +33,7 @@ describe("deployed signed-in generation readiness", () => {
 
   it("reports ready only after the service-only database contract passes", async () => {
     await expect(signedInGenerationReadinessStatus()).resolves.toBe("ready");
-    expect(mocks.rpc).toHaveBeenCalledWith("signed_in_generation_readiness_v5");
+    expect(mocks.rpc).toHaveBeenCalledWith("signed_in_generation_readiness_v6");
   });
 
   // The deployed app must not advertise readiness against a database that
@@ -43,6 +43,28 @@ describe("deployed signed-in generation readiness", () => {
       data: { ...completeReadinessPayload(), livingPlanRevision: false },
       error: null,
     });
+    await expect(signedInGenerationReadinessStatus()).resolves.toBe("unavailable");
+  });
+
+  it("fails closed if the deployed writers cannot round-trip topic workloads", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { ...completeReadinessPayload(), topicPlanWorkloads: false }, error: null });
+    await expect(signedInGenerationReadinessStatus()).resolves.toBe("unavailable");
+  });
+
+  it.each([false, undefined])("fails closed when owner-scoped session reads are %s", async planSessionReads => {
+    mocks.rpc.mockResolvedValueOnce({ data: { ...completeReadinessPayload(), planSessionReads }, error: null });
+    await expect(signedInGenerationReadinessStatus()).resolves.toBe("unavailable");
+  });
+
+  it.each([false, undefined])("fails closed when atomic segment receipts are %s", async topicSegmentCompletions => {
+    mocks.rpc.mockResolvedValueOnce({ data: { ...completeReadinessPayload(), topicSegmentCompletions }, error: null });
+    await expect(signedInGenerationReadinessStatus()).resolves.toBe("unavailable");
+  });
+
+  // A database that still reports permanent completion conflicts as
+  // serialization failures leaves Finish hanging, so it is not ready.
+  it.each([false, undefined])("fails closed when answered completion conflicts are %s", async permanentConflictsAnswer => {
+    mocks.rpc.mockResolvedValueOnce({ data: { ...completeReadinessPayload(), permanentConflictsAnswer }, error: null });
     await expect(signedInGenerationReadinessStatus()).resolves.toBe("unavailable");
   });
 
@@ -107,5 +129,7 @@ function completeReadinessPayload() {
       placementEvidenceBoundary: true,
       unansweredCompletionFeedback: true,
       livingPlanRevision: true,
+      topicPlanWorkloads: true,
+      planSessionReads: true, topicSegmentCompletions: true, permanentConflictsAnswer: true,
   };
 }

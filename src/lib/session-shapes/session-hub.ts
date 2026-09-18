@@ -2,6 +2,7 @@ import type { ProduceStep, SessionRoute } from "@/lib/routing/session-route";
 import type { TipStep } from "@/lib/session-shapes/session-tips";
 import type { ShapeAState, ShapeAStepKind } from "@/lib/session-shapes/shape-a";
 import type { ShapeCState } from "@/lib/session-shapes/shape-c";
+import type { TopicWorkload } from "@/lib/plan-generation/topic-plan-contract";
 
 /**
  * What the session hub's rail shows (Brief 1.5 item 6; handoff
@@ -18,6 +19,7 @@ export type HubRailInput = {
   cState: ShapeCState;
   atEnd: boolean;
   inQuestions: boolean;
+  workload?: TopicWorkload;
 };
 
 /** Splits the timer across steps by weight (largest remainder), so the rows add up to the session's timer. */
@@ -61,7 +63,7 @@ function studyRow(route: SessionRoute): Omit<HubRow, "minutes" | "status"> {
 
 const END_ROW = { key: "end", label: "Session complete", blurb: "What's next, and what changed." } as const;
 
-export function hubRail({ route, aState, cState, atEnd, inQuestions }: HubRailInput): HubRail {
+export function hubRail({ route, aState, cState, atEnd, inQuestions, workload }: HubRailInput): HubRail {
   const handoff = route.shape === "A" && route.produceStep === "retrieval_questions";
   let rows: Array<Omit<HubRow, "minutes" | "status">>;
   let current: TipStep;
@@ -92,6 +94,11 @@ export function hubRail({ route, aState, cState, atEnd, inQuestions }: HubRailIn
     const step = aState.steps[aState.index];
     current = atEnd ? "end" : step ? SHAPE_A_KIND_KEY[step.kind] : "study";
     kicker = route.produceBeforeStudy ? "SHAPE A · PRODUCE → STUDY → COMPARE → REPAIR" : "SHAPE A · STUDY → PRODUCE → COMPARE → REPAIR";
+    if (workload && workload.questionCount > 0) {
+      rows.splice(rows.length - 1, 0, { key: "questions", label: `Practice · ${workload.questionCount} questions`, blurb: "Apply what you studied without the source." }, { key: "round", label: "Round review", blurb: "Only missed points need another try." });
+      if (inQuestions && !atEnd) current = cState.phase === "round_complete" ? "round" : "questions";
+      kicker += " → PRACTICE";
+    }
   }
   const currentIndex = Math.max(0, rows.findIndex((row) => row.key === current));
   const timed = rows.filter((row) => row.key !== "end");
@@ -100,7 +107,9 @@ export function hubRail({ route, aState, cState, atEnd, inQuestions }: HubRailIn
     kicker,
     rows: rows.map((row, index) => ({
       ...row,
-      minutes: row.key === "end" ? null : minutes[timed.indexOf(row)] ?? null,
+      // Persisted workload owns the estimate. Do not invent per-step times by
+      // stretching a generic profile timer over the content.
+      minutes: workload ? (row.key === "study" || row.key === "brief" ? workload.sourceReadMinutes || null : null) : row.key === "end" ? null : minutes[timed.indexOf(row)] ?? null,
       status: index < currentIndex ? "done" : index === currentIndex ? "current" : "future",
     })),
     tipStep: current,

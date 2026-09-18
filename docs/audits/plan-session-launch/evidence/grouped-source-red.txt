@@ -1,0 +1,25 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/components/plan-setup-flow.test.ts (8 tests | 1 failed) 65ms
+     × keeps attached topic URLs accessible and identifies attached files in the grouped plan 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/plan-setup-flow.test.ts > functional plan setup and grouped view > keeps attached topic URLs accessible and identifies attached files in the grouped plan
+AssertionError: expected '<section class="generated-plan" aria-…' to contain 'href="https://example.com/cell-transp…'
+
+Expected: "href="https://example.com/cell-transport""
+Received: "<section class="generated-plan" aria-label="Plan grouped by topic"><header class="generated-heading"><div><span class="eyebrow">YOUR PLAN</span><h1>Cell transport</h1><p>No fixed deadline</p><strong>2 blocks · 1 done</strong></div></header><p class="why-plan" data-rule-ids="P2.q10.long_plan_shutdown">Your next block is shown first because long plans feel overwhelming.</p><p class="material-notice" role="status">Your next available day is after tomorrow.</p><div class="plan-activation"><div><strong>Next: Practice osmosis</strong><p>Active Recall · ~18 min</p></div></div><div class="plan-revision-actions"><button class="button secondary">Add material</button><button class="button ghost">Edit plan</button></div><article data-topic-id="22222222-2222-4222-8222-222222222222" class="generated-topic-map"><details><summary><strong>Osmosis</strong> · 1 block</summary><ol><li data-block-id="22222222-2222-4222-8222-222222222222"><strong>Practice osmosis</strong><p>Active Recall · ~18 min</p><small>Suggested: Fri 18 Sept</small></li></ol></details></article><details><summary>1 more topic</summary><article data-topic-id="11111111-1111-4111-8111-111111111111" class="generated-topic-map"><details><summary><strong>✓ Diffusion</strong> · 1 block · Complete</summary><p>Split into 2 blocks — 5 subtopics</p><ol><li data-block-id="11111111-1111-4111-8111-111111111111"><strong>Learn diffusion</strong><p>Concept Mapping · ~12 min</p><small>Complete</small></li></ol></details></article></details></section>"
+
+ ❯ src/components/plan-setup-flow.test.ts:46:16
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  16:21:22
+   Duration  851ms (transform 467ms, setup 0ms, import 714ms, tests 65ms, environment 0ms)
+

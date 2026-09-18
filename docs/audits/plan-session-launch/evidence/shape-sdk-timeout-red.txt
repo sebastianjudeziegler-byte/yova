@@ -1,0 +1,38 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/openai/shape-slot-provider.test.ts (6 tests | 1 failed) 12ms
+     × distinguishes a timeout from a deadline refusal without logging error messages 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/shape-slot-provider.test.ts > shape provider route budget > distinguishes a timeout from a deadline refusal without logging error messages
+AssertionError: expected [ { stage: 'provider', …(8) }, …(1) ] to deeply equal [ Array(2) ]
+
+- Expected
++ Received
+
+@@ -1,10 +1,10 @@
+  [
+    {
+      "callId": 1,
+      "elapsedMs": 20000,
+-     "outcome": "timeout",
++     "outcome": "error",
+      "remainingBudgetMs": 30000,
+      "schemaName": "test_shape",
+      "stage": "provider",
+      "timeoutMs": 20000,
+      "totalElapsedMs": 20000,
+
+ ❯ src/lib/openai/shape-slot-provider.test.ts:51:61
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+   Start at  19:00:38
+   Duration  338ms (transform 101ms, setup 0ms, import 236ms, tests 12ms, environment 0ms)
+

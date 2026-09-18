@@ -20,6 +20,7 @@ import {
   type SessionDeliveryPolicy,
 } from "@/lib/personalization/session-delivery-policy";
 import { validateVisibleAdaptation } from "@/lib/personalization/visible-adaptation";
+import { UNSUPPORTED_LEARNER_CLAIM_PATTERN } from "@/evals/session-claim-evidence";
 
 export type SessionQualityCheck = {
   id: string;
@@ -134,7 +135,7 @@ export function evaluateSessionDraft(
       activity.type === "instruction"
       && /your (textbook|notes|source|materials?)|open (the|your)|on paper|draft|write/i.test(activity.body)
     ));
-  const noOverclaim = !/learns? best|learning style|brain type|visual learner|auditory learner|kinesthetic learner|because (you have|of your) adhd|diagnos(?:is|ed|e)\b/i.test(combined);
+  const noOverclaim = !UNSUPPORTED_LEARNER_CLAIM_PATTERN.test(combined);
   const visiblePersonalization = draft.methodBriefing.personalization.length >= 1
     // Policy-backed decision copy need not contain a fixed vocabulary. The
     // provenance validator below still rejects unsupported learner claims.

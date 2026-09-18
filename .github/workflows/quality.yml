@@ -114,7 +114,7 @@ jobs:
           YOVA_MIGRATED_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY" \
           YOVA_MIGRATED_SUPABASE_SECRET_KEY="$SERVICE_ROLE_KEY" \
           YOVA_MIGRATED_DB_CONTAINER="$(docker ps --filter name=supabase_db --format '{{.Names}}' | head -1)" \
-          pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.migrated.test.ts \
+          pnpm exec vitest run src/app/api/plans/adjust/living-plan-route.migrated.test.ts src/lib/sync/baseline-completion.migrated.test.ts \
             2>&1 | tee "$RUNNER_TEMP/migrated-route.log" || {
               {
                 echo '### Migrated route test failed'
@@ -131,6 +131,7 @@ jobs:
         run: pnpm exec supabase stop --no-backup
 
       - name: Install isolated browser
+        if: ${{ !cancelled() }}
         run: |
           # The hosted image includes a Google Chrome apt source unrelated to
           # Playwright's pinned Chromium download. Its inconsistent metadata
@@ -183,35 +184,27 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm build
 
-      - name: Run core learner journey
-        if: ${{ !cancelled() }}
-        continue-on-error: ${{ github.head_ref == 'codex/brief-b-living-plan' }}
-        run: pnpm test:e2e --reporter=list,json
-        env:
-          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/browser.json
-
-      - name: Preserve core and founder browser evidence
-        if: always()
-        run: |
-          if test -d test-results; then cp -R test-results artifacts/quality/core-browser; fi
-
-      # Baseline session shapes (docs/redesign): the flag-on server and its
-      # own cases, kept separate so the pre-baseline suite above runs
-      # unchanged and this step's result is visible on its own.
-      - name: Run baseline session journey
-        if: ${{ !cancelled() }}
-        run: pnpm test:e2e:baseline --reporter=list,json
-        env:
-          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/baseline-browser.json
-
-      - name: Preserve baseline browser evidence
-        if: always()
-        run: |
-          if test -d test-results; then cp -R test-results artifacts/quality/baseline-browser; fi
-
+      # Exercise changed session/model paths first so their failures are
+      # visible before the larger unchanged learner-journey suite finishes.
       # Brief 1.5 item 1: live, unmocked practice retries (one and two missed
       # points) to completion on desktop and mobile. Same-repository runs only,
       # where the model key exists; a missing key fails instead of skipping.
+      - name: Verify live MCQ answer review and full 32-question generation
+        if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        run: pnpm exec vitest run src/evals/practice-answer-quality.live.test.ts src/evals/practice-32-quality.live.test.ts --maxWorkers=1
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_RUN_LIVE_PRACTICE_QUALITY: "1"
+
+      - name: Retain synthetic generation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: session-generation-diagnostics-${{ github.run_id }}
+          path: artifacts/quality/practice-32-synthetic-trace.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Run live baseline practice retries
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
         run: |
@@ -234,6 +227,56 @@ jobs:
         if: always()
         run: |
           if test -d test-results; then cp -R test-results artifacts/quality/baseline-live-practice; fi
+
+      # Retain the real generated samples and replays immediately, so they
+      # can be reviewed while the broader browser gates continue.
+      - name: Upload live session evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: session-launch-live-${{ github.run_id }}
+          path: |
+            artifacts/quality/baseline-live-practice.json
+            artifacts/quality/baseline-live-practice
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Baseline session shapes (docs/redesign): the flag-on server and its
+      # own cases, kept separate from the unchanged pre-baseline suite so
+      # this step's result is visible on its own.
+      - name: Run baseline session journey
+        if: ${{ !cancelled() }}
+        run: pnpm test:e2e:baseline --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/baseline-browser.json
+
+      - name: Preserve baseline browser evidence
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/quality/baseline-browser; fi
+
+      - name: Upload session recovery recordings separately
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: session-launch-recovery-${{ github.run_id }}
+          path: |
+            artifacts/quality/baseline-browser.json
+            artifacts/quality/baseline-browser/baseline-session-launch-*
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Run core learner journey
+        if: ${{ !cancelled() }}
+        continue-on-error: ${{ github.head_ref == 'codex/brief-b-living-plan' }}
+        run: pnpm test:e2e --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: artifacts/quality/browser.json
+
+      - name: Preserve core and founder browser evidence
+        if: always()
+        run: |
+          if test -d test-results; then cp -R test-results artifacts/quality/core-browser; fi
 
       - name: Run public authentication journey
         if: ${{ !cancelled() }}

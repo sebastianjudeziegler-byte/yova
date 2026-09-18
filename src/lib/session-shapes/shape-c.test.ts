@@ -9,6 +9,8 @@ import {
   lastShapeCAnswer,
   shapeCReducer,
   shapeCTotals,
+  shapeCKeyPointOutcomes,
+  shapeCPartPosition,
   type ShapeCState,
 } from "./shape-c";
 
@@ -122,6 +124,26 @@ describe("Shape C reducer", () => {
     expect(shapeCReducer(state, { type: "start_next_round" })).toBe(state);
   });
 
+  it("retains passed points at the retry ceiling and attributes points to their own topic", () => {
+    let state = initialShapeCState(route());
+    state = shapeCReducer(state, { type: "questions_ready", questions: [question("first", "passed"), question("second", "missed")] });
+    state = answerAll(state, (item) => item.id === "first" ? 0 : 3);
+    for (let round = 2; round <= 3; round += 1) {
+      state = shapeCReducer(state, { type: "start_next_round" });
+      state = shapeCReducer(state, { type: "questions_ready", questions: [question(`retry-${round}`, "missed")] });
+      state = answerAll(state, () => 3);
+    }
+    expect(state.phase).toBe("escalate");
+    expect(shapeCKeyPointOutcomes(state, [
+      { id: "passed", text: "A point already passed", sourceTopicId: "10000000-0000-4000-8000-000000000001" },
+      { id: "missed", text: "A point still unresolved", sourceTopicId: "10000000-0000-4000-8000-000000000002" },
+      { id: "untested", text: "A point not in the round" },
+    ])).toEqual([
+      { keyPointId: "passed", text: "A point already passed", sourceTopicId: "10000000-0000-4000-8000-000000000001", outcome: "secure" },
+      { keyPointId: "missed", text: "A point still unresolved", sourceTopicId: "10000000-0000-4000-8000-000000000002", outcome: "needs_review" },
+    ]);
+  });
+
   it("forget_during_tests raises the ceiling to four rounds", () => {
     let state = initialShapeCState(route({}, { extra_context: "forget_during_tests" }));
     expect(state.roundCeiling).toBe(4);
@@ -145,5 +167,73 @@ describe("Shape C reducer", () => {
     expect(state.phase).toBe("loading");
     state = shapeCReducer(state, { type: "questions_ready", questions: [] });
     expect(state.phase).toBe("failed");
+  });
+});
+
+// Founder decision (18 Sept 2026, option B): a long first pass is one sitting in
+// parts of at most eight, built up from recall. The next part is prepared while
+// the learner answers, so it is usually waiting; the round is judged only after
+// its last part, and missed-point repair still follows the whole pass.
+describe("Shape C first pass in parts", () => {
+  const longRoute = () => ({ ...route(), questionTarget: 24, questionCap: 24 });
+  const part = (from: number, points: string[]) => Array.from({ length: 8 }, (_, index) => question(`q${from + index}`, points[index % points.length]!));
+  const first = () => shapeCReducer(initialShapeCState(longRoute()), { type: "questions_ready", questions: part(1, ["k1", "k2"]) });
+
+  it("plans three parts for a 24-question pass and one for a short one", () => {
+    expect(initialShapeCState(longRoute()).firstPassParts).toBe(3);
+    expect(initialShapeCState(route()).firstPassParts).toBe(1);
+  });
+
+  it("appends a part that is already waiting, without a gap and without judging the round early", () => {
+    let state = first();
+    state = shapeCReducer(state, { type: "part_ready", questions: part(9, ["k3"]) });
+    expect(state.phase).toBe("question");
+    state = answerAll(state, () => 0);
+    expect(state.rounds).toHaveLength(1);
+    expect(state.rounds[0]!.questions).toHaveLength(16);
+    expect(state.phase).toBe("part_loading");
+    expect(state.outstandingKeyPointIds).toEqual(expect.arrayContaining(["k1", "k2", "k3"]));
+  });
+
+  it("waits for a part that has not arrived, then carries on in the same round", () => {
+    let state = answerAll(first(), () => 0);
+    expect(state.phase).toBe("part_loading");
+    state = shapeCReducer(state, { type: "part_ready", questions: part(9, ["k3"]) });
+    expect(state.phase).toBe("question");
+    expect(state.partsDelivered).toBe(2);
+    expect(currentShapeCQuestion(state)!.id).toBe("q9");
+    expect(shapeCPartPosition(state, 8)).toEqual({ part: 2, parts: 3, question: 1, questionsInPart: 8, lastInPart: false });
+    expect(shapeCPartPosition(state, 7)).toMatchObject({ part: 1, question: 8, lastInPart: true });
+  });
+
+  it("judges the round only after the last part, then repairs only what was missed", () => {
+    let state = first();
+    state = shapeCReducer(state, { type: "part_ready", questions: part(9, ["k3"]) });
+    state = answerAll(state, (current) => current.id === "q2" ? 1 : 0);
+    state = shapeCReducer(state, { type: "part_ready", questions: part(17, ["k4"]) });
+    state = answerAll(state, () => 0);
+    expect(state.rounds).toHaveLength(1);
+    expect(state.rounds[0]!.answers).toHaveLength(24);
+    expect(state.phase).toBe("round_complete");
+    expect(state.outstandingKeyPointIds).toEqual(["k2"]);
+    expect(shapeCTotals(state)).toEqual({ correct: 23, total: 24 });
+  });
+
+  it("shows a failed part as an honest error only when the learner reaches it, and Try again asks again", () => {
+    let state = shapeCReducer(first(), { type: "part_failed", message: "YOVA couldn't build this." });
+    expect(state.phase).toBe("question");
+    state = answerAll(state, () => 0);
+    expect(state.phase).toBe("failed");
+    expect(state.error).toBe("YOVA couldn't build this.");
+    state = shapeCReducer(state, { type: "continue" });
+    expect(state.phase).toBe("part_loading");
+    expect(state.rounds[0]!.answers).toHaveLength(8);
+  });
+
+  it("keeps a saved session from before parts working as a single-part pass", () => {
+    const saved = { ...first() } as Partial<ShapeCState>;
+    delete saved.firstPassParts; delete saved.partsDelivered;
+    const state = answerAll(saved as ShapeCState, () => 0);
+    expect(state.phase).toBe("done");
   });
 });

@@ -1,3 +1,4 @@
+import { materialUnderstandingForPlan } from "@/lib/plan-generation/plan-material-understanding";
 import "server-only";
 import type { LearningPlan } from "@/lib/domain";
 import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
@@ -77,6 +78,8 @@ function buildPlanPersistencePayload(
 ) {
   const generationInputs = {
     planRevisionId: plan.revisionId ?? plan.id,
+    materialUnderstandingOverrides: materialUnderstandingForPlan(plan.materials),
+    ...(plan.planModel ? { planModel: plan.planModel } : {}),
     intent: request.intent,
     learningIntent: request.learningIntent,
     sessionArchitectureVersion: resolveSessionArchitectureVersion(plan, plan.knowledgeMap),

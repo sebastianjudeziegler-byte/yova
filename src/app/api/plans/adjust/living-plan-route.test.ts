@@ -64,6 +64,15 @@ function contextFor(plan = deterministicDeltaPlan(1), profile: 1 | 2 = 1) {
   return { kind: "draft", plan, generationRequest, draftReceipt: receipt };
 }
 
+// Existing saved plans have no topic-plan marker. Keep their duration and
+// capacity compatibility separate from the new complete topic queue.
+function legacyPlan() {
+  const plan = structuredClone(deterministicDeltaPlan(1));
+  delete plan.planModel;
+  plan.sessions.forEach(session => { delete session.workload; });
+  return plan;
+}
+
 async function preview(operations: Operation[], options: {
   context?: ReturnType<typeof contextFor>;
   controls?: Record<string, unknown>;
@@ -226,8 +235,8 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(body.proposal.generationRequest.availability[0].minutes).toBe(150);
   });
 
-  it("an impossible deadline produces capacity choices without claiming a saved update", async () => {
-    const { response, body } = await preview([{ op: "set_deadline", iso: "2026-09-07T08:02:00.000Z" }]);
+  it("a legacy impossible deadline produces capacity choices without claiming a saved update", async () => {
+    const { response, body } = await preview([{ op: "set_deadline", iso: "2026-09-07T08:02:00.000Z" }], { context: contextFor(legacyPlan()) });
     expect(response.status, JSON.stringify(body)).toBe(200);
     expect(body.status).toBe("preview");
     expect(body.proposal.capacity.status).toBe("insufficient");
@@ -351,17 +360,31 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(body).not.toHaveProperty("receipt");
   });
 
-  it("reports a draft's activation capacity before requesting provider copy", async () => {
+  it("reports a legacy draft's activation capacity before requesting provider copy", async () => {
+    const additions = Array.from({ length: 14 }, (_, index) => ({
+      op: "add_topic", title: `Membrane investigation ${index + 1}`,
+      description: `Explain membrane transport in experimental setting ${index + 1}.`,
+    }));
+    const { response, body } = await preview(additions, { context: contextFor(legacyPlan()) });
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.proposal.canApply).toBe(false);
+    expect(body.proposal.capacity.status).toBe("insufficient");
+    expect(body.proposal.capacity.choices.map((choice: { label: string }) => choice.label)).toContain("Shorten scope");
+    expect(mocks.fill).not.toHaveBeenCalled();
+  });
+
+  it("reviews a complete topic-plan draft with more than 28 blocks through the signed proposal boundary", async () => {
     const additions = Array.from({ length: 14 }, (_, index) => ({
       op: "add_topic", title: `Membrane investigation ${index + 1}`,
       description: `Explain membrane transport in experimental setting ${index + 1}.`,
     }));
     const { response, body } = await preview(additions);
     expect(response.status, JSON.stringify(body)).toBe(200);
-    expect(body.proposal.canApply).toBe(false);
-    expect(body.proposal.capacity.status).toBe("insufficient");
-    expect(body.proposal.capacity.choices.map((choice: { label: string }) => choice.label)).toContain("Shorten scope");
-    expect(mocks.fill).not.toHaveBeenCalled();
+    expect(body.proposal.canApply).toBe(true);
+    expect(body.proposal.after.sessions.length).toBeGreaterThan(28);
+    expect(body.proposalReceipt).toBeTruthy();
+    expect(mocks.fill).toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("Undo restores the prior draft revision, session copy and placement evidence with valid activation authority", async () => {
@@ -450,8 +473,8 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(topic(restored.plan, ETC).attachedSources).toEqual(topic(before, ETC).attachedSources);
   });
 
-  it("budgets time to study a newly attached source before practice and says so in the preview", async () => {
-    const plan = structuredClone(deterministicDeltaPlan(1));
+  it("budgets time in a legacy plan to study a newly attached source before practice and says so in the preview", async () => {
+    const plan = legacyPlan();
     // Allow an expanded block without asking to move any neighboring session.
     plan.sessions.forEach((session, index) => { session.scheduledFor = new Date(Date.UTC(2026, 8, 8 + index, 9)).toISOString(); });
     const { response, body, before } = await preview([{ op: "attach_source", topic_id: ETC, url: VIDEO }], { context: contextFor(plan) });
@@ -482,25 +505,28 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(result.body.proposal.canApply).toBe(true);
     const revised = firstSession(result.body.proposal.after, ETC);
     expect(revised.learningMode).toBe("study");
-    expect(revised.estimatedMinutes).toBeLessThanOrEqual(session.estimatedMinutes);
+    const acceptedOnly = await preview([{ op: "mark_covered", topic_id: ETC }], { context });
+    expect(acceptedOnly.response.status, JSON.stringify(acceptedOnly.body)).toBe(200);
+    expect(revised.estimatedMinutes).toBe(firstSession(acceptedOnly.body.proposal.after, ETC).estimatedMinutes);
+    expect(revised.studyRoute!.approach).toEqual(firstSession(acceptedOnly.body.proposal.after, ETC).studyRoute!.approach);
     expect(topic(result.body.proposal.after, ETC).attachedSources).toBeUndefined();
   });
 
-  it("reviews a chosen calendar duration even when the availability windows stay the same", async () => {
-    const context = contextFor();
+  it("reviews a legacy chosen calendar duration even when the availability windows stay the same", async () => {
+    const context = contextFor(legacyPlan());
     const session = firstSession(context.plan, ETC);
     const result = await preview([{ op: "set_availability", availability: context.generationRequest.availability }], { context,
       controls: { excludedOperationIndexes: [], sessionEdits: [{ sessionId: session.id, durationMinutes: 15 }] } });
     expect(result.response.status, JSON.stringify(result.body)).toBe(200);
     expect(result.body.proposal.canApply).toBe(true);
-    expect(result.body.proposal.lines[0].before.join(" ")).toContain("25 min");
+    expect(result.body.proposal.lines[0].before.join(" ")).toContain(`${session.estimatedMinutes} min`);
     expect(result.body.proposal.lines[0].after.join(" ")).toContain("15 min");
     expect(result.body.proposal.after.sessions.find((item: { id: string }) => item.id === session.id).estimatedMinutes).toBe(15);
     assertUnchangedOtherSessions(context.plan, result.body.proposal.after, [ETC]);
   });
 
-  it("lets the learner edit the first new topic block before it has a persisted session ID", async () => {
-    const context = contextFor();
+  it("lets the learner edit the first new legacy topic block before it has a persisted session ID", async () => {
+    const context = contextFor(legacyPlan());
     const operations = [{ op: "add_topic", title: "Fermentation comparison", description: "Compare fermentation with aerobic respiration after glycolysis.", after_topic_id: deltaTopicId(5) }];
     const initial = await preview(operations, { context });
     expect(initial.response.status).toBe(200);
@@ -514,6 +540,18 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(updated.estimatedMinutes).toBe(10);
     expect(updated.scheduledFor).toBe(proposed.scheduledFor);
     assertUnchangedOtherSessions(context.plan, edited.body.proposal.after, [], true);
+  });
+
+  it("does not shorten a topic-plan block through legacy duration controls", async () => {
+    const context = contextFor();
+    const session = firstSession(context.plan, ETC);
+    const result = await preview([{ op: "set_availability", availability: context.generationRequest.availability }], { context,
+      controls: { excludedOperationIndexes: [], sessionEdits: [{ sessionId: session.id, durationMinutes: 15 }] } });
+    expect(result.response.status, JSON.stringify(result.body)).toBe(200);
+    expect(result.body.proposal.canApply).toBe(false);
+    expect(result.body.proposal.after.sessions).toEqual(context.plan.sessions);
+    expect(result.body.proposal.capacity.explanation).toMatch(/do not split practice or discard planned work/i);
+    expect(mocks.fill).not.toHaveBeenCalled();
   });
 
   async function activePreview(operations: Operation[], mutate?: (plan: LearningPlan) => void) {

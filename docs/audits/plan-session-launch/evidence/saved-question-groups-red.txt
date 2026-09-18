@@ -1,0 +1,33 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/plan-generation/topic-workload-route.test.ts (3 tests | 1 failed) 61ms
+     × does not move saved recall or transfer work between categories when a posted mix omits a whole group 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/plan-generation/topic-workload-route.test.ts > workload projection preserves task-first question routing > does not move saved recall or transfer work between categories when a posted mix omits a whole group
+AssertionError: expected 10 to be 4 // Object.is equality
+
+- Expected
++ Received
+
+- 4
++ 10
+
+ ❯ src/lib/plan-generation/topic-workload-route.test.ts:24:40
+     22|  it("does not move saved recall or transfer work between categories wh…
+     23|   const mix=questionMixForTopicWorkload({recall:0,misconception:0,appl…
+     24|   expect(mix.recall+mix.misconception).toBe(4);
+       |                                        ^
+     25|   expect(mix.application+mix.prediction+mix.compare_contrast).toBe(6);
+     26|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  18:40:20
+   Duration  590ms (transform 315ms, setup 0ms, import 434ms, tests 61ms, environment 0ms)
+

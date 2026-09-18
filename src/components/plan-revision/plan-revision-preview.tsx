@@ -44,7 +44,8 @@ export function PlanRevisionPreview(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(props.initialDelta.operations.length === 0);
   const [newType, setNewType] = useState<MapDeltaOperation["op"]>(props.initialType ?? "attach_source");
-  const [newTopic, setNewTopic] = useState(props.initialTopicId ?? props.plan.knowledgeMap?.topics.find(topic => !topic.removed)?.id ?? "");
+  const [newTopic, setNewTopic] = useState(props.initialTopicId ?? ((props.initialType ?? "attach_source") === "attach_source" ? "whole_plan" : topicsFirst(props.plan)));
+  const topicChoiceExplicit = useRef(Boolean(props.initialTopicId));
   const [sourceUrl, setSourceUrl] = useState("");
   const [stagedFile, setStagedFile] = useState<{ materialId: string; name: string } | null>(null);
   const [staging, setStaging] = useState(false);
@@ -125,7 +126,9 @@ export function PlanRevisionPreview(props: Props) {
   async function stage(file: File | undefined) {
     if (!file) return;
     setStaging(true); setError(null);
-    try { setStagedFile(await props.onStageFile(file)); setSourceUrl(""); }
+    try { const staged = await props.onStageFile(file); setStagedFile(staged); setSourceUrl("");
+      if (!topicChoiceExplicit.current) { const match = topics.filter(topic => staged.name.toLocaleLowerCase().includes(topic.title.toLocaleLowerCase())); setNewTopic(match.length === 1 ? match[0].id : "whole_plan"); }
+    }
     catch (failure) { setError(failure instanceof Error ? failure.message : "The file could not be attached."); }
     finally { setStaging(false); }
   }
@@ -140,8 +143,20 @@ export function PlanRevisionPreview(props: Props) {
   function addChange() {
     let operation: MapDeltaOperation;
     if (newType === "attach_source") {
-      operation = stagedFile ? { op: "attach_source", topic_id: newTopic, material_id: stagedFile.materialId }
-        : { op: "attach_source", topic_id: newTopic, url: sourceUrl.trim() };
+      const targets = newTopic === "whole_plan" ? topics.map(topic => topic.id) : [newTopic];
+      const additions: MapDeltaOperation[] = targets.map(topic_id => stagedFile ? { op: "attach_source", topic_id, material_id: stagedFile.materialId } : { op: "attach_source", topic_id, url: sourceUrl.trim() });
+      if (delta.operations.length + additions.length > 40) { setError("Attach this material separately so each topic can be updated safely."); return; }
+      const nextDelta = { operations: [...delta.operations, ...additions] };
+      if (props.plan.planModel && delta.operations.length === 0) {
+        setSaving(true); setError(null);
+        void (async () => { try {
+          const signed = await props.onPreview(nextDelta, controls);
+          if (!signed.proposal.canApply) { setError(signed.proposal.capacity.explanation || "This attachment needs review before it can be saved."); return; }
+          await props.onApply(signed);
+        } catch (failure) { setError(failure instanceof Error ? failure.message : "The material could not be attached. Your file and topic choices are kept."); }
+        finally { setSaving(false); } })();
+      } else { setAdding(false); void refresh(nextDelta); }
+      return;
     } else if (newType === "mark_covered" || newType === "remove_topic") {
       operation = { op: newType, topic_id: newTopic };
     } else if (newType === "add_topic") {
@@ -200,10 +215,10 @@ export function PlanRevisionPreview(props: Props) {
     {!adding && <button className="button secondary" type="button" disabled={saving || pending} onClick={() => setAdding(true)}>Add another change</button>}
     {adding && <fieldset disabled={saving || pending || staging}>
       <legend>Add another change</legend>
-      <label>Change type<select value={newType} onChange={event => setNewType(event.target.value as MapDeltaOperation["op"])}>
+      <label>Change type<select value={newType} onChange={event => { const type = event.target.value as MapDeltaOperation["op"]; setNewType(type); if (type !== "attach_source" && newTopic === "whole_plan") setNewTopic(topicsFirst(props.plan)); }}>
         {Object.keys(CHANGE_NAMES).map(type => <option key={type} value={type}>{CHANGE_NAMES[type as MapDeltaOperation["op"]]}</option>)}
       </select></label>
-      {["attach_source", "mark_covered", "remove_topic", "reorder"].includes(newType) && <label>Change topic<select value={newTopic} onChange={event => setNewTopic(event.target.value)}>{topics.map(topic => <option key={topic.id} value={topic.id}>{topic.title}</option>)}</select></label>}
+      {["attach_source", "mark_covered", "remove_topic", "reorder"].includes(newType) && <label>Change topic<select value={newTopic} onChange={event => { topicChoiceExplicit.current = true; setNewTopic(event.target.value); }}>{newType === "attach_source" && <option value="whole_plan">Whole plan</option>}{topics.map(topic => <option key={topic.id} value={topic.id}>{topic.title}</option>)}</select></label>}
       {newType === "attach_source" && <>
         <label>Source URL<input type="url" value={sourceUrl} onChange={event => { setSourceUrl(event.target.value); setStagedFile(null); }} /></label>
         <label>Choose a source file<input type="file" accept={MATERIAL_FILE_ACCEPT} onChange={event => { void stage(event.target.files?.[0]); event.target.value = ""; }} /></label>
@@ -213,10 +228,10 @@ export function PlanRevisionPreview(props: Props) {
       {newType === "add_topic" && <><label>Topic title<input value={newTitle} onChange={event => setNewTitle(event.target.value)} /></label><label>What should this topic cover?<textarea aria-invalid={newDescription.length > 400 || undefined} aria-describedby="revision-description-limit" value={newDescription} onChange={event => setNewDescription(event.target.value)} /><small id="revision-description-limit" role={newDescription.length > 400 ? "alert" : undefined}>{newDescription.length}/400 characters</small></label></>}
       {["add_topic", "reorder"].includes(newType) && <label>After topic<select value={afterTopic} onChange={event => setAfterTopic(event.target.value)}>{topics.map(topic => <option key={topic.id} value={topic.id}>{topic.title}</option>)}</select></label>}
       {newType === "set_deadline" && <label>Deadline<input type="datetime-local" value={deadline} onChange={event => setDeadline(event.target.value)} /></label>}
-      {newType === "set_availability" && <><label>Future session length<select value={shorterMinutes} onChange={event => setShorterMinutes(Number(event.target.value) as typeof shorterMinutes)}>{[10, 15, 25, 45, 60].map(value => <option key={value} value={value}>{value} minutes</option>)}</select></label><button type="button" className="button secondary" onClick={previewShorterSessions}>Preview shorter sessions</button><p>Keep all remaining work and your saved weekly windows.</p><label>Day<select aria-label="Day" value={day} onChange={event => setDay(event.target.value)}>{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(value => <option key={value}>{value}</option>)}</select></label><label>Time window<input value={window} onChange={event => setWindow(event.target.value)} /></label><label>Minutes<input type="number" min={10} max={180} value={minutes} onChange={event => setMinutes(Number(event.target.value))} /></label><div>{(props.plan.schedulePreferences?.availability ?? []).map((slot, index) => <label key={index}><input type="checkbox" checked={keptWindows.includes(index)} onChange={event => setKeptWindows(previous => event.target.checked ? [...previous, index] : previous.filter(value => value !== index))} />Keep existing window: {slot.day} {slot.window}</label>)}</div><p>Keep the windows you still want, and add the time above.</p></>}
-      <button type="button" className="button secondary" onClick={addChange} disabled={!newTopic || (newType === "add_topic" && (!newTitle.trim() || !newDescription.trim() || newDescription.length > 400)) || (newType === "attach_source" && !stagedFile && !sourceUrl.trim())}>{newType === "attach_source" ? "Preview source attachment" : "Preview change"}</button>
+      {newType === "set_availability" && <>{!props.plan.planModel && <><label>Future session length<select value={shorterMinutes} onChange={event => setShorterMinutes(Number(event.target.value) as typeof shorterMinutes)}>{[10, 15, 25, 45, 60].map(value => <option key={value} value={value}>{value} minutes</option>)}</select></label><button type="button" className="button secondary" onClick={previewShorterSessions}>Preview shorter sessions</button><p>Keep all remaining work and your saved weekly windows.</p></>}<label>Day<select aria-label="Day" value={day} onChange={event => setDay(event.target.value)}>{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(value => <option key={value}>{value}</option>)}</select></label><label>Time window<input value={window} onChange={event => setWindow(event.target.value)} /></label><label>Minutes<input type="number" min={10} max={180} value={minutes} onChange={event => setMinutes(Number(event.target.value))} /></label><div>{(props.plan.schedulePreferences?.availability ?? []).map((slot, index) => <label key={index}><input type="checkbox" checked={keptWindows.includes(index)} onChange={event => setKeptWindows(previous => event.target.checked ? [...previous, index] : previous.filter(value => value !== index))} />Keep existing window: {slot.day} {slot.window}</label>)}</div><p>Keep the windows you still want, and add the time above.</p></>}
+      <button type="button" className="button secondary" onClick={addChange} disabled={!newTopic || (newType === "add_topic" && (!newTitle.trim() || !newDescription.trim() || newDescription.length > 400)) || (newType === "attach_source" && !stagedFile && !sourceUrl.trim())}>{newType === "attach_source" ? props.plan.planModel && delta.operations.length === 0 ? "Attach material" : "Preview source attachment" : "Preview change"}</button>
     </fieldset>}
     <footer><button type="button" className="button secondary" disabled={saving} onClick={props.onCancel}>Cancel</button>
-      <button type="button" className="button primary" disabled={saving || pending || adding || !preview?.proposal.canApply} onClick={() => void confirm()}>{saving ? "Saving…" : "Confirm changes"}</button></footer>
+      {!(props.plan.planModel && adding && newType === "attach_source" && delta.operations.length === 0) && <button type="button" className="button primary" disabled={saving || pending || adding || !preview?.proposal.canApply} onClick={() => void confirm()}>{saving ? "Saving…" : "Confirm changes"}</button>}</footer>
   </section>;
 }

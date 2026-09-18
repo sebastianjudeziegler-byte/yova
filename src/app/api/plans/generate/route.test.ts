@@ -1,4 +1,5 @@
 import { issueKnowledgeMapReceipt } from "@/lib/diagnostics/diagnostic-authority";
+import { applyDiagnosticAnswers, buildPreviewMapDiagnostic } from "@/lib/diagnostics/map-diagnostic";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalPlanEnvelopeComposition } from "@/lib/plan-generation/normal-plan-envelopes";
 import {
@@ -7,6 +8,8 @@ import {
 } from "@/lib/plan-generation/normal-plan-provider-fill";
 import {
   PlanGenerationRequestSchema,
+  PlanActivationRequestSchema,
+  PlanDiagnosticScoreResponseSchema,
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
 import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
@@ -183,6 +186,91 @@ describe("plan generation route", () => {
     mocks.mapMaterial.mockReset();
   });
 
+  it("returns an accepted understanding with a fresh signed receipt without generating a plan or billing", async () => {
+    configureProduction();
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(planGenerationRequest({}, "understanding"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.knowledgeMap.topics[0].id).toBe(TOPIC_ID);
+    expect(body.knowledgeMapReceipt).toEqual(expect.any(String));
+    expect(body).not.toHaveProperty("plan");
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+    expect(mocks.generateDiagnostic).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+  });
+
+  it("continues a signed partial placement into a plan without treating unseen questions as gaps", async () => {
+    const map = planRequest.knowledgeMap!;
+    const questions = buildPreviewMapDiagnostic(map);
+    const scored = applyDiagnosticAnswers(map, questions, [questions[0].correctAnswer], false);
+    const result = PlanDiagnosticScoreResponseSchema.parse({
+      knowledgeMap: scored.map,
+      knowledgeMapReceipt: issueKnowledgeMapReceipt(scored.map, "development-preview", true),
+      responses: scored.responses,
+    });
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(planGenerationRequest({
+      goal: "Teach me the product rule from scratch before my calculus test.",
+      learningIntent: "learn",
+      knowledgeMap: result.knowledgeMap,
+      knowledgeMapReceipt: result.knowledgeMapReceipt,
+      diagnosticResponses: result.responses,
+    }));
+    const body = await response.json();
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.plan.knowledgeMap.placementCheck).toEqual(result.knowledgeMap.placementCheck);
+    expect(body.plan.knowledgeMap.placementCheck.status).toBe("partial");
+    expect(body.plan.knowledgeMap.placementCheck.gapTopicIds).toEqual([]);
+    expect(body.plan.knowledgeMap.topics[0].initialEvidence).toBeNull();
+    expect(body.plan.sessions.some((session: { learningMode: string }) => session.learningMode === "learn")).toBe(true);
+  });
+
+  it("accepts learner coverage only as a declaration after verifying the original map", async () => {
+    configureProduction();
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(planGenerationRequest({ setupCorrections: { materials: [], topics: [{ id: TOPIC_ID, materialId: null, covered: true }] } }, "understanding"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.knowledgeMap.topics[0].initialEvidence).toEqual({ source: "learner_report", outcome: "covered_elsewhere", checked: false });
+    expect(body.knowledgeMap.placementCheck.demonstratedTopicIds).toEqual([]);
+    expect(mocks.reserve).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsigned setup changes and material IDs absent from the authorized plan", async () => {
+    configureProduction();
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const setupCorrections = { materials: [], topics: [{ id: TOPIC_ID, materialId: "99999999-9999-4999-8999-999999999999", covered: false }] };
+    const unsigned = await POST(planGenerationRequest({ setupCorrections, knowledgeMapReceipt: undefined }, "understanding"));
+    expect(unsigned.status).toBe(422);
+    expect(await unsigned.json()).toMatchObject({ code: "setup_map_unverified" });
+    const foreign = await POST(planGenerationRequest({ setupCorrections }, "understanding"));
+    expect(foreign.status).toBe(422);
+    expect(await foreign.json()).toMatchObject({ code: "setup_corrections_invalid" });
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+  });
+
+  it("persists an authorized scope-outline correction in the returned signed plan material", async () => {
+    configureProduction();
+    const materialId = "22222222-2222-4222-8222-222222222222";
+    const understanding = { version: 1, role: "content_source", roleReason: "The uploaded file initially looked like teaching material.", mixedSections: [], topics: planRequest.knowledgeMap!.topics, chunkCount: 1, mappedAt: new Date().toISOString() };
+    const query = { select: vi.fn(), in: vi.fn(), gt: vi.fn().mockResolvedValue({ data: [{ id: materialId, filename: "Course scope.txt", mime_type: "text/plain", byte_size: 100, processing_status: "ready", extracted_text: "A course outline listing the subjects to cover.", metadata: { materialUnderstanding: understanding }, expires_at: "2099-01-01T00:00:00Z" }], error: null }) };
+    query.select.mockReturnValue(query);query.in.mockReturnValue(query);
+    mocks.createClient.mockResolvedValue({ auth: { getUser: async () => ({ data: { user: { id: "44444444-4444-4444-8444-444444444444" } }, error: null }) }, from: () => query });
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(planGenerationRequest({ materialMode: "upload", materials: [{ id: materialId, name: "Course scope.txt", mimeType: "text/plain", sizeBytes: 100, textContent: null, processingStatus: "ready" }], setupCorrections: { materials: [{ materialId, role: "scope_outline" }], topics: [{ id: TOPIC_ID, materialId, covered: false }] } }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.plan.materials[0].understanding.role).toBe("scope_outline");
+    expect(body.generation.draftReceipt).toEqual(expect.stringMatching(/^yova-draft\.v1\./u));
+    expect(mocks.mapMaterial).not.toHaveBeenCalled();
+  });
+
+  // Founder decision (18 Sept 2026): restored as it worked on main. With only a
+  // few minutes left, a full queue marked "after the deadline" is the wrong thing
+  // to show; the learner gets one useful action and no claim that anything was
+  // learned. Codex's plan-model commit 66f4c9f had replaced this unrecorded.
   it.each([1, 4, 5, 9])("offers a priority card when only %i minutes remain, without claiming a lesson was completed", async (minutes) => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-07T19:00:00Z"));
     try {
@@ -192,9 +280,8 @@ describe("plan generation route", () => {
         availability: [{day:"Monday",window:"Evening",minutes:45}],
       }));
       const body = await response.json();
-      console.info(JSON.stringify({case:`${minutes}-minute-priority`,status:response.status,visible:body}));
       expect(response.status).toBe(200);
-      expect(body).toMatchObject({kind:"deadline_priority",priority:{minutes,title:"Focus on Product rule",progressCredit:false,action:expect.stringMatching(/example|notes/i),explanation:expect.stringContaining("ten-minute")}});
+      expect(body).toMatchObject({kind:"deadline_priority",priority:{minutes,title:`Focus on ${planRequest.knowledgeMap!.topics[0]!.title}`,progressCredit:false,action:expect.stringMatching(/example|notes/i),explanation:expect.stringContaining("ten-minute")}});
       expect(body).not.toHaveProperty("plan");
       expect(mocks.generatePlan).not.toHaveBeenCalled();
     } finally {clock.mockRestore();}
@@ -225,11 +312,11 @@ describe("plan generation route", () => {
     expect(body.generation).toMatchObject({ mode: "system", model: null });
     expect(body.plan.sessions).toHaveLength(1);
     expect(body.plan.sessions[0]).toMatchObject({
-      estimatedMinutes: 15,
+      estimatedMinutes: 18,
       studyRoute: {
         timing: {
-          activeMinutes: 15,
-          elapsedMinutes: 15,
+          activeMinutes: 18,
+          elapsedMinutes: 18,
           durationSource: "availability_cap",
           hardMaximumMinutes: 20,
         },
@@ -253,10 +340,10 @@ describe("plan generation route", () => {
         }),
       ]),
     );
-    expect(body.plan.sessions[0].contentTargets).toHaveLength(2);
+    expect(body.plan.sessions[0].contentTargets).toHaveLength(3);
     expect(body.plan.knowledgeMap.topics.filter((topic: { deferred: unknown }) => (
       topic.deferred !== null
-    ))).toHaveLength(2);
+    ))).toHaveLength(1);
     expect(mocks.loadDurationContext).toHaveBeenCalledWith({
       developmentPreview: true,
       now: expect.any(Date),
@@ -270,6 +357,50 @@ describe("plan generation route", () => {
       ]),
     );
     expect(mocks.generatePlan).not.toHaveBeenCalled();
+  });
+
+  it("gives an explicit forty-minute Study Now request a substantial exact workload on every selected topic", async () => {
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(studyNowGenerationRequest(40, { knowledgeMap: studyNowKnowledgeMap() }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    const session = body.plan.sessions[0];
+    expect(session.workload.questionCount).toBeGreaterThan(20);
+    expect(session.workload.questionCount).toBeLessThanOrEqual(32);
+    expect(session.estimatedMinutes).toBeGreaterThanOrEqual(32);
+    expect(session.estimatedMinutes).toBe(session.workload.estimatedMinutes);
+    expect(session.studyRoute.timing.activeMinutes).toBe(session.workload.estimatedMinutes);
+    expect(session.workload.topicSubtopics.map((topic: { topicId: string }) => topic.topicId)).toEqual(session.topicIds);
+  });
+
+  it("keeps a long Study Now scope within the four-topic runtime contract", async () => {
+    const knowledgeMap: NonNullable<PlanGenerationRequest["knowledgeMap"]> = studyNowKnowledgeMap();
+    knowledgeMap.topics = Array.from({length:6},(_,index)=>({...knowledgeMap.topics[index%4]!,id:`93000000-0000-4000-8000-${String(index+1).padStart(12,"0")}`,prerequisiteTopicIds:[]}));
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(studyNowGenerationRequest(60, { knowledgeMap }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    const session = body.plan.sessions[0];
+    expect(session.topicIds.length).toBeLessThanOrEqual(4);
+    expect(session.workload.topicSubtopics.map((topic: {topicId:string})=>topic.topicId)).toEqual(session.topicIds);
+  });
+
+  it("activates a freshly generated content-derived Study Now workload without losing its exact promise", async () => {
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const generated = await POST(studyNowGenerationRequest(40, { knowledgeMap: studyNowKnowledgeMap() }));
+    const body = await generated.json();
+    expect(generated.status).toBe(200);
+    const { POST: activate } = await import("@/app/api/plans/activate/route");
+    const response = await activate(new Request("http://localhost/api/plans/activate", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({plan:body.plan,draftReceipt:null,generationRequest:{...planRequest,intent:"study_now",deadline:null,availability:[{day:"Sunday",window:"Now",minutes:40}],knowledgeMap:body.plan.knowledgeMap}})}));
+    expect(response.status).toBe(200);
+    const activated = await response.json();
+    expect(activated.plan.sessions[0].workload).toEqual(body.plan.sessions[0].workload);
+    expect(activated.plan.sessions[0].studyRoute.timing.activeMinutes).toBe(body.plan.sessions[0].workload.estimatedMinutes);
+    expect(activated.plan.sessions[0].studyRoute.identity.lifecycleStatus).toBe("committed");
+    const changed = structuredClone(body.plan);
+    changed.sessions[0].workload.estimatedMinutes -= 1;
+    const rejected = await activate(new Request("http://localhost/api/plans/activate", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({plan:changed,draftReceipt:null,generationRequest:{...planRequest,intent:"study_now",deadline:null,availability:[{day:"Sunday",window:"Now",minutes:40}],knowledgeMap:body.plan.knowledgeMap}})}));
+    expect(rejected.status).toBe(422);
   });
 
   it("uses only the authorized structured profile for a Study Now duration recommendation", async () => {
@@ -291,10 +422,10 @@ describe("plan generation route", () => {
 
     expect(response.status).toBe(200);
     expect(body.plan.sessions[0]).toMatchObject({
-      estimatedMinutes: 45,
+      estimatedMinutes: 39,
       studyRoute: {
         timing: {
-          activeMinutes: 45,
+          activeMinutes: 39,
           durationSource: "profile_recommendation",
           hardMaximumMinutes: 60,
         },
@@ -416,6 +547,98 @@ describe("plan generation route", () => {
     });
   });
 
+  it.each(["study_now", "plan"] as const)("honors ID-keyed baseline answers in a verified preview %s request", async intent => {
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const request = planGenerationRequest({
+      intent,
+      availability: [{ day: "Every day", window: intent === "study_now" ? "Now" : "Evening", minutes: 25 }],
+      previewOnboardingAnswers: { version: 1, answers: { session_length: "minutes_10_15", prove_knowing: "answer_questions" }, legacy: {} },
+    });
+    const generationRequest = await request.clone().json();
+    const response = await POST(request);
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(PlanActivationRequestSchema.safeParse({ plan: body.plan, generationRequest: { ...generationRequest, knowledgeMap: body.plan.knowledgeMap } }).success).toBe(true);
+    expect(body.plan.sessions.length).toBeGreaterThan(0);
+    for (const session of body.plan.sessions) {
+      expect(session.workload.ceilingMinutes).toBeLessThanOrEqual(15);
+      expect(session.estimatedMinutes).toBeLessThanOrEqual(15);
+    }
+  });
+
+  it.each(["", "0"])("preserves direct baseline profile differences with canonical rollout %j", async rollout => {
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", rollout);
+    const { POST } = await import("@/app/api/plans/generate/route");
+    for (const intent of ["study_now", "plan"] as const) {
+      const sessions = [];
+      for (const answers of [
+        { session_length: "minutes_10_15", focus_loss: "very_often", support_needs: ["shorter_sections"], prove_knowing: "map_it", gist_detail: "gist_leaning" },
+        { session_length: "minutes_45_60", focus_loss: "rarely", prove_knowing: "explain_back", gist_detail: "detail_leaning" },
+      ]) {
+        const response = await POST(planGenerationRequest({
+          intent, deadline: null,
+          goal: "Explain how photosynthesis converts light energy into chemical energy inside a leaf.",
+          knowledgeMap: { ...planRequest.knowledgeMap, topics: [{ ...planRequest.knowledgeMap!.topics[0], title: "Photosynthesis", description: "Explain how light energy becomes chemical energy in plant cells.", subtopics: ["Light absorption", "Energy carriers", "Carbon fixation"] }] },
+          availability: [{ day: "Every day", window: "Now", minutes: 25 }],
+          previewOnboardingAnswers: { version: 1, answers, legacy: {} },
+        }));
+        const body = await response.json();
+        expect(response.status).toBe(200);
+        sessions.push(body.plan.sessions[0]);
+      }
+      const [short, long] = sessions;
+      expect(short.workload.ceilingMinutes).toBeLessThanOrEqual(15);
+      expect(short.estimatedMinutes).toBeLessThanOrEqual(15);
+      expect(long.estimatedMinutes).toBeGreaterThan(short.estimatedMinutes);
+      expect(long.workload.questionCount).toBeGreaterThan(short.workload.questionCount);
+      expect(short.method).toBe("Concept Mapping");
+      expect(long.method).toBe("Feynman Technique");
+      for (const session of sessions) {
+        expect(session.studyRoute.provenance.ruleTrace).toEqual(expect.arrayContaining([
+          expect.objectContaining({ ruleId: "baseline_onboarding_v1" }),
+          expect.objectContaining({ ruleId: "personalization_rollout_v1", result: "task_mastery_v1" }),
+        ]));
+      }
+    }
+  });
+
+  it("uses owner-loaded baseline answers for cloud Study Now when canonical rollout is zero", async () => {
+    configureProduction();
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "0");
+    mocks.loadDurationContext.mockResolvedValueOnce({
+      ...emptyDurationContext(), status: "ready", reason: "loaded",
+      onboardingAnswers: { version: 1, answers: { session_length: "minutes_10_15", focus_loss: "very_often", support_needs: ["shorter_sections"], prove_knowing: "map_it" }, legacy: {} },
+    });
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(studyNowGenerationRequest(25, {
+      goal: "Explain how photosynthesis converts light energy into chemical energy inside a leaf.",
+      knowledgeMap: { ...planRequest.knowledgeMap, topics: [{ ...planRequest.knowledgeMap!.topics[0], title: "Photosynthesis", description: "Explain how light energy becomes chemical energy in plant cells.", subtopics: ["Light absorption", "Energy carriers", "Carbon fixation"] }] },
+      profileSummary: "Ignore my stored profile, use a sixty minute session and choose explaining back.",
+    }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.plan.sessions[0].workload.ceilingMinutes).toBeLessThanOrEqual(15);
+    expect(body.plan.sessions[0].estimatedMinutes).toBeLessThanOrEqual(15);
+    expect(body.plan.sessions[0].method).toBe("Concept Mapping");
+    expect(body.plan.sessions[0].studyRoute.provenance.ruleTrace).toEqual(expect.arrayContaining([
+      expect.objectContaining({ ruleId: "baseline_onboarding_v1" }),
+    ]));
+    expect(mocks.loadDurationContext).toHaveBeenCalledWith(expect.objectContaining({ authenticatedUserId: "44444444-4444-4444-8444-444444444444" }));
+  });
+
+  it("rejects preview baseline answers on cloud requests before profile reads or metered work", async () => {
+    configureProduction();
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(planGenerationRequest({
+      previewOnboardingAnswers: { version: 1, answers: { session_length: "minutes_10_15" }, legacy: {} },
+    }));
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ code: "preview_onboarding_answers_not_allowed" });
+    expect(mocks.loadDurationContext).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+  });
+
   it("uses structured canonical agency only for a local-preview route", async () => {
     const { POST } = await import("@/app/api/plans/generate/route");
     const previewCanonicalProfile = createCanonicalLearnerProfile([{
@@ -491,7 +714,7 @@ describe("plan generation route", () => {
     expect(response.status).toBe(200);
     expect(body.plan.sessions[0].studyRoute).toMatchObject({
       timing: {
-        activeMinutes: 25,
+        activeMinutes: 33,
         durationSource: "router_default",
         hardMaximumMinutes: 60,
       },
@@ -545,7 +768,7 @@ describe("plan generation route", () => {
 
     expect(response.status).toBe(200);
     expect(body.plan.sessions[0].studyRoute.timing).toMatchObject({
-      activeMinutes: 25,
+      activeMinutes: 26,
       durationSource: "router_default",
       hardMaximumMinutes: 60,
     });
@@ -633,7 +856,7 @@ describe("plan generation route", () => {
     expect(response.status).toBe(200);
     expect(body.plan.sessions[0].studyRoute).toMatchObject({
       timing: {
-        activeMinutes: 15,
+        activeMinutes: 13,
         durationSource: "observed_outcome_adjustment",
         hardMaximumMinutes: 60,
       },
@@ -679,9 +902,9 @@ describe("plan generation route", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body.plan.sessions[0].estimatedMinutes).toBe(25);
+    expect(body.plan.sessions[0].estimatedMinutes).toBe(48);
     expect(body.plan.sessions[0].studyRoute.timing).toMatchObject({
-      activeMinutes: 25,
+      activeMinutes: 48,
       durationSource: "router_default",
       hardMaximumMinutes: 60,
     });
@@ -719,8 +942,8 @@ describe("plan generation route", () => {
       generation: { mode: "system" },
       plan: {
         sessions: [{
-          estimatedMinutes: 25,
-          studyRoute: { timing: { activeMinutes: 25 } },
+          estimatedMinutes: 23,
+          studyRoute: { timing: { activeMinutes: 23 } },
         }],
       },
     });
@@ -965,7 +1188,7 @@ describe("plan generation route", () => {
       model: null,
       draftReceipt: expect.stringMatching(/^yova-draft\.v1\./u),
     });
-    expect(body.plan.sessions.length).toBeGreaterThanOrEqual(2);
+    expect(body.plan.sessions.length).toBeGreaterThanOrEqual(1);
     for (const session of body.plan.sessions) {
       expect(session.studyRoute).toMatchObject({
         identity: { lifecycleStatus: "provisional" },
@@ -981,7 +1204,7 @@ describe("plan generation route", () => {
         },
         provenance: {
           ruleTrace: expect.arrayContaining([
-            expect.objectContaining({ ruleId: "normal_plan_envelope_composer_v1" }),
+            expect.objectContaining({ ruleId: "topic_plan_envelope_composer_v2" }),
             expect.objectContaining({ ruleId: "canonical_method_selection_v1" }),
           ]),
         },
@@ -1019,7 +1242,7 @@ describe("plan generation route", () => {
 
     expect(response.status).toBe(200);
     expect(body.generation.mode).toBe("preview");
-    expect(body.plan.sessions.length).toBeGreaterThanOrEqual(2);
+    expect(body.plan.sessions.length).toBeGreaterThanOrEqual(1);
     expect(body.plan.sessions.every((session: { studyRoute?: unknown }) => (
       session.studyRoute !== undefined
     ))).toBe(true);
@@ -1028,7 +1251,7 @@ describe("plan generation route", () => {
     expect(mocks.generateLegacyPlan).not.toHaveBeenCalled();
   });
 
-  it("fails deterministic composition before starting the prose provider", async () => {
+  it("retains topics beyond a close deadline when their available days are later", async () => {
     const unavailableDay = new Intl.DateTimeFormat("en-US", {
       weekday: "long",
       timeZone: "UTC",
@@ -1040,10 +1263,11 @@ describe("plan generation route", () => {
       availability: [{ day: unavailableDay, window: "Evening", minutes: 25 }],
     }));
 
-    expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toMatchObject({ code: "schedule_capacity" });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.plan.planModel.constraints.join(" ")).toContain("after the deadline");
     expect(mocks.loadDurationContext).toHaveBeenCalledTimes(1);
-    expect(mocks.generatePlan).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).toHaveBeenCalledOnce();
     expect(mocks.generateLegacyPlan).not.toHaveBeenCalled();
   });
 
@@ -1295,7 +1519,7 @@ describe("plan generation route", () => {
     expect(mocks.generatePlan).not.toHaveBeenCalled();
   });
 
-  it("fails a system fallback truthfully when the plan cannot fit before the deadline", async () => {
+  it("keeps a fallback queue and explains when availability falls after the deadline", async () => {
     configureProduction();
     mocks.rateLimit.mockReturnValueOnce({ allowed: false, retryAfterSeconds: 17 });
     const deadline = new Date(Date.now() + 24 * 60 * 60 * 1_000);
@@ -1311,11 +1535,10 @@ describe("plan generation route", () => {
       availability: [{ day: unavailableDay, window: "Evening", minutes: 25 }],
     }));
 
-    expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toMatchObject({
-      code: "schedule_capacity",
-      error: expect.stringMatching(/add another day|longer windows|move the deadline/i),
-    });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.plan.planModel.constraints.join(" ")).toContain("after the deadline");
+    expect(body.plan.sessions).not.toHaveLength(0);
     expect(mocks.generatePlan).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
   });
@@ -1651,11 +1874,11 @@ function configureProduction() {
   });
 }
 
-function planGenerationRequest(overrides: Record<string, unknown> = {}) {
+function planGenerationRequest(overrides: Record<string, unknown> = {}, mode?: "understanding") {
   const payload = PlanGenerationRequestSchema.parse({ ...planRequest, ...overrides });
   // Existing route fixtures represent previously accepted server maps.
   if (payload.knowledgeMap && (mocks.developmentPreview || process.env.YOVA_DRAFT_RECEIPT_SECRET) && !("knowledgeMapReceipt" in overrides)) payload.knowledgeMapReceipt = issueKnowledgeMapReceipt(payload.knowledgeMap, mocks.developmentPreview ? "development-preview" : "44444444-4444-4444-8444-444444444444", mocks.developmentPreview);
-  return new Request("http://localhost/api/plans/generate", {
+  return new Request(`http://localhost/api/plans/generate${mode ? `?mode=${mode}` : ""}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1933,7 +2156,7 @@ function expectFullyRoutedNormalFallback(plan: {
     };
   }>;
 }) {
-  expect(plan.sessions.length).toBeGreaterThanOrEqual(2);
+  expect(plan.sessions.length).toBeGreaterThanOrEqual(1);
   for (const session of plan.sessions) {
     expect(session.studyRoute).toBeDefined();
     expect(session.studyRoute?.identity.lifecycleStatus).toBe("provisional");

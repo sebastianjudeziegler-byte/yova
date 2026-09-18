@@ -1,0 +1,208 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/openai/shape-slot-quality.test.ts (4 tests | 2 failed) 12ms
+     × keeps the learner's missed-answer context when the quality gate replaces a one-point retry 4ms
+     × preserves retry context in later batches and their bounded collision repair 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/openai/shape-slot-quality.test.ts > MCQ quality gate before delivery > keeps the learner's missed-answer context when the quality gate replaces a one-point retry
+AssertionError: expected { topic: { …(6) }, …(8) } to match object { round: 2, …(2) }
+(17 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "repairTargets": [
++   "attempt": "55555555-5555-4555-8555-555555555555",
++   "batchAngle": {
++     "id": "batch_1",
++     "instruction": "Use the central mechanism in a concrete setting supported by the key points.",
++   },
++   "collisionRepair": false,
++   "excerpts": [],
++   "keyPoints": [
++     {
++       "id": "k1",
++       "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++       "text": "Osmosis is the net movement of water molecules across a partially permeable membrane.",
++     },
++     {
++       "id": "k2",
++       "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++       "text": "Water moves from a higher water potential to a lower water potential.",
++     },
+      {
+-       "chosenAnswer": "Water moves toward higher water potential.",
+-       "correctAnswer": "Water moves toward lower water potential.",
+-       "keyPointId": "k2",
+-       "question": "Why does water move from side A to side B?",
++       "id": "k3",
++       "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++       "text": "Higher water potential means a more dilute solution, while lower water potential means a more concentrated solution.",
++     },
++     {
++       "id": "k4",
++       "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++       "text": "A partially permeable membrane lets water pass but restricts many dissolved solutes.",
++     },
++     {
++       "id": "k5",
++       "sourceTopicId": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++       "text": "Water entering a plant cell increases turgor as the vacuole swells and the cell presses on the wall.",
+      },
+    ],
+-   "round": 2,
+-   "roundKind": "error_repair",
++   "priorQuestions": [],
++   "qualityIssues": [
++     {
++       "reason": "ambiguous; independent valid answer indices: none. Water moves A to B from higher to lower water potential; the reason and direction must both match.",
++       "slotId": "s1",
++     },
++   ],
++   "slots": [
++     {
++       "keyPointIds": [
++         "k2",
++       ],
++       "slotId": "s1",
++       "type": "recall",
++     },
++   ],
++   "topic": {
++     "description": "Predict net water movement from water potential and explain the role of a partially permeable membrane.",
++     "id": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++     "learningGoal": "Prepare for A-level Biology application questions: predict the effect of unfamiliar conditions on water movement and justify the mechanism.",
++     "subtopics": [
++       "Water potential",
++       "Membrane permeability",
++       "Plant cell turgor",
++     ],
++     "taskType": "conceptual_learning",
++     "title": "Osmosis",
++   },
+  }
+
+ ❯ src/lib/openai/shape-slot-quality.test.ts:56:43
+     54|     expect(response.questions[0]!.keyPointIds).toEqual(["k2"]);
+     55|     const replacement = provider.mock.calls.find(([call]) => JSON.pars…
+     56|     expect(JSON.parse(replacement.input)).toMatchObject({ round: 2, ro…
+       |                                           ^
+     57|     expect(provider).toHaveBeenCalledTimes(4);
+     58|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/openai/shape-slot-quality.test.ts > MCQ quality gate before delivery > preserves retry context in later batches and their bounded collision repair
+AssertionError: expected { topic: { …(6) }, …(7) } to match object { round: 2, …(2) }
+(16 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "repairTargets": [
++   "attempt": "55555555-5555-4555-8555-555555555555",
++   "batchAngle": {
++     "id": "batch_2",
++     "instruction": "Vary the setting or values while preserving the supplied mechanism and question type.",
++   },
++   "collisionRepair": false,
++   "excerpts": [],
++   "keyPoints": [
++     {
++       "id": "k1",
++       "text": "Osmosis key point 1: water moves from higher to lower water potential.",
++     },
++     {
++       "id": "k2",
++       "text": "Osmosis key point 2: water moves from higher to lower water potential.",
++     },
++     {
++       "id": "k3",
++       "text": "Osmosis key point 3: water moves from higher to lower water potential.",
++     },
++     {
++       "id": "k4",
++       "text": "Osmosis key point 4: water moves from higher to lower water potential.",
++     },
++     {
++       "id": "k5",
++       "text": "Osmosis key point 5: water moves from higher to lower water potential.",
++     },
++     {
++       "id": "k6",
++       "text": "Osmosis key point 6: water moves from higher to lower water potential.",
++     },
++     {
++       "id": "k7",
++       "text": "Osmosis key point 7: water moves from higher to lower water potential.",
++     },
++     {
++       "id": "k8",
++       "text": "Osmosis key point 8: water moves from higher to lower water potential.",
++     },
++     {
++       "id": "k9",
++       "text": "Osmosis key point 9: water moves from higher to lower water potential.",
++     },
++   ],
++   "priorQuestions": [
++     "Explain the osmosis direction in case s1.",
++     "Explain the osmosis direction in case s2.",
++     "Explain the osmosis direction in case s3.",
++     "Explain the osmosis direction in case s4.",
++     "Explain the osmosis direction in case s5.",
++     "Explain the osmosis direction in case s6.",
++     "Explain the osmosis direction in case s7.",
++     "Explain the osmosis direction in case s8.",
++   ],
++   "slots": [
+      {
+-       "chosenAnswer": "Water moves toward higher water potential.",
+-       "correctAnswer": "Water moves toward lower water potential.",
+-       "keyPointId": "k9",
+-       "question": "Why does water move from side A to side B?",
++       "keyPointIds": [
++         "k8",
++         "k9",
++       ],
++       "slotId": "s9",
++       "type": "application",
+      },
+    ],
+-   "round": 2,
+-   "roundKind": "error_repair",
++   "topic": {
++     "description": "Predict net water movement from water potential and explain the role of a partially permeable membrane.",
++     "id": "b729504a-8746-4ef3-a4c2-d3b7116c8138",
++     "learningGoal": "Prepare for A-level Biology application questions: predict the effect of unfamiliar conditions on water movement and justify the mechanism.",
++     "subtopics": [
++       "Water potential",
++       "Membrane permeability",
++       "Plant cell turgor",
++     ],
++     "taskType": "conceptual_learning",
++     "title": "Osmosis",
++   },
+  }
+
+ ❯ src/lib/openai/shape-slot-quality.test.ts:78:21
+     76|     expect(batches.map(batch => batch.collisionRepair)).toEqual([false…
+     77|     for (const batch of batches) {
+     78|       expect(batch).toMatchObject({ round: 2, roundKind: "error_repair…
+       |                     ^
+     79|       expect(batch.slots).toEqual([expect.objectContaining({ slotId: "…
+     80|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Start at  18:51:27
+   Duration  232ms (transform 81ms, setup 0ms, import 147ms, tests 12ms, environment 0ms)
+

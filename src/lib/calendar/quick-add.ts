@@ -79,6 +79,12 @@ function hasDeadlineIntent(value: string) {
 }
 
 function inferEventType(value: string): z.infer<typeof ManualCalendarEventTypeSchema> {
+  // Something that is due is an outcome, never a timetabled class: "Lab Report
+  // due Friday" is an assignment and "Tutorial quiz due Friday" is a test.
+  // Only a lab, lecture or seminar with no due date is read as a class.
+  const due = /\b(due|deadline)\b/i.test(value);
+  if (due && /\b(exam|test|quiz|midterm|final)\b/i.test(value)) return "exam";
+  if (due) return "deadline";
   if (/\b(class|lecture|seminar|lab|tutorial)\b/i.test(value)) return "class";
   if (/\b(exam|test|quiz|midterm|final)\b/i.test(value)) return "exam";
   if (/\b(free block|free time|available|availability|office hours)\b/i.test(value)) return "free_block";

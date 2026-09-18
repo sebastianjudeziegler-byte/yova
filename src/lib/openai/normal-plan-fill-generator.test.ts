@@ -41,6 +41,18 @@ describe("one-call normal-plan provider fill", () => {
     getPlanConfig.mockReturnValue({ model: "gpt-yova-fill-test" });
   });
 
+  it("uses bounded deterministic topic copy beyond 24 envelopes without invoking or crediting the provider", async () => {
+    const request = normalRequest();
+    request.knowledgeMap!.topics = Array.from({ length: 13 }, (_, index) => ({ ...request.knowledgeMap!.topics[0]!, id: `70000000-7000-4000-8000-${String(index+1).padStart(12,"0")}`, title: `Concept number ${index+1}`, prerequisiteTopicIds: [] }));
+    const composition = composeNormalPlanEnvelopes({ request, learningIntentRecommendation: { intent: request.learningIntent, basis: "Every accepted topic needs a first pass and practice." }, durationContext: durationContext(), now: NOW });
+    expect(composition.envelopes.length).toBeGreaterThan(24);
+    const { generateNormalPlanFillWithOpenAI } = await import("@/lib/openai/normal-plan-fill-generator");
+    const result = await generateNormalPlanFillWithOpenAI({ request, composition, now: NOW });
+    expect(result).toMatchObject({ mode: "system", model: null, responseId: null, generationStats: { attempts: 0, inputTokens: 0, outputTokens: 0 } });
+    expect(Object.keys(result.fill.sessions)).toHaveLength(composition.envelopes.length);
+    expect(parseResponse).not.toHaveBeenCalled();
+  });
+
   it("sends the exact dynamic prose slots and returns a valid fill in one call", async () => {
     const contract = normalContract();
     const fill = buildNormalPlanFallbackFill(contract);

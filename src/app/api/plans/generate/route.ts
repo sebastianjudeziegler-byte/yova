@@ -1,3 +1,7 @@
+import { writeOnboardingAnswers } from "@/lib/onboarding/answers";
+import { immediateTopicWorkload } from "@/lib/plan-generation/topic-plan-model";
+import { buildDeadlinePriority } from "@/lib/plan-generation/deadline-priority";
+import { initialPlanBaselineMethod } from "@/lib/study-route/initial-plan-baseline-method";
 import { NextResponse } from "next/server";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
 import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
@@ -28,7 +32,7 @@ import {
 } from "@/lib/plan-generation/normal-plan-envelopes";
 import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-plan-pipeline";
 import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
-import { buildDeadlinePriority } from "@/lib/plan-generation/deadline-priority";
+import { applySetupCorrections } from "@/lib/plan-generation/setup-corrections";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import {
@@ -104,6 +108,7 @@ export async function POST(request: Request) {
   const scheduleNowMs = resolveRequestNow(request, startedAt);
   const developmentPreview = isDevelopmentPreviewRequest(request);
   const diagnosticOnly = new URL(request.url).searchParams.get("mode") === "diagnostic";
+  const understandingOnly = new URL(request.url).searchParams.get("mode") === "understanding";
   const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
   const { data: { user }, error: userError } = supabase
     ? await supabase.auth.getUser()
@@ -189,6 +194,14 @@ export async function POST(request: Request) {
         headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
       },
     );
+  }
+
+  if (parsedRequest.data.previewOnboardingAnswers !== undefined && !developmentPreview) {
+    return NextResponse.json({
+      error: "Preview onboarding context is available only in the local development preview.",
+      code: "preview_onboarding_answers_not_allowed",
+      fields: { previewOnboardingAnswers: ["Remove this development-preview-only field before generating a cloud plan."] },
+    }, { status: 422, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
   }
 
   const goalContext = assessGoalContext(
@@ -294,7 +307,23 @@ export async function POST(request: Request) {
   // earlier knowledge-map/diagnostic calls outside both durable and in-memory
   // limits. Material-understanding repair above remains part of the separate
   // upload/mapping lifecycle.
-  const acceptedMapPriority = !diagnosticOnly && !planRequest.mapCorrection
+  // Setup declarations may change scope and source assignment, but never
+  // manufacture placement evidence. Always verify the map being corrected.
+  if (planRequest.setupCorrections) {
+    if (!planRequest.knowledgeMap || !verifyKnowledgeMapReceipt(planRequest.knowledgeMap, planRequest.knowledgeMapReceipt, evidenceUserId, developmentPreview)) {
+      return NextResponse.json({ error: "Reload the topic review before applying these changes.", code: "setup_map_unverified" }, { status: 422 });
+    }
+    try {
+      const corrected = applySetupCorrections({ knowledgeMap: planRequest.knowledgeMap, materials: planRequest.materials, corrections: planRequest.setupCorrections });
+      planRequest = { ...planRequest, ...corrected };
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : "YOVA could not apply these topic changes.", code: "setup_corrections_invalid" }, { status: 422 });
+    }
+  }
+  // When every remaining window before the deadline is under ten minutes, the
+  // learner gets one quick priority action instead of a plan, before any AI
+  // usage is reserved (as on main; restored by founder decision, 18 Sept 2026).
+  const acceptedMapPriority = !diagnosticOnly && !understandingOnly && !planRequest.mapCorrection
     ? buildDeadlinePriority(planRequest, new Date(scheduleNowMs)) : null;
   if (acceptedMapPriority) return NextResponse.json(acceptedMapPriority, {
     headers: {"Cache-Control":"no-store", "X-Yova-Request-Id":requestId},
@@ -304,18 +333,18 @@ export async function POST(request: Request) {
   const knowledgeMapFallbackNotice: string | null = null;
   const aiUsageRecoveryKey = crypto.randomUUID();
   const canUseAcceptedMapNormalFallback = planRequest.intent === "plan"
-    && !diagnosticOnly
+    && !diagnosticOnly && !understandingOnly
     && Boolean(planRequest.knowledgeMap) && !planRequest.mapCorrection;
   const meteredPlanProviderWork = isOpenAIPlanConfigured()
     && (
       !planRequest.knowledgeMap
       || diagnosticOnly
-      || planRequest.intent !== "study_now"
+      || (!understandingOnly && planRequest.intent !== "study_now")
     );
   if (meteredPlanProviderWork) {
     const rateLimit = checkPlanGenerationRateLimit(`${user?.id ?? "preview"}:${requestRateLimitKey(request)}`);
     if (!rateLimit.allowed) {
-      if (diagnosticOnly) {
+      if (diagnosticOnly || understandingOnly) {
         return NextResponse.json(
           { error: "YOVA is preparing too many placement checks at once. Wait a moment, or skip this check and continue." },
           {
@@ -357,7 +386,7 @@ export async function POST(request: Request) {
         );
       } catch {
         await recoverUnknownPlanReservation(supabase, requestId, aiUsageRecoveryKey);
-        if (diagnosticOnly) {
+        if (diagnosticOnly || understandingOnly) {
           return NextResponse.json(
             { error: "YOVA could not verify the placement-check allowance. Skip this check or try again in a moment." },
             {
@@ -400,7 +429,7 @@ export async function POST(request: Request) {
             },
           );
         }
-        if (diagnosticOnly) {
+        if (diagnosticOnly || understandingOnly) {
           return NextResponse.json(
             { error: "This account has reached its planning allowance. Skip the placement check or return after the allowance resets." },
             {
@@ -510,6 +539,15 @@ export async function POST(request: Request) {
   const mappedApproach = resolveLearningIntent({goal: planRequest.goal, startingPoint: planRequest.startingContext, diagnosticResponses: planRequest.diagnosticResponses});
   planRequest.learningIntent = mappedApproach.intent;
 
+  if (understandingOnly && planRequest.knowledgeMap) {
+    if (aiUsageClaimId && supabase) await settleAIRequestClaim(supabase, aiUsageClaimId).catch(() => undefined);
+    return NextResponse.json({
+      knowledgeMap: planRequest.knowledgeMap,
+      knowledgeMapReceipt: issueKnowledgeMapReceipt(planRequest.knowledgeMap, evidenceUserId, developmentPreview),
+      materials: planRequest.materials,
+    }, { headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+  }
+
   if (diagnosticOnly && planRequest.knowledgeMap) {
     const diagnosticStartedAt = Date.now();
     try {
@@ -570,13 +608,13 @@ export async function POST(request: Request) {
     try {
       const studyNowStartedAt = new Date(scheduleNowMs);
       const preliminaryPlan = generatePreviewPlan(planRequest, studyNowStartedAt);
-      const durationContext = await loadAuthorizedNormalDurationContext(
+      const durationContext = withPreviewBaselineAnswers(await loadAuthorizedNormalDurationContext(
         developmentPreview
           ? { developmentPreview: true, now: studyNowStartedAt }
           : supabase && user
             ? { supabase, authenticatedUserId: user.id, now: studyNowStartedAt }
             : { now: studyNowStartedAt },
-      );
+      ), planRequest, developmentPreview);
       const rolloutDecision = personalizationRolloutForNewRoute({
         authenticatedUserId: user?.id ?? null,
         developmentPreview,
@@ -612,14 +650,33 @@ export async function POST(request: Request) {
         developmentPreview,
         rolloutDecision,
       });
-      const focusedPlan = generatePreviewPlan(
-        planRequest,
-        studyNowStartedAt,
-        {
-          studyNowDurationDecision: durationDecision.decision,
-          studyNowMethodDecision: methodDecision,
-        },
-      );
+      let selectedTopics = planRequest.knowledgeMap!.topics.filter(topic => durationDecision.plan.sessions[0]!.topicIds?.includes(topic.id));
+      const ceilingMinutes = Math.min(hardMaximumMinutes,
+        durationDecision.decision.timing.durationSource === "observed_outcome_adjustment" ? durationDecision.decision.timing.activeMinutes
+          : rolloutDecision.personalizationEnabled ? durationContext.profile.sustainableMinutes ?? hardMaximumMinutes : hardMaximumMinutes);
+      let focusedPlan: ReturnType<typeof generatePreviewPlan> | null = null;
+      // Reconcile the immediate content budget with its exact topic set. This
+      // is bounded deterministic work and does not invoke a provider.
+      for (let pass = 0; pass < 3; pass += 1) {
+        if (!selectedTopics.length) throw new Error("Study Now needs an accepted topic before workload sizing.");
+        const workload = immediateTopicWorkload({ request: planRequest, topic: selectedTopics[0]!, topics: selectedTopics,
+          learn: durationDecision.plan.sessions[0]!.learningMode === "learn",
+          answers: durationContext.onboardingAnswers, ceilingMinutes,
+        });
+        const workloadDecision = { ...durationDecision.decision, routerVersion: `${durationDecision.decision.routerVersion}+topic_workload_v1`,
+          timing: { ...durationDecision.decision.timing, activeMinutes: workload.estimatedMinutes, elapsedMinutes: workload.estimatedMinutes },
+          ruleTrace: [...durationDecision.decision.ruleTrace, { ruleId: "plan.workload.content_estimate", result: `${workload.questionCount}_questions_${workload.estimatedMinutes}_minutes`, reason: "The final estimate counts reading, production, substantive questions and answer reveals within the profile and available-time ceilings.", evidenceRefs: [] }],
+        };
+        const candidate = generatePreviewPlan(planRequest, studyNowStartedAt, { studyNowDurationDecision: workloadDecision, studyNowMethodDecision: methodDecision });
+        const nextTopics = planRequest.knowledgeMap!.topics.filter(topic => candidate.sessions[0]!.topicIds?.includes(topic.id));
+        if (JSON.stringify(nextTopics.map(topic => topic.id)) === JSON.stringify(selectedTopics.map(topic => topic.id))) {
+          candidate.sessions[0]!.workload = workload;
+          focusedPlan = candidate;
+          break;
+        }
+        selectedTopics = nextTopics;
+      }
+      if (!focusedPlan) throw new Error("Study Now could not reconcile the focused topic workload.");
       const response = planDraftResponse({
         plan: focusedPlan,
         generation: {
@@ -679,18 +736,19 @@ export async function POST(request: Request) {
     // Resolve the accepted subject exactly once before it can influence either
     // deterministic structure or provider copy.
     planRequest = resolvePlanRequestSubjectBoundary(planRequest);
+    // The resolved subject can change the accepted topics, so check again.
     const priority = buildDeadlinePriority(planRequest, normalPlanNow);
     if (priority) {
       await settleSuccessfulPlanClaim(supabase, aiUsageClaimId, requestId);
       return NextResponse.json(priority, {headers:{"Cache-Control":"no-store", "X-Yova-Request-Id":requestId}});
     }
-    initialPlanContext = await loadAuthorizedNormalDurationContext(
+    initialPlanContext = withPreviewBaselineAnswers(await loadAuthorizedNormalDurationContext(
       developmentPreview
         ? { developmentPreview: true, now: normalPlanNow }
         : supabase && user
           ? { supabase, authenticatedUserId: user.id, now: normalPlanNow }
           : { now: normalPlanNow },
-    );
+    ), planRequest, developmentPreview);
     normalPlanComposition = composeNormalPlanEnvelopes({
       request: planRequest,
       learningIntentRecommendation: {
@@ -709,6 +767,7 @@ export async function POST(request: Request) {
   }
 
   const methodContext = {
+    ...(initialPlanContext.onboardingAnswers ? { baselineOnboardingAnswers: initialPlanContext.onboardingAnswers } : {}),
     profileVersion: initialPlanContext.methodProfileVersion,
     personalization: personalizationForPlanRequest(
       initialPlanContext.methodEvidence.personalization,
@@ -782,7 +841,7 @@ export async function POST(request: Request) {
       const response = planDraftResponse({
         plan,
         generation: {
-          mode: "openai",
+          mode: generated.mode ?? "openai",
           model: generated.model,
           notice: knowledgeMapFallbackNotice,
           requestId,
@@ -1086,20 +1145,26 @@ function studyNowMethodDecision({
     personalization,
     observedEvidence: context.methodEvidence.observedEvidence,
   });
+  const selection = selectCanonicalStudyMethod({
+    ...methodSelectionContextForStudyRoute(route),
+    currentComparisonKey: methodEvidenceComparisonKey(
+      methodEvidenceComparisonContextForRoute(route),
+    ),
+    learnerChoice: planRequest.methodChoice
+      ? {
+          methodId: planRequest.methodChoice.methodId,
+          evidenceRef: `learner-choice:study-now:${planRequest.methodChoice.methodId}`,
+        }
+      : null,
+    ...routedInputs,
+  });
   return {
-    selection: selectCanonicalStudyMethod({
-      ...methodSelectionContextForStudyRoute(route),
-      currentComparisonKey: methodEvidenceComparisonKey(
-        methodEvidenceComparisonContextForRoute(route),
-      ),
-      learnerChoice: planRequest.methodChoice
-        ? {
-            methodId: planRequest.methodChoice.methodId,
-            evidenceRef: `learner-choice:study-now:${planRequest.methodChoice.methodId}`,
-          }
-        : null,
-      ...routedInputs,
-    }),
+    selection: context.onboardingAnswers && !planRequest.methodChoice
+      ? initialPlanBaselineMethod(selection, context.onboardingAnswers, planRequest, {
+        topicIds: route.target.targetStates.map(target => target.targetId),
+        learningMode: route.approach.mode === "learn" ? "learn" : "study",
+      })
+      : selection,
     profileVersion: context.methodProfileVersion,
     rolloutDecision,
     agencyMode: resolveStudyRouteAgencyMode(
@@ -1121,10 +1186,24 @@ function personalizationRolloutForNewRoute({
   });
 }
 
+function withPreviewBaselineAnswers(
+  context: Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>>,
+  request: PlanGenerationRequest,
+  developmentPreview: boolean,
+): Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>> {
+  if (!developmentPreview || !request.previewOnboardingAnswers) return context;
+  return {
+    ...context,
+    onboardingAnswers: request.previewOnboardingAnswers,
+    profileVersion: `${context.profileVersion}+browser_baseline_v1`,
+    profile: buildAuthorizedNormalDurationProfile(writeOnboardingAnswers([], request.previewOnboardingAnswers)),
+  };
+}
+
 function durationContextForRollout(
   context: Pick<
     Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>>,
-    "profile" | "profileVersion" | "recentOutcomes"
+    "profile" | "profileVersion" | "recentOutcomes" | "onboardingAnswers"
   >,
   decision: PersonalizationRolloutDecision,
 ) {
@@ -1135,6 +1214,9 @@ function durationContextForRollout(
   });
   return {
     profileVersion: context.profileVersion,
+    // Direct baseline choices are the Brief 2 product policy. The older
+    // rollout still gates canonical signals and observed-history adaptation.
+    ...(context.onboardingAnswers ? { onboardingAnswers: context.onboardingAnswers } : {}),
     profile: routedInputs.personalization
       ?? buildAuthorizedNormalDurationProfile([]),
     recentOutcomes: routedInputs.observedEvidence,
@@ -1174,13 +1256,13 @@ async function reliableDraftResponse(
     }
     const reliableNow = new Date(scheduleNowMs);
     reliablePlan = generatePreviewPlan(reliablePlanRequest, reliableNow);
-    resolvedInitialPlanContext ??= await loadAuthorizedNormalDurationContext(
+    resolvedInitialPlanContext ??= withPreviewBaselineAnswers(await loadAuthorizedNormalDurationContext(
       developmentPreview
         ? { developmentPreview: true, now: reliableNow }
         : supabase && userId
           ? { supabase, authenticatedUserId: userId, now: reliableNow }
           : { now: reliableNow },
-    );
+    ), reliablePlanRequest, developmentPreview);
     if (planRequest.intent === "plan") {
       reliablePlan = integrateInitialPlanMethodRoutes({
         plan: reliablePlan,

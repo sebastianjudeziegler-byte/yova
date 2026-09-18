@@ -1,3 +1,4 @@
+import { materialUnderstandingForPlan } from "@/lib/plan-generation/plan-material-understanding";
 import "server-only";
 import type { z } from "zod";
 import type { LearningPlan } from "@/lib/domain";
@@ -54,12 +55,12 @@ export async function persistAcceptedPlanRevision({ proposal, current, supabase,
     protectedSessionIds: new Set(current.protections.filter(item => item.savedWork && !(undo && current.plan.sessions.find(session => session.id === item.sessionId)?.status === "skipped")).map(item => item.sessionId)) });
   const knowledgeMap = mergeRevisionMapChanges({ before: proposal.before.knowledgeMap!, after: proposal.after.knowledgeMap!, current: current.plan.knowledgeMap!, undoAddedTopics: undo });
   if (proposal.before.deadline !== proposal.after.deadline && current.plan.deadline !== proposal.before.deadline) throw new PlanRevisionRequestError("The deadline changed after this preview. Review it again.", 409);
-  const next = commitPlanStudyRoutes({ ...current.plan, revisionId: proposal.revisionId, knowledgeMap, sessions,
+  const next = commitPlanStudyRoutes({ ...current.plan, ...(proposal.after.planModel ? { planModel: proposal.after.planModel } : {}), revisionId: proposal.revisionId, knowledgeMap, sessions,
     deadline: proposal.after.deadline, schedulePreferences: proposal.after.schedulePreferences } as LearningPlan, now.toISOString());
   const result = await createSupabaseAdminClient().rpc("apply_plan_revision", { actor_user_id: userId, payload: {
     operationId: proposal.id, planId: proposal.planId, expectedRevisionId: proposal.baseRevisionId,
     revisionId: proposal.revisionId, expectedMap: current.plan.knowledgeMap,
-    knowledgeMap, deadline: next.deadline, generationRequest: proposal.generationRequest,
+    knowledgeMap, deadline: next.deadline, generationRequest: { ...proposal.generationRequest, materialUnderstandingOverrides: materialUnderstandingForPlan(proposal.after.materials), ...(next.planModel ? { planModel: next.planModel } : {}) },
     sessions: patches.map(patch => ({ id: patch.id, beforeFingerprint: proposal.sessionFingerprints[patch.id] ?? null,
       after: next.sessions.find(session => session.id === patch.id) ?? null })),
     fixedEvents: proposal.fixedEvents, proposal, receipt,

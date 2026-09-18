@@ -1,0 +1,106 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/components/study-now-creator.test.ts (12 tests | 1 failed) 22ms
+     × transports the local baseline profile only in browser preview mode 6ms
+ ❯ src/components/plan-creator.test.ts (5 tests | 1 failed) 7ms
+     × transports the local baseline profile only in browser preview mode 4ms
+ ❯ src/app/api/plans/generate/route.test.ts (58 tests | 3 failed) 542ms
+     × honors ID-keyed baseline answers in a verified preview study_now request 5ms
+     × honors ID-keyed baseline answers in a verified preview plan request 4ms
+     × rejects preview baseline answers on cloud requests before profile reads or metered work 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/plan-creator.test.ts > PlanCreator development-preview preferences > transports the local baseline profile only in browser preview mode
+AssertionError: expected {} to deeply equal { previewOnboardingAnswers: { …(3) } }
+
+- Expected
++ Received
+
+- {
+-   "previewOnboardingAnswers": {
+-     "answers": {
+-       "session_length": "minutes_10_15",
+-     },
+-     "legacy": {},
+-     "version": 1,
+-   },
+- }
++ {}
+
+ ❯ src/components/plan-creator.test.ts:27:79
+     25|   it("transports the local baseline profile only in browser preview mo…
+     26|     const answers = withOnboardingAnswer(emptyOnboardingAnswers(), "se…
+     27|     expect(planCreatorPreviewPreferenceRequestInput(true, [], null, an…
+       |                                                                               ^
+     28|     expect(planCreatorPreviewPreferenceRequestInput(false, [], null, a…
+     29|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  src/components/study-now-creator.test.ts > StudyNowCreator request summary > transports the local baseline profile only in browser preview mode
+AssertionError: expected {} to deeply equal { previewOnboardingAnswers: { …(3) } }
+
+- Expected
++ Received
+
+- {
+-   "previewOnboardingAnswers": {
+-     "answers": {
+-       "session_length": "minutes_10_15",
+-     },
+-     "legacy": {},
+-     "version": 1,
+-   },
+- }
++ {}
+
+ ❯ src/components/study-now-creator.test.ts:105:76
+    103|   it("transports the local baseline profile only in browser preview mo…
+    104|     const answers = withOnboardingAnswer(emptyOnboardingAnswers(), "se…
+    105|     expect(studyNowPreviewPreferenceRequestInput(true, [], null, answe…
+       |                                                                            ^
+    106|     expect(studyNowPreviewPreferenceRequestInput(false, [], null, answ…
+    107|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  src/app/api/plans/generate/route.test.ts > plan generation route > honors ID-keyed baseline answers in a verified preview study_now request
+ FAIL  src/app/api/plans/generate/route.test.ts > plan generation route > honors ID-keyed baseline answers in a verified preview plan request
+AssertionError: expected 25 to be less than or equal to 15
+ ❯ src/app/api/plans/generate/route.test.ts:529:47
+    527|     expect(body.plan.sessions.length).toBeGreaterThan(0);
+    528|     for (const session of body.plan.sessions) {
+    529|       expect(session.workload.ceilingMinutes).toBeLessThanOrEqual(15);
+       |                                               ^
+    530|       expect(session.estimatedMinutes).toBeLessThanOrEqual(15);
+    531|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  src/app/api/plans/generate/route.test.ts > plan generation route > rejects preview baseline answers on cloud requests before profile reads or metered work
+AssertionError: expected 200 to be 422 // Object.is equality
+
+- Expected
++ Received
+
+- 422
++ 200
+
+ ❯ src/app/api/plans/generate/route.test.ts:551:29
+    549|       previewOnboardingAnswers: { version: 1, answers: { session_lengt…
+    550|     }));
+    551|     expect(response.status).toBe(422);
+       |                             ^
+    552|     await expect(response.json()).resolves.toMatchObject({ code: "prev…
+    553|     expect(mocks.loadDurationContext).not.toHaveBeenCalled();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  5 failed | 70 passed (75)
+   Start at  18:25:38
+   Duration  1.15s (transform 1.08s, setup 0ms, import 1.71s, tests 571ms, environment 0ms)
+

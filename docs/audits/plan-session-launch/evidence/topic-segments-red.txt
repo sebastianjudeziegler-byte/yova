@@ -1,0 +1,100 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/plan-generation/topic-plan-segments.test.ts (6 tests | 4 failed) 58ms
+     × fills the genuine 33/60 recall gap with the next distinct ready topic and consumes its queued chunk once 46ms
+     × retains each independent learning chunk and its later practice without duplicate topic coverage 2ms
+     × never packs more than two topics or repeats a consumed chunk 6ms
+     × rejects parent totals that do not match the two isolated workloads 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/plan-generation/topic-plan-segments.test.ts > bounded within-block topic sweep > fills the genuine 33/60 recall gap with the next distinct ready topic and consumes its queued chunk once
+AssertionError: expected [ { …(21) }, { …(21) } ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ src/lib/plan-generation/topic-plan-segments.test.ts:23:35
+     21|     const input = segmentPlanInput();
+     22|     const composition = composeNormalPlanEnvelopes(input);
+     23|     expect(composition.envelopes).toHaveLength(1);
+       |                                   ^
+     24|     const block = composition.envelopes[0]!;
+     25|     expect(block.topicIds).toEqual([segmentTopicId(1), segmentTopicId(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/lib/plan-generation/topic-plan-segments.test.ts > bounded within-block topic sweep > retains each independent learning chunk and its later practice without duplicate topic coverage
+AssertionError: expected [ { …(21) }, { …(21) } ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ src/lib/plan-generation/topic-plan-segments.test.ts:40:20
+     38|     const composition = composeNormalPlanEnvelopes(input);
+     39|     const learns = composition.envelopes.filter(block => block.learnin…
+     40|     expect(learns).toHaveLength(1);
+       |                    ^
+     41|     expect(learns[0]!.workload!.segments).toHaveLength(2);
+     42|     for (const topic of input.request.knowledgeMap!.topics) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/lib/plan-generation/topic-plan-segments.test.ts > bounded within-block topic sweep > never packs more than two topics or repeats a consumed chunk
+AssertionError: expected [ 1, 1, 1, 1, 1 ] to deeply equal [ 2, 2, 1 ]
+
+- Expected
++ Received
+
+  [
+-   2,
+-   2,
++   1,
++   1,
++   1,
++   1,
+    1,
+  ]
+
+ ❯ src/lib/plan-generation/topic-plan-segments.test.ts:57:71
+     55|   it("never packs more than two topics or repeats a consumed chunk", (…
+     56|     const composition = composeNormalPlanEnvelopes(segmentPlanInput(tr…
+     57|     expect(composition.envelopes.map(block => block.topicIds.length)).…
+       |                                                                       ^
+     58|     expect(composition.envelopes.flatMap(block => block.topicIds)).toE…
+     59|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/lib/plan-generation/topic-plan-segments.test.ts > bounded within-block topic sweep > rejects parent totals that do not match the two isolated workloads
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ src/lib/plan-generation/topic-plan-segments.test.ts:71:117
+     69|     const workload = composeNormalPlanEnvelopes(segmentPlanInput()).en…
+     70|     expect(TopicWorkloadSchema.safeParse(workload).success).toBe(true);
+     71|     expect(TopicWorkloadSchema.safeParse({ ...workload, estimatedMinut…
+       |                                                                                                                     ^
+     72|     expect(TopicWorkloadSchema.safeParse({ ...workload, segments: [wor…
+     73|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 2 passed (6)
+   Start at  18:32:00
+   Duration  548ms (transform 291ms, setup 0ms, import 405ms, tests 58ms, environment 0ms)
+

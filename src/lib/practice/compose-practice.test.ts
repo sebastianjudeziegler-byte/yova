@@ -61,6 +61,27 @@ describe("composing a round from code-planned slots", () => {
     expect(composePracticeRound({ keyPoints, slots, drafts: fill(slots).slice(1) }).ok).toBe(false);
   });
 
+  it("permutes model answer positions while preserving the correct answer and stable resume order", () => {
+    const input = { keyPoints, slots, drafts: fill(slots) };
+    const first = composePracticeRound(input);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.questions.some(question => question.correctChoiceIndex !== 0)).toBe(true);
+    expect(first.questions.map(question => question.choices[question.correctChoiceIndex])).toEqual(slots.map(() => "Alpha"));
+    expect(composePracticeRound(input)).toEqual(first);
+  });
+
+  it("preserves semantic numeric order and rejects questions about a guide rather than its subject", () => {
+    const one = [slots[0]];
+    const ordered = composePracticeRound({ keyPoints, slots: one, drafts: [draft(one[0].slotId, { choices: ["10 kg", "20 kg", "30 kg", "40 kg"], correctChoiceIndex: 2 })] });
+    expect(ordered.ok && ordered.questions[0].choices).toEqual(["10 kg", "20 kg", "30 kg", "40 kg"]);
+    const calendar = ["Monday", "Tuesday", "Wednesday", "Thursday"];
+    const temporal = composePracticeRound({ keyPoints, slots: one, drafts: [draft(one[0].slotId, { choices: calendar, correctChoiceIndex: 2 })] });
+    expect(temporal.ok && temporal.questions[0].choices).toEqual(calendar);
+    expect(temporal.ok && temporal.questions[0].correctChoiceIndex).toBe(2);
+    expect(composePracticeRound({ keyPoints, slots: one, drafts: [draft(one[0].slotId, { prompt: "What does the study guide list as the goals of unit 6?" })] }).ok).toBe(false);
+  });
+
   it("refuses a question for a slot that was not planned", () => {
     expect(composePracticeRound({ keyPoints, slots, drafts: [...fill(slots), draft("s9")] }).ok).toBe(false);
   });

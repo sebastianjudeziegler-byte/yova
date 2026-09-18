@@ -1,0 +1,54 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/sync/baseline-completion-sync.test.ts (6 tests | 1 failed) 61ms
+     × preserves both segment receipts through pending save and exact retry 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/sync/baseline-completion-sync.test.ts > baseline completion uses durable terminal recovery > preserves both segment receipts through pending save and exact retry
+AssertionError: expected { …(14) } to deeply equal { …(15) }
+
+- Expected
++ Received
+
+@@ -9,22 +9,8 @@
+    "id": "10000000-0000-4000-8000-000000000002",
+    "observedGap": "No remaining gap identified.",
+    "planId": "10000000-0000-4000-8000-000000000003",
+    "planSessionId": "10000000-0000-4000-8000-000000000004",
+    "plannedMinutes": 20,
+-   "segmentCompletions": [
+-     {
+-       "correctAnswers": 3,
+-       "elapsedSeconds": 360,
+-       "segmentId": "part-1",
+-       "totalAnswers": 3,
+-     },
+-     {
+-       "correctAnswers": 2,
+-       "elapsedSeconds": 240,
+-       "segmentId": "part-2",
+-       "totalAnswers": 2,
+-     },
+-   ],
+    "startedAt": "2026-09-17T12:00:00.000Z",
+    "totalAnswers": 5,
+  }
+
+ ❯ src/lib/sync/baseline-completion-sync.test.ts:44:65
+     42|     transport.write.mockRejectedValueOnce(new Error("offline"));
+     43|     await syncBaselineCompletion(userId, segmented);
+     44|     expect(loadQueuedSessionCompletions(userId)[0]?.completion).toEqua…
+       |                                                                 ^
+     45|     await syncBaselineCompletion(userId, { ...segmented, completedAt: …
+     46|     expect(transport.write.mock.calls[1][0]).toEqual(segmented);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+   Start at  18:32:44
+   Duration  292ms (transform 99ms, setup 0ms, import 157ms, tests 61ms, environment 0ms)
+

@@ -26,7 +26,7 @@ const MONTH_NUMBER: Record<string, number> = {
 };
 
 const MONTH_NAME = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
-const DEADLINE_CUE = "(?:due(?:\\s+(?:on|by))?|deadline(?:\\s+(?:is|on))?|by|before)";
+const DEADLINE_CUE = "(?:due(?:\\s+(?:on|by))?|deadline(?:\\s+(?:is|on))?|(?:my\\s+)?personal\\s+goal\\s+(?:is\\s+)?on|by|before)";
 // Keep shorthand deliberately narrow. Tests, exams, quizzes and midterms are
 // events that naturally occur on a date. A paper, report or project can just
 // as naturally be *about* a historical date and therefore needs an explicit

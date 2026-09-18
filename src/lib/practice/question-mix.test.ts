@@ -74,6 +74,13 @@ describe("question slots", () => {
     expect(slots.map((slot) => slot.slotId)).toEqual(["s1", "s2", "s3", "s4", "s5"]);
   });
 
+  it("uses all available concept pairs before recycling them in a substantial application block", () => {
+    const slots = planQuestionSlots({ keyPointIds: five, mix: mix(0, 10, 0, 0, 0), count: 10 });
+    expect(new Set(slots.map(slot => slot.keyPointIds.join(":"))).size).toBe(10);
+    const coverage = five.map(id => slots.filter(slot => slot.keyPointIds.includes(id)).length);
+    expect(coverage).toEqual([4, 4, 4, 4, 4]);
+  });
+
   it("a one-point retry can only use one-point types", () => {
     const slots = planQuestionSlots({ keyPointIds: ["k3"], mix: mix(1, 2, 1, 0, 1), count: 1 });
     expect(slots).toHaveLength(1);

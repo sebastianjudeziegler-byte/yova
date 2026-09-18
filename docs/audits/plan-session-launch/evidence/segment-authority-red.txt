@@ -1,0 +1,30 @@
+
+ RUN  v4.1.10 /private/tmp/yova-plan-and-session-launch
+
+ ❯ src/lib/server/shape-slot-context.test.ts (7 tests | 1 failed) 16ms
+     × authorizes only the selected segment's topic, subtopics, source and workload 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/server/shape-slot-context.test.ts > authorized shape context > authorizes only the selected segment's topic, subtopics, source and workload
+AssertionError: expected 'a0000000-0000-4000-8000-000000000001' to be '99999999-9999-4999-8999-999999999999' // Object.is equality
+
+Expected: "99999999-9999-4999-8999-999999999999"
+Received: "a0000000-0000-4000-8000-000000000001"
+
+ ❯ src/lib/server/shape-slot-context.test.ts:73:27
+     71|   const posted={...request,segmentId:"segment-2",topic:{...request.top…
+     72|   const result=await hydrateShapeSlotContext(context.supabase,userId,p…
+     73|   expect(result.topic.id).toBe(related.id);
+       |                           ^
+     74|   expect(result.topic.subtopics).toEqual(["Second selected"]);
+     75|   expect(result.topic.relatedTopics).toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+   Start at  18:35:09
+   Duration  671ms (transform 367ms, setup 0ms, import 579ms, tests 16ms, environment 0ms)
+

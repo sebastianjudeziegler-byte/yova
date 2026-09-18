@@ -1,0 +1,200 @@
+{
+  "learnBlock": {
+    "keyPoints": [
+      {
+        "id": "k1",
+        "text": "Osmosis is the net movement of water through a partially permeable membrane from higher to lower water potential."
+      },
+      {
+        "id": "k2",
+        "text": "Water potential is a measure of how likely water is to move, and solutions with more dissolved solute have lower water potential."
+      },
+      {
+        "id": "k3",
+        "text": "In hypotonic, isotonic, and hypertonic solutions, water enters cells, shows no net movement, or leaves cells respectively."
+      },
+      {
+        "id": "k4",
+        "text": "When water enters a plant cell, the vacuole swells and the cell contents press against the wall, creating turgor pressure."
+      },
+      {
+        "id": "k5",
+        "text": "When a plant cell loses too much water, the membrane pulls away from the cell wall, which is called plasmolysis."
+      }
+    ],
+    "questions": [
+      {
+        "kind": "recall",
+        "keyPointIds": [
+          "k1"
+        ],
+        "prompt": "A biology student says osmosis is just any movement of water across a membrane. Which statement best corrects that idea?",
+        "choices": [
+          "It is the net movement of water through a partially permeable membrane from higher to lower water potential.",
+          "It is the movement of dissolved solute across any membrane until concentrations become equal.",
+          "It is the movement of water only when both sides have the same water potential.",
+          "It is the movement of water only in plant cells because they have cell walls."
+        ],
+        "correctChoiceIndex": 0
+      },
+      {
+        "kind": "application",
+        "keyPointIds": [
+          "k2",
+          "k3"
+        ],
+        "prompt": "A red blood cell is placed in a solution with many dissolved particles, and nearby water is available to move. What is the most likely outcome, and why?",
+        "choices": [
+          "Water enters the cell because the solution is hypotonic, so the cell swells.",
+          "Water leaves the cell because the solution is hypertonic, so the cell shrinks.",
+          "Water stays balanced because all concentrated solutions are isotonic to cells.",
+          "Water enters the cell because dissolved particles pull water through the membrane."
+        ],
+        "correctChoiceIndex": 1
+      },
+      {
+        "kind": "application",
+        "keyPointIds": [
+          "k4",
+          "k5"
+        ],
+        "prompt": "A plant cell is moved from pure water into a very concentrated sugar solution. Which change is most likely, and what is it called?",
+        "choices": [
+          "The vacuole fills more and the cell becomes turgid.",
+          "The membrane pulls away from the wall, and this is plasmolysis.",
+          "The cell wall collapses, and this is diffusion.",
+          "The nucleus leaves the cell, and this is crenation."
+        ],
+        "correctChoiceIndex": 1
+      },
+      {
+        "kind": "compare_contrast",
+        "keyPointIds": [
+          "k1",
+          "k2"
+        ],
+        "prompt": "How are water potential and osmosis related?",
+        "choices": [
+          "Water potential describes the driving tendency, while osmosis is the water movement caused by a difference in that tendency.",
+          "Water potential and osmosis are the same thing, just described with different words.",
+          "Water potential is only used for plant cells, while osmosis is only used for animal cells.",
+          "Osmosis is the cause of water potential, because moving water creates solute concentration."
+        ],
+        "correctChoiceIndex": 0
+      },
+      {
+        "kind": "misconception",
+        "keyPointIds": [
+          "k3"
+        ],
+        "prompt": "A learner says that in an isotonic solution, water always moves out of the cell because the solution still contains solute. Which correction is best?",
+        "choices": [
+          "That is correct, because any solute outside the cell makes water leave.",
+          "That is incorrect, because isotonic means water moves in and out at equal rates with no net change.",
+          "That is incorrect, because isotonic means water enters the cell more than it leaves.",
+          "That is correct only for plant cells, but not for animal cells."
+        ],
+        "correctChoiceIndex": 1
+      }
+    ]
+  },
+  "practice": {
+    "keyPoints": [
+      {
+        "id": "k1",
+        "text": "Osmosis is the net movement of water across a partially permeable membrane from a region of higher water potential to a region of lower water potential."
+      },
+      {
+        "id": "k2",
+        "text": "Pure water has water potential zero, and dissolving solute lowers water potential by making it negative."
+      },
+      {
+        "id": "k3",
+        "text": "A plant cell in a solution with lower water potential than its cytoplasm loses water, the vacuole shrinks, and the membrane pulls away from the wall (plasmolysis)."
+      },
+      {
+        "id": "k4",
+        "text": "A plant cell in a solution with higher water potential than its cytoplasm gains water until the wall resists further expansion, making the cell turgid."
+      },
+      {
+        "id": "k5",
+        "text": "Animal cells have no cell wall, so in much higher water potential they swell and may burst, while in lower water potential they shrink and crenate."
+      }
+    ],
+    "questions": [
+      {
+        "kind": "recall",
+        "keyPointIds": [
+          "k1"
+        ],
+        "prompt": "Which statement best describes what osmosis is?",
+        "choices": [
+          "The overall movement of water through a membrane from a wetter side to a less wet side",
+          "The net movement of water across a partially permeable membrane from higher to lower water potential",
+          "The movement of solute molecules across any membrane from low to high concentration",
+          "The diffusion of water only in plant cells when they are turgid"
+        ],
+        "correctChoiceIndex": 1
+      },
+      {
+        "kind": "application",
+        "keyPointIds": [
+          "k2",
+          "k3"
+        ],
+        "prompt": "A scientist adds salt to pure water and then places a plant cell into the mixture. Which outcome matches the change to the liquid and the cell?",
+        "choices": [
+          "The liquid’s water potential rises above zero, so the cell swells immediately",
+          "The liquid’s water potential stays at zero, so the cell is unchanged",
+          "The liquid’s water potential becomes negative, so the cell is more likely to lose water and plasmolyse",
+          "The liquid’s water potential becomes positive, so the cell becomes turgid"
+        ],
+        "correctChoiceIndex": 2
+      },
+      {
+        "kind": "application",
+        "keyPointIds": [
+          "k4",
+          "k5"
+        ],
+        "prompt": "A plant cell is put into a very dilute solution, and an animal cell is put into the same solution. What pair of outcomes is most likely?",
+        "choices": [
+          "Both cells plasmolyse because water leaves them",
+          "The plant cell becomes turgid, and the animal cell may swell and burst",
+          "The plant cell crenates, and the animal cell becomes turgid",
+          "Both cells shrink because the solution has the highest water potential"
+        ],
+        "correctChoiceIndex": 1
+      },
+      {
+        "kind": "compare_contrast",
+        "keyPointIds": [
+          "k1",
+          "k2"
+        ],
+        "prompt": "Which comparison is correct?",
+        "choices": [
+          "Osmosis describes water moving from lower to higher water potential, whereas pure water has a negative water potential",
+          "Osmosis is the movement of water down a water potential gradient, whereas pure water is the reference point with water potential zero",
+          "Osmosis happens only in plant cells, whereas pure water has no water potential at all",
+          "Osmosis is the movement of solute, whereas pure water becomes positive when solute is added"
+        ],
+        "correctChoiceIndex": 1
+      },
+      {
+        "kind": "misconception",
+        "keyPointIds": [
+          "k3"
+        ],
+        "prompt": "A student says, 'If a plant cell is in a solution with lower water potential than its cytoplasm, it will swell because water enters the cell.' Which correction is best?",
+        "choices": [
+          "Correct it: the cell loses water, the vacuole shrinks, and plasmolysis can occur",
+          "Correct it: the cell gains water and becomes turgid because lower water potential always causes swelling",
+          "Keep it: plant cells never lose water because the wall prevents this",
+          "Keep it: lower water potential means the cell is in pure water"
+        ],
+        "correctChoiceIndex": 0
+      }
+    ]
+  }
+}

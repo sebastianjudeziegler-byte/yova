@@ -117,6 +117,7 @@ export type SessionAdaptationNote = {
 };
 
 export type LearningPlanSession = {
+  workload?: import("@/lib/plan-generation/topic-plan-contract").TopicWorkload;
   revisionEditedFields?: ("title" | "objective" | "method" | "methodReason" | "scheduledFor" | "estimatedMinutes")[];
   id: string;
   sequence: number;
@@ -150,6 +151,7 @@ export type LearningPlanSession = {
 };
 
 export type LearningPlan = {
+  planModel?: import("@/lib/plan-generation/topic-plan-contract").TopicPlanModel;
   revisionId?: string;
   id: string;
   learningItemId: string;
@@ -209,6 +211,8 @@ export type SessionCompletion = {
   actualMinutes: number;
   correctAnswers: number;
   totalAnswers: number;
+  /** Ordered receipts for both executed parts of a packed topic block. */
+  segmentCompletions?: Array<{ segmentId: string; correctAnswers: number; totalAnswers: number; elapsedSeconds: number }>;
   feedback: "too_easy" | "about_right" | "too_difficult" | null;
   observedGap: string;
   /**

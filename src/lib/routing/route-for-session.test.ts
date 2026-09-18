@@ -4,6 +4,7 @@ import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import { emptyOnboardingAnswers } from "@/lib/onboarding/answers";
 import type { SessionCompletion } from "@/lib/domain";
 import { interleavedKeyPointsForSession, passedRelatedTopicIds, routingEvidenceForTopic, routingInputForSession, sessionTopic } from "./route-for-session";
+import { routeSession } from "./session-route";
 
 const topicId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const materialId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -55,6 +56,12 @@ describe("routing input for a plan session", () => {
     expect(practice).toMatchObject({ blockKind: "practice", hasSource: false });
   });
 
+  it("an outline-only source routes to generated teaching rather than an empty source screen", () => {
+    const material: LearningMaterial = { id: materialId, name: "Syllabus.txt", mimeType: "text/plain", sizeBytes: 50, textContent: "Explain glycolysis and its products.", processingStatus: "ready" };
+    const outline = topic({ origin: "material", sourceReferences: [{ materialId, chunkId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", chunkIndex: 0, startCharacter: 0, endCharacter: 34, locationLabel: "Learning objectives", sectionRole: "scope_outline" }] });
+    expect(routingInputForSession({ plan: plan([outline], [material], "user_materials"), session: session(), topic: outline, answers: emptyOnboardingAnswers() }).hasSource).toBe(false);
+  });
+
   it("flags problems inside a mixed-assessment session from the topic's own classification", () => {
     const solve = topic({ title: "Solve quadratic equations", description: "Solve quadratic equations by factoring and the quadratic formula." });
     const mixed = session({ studyRoute: { target: { taskFamily: "mixed_assessment" } } as never });
@@ -93,6 +100,18 @@ describe("practice label inputs", () => {
     expect(passedRelatedTopicIds({ plan: plan(topics), topic: topics[0]!, completions: [completion(second, ["secure", "needs_review"])] })).toEqual([]);
   });
 
+  it("keeps a persisted independent activity scoped when later history permits interleaving", () => {
+    const input = { plan: plan(topics), session: session({ learningMode: "study" }), topic: topics[0]!, answers: emptyOnboardingAnswers(), completions: [completion(topicId, ["secure"]), completion(second, ["secure"])], now: new Date("2026-09-11T12:00:00.000Z") };
+    const ordinary = routingInputForSession(input);
+    expect(routeSession(ordinary).firstPracticeRound).toBe("interleaved_review");
+    const scoped = routingInputForSession({ ...input, independentWorkload: true });
+    expect(scoped).toEqual({ ...ordinary, passedRelatedTopicIds: [] });
+    expect(routeSession(scoped).firstPracticeRound).toBe("active_recall");
+    const nearDeadline = routingInputForSession({ ...input, plan: { ...input.plan, deadline: "2026-09-13T12:00:00.000Z" }, independentWorkload: true });
+    expect(nearDeadline.daysToDeadline).toBe(2);
+    expect(routeSession(nearDeadline).firstPracticeRound).toBe("practice_test");
+  });
+
   it("sweeps the passed related topics' key points for an Interleaved Review, with unique ids", () => {
     const completions = [completion(topicId, ["secure", "secure"]), completion(second, ["secure", "secure"])];
     const keyPoints = interleavedKeyPointsForSession({ plan: plan(topics), topic: topics[0]!, completions });
@@ -112,4 +131,3 @@ describe("difficulty inputs", () => {
     expect(input.prerequisiteDepth).toBe(1);
   });
 });
-

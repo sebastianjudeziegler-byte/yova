@@ -1,3 +1,5 @@
+import { initialPlanBaselineMethod } from "@/lib/study-route/initial-plan-baseline-method";
+import type { OnboardingAnswers } from "@/lib/onboarding/answers";
 import { personalizedMethodReason } from "@/lib/plan-generation/learner-plan-copy";
 import { initialPlanProfileMethod } from "@/lib/study-route/initial-plan-profile-method";
 import {
@@ -45,6 +47,7 @@ export const INITIAL_PLAN_METHOD_ROUTING_VERSION =
 export type InitialPlanMethodRoutingContext = {
   /** Authorized learner-context snapshot, never profile-summary prose. */
   profileVersion: string;
+  baselineOnboardingAnswers?: OnboardingAnswers;
   personalization: DeepReadonly<GenerationPersonalizationContext>;
   observedEvidence: readonly CanonicalObservedMethodEvidence[];
   /** Server-owned, account-stable assignment for this new route issuance. */
@@ -102,9 +105,12 @@ export function integrateInitialPlanMethodRoutes({
       learnerChoice: context.methodChoicesBySequence?.[session.sequence],
     });
     const isFixedPlan = route.provenance.routerVersion.split("+").includes(NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION);
-    const selected = isFixedPlan ? initialPlanProfileMethod(canonicalSelection, routedInputs.personalization?.canonicalProfile, Boolean(routedInputs.personalization?.preferredMethodIds?.length || context.methodChoicesBySequence?.[session.sequence])) : canonicalSelection;
+    const profileSelected = isFixedPlan ? initialPlanProfileMethod(canonicalSelection, routedInputs.personalization?.canonicalProfile, Boolean(routedInputs.personalization?.preferredMethodIds?.length || context.methodChoicesBySequence?.[session.sequence])) : canonicalSelection;
+    const selected = context.baselineOnboardingAnswers && !context.methodChoicesBySequence?.[session.sequence]
+      ? initialPlanBaselineMethod(profileSelected, context.baselineOnboardingAnswers, request, session)
+      : profileSelected;
     const proposed = methodReasons?.[index];
-    const reason = isFixedPlan ? personalizedMethodReason({ request, session: { ...session, method: selected.selectedMethodName }, proposed: proposed && !usedReasons.has(proposed.trim()) ? proposed : undefined }) : selected.learnerFacingReason;
+    const reason = context.baselineOnboardingAnswers && selected !== profileSelected ? selected.learnerFacingReason : isFixedPlan ? personalizedMethodReason({ request, session: { ...session, method: selected.selectedMethodName }, proposed: proposed && !usedReasons.has(proposed.trim()) ? proposed : undefined }) : selected.learnerFacingReason;
     usedReasons.add(reason);
     const selection = { ...selected, learnerFacingReason: reason };
     const integratedRoute = integrateStudyRouteMethodDecision({

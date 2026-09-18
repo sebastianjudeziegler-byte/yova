@@ -24,10 +24,10 @@ describe("initial plan session mode routing", () => {
     });
   });
 
-  it("routes exact placement gaps to Learn and demonstrated targets to Practice", () => {
+  it.each(["completed", "partial"] as const)("routes %s placement gaps to Learn and demonstrated targets to Practice", (status) => {
     const knowledgeMap = map({
       placementCheck: {
-        status: "completed",
+        status,
         completedAt: OBSERVED_AT,
         demonstratedTopicIds: [TOPIC_B],
         gapTopicIds: [TOPIC_A],
@@ -140,10 +140,10 @@ describe("initial plan session mode routing", () => {
     expect(decisions[1].ruleTrace[0]?.reason).toContain("follows an earlier planned encounter");
   });
 
-  it("does not generalize one demonstrated topic to an unchecked target", () => {
+  it.each(["completed", "partial"] as const)("does not generalize %s placement evidence to an unchecked target", (status) => {
     const knowledgeMap = map({
       placementCheck: {
-        status: "completed",
+        status,
         completedAt: OBSERVED_AT,
         demonstratedTopicIds: [TOPIC_A],
         gapTopicIds: [],
@@ -239,10 +239,10 @@ describe("initial plan session mode routing", () => {
     );
   });
 
-  it("rejects contradictory, stale, or incomplete placement ledgers", () => {
+  it.each(["completed", "partial"] as const)("rejects contradictory or incomplete %s placement ledgers", (status) => {
     const overlap = map({
       placementCheck: {
-        status: "completed",
+        status,
         completedAt: OBSERVED_AT,
         demonstratedTopicIds: [TOPIC_A],
         gapTopicIds: [TOPIC_A],
@@ -274,7 +274,7 @@ describe("initial plan session mode routing", () => {
 
     const mismatched = map({
       placementCheck: {
-        status: "completed",
+        status,
         completedAt: OBSERVED_AT,
         demonstratedTopicIds: [TOPIC_A],
         gapTopicIds: [],
@@ -283,6 +283,10 @@ describe("initial plan session mode routing", () => {
     expectRoutingError(
       () => resolve(mismatched, "learn", [{ key: 1, topicIds: [TOPIC_A] }]),
       "placement_evidence_mismatch",
+    );
+    expectRoutingError(
+      () => resolve(map({ placementCheck: { status, completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] } }), "learn", [{ key: 1, topicIds: [TOPIC_A] }]),
+      "invalid_placement_state",
     );
   });
 });
