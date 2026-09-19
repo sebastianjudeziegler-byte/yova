@@ -68,6 +68,13 @@ describe("deployed signed-in generation readiness", () => {
     await expect(signedInGenerationReadinessStatus()).resolves.toBe("unavailable");
   });
 
+  // Brief 2.5 finding 16: a database that still reports a refused plan change
+  // or Undo as a serialization failure leaves Undo hanging, so it is not ready.
+  it.each([false, undefined])("fails closed when answered plan revision refusals are %s", async planRevisionRefusalsAnswer => {
+    mocks.rpc.mockResolvedValueOnce({ data: { ...completeReadinessPayload(), planRevisionRefusalsAnswer }, error: null });
+    await expect(signedInGenerationReadinessStatus()).resolves.toBe("unavailable");
+  });
+
   it("fails before probing when either server-only prerequisite is absent", async () => {
     vi.stubEnv("YOVA_DRAFT_RECEIPT_SECRET", "");
     await expect(signedInGenerationReadinessStatus()).resolves.toBe("unavailable");
@@ -130,6 +137,6 @@ function completeReadinessPayload() {
       unansweredCompletionFeedback: true,
       livingPlanRevision: true,
       topicPlanWorkloads: true,
-      planSessionReads: true, topicSegmentCompletions: true, permanentConflictsAnswer: true,
+      planSessionReads: true, topicSegmentCompletions: true, permanentConflictsAnswer: true, planRevisionRefusalsAnswer: true,
   };
 }

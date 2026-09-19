@@ -249,6 +249,7 @@ import { selectFreeResponseMode } from "@/lib/learning/response-mode";
 import { previewClientPlanRevision, sendPlanRevisionRequest, savedPlanAvailability } from "@/components/plan-revision/revision-client";
 import { RevisionPlanSchema } from "@/lib/plan-revision/revision-schema";
 import type { SignedPreview } from "@/components/plan-revision/plan-revision-preview";
+import { lastRevisionStillCurrent, loadLastPlanRevision, saveLastPlanRevision, type LastPlanRevision } from "@/lib/plan-revision/last-revision-store";
 import { LivingPlanRevision, type RevisionClient, type RevisionLaunch } from "@/components/plan-revision/living-plan-revision";
 import type { MapDelta } from "@/lib/plan-revision/map-delta";
 import { applySessionRevisionPatches, sessionRevisionPatches } from "@/lib/plan-revision/revision-patch";
@@ -640,7 +641,7 @@ export function YovaPrototype({
   const [, setCreatorReviewSourceFirst] = useState(false);
   const [calendarStorageRevision, setCalendarStorageRevision] = useState(0);
   const [revisionLaunch, setRevisionLaunch] = useState<RevisionLaunch | null>(null);
-  const [quickRevision, setQuickRevision] = useState<{ signed: SignedPreview; message: string; undone?: boolean } | null>(null);
+  const [quickRevision, setQuickRevisionState] = useState<LastPlanRevision | null>(null);
   const [quickRevisionError, setQuickRevisionError] = useState<string | null>(null);
   const [quickRevisionUndoing, setQuickRevisionUndoing] = useState(false);
   const awaitingRevision = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null);
@@ -3071,6 +3072,23 @@ export function YovaPrototype({
     }
   };
 
+  // Spec section 5: an inline change keeps its receipt and Undo until the next
+  // change, including across a reload (Brief 2.5 finding 16).
+  const revisionAccountId = account?.id ?? "browser-preview";
+  const browserStorage = () => typeof window === "undefined" ? undefined : window.localStorage;
+  const setQuickRevision = setQuickRevisionState;
+  const rememberQuickRevision = (signed: SignedPreview, message: string) => {
+    const developmentPreview = browserPreviewMode || account?.identityMode === "preview";
+    const revision: LastPlanRevision = { planId: signed.proposal.planId, revisionId: signed.proposal.revisionId, message, ...(developmentPreview ? { signed } : {}) };
+    setQuickRevisionState(revision);
+    saveLastPlanRevision(browserStorage(), revisionAccountId, revision);
+  };
+  useEffect(() => {
+    if (quickRevision) return;
+    const stored = loadLastPlanRevision(browserStorage(), revisionAccountId);
+    if (stored && lastRevisionStillCurrent(stored, plans)) setQuickRevisionState(stored);
+  }, [plans, revisionAccountId, quickRevision]);
+
   const revisionClient: RevisionClient = {
     launch: revisionLaunch,
     onReviewClosed: () => {
@@ -3081,7 +3099,7 @@ export function YovaPrototype({
     accountId: account?.id ?? "browser-preview", plans,
     profileSummary: buildPlanProfileSummary(answers), previewCanonicalProfile: effectivePreviewCanonicalProfile ?? undefined,
     onOpenCalendar: () => setActiveTab("Calendar"),
-    onInlineApplied: (signed, message) => { setQuickRevision({ signed, message }); setQuickRevisionError(null); },
+    onInlineApplied: (signed, message) => { rememberQuickRevision(signed, message); setQuickRevisionError(null); },
     onSaved: (saved, previous, changedSessionIds) => {
       const current = plansRef.current.find(candidate => candidate.id === saved.id);
       if (!current || (current.revisionId ?? current.id) !== (previous.revisionId ?? previous.id)) throw new Error("This plan changed while saving. Reload its latest revision before continuing.");
@@ -3167,7 +3185,7 @@ export function YovaPrototype({
     }
     const result = await sendPlanRevisionRequest({ action: "apply", ...signed });
     await revisionClient.onSaved(RevisionPlanSchema.parse(result.plan) as LearningPlan, plan, result.changedSessionIds);
-    setQuickRevision({ signed, message: result.receipt.message });
+    rememberQuickRevision(signed, result.receipt.message);
     setQuickRevisionError(null);
   };
 
@@ -3975,14 +3993,15 @@ export function YovaPrototype({
   return <>
     <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={() => activeTab === "Calendar" ? beginCalendarAdd() : beginPlanCreation()} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
       {quickRevision && <div className="plan-revision-receipt"><div role="status"><p>{quickRevision.message}</p>{!quickRevision.undone && <button className="button secondary" disabled={quickRevisionUndoing} onClick={async () => {
-        const current = plansRef.current.find(plan => plan.id === quickRevision.signed.proposal.planId);
+        const current = plansRef.current.find(plan => plan.id === quickRevision.planId);
         if (!current) return;
         setQuickRevisionUndoing(true); setQuickRevisionError(null);
         try {
-          const result = await sendPlanRevisionRequest({ action: "undo", planId: current.id, expectedRevisionId: quickRevision.signed.proposal.revisionId,
-            ...(revisionClient.developmentPreview ? { developmentPlan: current, ...quickRevision.signed } : {}) });
+          const result = await sendPlanRevisionRequest({ action: "undo", planId: current.id, expectedRevisionId: quickRevision.revisionId,
+            ...(revisionClient.developmentPreview && quickRevision.signed ? { developmentPlan: current, ...quickRevision.signed } : {}) });
           await revisionClient.onSaved(RevisionPlanSchema.parse(result.plan) as LearningPlan, current, result.changedSessionIds);
           setQuickRevision({ ...quickRevision, message: result.receipt.message, undone: true });
+          saveLastPlanRevision(browserStorage(), revisionAccountId, null);
         } catch (error) { setQuickRevisionError(error instanceof Error ? error.message : "Undo could not be saved."); }
         finally { setQuickRevisionUndoing(false); }
       }}>{quickRevisionUndoing ? "Restoring…" : "Undo"}</button>}</div>{quickRevisionError && <p role="alert">{quickRevisionError}</p>}</div>}

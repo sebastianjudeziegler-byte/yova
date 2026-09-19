@@ -10,6 +10,7 @@ import { normalizePlanDraftGenerationContract } from "@/lib/plan-generation/draf
 import { loadActiveRevisionContext } from "@/lib/plan-revision/active-context";
 import { applySessionRevisionPatches, mergeRevisionMapChanges, sessionRevisionPatches } from "@/lib/plan-revision/revision-patch";
 import { commitPlanStudyRoutes } from "@/lib/study-route/activation";
+import { revisionReceiptMessage, revisionTopicLines } from "@/lib/plan-revision/revision-receipt";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -23,7 +24,7 @@ export async function applyPlanRevision({ input, supabase, userId, developmentPr
   const verified = verifyPlanRevisionProposalReceipt({ proposal, receipt: input.proposalReceipt, userId, developmentPreview, now });
   if (!verified.ok || !proposal.canApply) throw new PlanRevisionRequestError("This preview expired or changed. Review a new preview before applying it.", 409);
   const receipt = { revisionId: proposal.revisionId, previousRevisionId: proposal.baseRevisionId,
-    message: `${proposal.lines.map(line => line.description).join("; ")}; everything else unchanged.` };
+    message: revisionReceiptMessage({ before: proposal.before as LearningPlan, after: proposal.after as LearningPlan, topicLines: revisionTopicLines(proposal) }) };
   if (proposal.contextKind === "draft") {
     const draftReceipt = developmentPreview ? null : issuePlanDraftReceipt({
       parsedPlan: proposal.after,
@@ -65,7 +66,7 @@ export async function persistAcceptedPlanRevision({ proposal, current, supabase,
       after: next.sessions.find(session => session.id === patch.id) ?? null })),
     fixedEvents: proposal.fixedEvents, proposal, receipt,
   } });
-  if (result.error) throw new PlanRevisionRequestError("The change could not be saved. Your saved work has been kept; refresh the preview or retry.", result.error.code === "40001" ? 409 : 503);
+  if (result.error) throw new PlanRevisionRequestError("The change could not be saved. Your saved work has been kept; refresh the preview or retry.", ["PT409", "40001"].includes(result.error.code) ? 409 : 503);
   const saved = await loadActiveRevisionContext(supabase, proposal.planId);
   return { status: "applied", plan: saved.plan, receipt, changedSessionIds: patches.map(patch => patch.id) };
 }

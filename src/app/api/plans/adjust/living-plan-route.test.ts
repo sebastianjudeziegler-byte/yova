@@ -10,6 +10,7 @@ import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-p
 import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
 import { PlanActivationRequestSchema } from "@/lib/plan-generation/schema";
 import { issuePlanDraftReceipt } from "@/lib/server/plan-draft-receipt";
+import { emptyOnboardingAnswers } from "@/lib/onboarding/answers";
 
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({
@@ -132,6 +133,23 @@ describe("living-plan structured preview through the existing adjustment route",
     savedProfile(1);
   });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  // Brief 2.5 root cause 3 (finding 64): a rebuilt block came back as Concept
+  // Mapping at the default length because the revision preview never gave the
+  // composer the learner's onboarding answers, which plan generation always does.
+  it("rebuilds a changed block with the learner's own onboarding answers", async () => {
+    const fixture = deltaFixture(1);
+    const answers = { ...emptyOnboardingAnswers(), answers: { session_length: "minutes_10_15" } };
+    mocks.context.mockResolvedValue({
+      status: "ready", reason: "loaded", ...fixture.durationContext, onboardingAnswers: answers,
+      profileSummary: fixture.request.profileSummary, methodProfileVersion: fixture.methodContext.profileVersion,
+      methodEvidence: { personalization: fixture.methodContext.personalization, observedEvidence: [] },
+    });
+    const { response, body } = await preview([{ op: "mark_covered", topic_id: ETC }]);
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const rebuilt = firstSession(body.proposal.after as LearningPlan, ETC);
+    expect(rebuilt.estimatedMinutes, "the learner chose 10-15 minute sessions").toBeLessThanOrEqual(15);
+  });
 
   it("shows Practice for learned-elsewhere ETC without claiming a demonstrated result or changing another session", async () => {
     const { response, body, before } = await preview([{ op: "mark_covered", topic_id: ETC }]);
@@ -404,6 +422,37 @@ describe("living-plan structured preview through the existing adjustment route",
     expect(result.plan.knowledgeMap).toEqual(before.knowledgeMap);
     expect(result.receipt.message).toMatch(/restored.*everything else unchanged/i);
     expect(result.draftReceipt).toBeTruthy();
+  });
+
+  // Brief 2.5 root cause 3 (findings 17, 18): moving a block renamed and
+  // re-methoded it while the receipt said "Change selected study blocks;
+  // everything else unchanged". Undo of the move restored more than the move.
+  it("moves a block's date only, says so in the receipt, and Undo restores exactly that", async () => {
+    const context = contextFor();
+    const before = context.plan;
+    const target = [...before.sessions].sort((a, b) => a.sequence - b.sequence).find(session => session.learningMode === "study")!;
+    const end = (session: LearningPlan["sessions"][number]) => Date.parse(session.scheduledFor) + session.estimatedMinutes * 60_000;
+    let moved = Date.parse(target.scheduledFor) + 86_400_000;
+    while (before.sessions.some(session => session.id !== target.id && Date.parse(session.scheduledFor) - 300_000 < moved + target.estimatedMinutes * 60_000 && end(session) + 300_000 > moved)) moved += 86_400_000;
+    const scheduledFor = new Date(moved).toISOString();
+    const { response, body } = await preview([{ op: "set_availability", availability: context.generationRequest.availability }], {
+      context, controls: { excludedOperationIndexes: [], sessionEdits: [{ sessionId: target.id, operationIndex: 0, scheduledFor }] },
+    });
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    const send = async (payload: unknown) => { const res = await PATCH(new Request("http://localhost/api/plans/adjust", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })); return { status: res.status, result: await res.json() }; };
+    const applied = await send({ action: "apply", proposal: body.proposal, proposalReceipt: body.proposalReceipt });
+    expect(applied.status, JSON.stringify(applied.result)).toBe(200);
+    const after = applied.result.plan as LearningPlan;
+    const movedSession = after.sessions.find(session => session.id === target.id)!;
+    expect(movedSession).toMatchObject({ scheduledFor, title: target.title, method: target.method, estimatedMinutes: target.estimatedMinutes });
+    for (const session of before.sessions.filter(item => item.id !== target.id)) expect(after.sessions.find(item => item.id === session.id)).toEqual(session);
+    expect(applied.result.receipt.message).toMatch(new RegExp(`^${target.title}: moved .+ → .+; everything else unchanged\\.$`));
+    expect(applied.result.receipt.message).not.toMatch(/Change selected study blocks|renamed|method /);
+
+    const undone = await send({ action: "undo", planId: before.id, expectedRevisionId: body.proposal.revisionId, proposal: body.proposal, proposalReceipt: body.proposalReceipt });
+    expect(undone.status, JSON.stringify(undone.result)).toBe(200);
+    expect(undone.result.plan.sessions).toEqual(before.sessions);
+    expect(undone.result.receipt.message).toMatch(new RegExp(`^Previous revision restored: ${target.title}: moved .+ → .+; everything else unchanged\\.$`));
   });
 
   it("Undo of an added topic restores the exact previous map and sessions", async () => {

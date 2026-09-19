@@ -168,6 +168,29 @@ describe.skipIf(!configured)("plan adjustment route against a migrated database"
     expect(Date.parse(restoredSession.scheduledFor)).toBe(Date.parse(previousSession.scheduledFor));
   });
 
+  // Brief 2.5 finding 16: Undo hung for over a minute, then the plan was not
+  // restored after a reload. A refusal only the database can see - here the
+  // session changes after the route's own check and before the writer runs -
+  // was raised as SQLSTATE 40001 and retried in front of the database until
+  // nothing came back. 20260919100001 answers it as PT409 (HTTP 409).
+  it("answers a refusal only the database can see instead of hanging Undo", async () => {
+    const { previewed, changedId } = await applyFreshChangeWithEmptyEditList();
+    const beforeRefusal = await loadActiveRevisionContext(clients.learner, planId);
+    const rpc = clients.admin.rpc.bind(clients.admin);
+    const spied = vi.spyOn(clients.admin, "rpc").mockImplementation(((name: string, args?: object) => {
+      if (name === "apply_plan_revision") ownerSql(`update public.plan_sessions set title = title || ' (changed on another device)' where id='${uuid(changedId)}';`);
+      return rpc(name, args);
+    }) as typeof clients.admin.rpc);
+    const started = Date.now();
+    const undone = await send({ action: "undo", planId, expectedRevisionId: previewed.body.proposal.revisionId });
+    spied.mockRestore();
+    expect(Date.now() - started, "a refused Undo must answer, not wait on a retried serialization failure").toBeLessThan(20_000);
+    expect(undone.status).toBe(409);
+    expect(ownerSql(`select count(*) from public.plan_revisions where plan_id='${uuid(planId)}';`), "nothing was half-saved").toBe("1");
+    const afterRefusal = await loadActiveRevisionContext(clients.learner, planId);
+    expect(afterRefusal.plan.revisionId).toBe(beforeRefusal.plan.revisionId);
+  }, 60_000);
+
   it("still refuses Undo when the stored reviewed-edit list genuinely changed", async () => {
     const { previewed, changedId } = await applyFreshChangeWithEmptyEditList();
     ownerSql(`update public.plan_sessions set step_data=jsonb_set(step_data,'{revisionEditedFields}','["title"]'::jsonb) where id='${uuid(changedId)}';`);

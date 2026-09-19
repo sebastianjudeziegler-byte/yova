@@ -12,6 +12,7 @@ import { persistAcceptedPlanRevision } from "@/lib/plan-revision/apply-service";
 import { createSuccessorStudyRoute, hasMaterialStudyRouteChange } from "@/lib/study-route/revisions";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
 import { commitPlanStudyRoutes } from "@/lib/study-route/activation";
+import { revisionReceiptMessage, revisionTopicLines } from "@/lib/plan-revision/revision-receipt";
 import { issuePlanDraftReceipt } from "@/lib/server/plan-draft-receipt";
 import { normalizePlanDraftGenerationContract } from "@/lib/plan-generation/draft-contract";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -70,10 +71,14 @@ export async function undoPlanRevision({ input, supabase, userId, developmentPre
   });
   const sessions = applySessionRevisionPatches({ current: current.sessions, patches, protectedSessionIds: new Set(active?.protections.filter(item => item.savedWork && current.sessions.find(session => session.id === item.sessionId)?.status !== "skipped").map(item => item.sessionId) ?? []) });
   const knowledgeMap = mergeRevisionMapChanges({ before: original.after.knowledgeMap!, after: original.before.knowledgeMap!, current: current.knowledgeMap!, undoAddedTopics: true });
-  const restored = { ...current, materials: original.before.materials, sourceMode: original.before.sourceMode, knowledgeMap, sessions, deadline: original.before.deadline, schedulePreferences: original.before.schedulePreferences, revisionId: original.baseRevisionId };
+  // Undo reverses exactly this revision's delta (Brief 2.5 root cause 3): a
+  // plan-level field is restored only if this revision changed it.
+  const reverted = <K extends "materials" | "sourceMode" | "deadline" | "schedulePreferences">(field: K) =>
+    JSON.stringify(original.before[field] ?? null) !== JSON.stringify(original.after[field] ?? null) ? original.before[field] : current[field];
+  const restored = { ...current, materials: (reverted("materials") ?? original.before.materials) as typeof original.before.materials, sourceMode: reverted("sourceMode"), knowledgeMap, sessions, deadline: reverted("deadline"), schedulePreferences: reverted("schedulePreferences"), revisionId: original.baseRevisionId };
   const generationRequest = { ...original.generationRequest, materials: restored.materials, materialMode: restored.materials.length ? "upload" as const : "none" as const, knowledgeMap, deadline: restored.deadline,
     ...(restored.schedulePreferences ? restored.schedulePreferences : {}) };
-  const receipt = { revisionId: original.baseRevisionId, previousRevisionId: original.revisionId, message: "Previous revision restored; everything else unchanged." };
+  const receipt = { revisionId: original.baseRevisionId, previousRevisionId: original.revisionId, message: revisionReceiptMessage({ before: current, after: restored as LearningPlan, topicLines: revisionTopicLines(original).map(line => `undid "${line}"`), undo: true }) };
   if (original.contextKind === "draft") {
     const draftReceipt = developmentPreview ? null : issuePlanDraftReceipt({ parsedPlan: restored,
       normalizedGenerationContract: normalizePlanDraftGenerationContract(generationRequest, restored), authenticatedUserId: userId!,

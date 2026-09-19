@@ -134,6 +134,57 @@ test("active topics apply learned-elsewhere immediately without a verification q
   expect(after.knowledgeMap!.topics.find(topic => topic.id === WATER)!.initialEvidence).toMatchObject({source:"learner_report",checked:false});
 });
 
+// Brief 2.5 root cause 3 (finding 16): Undo hung, and after a reload the plan
+// was not restored. Spec section 5: an inline change keeps its receipt and
+// Undo until the next change, so both must survive a reload, and the restored
+// plan must survive the next one.
+const learnerVisible = (plan: LearningPlan) => plan.sessions.map(({ id, title, method, scheduledFor, estimatedMinutes, learningMode, status }) => ({ id, title, method, scheduledFor, estimatedMinutes, learningMode, status }));
+async function openTopic(page: Page, topicId: string) {
+  const topic = page.locator(`[data-topic-id="${topicId}"]`);
+  if (await topic.locator("details").getAttribute("open") === null) await topic.locator("summary").click();
+}
+test("inline Mark covered keeps its Undo across a reload, and the restored plan survives the next reload", async ({ page }) => {
+  await createAndActivate(page);
+  const before = await snapshot(page);
+  await (await topicActions(page, WATER)).selectOption("mark_covered");
+  const receipt = page.getByRole("status").filter({ hasText: "everything else unchanged" });
+  await expect(receipt).toBeVisible();
+  await page.reload();
+  await expect(receipt).toBeVisible();
+  await receipt.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: /previous revision restored/i })).toBeVisible();
+  await page.reload();
+  const restored = await snapshot(page);
+  expect(restored.knowledgeMap).toEqual(before.knowledgeMap);
+  expect(learnerVisible(restored)).toEqual(learnerVisible(before));
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toHaveCount(0);
+});
+test("moving a block changes only its date; Undo restores it after a reload with the method untouched", async ({ page }) => {
+  await createAndActivate(page);
+  const before = await snapshot(page);
+  const zone = before.schedulePreferences?.timeZone ?? "UTC";
+  const localDate = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date(iso));
+  const target = [...before.sessions].sort((a, b) => a.sequence - b.sequence).find(session => session.learningMode === "study" && session.status !== "complete")!;
+  const busy = new Set(before.sessions.map(session => localDate(session.scheduledFor)));
+  let day = Date.parse(target.scheduledFor) + 86_400_000;
+  while (busy.has(localDate(new Date(day).toISOString()))) day += 86_400_000;
+  await openTopic(page, target.topicIds![0]!);
+  await page.getByLabel(`Move ${target.title}`, { exact: true }).fill(localDate(new Date(day).toISOString()));
+  const receipt = page.getByRole("status").filter({ hasText: "everything else unchanged" });
+  await expect(receipt).toContainText(`${target.title}: moved`);
+  await expect(receipt).not.toContainText(/renamed|method /);
+  const moved = await snapshot(page);
+  const movedTarget = moved.sessions.find(session => session.id === target.id)!;
+  expect(localDate(movedTarget.scheduledFor)).toBe(localDate(new Date(day).toISOString()));
+  expect({ title: movedTarget.title, method: movedTarget.method, estimatedMinutes: movedTarget.estimatedMinutes }).toEqual({ title: target.title, method: target.method, estimatedMinutes: target.estimatedMinutes });
+  expect(learnerVisible(moved).filter(session => session.id !== target.id)).toEqual(learnerVisible(before).filter(session => session.id !== target.id));
+  await page.reload();
+  await receipt.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: /previous revision restored/i })).toBeVisible();
+  await page.reload();
+  const restored = await snapshot(page);
+  expect(learnerVisible(restored)).toEqual(learnerVisible(before));
+});
 test("founder journey preserves completed work, previews two topic changes, saves a receipt and undoes the revision", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   await createAndActivate(page);

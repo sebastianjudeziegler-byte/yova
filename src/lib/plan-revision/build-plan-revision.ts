@@ -83,8 +83,43 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
   }
   const units: Unit[] = [];
   const replacements = new Map<string, LearningPlanSession>();
+  const blockers = [...scope.blockers];
+  // Brief 2.5 root cause 3 (spec section 5): a deadline or availability change
+  // re-dates remaining work, and moving a block changes its date. Neither
+  // rebuilds the block, so its title, method and copy stay exactly as they were.
+  const touchedTopics = new Set([...applied.changedTopicIds, ...applied.addedTopicIds, ...applied.removedTopicIds]);
+  const dateOnlyEdit = (id: string) => { const edit = edits.get(id); return Boolean(edit?.scheduledFor && !edit.methodId && !edit.durationMinutes); };
+  const redated = new Set(plan.sessions.filter(session => affected.has(session.id) && !(session.topicIds ?? []).some(id => touchedTopics.has(id))
+    && (dateOnlyEdit(session.id) || (!edits.has(session.id) && applied.scheduleChanged))).map(session => session.id));
+  const placed: ReservedTime[] = [...otherReservations, ...plan.sessions.filter(session => pending(session) && !redated.has(session.id)).map(reservationFor)];
+  const topicEnd = (session: LearningPlanSession) => Math.max(now.getTime(), ...plan.sessions
+    .filter(other => other.id !== session.id && other.status !== "skipped" && other.sequence < session.sequence && other.topicIds?.some(id => session.topicIds?.includes(id)))
+    .map(other => finish(replacements.get(other.id) ?? other) + RESET_MS));
+  const overlaps = (start: number, minutes: number) => placed.find(item => Date.parse(item.startsAt) < start + minutes * 60_000 && Date.parse(item.endsAt) > start);
+  for (const original of [...plan.sessions].filter(session => redated.has(session.id)).sort((a, b) => a.sequence - b.sequence)) {
+    const chosen = edits.get(original.id)?.scheduledFor;
+    let start: number | null = null;
+    if (chosen) {
+      if (Date.parse(chosen) < topicEnd(original)) blockers.push({ topicId: original.topicIds?.[0] ?? "", message: `The chosen time for ${original.title} is before its earlier work can finish.` });
+      else if (overlaps(Date.parse(chosen), original.estimatedMinutes)) blockers.push({ topicId: original.topicIds?.[0] ?? "", message: `The chosen time for ${original.title} overlaps another block. Choose a different time.` });
+      else start = Date.parse(chosen);
+    } else {
+      const earliest = topicEnd(original);
+      for (const slot of slots) {
+        let candidate = Math.max(Date.parse(slot.startsAt), earliest);
+        for (let conflict = overlaps(candidate, original.estimatedMinutes); conflict; conflict = overlaps(candidate, original.estimatedMinutes)) candidate = Date.parse(conflict.endsAt);
+        if (candidate + original.estimatedMinutes * 60_000 <= Date.parse(slot.endsAt)) { start = candidate; break; }
+      }
+      if (start === null) blockers.push({ topicId: original.topicIds?.[0] ?? "", message: `${original.title} does not fit before the deadline. Move a block, shorten scope or add time.` });
+    }
+    if (start === null) continue;
+    const moved = { ...original, scheduledFor: new Date(start).toISOString(),
+      ...(chosen ? { revisionEditedFields: [...new Set([...(original.revisionEditedFields ?? []), "scheduledFor" as const])] } : {}) };
+    replacements.set(original.id, moved);
+    placed.push(reservationFor(moved));
+  }
   const operationFor = (topicId: string) => applied.lines.find(line => line.topicId === topicId)?.operationIndex ?? applied.lines.find(line => line.topicId === null)?.operationIndex ?? 0;
-  for (const original of plan.sessions.filter(session => affected.has(session.id))) {
+  for (const original of plan.sessions.filter(session => affected.has(session.id) && !redated.has(session.id))) {
     const retained = (original.topicIds ?? []).filter(id => !removed.has(id));
     if (!retained.length) {
       replacements.set(original.id, { ...original, status: "skipped" });
@@ -104,13 +139,12 @@ export async function buildPlanRevision({ plan, request, delta, controls, protec
   }
   const mapById = new Map(nextMap.topics.map(topic => [topic.id, topic]));
   const addedSessions: LearningPlanSession[] = [];
-  const reservations: ReservedTime[] = [...otherReservations, ...plan.sessions.filter(session => pending(session) && !affected.has(session.id)).map(reservationFor)];
+  const reservations: ReservedTime[] = [...otherReservations, ...plan.sessions.filter(session => pending(session) && (!affected.has(session.id) || replacements.has(session.id))).map(session => reservationFor(replacements.get(session.id) ?? session))];
   const rebuiltEnd = new Map<string, number>();
   const partEnds = new Map<string, number>();
   // Prepare and validate every fixed placement before making provider calls.
   const prepared: Array<{ unit: Unit; fixed: NormalPlanProviderFillInputOptions; protection?: RevisionSessionProtection }> = [];
   let capacity: RevisionCapacity = { status: "fits", explanation: "These changes fit alongside your other active plans and fixed events.", choices: [] };
-  const blockers = [...scope.blockers];
   if (plan.planModel?.version === "topic_plan_v2" && acceptedEdits.some(edit=>edit.durationMinutes)) blockers.push({topicId:"",message:"Availability changes move this topic queue; they do not split practice or discard planned work. Keep this block or move its date."});
   const remaining = [...units].sort((a, b) => a.order - b.order);
 
