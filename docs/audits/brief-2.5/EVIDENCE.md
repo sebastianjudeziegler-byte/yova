@@ -613,3 +613,18 @@ gets its own provider, as the app does.
 
 The comparator's other rows were pre-existing on main, established flaky, or
 no regression (e.g. outside-teaching and Rayleigh now pass where main failed).
+
+## CI run 35451033390
+
+- **Release comparison: No regressions versus main.** The multi-session
+  journey case now passes; every remaining red row is pre-existing on main
+  or established flaky.
+- Step 20: `study-guide-rules.live.test.ts` failed on its own extra word
+  check, not on the rule. The question "Which strand is used directly by RNA
+  polymerase as the guide for building the RNA strand?" is legitimate biology;
+  the test's `\bthe guide\b` pattern was too broad, and
+  `documentReferentialReason` correctly passed it. The test now names only
+  "Unit 6" and "study guide" beyond the rule checker.
+- Steps 29 (core learner journey) and 35 (full live gate: 51 pass, 5 fail, 24
+  flaky, 2 unavailable) fail as they do on main; the comparator accounts for
+  every failure.

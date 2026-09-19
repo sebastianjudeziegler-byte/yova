@@ -52,7 +52,10 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_STUDY_GUIDE_RULES !== "1")("live study
       for (const question of response.questions) {
         const text = [question.prompt, ...(question.choices ?? [])].join(" ");
         expect(documentReferentialReason(text), `"${question.prompt}"`).toBeNull();
-        expect(text, `"${question.prompt}"`).not.toMatch(/\bunit\s*6\b|study guide|\bthe guide\b/i);
+        // "the guide" alone is ordinary biology ("the template strand is the
+        // guide for building RNA", CI run 35451033390), so only the unambiguous
+        // references are named here; the rule checker covers the rest.
+        expect(text, `"${question.prompt}"`).not.toMatch(/\bunit\s*6\b|study guide/i);
       }
     }
   }, 240_000);
