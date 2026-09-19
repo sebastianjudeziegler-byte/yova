@@ -545,3 +545,46 @@ Design pass 40. Founder action 4: 86, 92, 100, 101. Not yet addressed 48, of
 which 3, 10, 21 and 26 are partly fixed. Cannot place 2: 82 and 105 record
 things that work. The migration `20260919100001` (applied) and the allowance
 policy (decided) are release actions, not audit findings.
+
+## Production incident, 19 Sept 2026 - database at 100% CPU (explains findings 25 and 113's window; see below)
+
+**Found with the founder, read-only, in production Supabase.**
+- Observability: database CPU at 100% for the whole 3-hour window viewed,
+  almost all user CPU.
+- `pg_stat_activity`: every busy connection was a PostgREST call to
+  `complete_plan_session_with_route`, restarting every few milliseconds, most
+  waiting on the per-user advisory lock, one "idle in transaction (aborted)".
+- Postgres error log: `40001 study_route_planned_minutes_conflict`, many times
+  a second, continuously.
+- `product_events` for the audit window: every map, material mapping and plan
+  generation succeeded; the one placement failure is `diagnostic_structure`
+  (finding 24 is the validator discarding the whole check, not an outage);
+  no Study Now generation was recorded at all, so its 503s happened before
+  YOVA's route code ran.
+
+**Cause.** A baseline completion sent `plannedMinutes: route.timerMinutes`
+(the session router's timer, e.g. 8) while the session's committed route
+planned `timing.activeMinutes` (e.g. 11 - finding 74 shows the same
+mismatch). The routed-minutes guards (`guard_routed_attempt_minutes_v1`,
+`guard_routed_event_minutes_v1`) refuse any such completion - permanently -
+but raised it as SQLSTATE 40001, which the stack in front of the database
+retries without end. Every mismatched save looped, held the advisory lock and
+consumed the CPU; the learner saw "could not save this session".
+
+**Fix.**
+- Migration `20260919110001_planned_minutes_conflict_answers.sql` raises the
+  refusal as PT409 (HTTP 409). **Founder ran the same SQL in production on 19
+  Sept** (confirmation of the loop stopping pending).
+- The completion now sends the committed route's minutes
+  (`selectSessionTerminalPlannedMinutes`), so the save is accepted.
+- The client lists the refusal (40001 and PT409) as permanent for completions
+  and interruptions, so a queued save with the old minutes stops retrying.
+
+| Test | Red before fix | Green after |
+|---|---|---|
+| `selectors.test.ts` "plans a terminal write with the committed route's minutes, not the session timer" | `selectSessionTerminalPlannedMinutes is not a function` (the completion used the timer) | green |
+| `baseline-completion.migrated.test.ts` "answers a planned-minutes conflict with PT409 instead of retrying it" | not run red (on main it is the 40001 retry loop seen in production) | CI (migrated database) |
+
+**Not recovered.** Completions already refused this way were never saved;
+sessions finished on this build show as not done. Readiness was not advanced
+for this migration (it was applied by hand in production).

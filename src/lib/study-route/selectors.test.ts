@@ -11,6 +11,7 @@ import {
   selectSessionMethodName,
   selectSessionMethodReason,
   selectSessionTerminalRouteRevisionId,
+  selectSessionTerminalPlannedMinutes,
 } from "@/lib/study-route/selectors";
 
 function legacyPlan(): LearningPlan {
@@ -127,6 +128,22 @@ describe("StudyRoute selectors", () => {
 
     expect(selectSessionTerminalRouteRevisionId(session))
       .toBe(route.identity.routeRevisionId);
+  });
+
+  // Production incident, 19 Sept 2026: a baseline completion sent the
+  // session timer (e.g. 8 minutes) as plannedMinutes while its committed route
+  // planned 11. The database refuses any completion whose planned minutes
+  // differ from the committed route's, so every such save was refused - and,
+  // raised as 40001, retried without end at 100% CPU.
+  it("plans a terminal write with the committed route's minutes, not the session timer", () => {
+    const plan = legacyPlan();
+    const legacySession = plan.sessions[0]!;
+    const route = resolvePlannedStudyRoute(plan, legacySession).route!;
+    const session: LearningPlanSession = { ...legacySession, studyRoute: route };
+    const timer = route.timing.activeMinutes + 3;
+    expect(selectSessionTerminalPlannedMinutes(session, timer)).toBe(route.timing.activeMinutes);
+    const routeFree: LearningPlanSession = { ...legacySession, studyRoute: undefined };
+    expect(selectSessionTerminalPlannedMinutes(routeFree, timer)).toBe(timer);
   });
 
   it("retains resource route identity only for a route-free legacy session", () => {

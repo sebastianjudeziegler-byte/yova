@@ -171,7 +171,7 @@ import {
   selectSessionActiveMinutes,
   selectSessionLearningMode,
   selectSessionMethodName,
-  selectSessionTerminalRouteRevisionId,
+  selectSessionTerminalRouteRevisionId, selectSessionTerminalPlannedMinutes,
 } from "@/lib/study-route/selectors";
 import {
   agencyModeForStudyRouteControlMode} from "@/lib/study-route/agency-mode-controller";
@@ -2602,7 +2602,9 @@ export function YovaPrototype({
       ...(executedRouteRevisionId ? { routeRevisionId: executedRouteRevisionId } : {}),
       startedAt: new Date(Date.parse(completedAt) - activeSeconds * 1_000).toISOString(),
       completedAt,
-      plannedMinutes: route.timerMinutes,
+      // The committed route's minutes, which the database requires; the
+      // session timer can differ (19 Sept 2026 production incident).
+      plannedMinutes: selectSessionTerminalPlannedMinutes(targetSession, route.timerMinutes),
       actualMinutes: Math.max(1, Math.round(activeSeconds / 60)),
       correctAnswers: result.correctAnswers,
       totalAnswers: result.totalAnswers,

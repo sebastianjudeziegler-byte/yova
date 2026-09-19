@@ -334,6 +334,20 @@ select coalesce(jsonb_agg(to_jsonb(activity)), '[]'::jsonb) from (
   // the earliest 40001 the locked writer raises. If this returns while the
   // changed-receipt replay stalls, the stall belongs to that replay path; if
   // both stall, every 40001 from this RPC is left open.
+  // Production incident, 19 Sept 2026: completions sent the session timer as
+  // plannedMinutes; the routed-minutes guard refused them as 40001 and the
+  // stack retried each save without end at 100% CPU. 20260919110001 answers it.
+  it("answers a planned-minutes conflict with PT409 instead of retrying it", async () => {
+    const saved = await persistSegmentedPlan();
+    const event = segmentedCompletion(saved);
+    const started = Date.now();
+    const conflict = await clients.learner.rpc("complete_plan_session_with_route", { payload: { ...completionPayload(event), plannedMinutes: event.plannedMinutes + 1 } });
+    expect(Date.now() - started, "a refused save must answer, not loop").toBeLessThan(15_000);
+    expect(conflict.error?.code).toBe("PT409");
+    expect(conflict.error?.message).toBe("study_route_planned_minutes_conflict");
+    expect(rows(event.id)).toBe("0");
+  }, 60_000);
+
   it("answers a completion conflict instead of leaving the request open", async () => {
     const saved = await persistSegmentedPlan();
     const event = segmentedCompletion(saved);
