@@ -379,13 +379,13 @@ request without a map receipt, which is the case that is still charged.
 1. Allowance policy: decided (above).
 2. To settle "one cause or four", run in the Supabase SQL editor (read-only):
    ```sql
-   select date_trunc('hour', created_at) as hour,
+   select date_trunc('hour', occurred_at) as hour,
           event_data->>'generationType' as step,
           event_data->>'finalOutcome' as outcome,
           event_data->>'failedValidator' as failed_validator,
           count(*)
    from public.product_events
-   where event_name = 'generation_observed' and created_at >= '2026-09-17'
+   where event_name = 'generation_observed' and occurred_at >= '2026-09-17'
    group by 1, 2, 3, 4 order by 1 desc, 5 desc;
 
    select action, window_kind, window_started_at, request_count
