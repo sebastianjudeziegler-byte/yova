@@ -2,6 +2,7 @@ import { routingEvidenceForTopic } from "@/lib/routing/route-for-session";
 import { baselineSourceForTopic } from "@/lib/session-shapes/source-context";
 import { startingDifficultyTopicIds } from "./learner-plan-copy";
 import { topicPlanAvailability } from "./topic-plan-availability";
+import { personalizationSentence } from "./personalization-sentence";
 import { emptyOnboardingAnswers, onboardingAnswerId, onboardingSupportNeeds, type OnboardingAnswers } from "@/lib/onboarding/answers";
 import { learnerReportedCoverage, measuredPlacementEvidence } from "@/lib/knowledge-map/topic-evidence";
 import { PlanKnowledgeMapSchema, type KnowledgeMapTopic, type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
@@ -137,7 +138,7 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
     const count=firstMode.get(topic.id)!.learningMode==="learn" ? Math.max(1,learnCount(topic,topics,policy.capacity)) : 0;
     const weight=topicWeight(topic,topics);
     notes.push({topicId:topic.id,learnBlockCount:count,topicWeight:weight,note:count>1 ? `Split into ${count} blocks at subtopic boundaries — ${topic.subtopics.length} subtopics.` : count===0 ? "Teaching skipped; start with an independent practice check." : "One focused learning block, followed by practice."});
-    if(weight/policy.capacity>3) { fire("plan.sizing.three_block_guardrail","Dense topics stop at three learning blocks, with every subtopic retained."); }
+    if(count===3&&weight/policy.capacity>3) { fire("plan.sizing.three_block_guardrail","Dense topics stop at three learning blocks, with every subtopic retained."); }
     for(let part=0;part<count;part++) drafts.push({topic,subtopics:topic.subtopics.slice(Math.floor(part*topic.subtopics.length/count),Math.floor((part+1)*topic.subtopics.length/count)),learn:true,round:0,splitIndex:part,splitCount:count});
   }
   const practice=topics.flatMap(topic=>Array.from({length:policy.extraPractice?2:1},(_,i)=>({topic,subtopics:[...topic.subtopics],learn:false,round:i+1,splitIndex:0,splitCount:1})));
@@ -160,9 +161,10 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
   });
   if(q6Applied)fire(`P6.produce.${q6}`,"Learning blocks show the task-appropriate method selected from your profile.");
   const q7=policy.get("gist_detail"); if(q7)fire(`P7.weighting.${q7}`,q7==="gist_leaning"?"Practice gives extra attention to precise recall.":q7==="detail_leaning"?"Practice gives extra attention to relationships and comparisons.":"Practice balances recall with application.");
-  const q8=policy.get("starting_pattern"); if(q8)fire(`P8.start.${q8}`,policy.frontload?"The first block is short and proposed at the next available opportunity.":"Blocks are spread across your available days.");
-  for(const support of policy.support)if(support==="shorter_sections"||support==="frequent_check_ins")fire(`P9.support.${support}`,support==="shorter_sections"?"Shorter sections reduce the amount in each sitting.":"The first practice check is brought forward by one day when availability allows.");
-  if(policy.extraPractice)fire("P10.extra.forget_during_tests","Each topic has one extra practice block with tighter spacing.");
+  // P8, P9 frequent check-ins and P10 extra practice fire from the accepted
+  // placement below, only when they changed it (Brief 2.5 root cause 4).
+  const q8=policy.get("starting_pattern");
+  if(policy.support.includes("shorter_sections"))fire("P9.support.shorter_sections","Shorter sections reduce the amount in each sitting.");
   if(policy.collapsed)fire("P10.extra.long_plan_shutdown","The next block stays prominent and the rest of the queue is collapsed.");
 
   // Brief 2.5 root cause 2: availability is searched only up to the deadline.
@@ -215,7 +217,13 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
     const practiceGap=draft.round===1?firstGap:compressed?1:deadlineDays===null?7:deadlineDays<=3?1:deadlineDays<=9?3:5;
     let earliest=draft.learn ? Math.max(prerequisiteEnd,completedLearning.get(draft.topic.id)??input.now.getTime()) : (draft.round===1?priorLearn:completedPractice.get(draft.topic.id)??priorLearn)+practiceGap*DAY;
     const exampleFirst = draft.learn && (policy.get("difficulty_help")==="concrete_example" || policy.get("extra_context")==="examples_before_ready") && hasWorkedExample(draft.topic,input);
-    if(level===0&&!policy.frontload&&!close&&draft.learn&&!exampleFirst) earliest=Math.max(earliest,input.now.getTime()+Math.min(index+1,7)*DAY);
+    if(level===0&&!policy.frontload&&!close&&draft.learn&&!exampleFirst) {
+      const spread=Math.max(earliest,input.now.getTime()+Math.min(index+1,7)*DAY);
+      if(q8&&spread>earliest)firePlaced(`P8.start.${q8}`,"Blocks are spread across your available days.");
+      earliest=spread;
+    }
+    if(!draft.learn&&draft.round===1&&!compressed&&policy.support.includes("frequent_check_ins"))firePlaced("P9.support.frequent_check_ins","The first practice check is brought forward by one day when availability allows.");
+    if(!draft.learn&&draft.round===2)firePlaced("P10.extra.forget_during_tests","Each topic has one extra practice block with tighter spacing.");
     const candidates=allSlots.filter(slot=>Date.parse(slot.endsAt)>earliest && slot.minutes>=8 && (!policy.focus||!usedDays.has(localDay(slot.startsAt,request.timeZone))) && (!draft.learn||!policy.stepByStep||!learnDays.has(localDay(slot.startsAt,request.timeZone))));
     // Only choose energy among opportunities on the next permissible day.
     const firstDay=candidates[0]?.dayIndex;
@@ -241,7 +249,7 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
     const packedCeiling=Math.max(15,Math.floor((slot.minutes-NORMAL_PLAN_SESSION_RESET_MINUTES)/2));
     if(level===3&&packedCeiling<ceiling){ceiling=packedCeiling;firePlaced("plan.deadline.shorter_blocks","Blocks are shorter than usual so more of your topics fit before the deadline.");}
     if(draft.learn && topicWeight(draft.topic,topics)>=9)ceiling=Math.max(8,Math.floor(ceiling*.85));
-    if(index===0&&policy.frontload)ceiling=Math.min(ceiling,8);
+    if(index===0&&policy.frontload){ceiling=Math.min(ceiling,8);if(q8)firePlaced(`P8.start.${q8}`,"The first block is short and proposed at the next available opportunity.");}
     let workload=buildWorkload(draft,input,answers,Math.max(8,ceiling),ruleIds());
     if (input.durationContext.legacyExactDuration && (input.durationContext.learnerOverrideMinutes || legacySourceBudget)) workload = {...workload,estimatedMinutes:Math.min(ceiling,input.durationContext.learnerOverrideMinutes ?? legacySourceBudget!)};
     const groupedDrafts = [draft];
@@ -353,7 +361,7 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
   const envelopes=[...placed.envelopes];
   envelopes.sort((left,right)=>Date.parse(left.scheduledFor)-Date.parse(right.scheduledFor)||left.sequence-right.sequence);
   const sequenced=envelopes.map((envelope,index)=>({...envelope,sequence:index+1,envelopeId:`normal-plan-envelope-${String(index+1).padStart(3,"0")}`}));
-  const planModel=TopicPlanModelSchema.parse({version:"topic_plan_v2",learningGoal:request.goal,ruleIds:[...rules.keys()],personalizationSentence:[...rules.values()].join(" ").slice(0,1600),scheduleMode,collapsedQueue:policy.collapsed,topicNotes:notes,constraints:[...new Set(constraints)].slice(0,40),practiceDeferredTopicIds});
+  const planModel=TopicPlanModelSchema.parse({version:"topic_plan_v2",learningGoal:request.goal,ruleIds:[...rules.keys()],personalizationSentence:personalizationSentence([...rules.keys()],{answers,ceilingMinutes:policy.ceiling,deadline:request.deadline,timeZone:request.timeZone}),scheduleMode,collapsedQueue:policy.collapsed,topicNotes:notes,constraints:[...new Set(constraints)].slice(0,40),practiceDeferredTopicIds});
   return deepFreeze({version:NORMAL_PLAN_ENVELOPE_COMPOSER_VERSION,status:"complete",profileVersion:input.durationContext.profileVersion,envelopes:sequenced,deferrals,planModel});
 }
 

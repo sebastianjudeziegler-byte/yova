@@ -68,7 +68,7 @@ import { browserCheckpointStorage, clearBaselineCheckpoint, loadBaselineCheckpoi
 import { baselineSourceForTopics } from "@/lib/session-shapes/source-context";
 import { BaselineOnboardingIntro, BaselineOnboardingQuestion, BaselineProfileSummary } from "@/components/baseline-onboarding";
 import { BaselineProfileEditor } from "@/components/baseline-profile-editor";
-import { onboardingAnsweredCount, readOnboardingAnswers, writeOnboardingAnswers } from "@/lib/onboarding/answers";
+import { missingRequiredOnboardingQuestionIndexes, onboardingAnsweredCount, readOnboardingAnswers, writeOnboardingAnswers } from "@/lib/onboarding/answers";
 import { ONBOARDING_QUESTIONS } from "@/lib/onboarding/questions";
 import { routeSession, withProduceStepOverride, withStudyOutside, type ProduceStep, type SessionRoute } from "@/lib/routing/session-route";
 import { interleavedKeyPointsForSession, routingInputForSession, sessionTopic } from "@/lib/routing/route-for-session";
@@ -627,6 +627,8 @@ export function YovaPrototype({
   const [guidedSessionAllowanceChecking, setGuidedSessionAllowanceChecking] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [questionIndex, setQuestionIndex] = useState(0);
+  // Brief 2.5 finding 109: the required questions a Study Profile did not cover.
+  const [onboardingSteps, setOnboardingSteps] = useState<number[] | null>(null);
   /** The block being started: the pre-session card, then the hub (Brief 1.5 item 8). */
   const [baselineSessionTarget, setBaselineSessionTarget] = useState<{ planId: string; planSessionId: string; topicId: string | null; produceStep: ProduceStep | null; studyLocation: StudyLocation } | null>(null);
   const [answers, setAnswers] = useState<string[]>([]);
@@ -3691,13 +3693,18 @@ export function YovaPrototype({
       const publicCanonicalProfile = accountMode === "create"
         ? readPublicCanonicalProfileDraft(window.localStorage)
         : null;
+      // A Study Profile answers most baseline questions but never Q6 or Q7, so
+      // an account created from one is asked only the required questions it
+      // left unanswered before onboarding counts as complete.
+      const importedAnswers = publicCanonicalProfile ? writeCanonicalLearnerProfileToAnswers([], publicCanonicalProfile) : [];
+      const missingSteps = accountMode === "create" && publicCanonicalProfile && baselineSessionShapes
+        ? missingRequiredOnboardingQuestionIndexes(readOnboardingAnswers(importedAnswers)) : [];
       if (accountMode === "create") {
         if (account) clearActiveSessionCheckpoints(account.id);
         clearPreviewSnapshot();
-        setAnswers(publicCanonicalProfile
-          ? writeCanonicalLearnerProfileToAnswers([], publicCanonicalProfile)
-          : []);
-        setOnboardingCompleted(Boolean(publicCanonicalProfile));
+        setAnswers(importedAnswers);
+        setOnboardingCompleted(Boolean(publicCanonicalProfile) && missingSteps.length === 0);
+        setOnboardingSteps(missingSteps.length ? missingSteps : null);
         setPlans([]);
         setDeadlineMilestones([]);
         setCalendarMaterials([]);
@@ -3705,13 +3712,14 @@ export function YovaPrototype({
         setSessionInterruptions([]);
         setActiveSessionCheckpoints([]);
         setCloudCheckpointRunIds(new Set());
-        setQuestionIndex(0);
+        setQuestionIndex(missingSteps[0] ?? 0);
       }
       setAccount(nextAccount);
       setActiveSessionCheckpoints(loadActiveSessionCheckpoints(nextAccount.id));
       setCloudCheckpointRunIds(new Set());
       setSignedIn(true);
-      if (publicCanonicalProfile) setStage("profile");
+      if (missingSteps.length) setStage("onboarding");
+      else if (publicCanonicalProfile) setStage("profile");
       else if (accountMode === "sign-in" && onboardingCompleted) setStage("app");
       else setStage("onboarding-intro");
     }} />;
@@ -3725,13 +3733,18 @@ export function YovaPrototype({
   }
   if (stage === "onboarding" && baselineSessionShapes) {
     const record = readOnboardingAnswers(answers);
+    const steps = onboardingSteps;
+    const stepPosition = steps ? steps.indexOf(questionIndex) : -1;
     return <BaselineOnboardingQuestion
       index={questionIndex}
+      {...(steps ? { steps } : {})}
       answers={record}
       onChange={(next) => setAnswers(writeOnboardingAnswers(answers, next))}
-      onBack={() => setQuestionIndex((value) => Math.max(0, value - 1))}
+      onBack={() => setQuestionIndex((value) => steps ? steps[Math.max(0, stepPosition - 1)] ?? value : Math.max(0, value - 1))}
       onNext={() => {
-        if (questionIndex === ONBOARDING_QUESTIONS.length - 1) {
+        if (steps && stepPosition < steps.length - 1) { setQuestionIndex(steps[stepPosition + 1]!); return; }
+        if (steps || questionIndex === ONBOARDING_QUESTIONS.length - 1) {
+          setOnboardingSteps(null);
           trackProductEvent({
             eventName: "onboarding_completed",
             context: { answeredQuestionCount: onboardingAnsweredCount(record) },
@@ -4005,7 +4018,7 @@ export function YovaPrototype({
         } catch (error) { setQuickRevisionError(error instanceof Error ? error.message : "Undo could not be saved."); }
         finally { setQuickRevisionUndoing(false); }
       }}>{quickRevisionUndoing ? "Restoring…" : "Undo"}</button>}</div>{quickRevisionError && <p role="alert">{quickRevisionError}</p>}</div>}
-      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("study-now"); }} milestones={agendaMilestones} onOpenAgenda={() => setActiveTab("Calendar")} />}
+      {activeTab === "Home" && <HomeScreen baselineSessionShapes={baselineSessionShapes} account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("study-now"); }} milestones={agendaMilestones} onOpenAgenda={() => setActiveTab("Calendar")} />}
       {activeTab === "Learning" && <LearningScreen revisionClient={revisionClient} plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} preferredMethodIds={savedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={personalizationState.controls.selfReport} onPreferredMethodIdsChange={changePreferredMethodIds} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap}  />}
       {activeTab === "Calendar" && <CalendarScreen
         initialCalendarDescription={calendarDescription}
@@ -4177,7 +4190,7 @@ function workspaceClassName(settings: PersonalizationWorkspaceSettings) {
   ].filter(Boolean).join(" ");
 }
 
-function HomeScreen({ account, answers, plans, plan, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, tutorQuestion, onTutorQuestion, onOpenTutor, onOpenYou, onStart, onOpenPlan, onCreatePlan, onStudyNow, milestones, onOpenAgenda }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; plan: LearningPlan | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onOpenYou: () => void; onStart: (planId?: string) => void; onOpenPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void; milestones: DeadlineMilestone[]; onOpenAgenda: () => void }) {
+function HomeScreen({ baselineSessionShapes = false, account, answers, plans, plan, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, tutorQuestion, onTutorQuestion, onOpenTutor, onOpenYou, onStart, onOpenPlan, onCreatePlan, onStudyNow, milestones, onOpenAgenda }: { baselineSessionShapes?: boolean; account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; plan: LearningPlan | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onOpenYou: () => void; onStart: (planId?: string) => void; onOpenPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void; milestones: DeadlineMilestone[]; onOpenAgenda: () => void }) {
   const rankedPlans = rankPlansForHome(plans, new Date(), readOnboardingAnswers(answers));
   const recoverablePlan = rankedPlans.find((candidate) => {
     const readySession = candidate.sessions.find((session) => session.status === "ready");
@@ -4219,12 +4232,18 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
   const awaitingSessionFinish = isActiveSessionCheckpointResumePoint(resumePoint)
     && resumePoint.checkpointStatus === "awaiting_finish";
   const completedCount = displayedPlan?.sessions.filter((session) => session.status === "complete").length ?? 0;
-  const personalizationRecommendation = buildPersonalizationRecommendations({
+  // Brief 2.5 finding 106: with the baseline questions on, Home does not read
+  // the retired eleven-question profile. Its "deepen your profile" prompt, its
+  // energy card and its delivery chips came from that profile's legacy slots,
+  // which the ten baseline answers do not update; they are not shown.
+  const legacyProfileOnHome = !baselineSessionShapes;
+  const recommended = buildPersonalizationRecommendations({
     answers,
     plans,
     completions: sessionCompletions,
     interruptions: sessionInterruptions,
   })[0] ?? null;
+  const personalizationRecommendation = legacyProfileOnHome || recommended?.action !== "improve_profile" ? recommended : null;
   const homePersonalization = resolveLearnerPersonalization({
     answers,
     plans,
@@ -4235,9 +4254,9 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
   const homeWeeklyReview = homePersonalization.weeklyReview.ready
     ? homePersonalization.weeklyReview
     : null;
-  const homeEnergyDecision = homePersonalization.decisions.find((decision) => (
+  const homeEnergyDecision = legacyProfileOnHome ? homePersonalization.decisions.find((decision) => (
     decision.artifact === "schedule" && decision.setting === "recommended_window"
-  )) ?? null;
+  )) ?? null : null;
   const homeLearnerContext = expandedLearnerContextFromAnswers(answers);
   const homeStatedAnswer = (index: number) => (
     statedOnboardingAnswerForRuntime(answers, index, homePersonalization.state)
@@ -4271,7 +4290,7 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
     learningMode: readySession.learningMode,
     estimatedMinutes: readySession.estimatedMinutes,
   }) : null;
-  const visiblePersonalization = homeDeliveryPolicy ? [
+  const visiblePersonalization = homeDeliveryPolicy && legacyProfileOnHome ? [
     homeDeliveryPolicy.presentation.mode !== "task_aligned" ? homeDeliveryPolicy.presentation.label : null,
     homeDeliveryPolicy.workspace.mode !== "task_aligned" ? homeDeliveryPolicy.workspace.label : null,
     homeDeliveryPolicy.repair.mode !== "task_aligned" ? homeDeliveryPolicy.repair.label : null,
@@ -5173,7 +5192,9 @@ function YouScreen({ baselineSessionShapes = false, account, answers, plans, ses
         answers={readOnboardingAnswers(answers)}
         onChange={(record) => onAnswersChange(writeOnboardingAnswers(answers, record))}
       />}
-      <CanonicalProfileCenter
+      {/* One questionnaire (Brief 2.5 finding 106): the older eleven-question
+          profile is shown only when the baseline questions are switched off. */}
+      {!baselineSessionShapes && <CanonicalProfileCenter
         profile={canonicalProfile}
         enabled={canonicalState.controls.selfReport}
         onEnabledChange={(enabled) => onAnswersChange(
@@ -5189,7 +5210,7 @@ function YouScreen({ baselineSessionShapes = false, account, answers, plans, ses
         onProfileChange={(profile) => onAnswersChange(
           writeCanonicalLearnerProfileToAnswers(answers, profile),
         )}
-      />
+      />}
       <div className="you-grid">
         <MethodEvidencePanel signals={methodSignals} />
         {account && (

@@ -208,3 +208,66 @@ its own `continue-on-error` step, its hit-rate file is uploaded as an artifact,
 it is FLAKY in `scripts/live-gate/policy.json`, and reviewer reliability is in
 `docs/audits/BACKLOG.md`. The 32-question and test-goal live checks stay
 blocking.
+
+## Root cause 4 - Personalization text is canned (findings 20, 21, 72, 75, 78, 106, 107, 109)
+
+**Causes found.**
+1. **The plan's why-text (20, 21, 72, 75, 78)** was `[...rules.values()].join(" ")`
+   in `topic-plan-model.ts`: every fired rule's fixed reason. Several fired
+   without being enacted: "Dense topics stop at three learning blocks" fired
+   on topic weight even when the topic had no learning block; P8 "Blocks are
+   spread..." and P9 "first practice check brought forward" regardless of the
+   placement; P10 "one extra practice block" even when the deadline left it
+   out. "a 11-minute" came from `sets a ${ceiling}-minute ceiling` with the
+   shorter-sections ceiling (15 x 0.75 = 11).
+2. **Home read the retired questionnaire (106).** With the baseline questions
+   on (production), Home's "Personalized today" chips, energy card and
+   "Deepen your profile" prompt came from the old position-indexed profile
+   slots, which the ten baseline answers do not update.
+3. **Two questionnaires and developer notes on You (106, 107).** You rendered
+   the ten-question baseline editor and, always, the eleven-question canonical
+   profile. The baseline editor printed each question's internal `routesTo`
+   ("Layer 4: timer one band down..."), despite its comment "Shown nowhere".
+4. **Q6/Q7 "not answered" (109).** An account created from the public Study
+   Profile was marked onboarded without the baseline questions; the Study
+   Profile never asks Q6 or Q7, and they have no legacy slot to fall back on.
+
+**Fix.**
+- `personalization-sentence.ts` generates the why-text from the fired rule
+  IDs only: one "Because you said X, YOVA did Y." per rule, X from the
+  learner's own answer, Y what the composer enacted; deadline rules read
+  "Because your deadline is <date>, ...". Rules not about the learner
+  (sizing, workload grouping) are not in it.
+- The composer fires the guardrail only when a topic was actually capped at
+  three learning blocks, and P8, P9 frequent check-ins and P10 extra practice
+  only from the accepted placement when they changed it.
+- With the baseline questions on, Home no longer shows the old profile's
+  chips, energy card or "Deepen your profile" prompt; You shows one
+  questionnaire and no developer notes. (The weekly review, from real
+  completions, is unchanged.)
+- A new account from the Study Profile is asked exactly the required baseline
+  questions the profile left unanswered, before onboarding counts as complete.
+
+| Test | Red before fix | Green after |
+|---|---|---|
+| `personalization-sentence.test.ts` no learning-block claim on a plan with none | `expected 'Dense topics stop at three learning b...' not to match` | green |
+| same: learner's own ceiling, no "a 11-minute" | `expected 'Dense topics stop at three learning b...' not to match /\ba 11-minute\b/` | green |
+| same: no extra-practice claim when the deadline left it out | `expected false to be true` | green |
+| same: one because-you-said sentence per enacted rule | `expected 1 to be greater than 2` | green |
+| e2e `baseline-study-profile-onboarding` "an account created from the Study Profile is asked Q6 and Q7, and saves them" (flag on) | no question shown; went straight to the summary | local pass; CI |
+| e2e same file "You shows one questionnaire with no developer notes, and Home does not send the learner to the old one" | `getByText('Deepen your profile')`: expected 0, received 1 | local pass; CI |
+
+Note: the main browser suite runs with `YOVA_BASELINE_SESSION_SHAPES=false`
+to keep the pre-baseline flows covered; production runs with it on, so the
+new cases are `baseline-*` specs. The flag-off import test ("skips duplicate
+onboarding") is unchanged, because the flag-off flow has no Q6/Q7.
+
+**Founder action.** Existing accounts (including yours) keep whatever was
+saved: answer Q6 and Q7 on You, where the single questionnaire now shows
+them. I did not force every returning account through questions on its next
+load.
+
+**Residual (design pass / later).** `buildPlanProfileSummary`, the prose
+profile summary sent to plan and Study Now generation, is still built from
+the old slots and omits Q6/Q7; plan structure and method routing use the
+baseline answers directly, so this affects provider wording only.
