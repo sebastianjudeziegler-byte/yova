@@ -37,9 +37,12 @@ describe.skipIf(process.env.YOVA_RUN_LIVE_STUDY_GUIDE_RULES !== "1")("live study
     const { map } = await generatePlanKnowledgeMap(request);
     for (const topic of map.topics) expect(isDocumentLabelTitle(topic.title), `topic "${topic.title}" names a part of the guide`).toBe(false);
 
-    const provider = openAIShapeSlotProvider();
-    expect(provider, "Live study-guide checks require a configured provider").not.toBeNull();
+    expect(openAIShapeSlotProvider(), "Live study-guide checks require a configured provider").not.toBeNull();
     for (const topic of map.topics.slice(0, 2)) {
+      // One provider per request, as the app makes it: each has its own
+      // 50-second budget (sharing one starved the second lesson in CI run
+      // 35446615227, which timed out without breaking any rule).
+      const provider = openAIShapeSlotProvider()!;
       const response = ShapeSlotResponseSchema.parse(await fillShapeSlot({
         action: "learn_block", requestId: randomUUID(), recoveryKey: randomUUID(), planId: randomUUID(), planSessionId: randomUUID(), tips: [],
         topic: { id: topic.id, title: topic.title, description: topic.description, subtopics: topic.subtopics.slice(0, 6), taskType: "conceptual_learning", learningGoal: goal },
