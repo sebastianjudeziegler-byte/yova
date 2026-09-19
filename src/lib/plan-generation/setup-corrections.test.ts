@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applySetupCorrections, SetupCorrectionsSchema } from "./setup-corrections";
+import { applySetupCorrections, initialSetupCorrections, SetupCorrectionsSchema } from "./setup-corrections";
 import type { PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import type { LearningMaterial } from "@/lib/domain";
 const ids = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222", "33333333-3333-4333-8333-333333333333"];
@@ -11,6 +11,28 @@ const map: PlanKnowledgeMap = {
 const material: LearningMaterial = { id: ids[2], name: "Biology notes.txt", mimeType: "text/plain", sizeBytes: 500, textContent: "Diffusion and osmosis", processingStatus: "ready" };
 const corrections = () => ({ materials: [{ materialId: ids[2], role: "scope_outline" as const }], topics: map.topics.map(topic => ({ id: topic.id, materialId: ids[2], covered: false })) });
 describe("setup corrections", () => {
+ // Brief 2.5 root cause 5 (finding 14): with a study guide and a content PDF
+ // uploaded, every topic pre-selected the study guide - the first reference the
+ // model listed - which sends every topic down the scope-outline path.
+ it("pre-selects the content source over the study guide when a topic has both", () => {
+  const guideId = "55555555-5555-4555-8555-555555555555", pdfId = "66666666-6666-4666-8666-666666666666";
+  const understanding = (role: "content_source" | "scope_outline") => ({ role }) as unknown as LearningMaterial["understanding"];
+  const materials: LearningMaterial[] = [
+   { id: guideId, name: "Unit 6 study guide.pdf", mimeType: "application/pdf", sizeBytes: 900, textContent: "Unit 6 test scope", processingStatus: "ready", understanding: understanding("scope_outline") },
+   { id: pdfId, name: "Chapter 12 notes.pdf", mimeType: "application/pdf", sizeBytes: 9000, textContent: "Transcription and translation", processingStatus: "ready", understanding: understanding("content_source") },
+  ];
+  const reference = (materialId: string, sectionRole: "content_source" | "scope_outline") => ({ materialId, chunkId: "77777777-7777-4777-8777-777777777777", chunkIndex: 0, startCharacter: 0, endCharacter: 10, locationLabel: "page 1", sectionRole });
+  const both = structuredClone(map);
+  both.topics[0].sourceReferences = [reference(guideId, "scope_outline"), reference(pdfId, "content_source")];
+  both.topics[1].sourceReferences = [reference(guideId, "scope_outline")];
+  const initial = initialSetupCorrections(both, materials);
+  expect(initial.topics[0].materialId).toBe(pdfId);
+  // A topic only the study guide names keeps it (spec section 8 rule 1: it takes the no-source path).
+  expect(initial.topics[1].materialId).toBe(guideId);
+  // Continuing without edits keeps the content source's excerpts for teaching.
+  const applied = applySetupCorrections({ knowledgeMap: both, materials, corrections: initial });
+  expect(applied.knowledgeMap.topics[0].sourceReferences.map(item => item.materialId)).toEqual([pdfId]);
+ });
  it("applies classification, source and covered choices atomically without inventing knowledge", () => {
   const draft = corrections(); draft.topics[0].covered = true;
   const result = applySetupCorrections({ knowledgeMap: map, materials: [material], corrections: draft });

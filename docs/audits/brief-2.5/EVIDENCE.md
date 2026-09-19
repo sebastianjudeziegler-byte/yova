@@ -271,3 +271,55 @@ load.
 profile summary sent to plan and Study Now generation, is still built from
 the old slots and omits Q6/Q7; plan structure and method routing use the
 baseline answers directly, so this affects provider wording only.
+
+## Root cause 5 - Source assignment defaults wrong (findings 14, 22, 23)
+
+**Causes found.**
+1. **Study guide pre-selected for every topic (14).** `initialSetupCorrections`
+   pre-filled each topic's source with the first `sourceReferences` entry,
+   ignoring its role; the map model usually lists the study guide first. On
+   Continue, `applySetupCorrections` then kept only that material's
+   references, deleting the content PDF's excerpts, so every topic took the
+   scope-outline (no-source) path.
+2. **Section labels became topics (22).** The per-chunk mapper returned
+   document headings ("Unit 6 test scope", "Unit 6 concept explanations"), the
+   coverage check forced the map to keep every material topic, and only a
+   prompt line asked for knowledge titles. The 7 Sept change removed one copying
+   path (the deterministic material fallback); no code rejected such titles.
+3. **Rule 2 not enforced (23).** No generation path rejected
+   document-referential questions in code; the practice reviewer's issue codes
+   do not include it, and every other guard is a prompt instruction.
+
+**Fix.**
+- The default source is a material that can teach the topic; a study guide is
+  chosen only when nothing else covers the topic (spec rule 1: it then takes
+  the no-source path).
+- `document-referential.ts` detects questions about a document, unit or
+  guide. The practice quality loop rejects them whatever the reviewer says and
+  repairs them like any other rejection (a still-referential replacement is
+  dropped, never delivered); the placement check refuses them before its
+  validation call.
+- `document-label.ts` detects titles that name a part of a document; map
+  generation renames them from their own description and subtopics in one
+  bounded repair call, and refuses the map if a label survives.
+- Spec section 8's permanent live test: `study-guide-rules.live.test.ts`
+  (study guide whose sections are titled as in the audit -> real map -> real
+  lesson questions; no document-label topic, no referential question). Runs
+  in the blocking per-push live step and the nightly gate.
+
+| Test | Red before fix | Green after |
+|---|---|---|
+| `setup-corrections.test.ts` content source pre-selected over the study guide; Continue keeps its excerpts | `expected '5555...' (guide) to be '6666...' (PDF)` | green |
+| `shape-slot-quality.test.ts` "fits the notes" question replaced even when the reviewer accepts it | delivered unchanged | green |
+| `map-diagnostic.test.ts` placement question about "the goals of Unit 6" refused | `promise resolved ... instead of rejecting` | green |
+| `generate-plan-map.test.ts` "Unit 6 test scope" / "Unit 6 concept explanations" renamed | `expected [ 'Unit 6 test scope', ... ] to deeply equal [ 'Transcription', 'Translation' ]` | green |
+| `document-referential.test.ts`, `document-label.test.ts` (positive and negative phrasings) | - | green |
+| `study-guide-rules.live.test.ts` | live | CI |
+
+**Residual (not changed; recorded).** Rule 1 is still breached on the
+pre-baseline paths: scheduled-review generation (`session-generator.ts`) and
+the streamed lesson route (`lesson-brief.ts` -> `/api/sessions/lesson`) pass
+`scope_outline` excerpts to the model. The baseline session shapes (the
+production session path) already exclude them (`source-context.ts`).
+`active-plan-attachment.ts` still copies a newly attached material's topic
+titles verbatim as deferred topics.

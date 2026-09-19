@@ -5,6 +5,7 @@ import { APIConnectionTimeoutError } from "openai";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import { reviewPracticeQuestions, type PracticeQualityIssue } from "./practice-quality-review";
+import { questionDocumentReferentialReason } from "@/lib/practice/document-referential";
 import { composePracticeRound, firstRoundKeyPointCount, KeyPointSchema, keyPointsForRound, QuestionDraftSchema, roundQuestionCount, type KeyPoint, type PracticeQuestion } from "@/lib/practice/compose-practice";
 import { planQuestionSlots, type QuestionMix, type QuestionSlot, type QuestionType } from "@/lib/practice/question-mix";
 import { PRACTICE_TEST_QUESTION_COUNT, type PracticeRoundKind } from "@/lib/practice/practice-rounds";
@@ -382,19 +383,32 @@ function normalizePrompt(prompt: string) { return prompt.toLowerCase().replace(/
 
 /** One semantic repair phase, with the original provider's shared deadline.
  * Failed or unavailable review never silently releases unverified questions. */
+// Spec section 8 rule 2 in code (Brief 2.5 finding 23): a document-referential
+// question is rejected whatever the reviewer says, and repaired like any other.
+function withDocumentReferentialRejections(questions: readonly PracticeQuestion[], rejected: PracticeQualityIssue[]) {
+  const referential = questions.flatMap(question => {
+    const reason = questionDocumentReferentialReason(question);
+    return reason && !rejected.some(issue => issue.slotId === question.slotId)
+      ? [{ slotId: question.slotId, reason: `Closed-book practice must stand alone; this ${reason}. Ask about the subject itself, never about a document, unit or guide.`, codes: ["document_referential"] }] : [];
+  });
+  return [...rejected, ...referential];
+}
+
 async function ensureQuestionQuality(questions: PracticeQuestion[], context: Omit<QuestionBatchInput, "priorQuestions">) {
-  const review = await withOneRetry(async () => {
+  const reviewed = await withOneRetry(async () => {
     const result = await reviewPracticeQuestions({ ...context, questions }, context.provider!);
     return result.ok ? result : null;
   }, context.provider !== null);
+  const review = { ...reviewed, rejected: withDocumentReferentialRejections(questions, reviewed.rejected) };
   if (!review.rejected.length) return questions;
   const rejectedIds = new Set(review.rejected.map(issue => issue.slotId));
   const accepted = questions.filter(question => !rejectedIds.has(question.slotId));
   const replacements = await remainingQuestions({ ...context, slots: context.slots.filter(slot => rejectedIds.has(slot.slotId)), priorQuestions: accepted, qualityIssues: review.rejected });
-  const checked = await withOneRetry(async () => {
+  const rechecked = await withOneRetry(async () => {
     const result = await reviewPracticeQuestions({ ...context, questions: replacements, priorQuestions: accepted }, context.provider!);
     return result.ok ? result : null;
   }, context.provider !== null);
+  const checked = { ...rechecked, rejected: withDocumentReferentialRejections(replacements, rechecked.rejected) };
   // A replacement that still fails review is dropped, never delivered. One
   // unsound question out of many used to discard the whole block and show the
   // learner an error (CI #415: 1 of 32). The round is shorter than planned

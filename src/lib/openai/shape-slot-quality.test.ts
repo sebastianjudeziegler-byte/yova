@@ -39,6 +39,26 @@ describe("MCQ quality gate before delivery", () => {
     expect(provider.mock.calls.filter(([call]) => JSON.parse(call.input).qualityIssues)).toHaveLength(1);
   });
 
+  // Spec section 8 rule 2, Brief 2.5 finding 23: a question that asks what
+  // "fits the notes" reached learners, because the reviewer judges answer
+  // correctness and the rule was a prompt instruction. It is rejected in code
+  // even when the reviewer accepts it, and replaced before delivery.
+  it("replaces a document-referential question even when the reviewer accepts it", async () => {
+    const referential = { ...good, prompt: "Which statement about the two compartments fits the notes?" };
+    const provider = vi.fn(async (call: SlotProviderCall<unknown>) => {
+      const input = JSON.parse(call.input);
+      if (call.schemaName === "yova_practice_quality_review") {
+        return { reviews: input.questions.map((question: { slotId: string; choices: string[] }) => ({ slotId: question.slotId, answerIndices: [question.choices.indexOf(good.choices[3])], stemSufficient: true, demandMet: true, issue: "none", reason: "", duplicateOfSlotId: null })) };
+      }
+      return { keyPoints: sample.keyPoints, questions: [input.qualityIssues ? good : referential], tips: [] };
+    });
+    const response = await fillShapeSlot(request, provider as never);
+    if (response.action !== "practice") throw new Error("Expected practice");
+    expect(response.questions[0]!.prompt).toBe(good.prompt);
+    const repair = provider.mock.calls.find(([call]) => JSON.parse(call.input).qualityIssues)?.[0];
+    expect(JSON.parse(repair!.input).qualityIssues[0]).toMatchObject({ slotId: "s1", codes: ["document_referential"] });
+  });
+
   it("never delivers an invalid repair and does not create an endless repair loop", async () => {
     const provider = fixture(false);
     await expect(fillShapeSlot(request, provider as never)).rejects.toMatchObject({ code: "generation_failed" });
