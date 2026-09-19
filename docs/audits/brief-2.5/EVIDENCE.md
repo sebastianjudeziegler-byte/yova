@@ -591,3 +591,25 @@ consumed the CPU; the learner saw "could not save this session".
 **Not recovered.** Completions already refused this way were never saved;
 sessions finished on this build show as not done. Readiness was not advanced
 for this migration (it was applied by hand in production).
+
+## CI run 35446615227 - the two regressions versus main
+
+The comparator blocked on one browser case in two projects:
+`core-learning-loop.spec.ts` "a multi-session plan carries one clear source
+decision from Add to Learning" (desktop and mobile; main 1 pass, branch 0/3).
+Reproduced locally: its reviewed edit moves every study window to Sunday
+evening, after the frozen-clock deadline (Fri 4 Sept). On main that was
+accepted by queuing blocks after the deadline (audit finding 8); on this
+branch the preview correctly refuses it ("does not fit before the deadline.
+Move a block, shorten scope or add time."), so "Confirm changes" stays
+disabled. The case is about a reviewed schedule edit keeping its method
+contract, so the edit now widens window 1 to every evening, which fits before
+the deadline. Local run: pass.
+
+Step 20 in the same run: the new `study-guide-rules.live.test.ts` shared one
+50-second provider budget across two lessons; the second timed out twice (no
+rule broken; the first lesson's six questions passed review). Each lesson now
+gets its own provider, as the app does.
+
+The comparator's other rows were pre-existing on main, established flaky, or
+no regression (e.g. outside-teaching and Rayleigh now pass where main failed).
