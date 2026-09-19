@@ -1288,6 +1288,25 @@ describe("plan generation route", () => {
 
   // Brief 2.5 root cause 2: this used to return a queue placed after the
   // deadline with an "after the deadline" note. Nothing is placed after it now.
+  // Brief 2.5 root cause 6 (finding 113): a plan refused because nothing fits
+  // before the deadline used up a planning allowance although no AI call was
+  // made. The reservation is refunded instead.
+  it("refunds the planning allowance when an accepted map cannot fit before the deadline", async () => {
+    configureProduction();
+    const unavailableDay = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1_000));
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(planGenerationRequest({
+      deadline: new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString(),
+      availability: [{ day: unavailableDay, window: "Evening", minutes: 25 }],
+    }));
+    expect(response.status).toBe(422);
+    expect(mocks.reserve).toHaveBeenCalledOnce();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+    expect(mocks.generateKnowledgeMap).not.toHaveBeenCalled();
+    expect(mocks.release, "no provider was called, so nothing is consumed").not.toHaveBeenCalled();
+    expect(mocks.releaseOperation).toHaveBeenCalledWith(expect.anything(), "plan_generation", expect.any(String), expect.any(String));
+  });
+
   it("asks for time before a close deadline when every available day is later", async () => {
     const unavailableDay = new Intl.DateTimeFormat("en-US", {
       weekday: "long",
@@ -1635,6 +1654,21 @@ describe("plan generation route", () => {
       "44444444-4444-4444-8444-444444444444",
       expect.objectContaining({ finalOutcome: "fallback", attempts: 0 }),
     );
+  });
+
+  // Brief 2.5 root cause 6 (finding 113): the allowance ran out while YOVA was
+  // building the topic map, and the learner was told to skip the placement
+  // check - a step they had not reached and could not skip their way past.
+  it("names the topic-map step when the allowance runs out while building the map", async () => {
+    configureProduction();
+    mocks.reserve.mockResolvedValueOnce({ allowed: false, claimId: null, operationKey: "66666666-6666-4666-8666-666666666666", denialReason: "usage_limit", retryAfterSeconds: 3_600, remainingToday: 0 });
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(new Request("http://localhost/api/plans/generate?mode=understanding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(Object.entries(planRequest).filter(([key]) => key !== "knowledgeMap"))) }));
+    const body = await response.json();
+    expect(response.status).toBe(429);
+    expect(body.error).toMatch(/topic map/i);
+    expect(body.error).not.toMatch(/placement/i);
+    expect(mocks.generateKnowledgeMap).not.toHaveBeenCalled();
   });
 
   it("keeps an accepted-map normal plan on the fixed-envelope fallback when the account allowance is exhausted", async () => {

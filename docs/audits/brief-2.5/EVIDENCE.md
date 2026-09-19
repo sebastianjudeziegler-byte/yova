@@ -323,3 +323,60 @@ the streamed lesson route (`lesson-brief.ts` -> `/api/sessions/lesson`) pass
 production session path) already exclude them (`source-context.ts`).
 `active-plan-attachment.ts` still copies a newly attached material's topic
 titles verbatim as deferred topics.
+
+## Root cause 6 - Infrastructure (findings 24, 25, 26, 113)
+
+**What the code shows (and what it cannot).**
+- **`/api/errors` 503 (25).** The route has no 503 path (every branch answers
+  204), and the invite-only proxy lists `/api/errors` as public, so it passes
+  before the tester-access RPC. Production answers an unauthenticated POST
+  with 204 today (checked 19 Sept). A 503 on this route therefore came from
+  the platform in front of the function, not from YOVA code; Vercel's runtime
+  logs for the audit window are needed to name it. The only YOVA-generated
+  503 in front of every non-public API route is the tester-access check
+  (`inviteAccessUnavailableResponse`, when `claim_yova_tester_access` errors),
+  which would also produce a Study Now 503.
+- **Study Now 503 (26).** Study Now's slot handler answers 503 when the
+  provider is unavailable or the AI allowance cannot be verified
+  (`shape-slot-handler.ts:96, 118, 129`); with the platform cause above, these
+  are the candidates.
+- **Placement "unavailable" (24).** The plan creator shows "The placement
+  check is unavailable right now" for any placement failure, including the
+  validator rejecting a single question (which discards the whole check).
+- **Allowance exhausted at 5 plans (113) - found.** Invite-only accounts get
+  20 `plan_generation` units a day and 5 a minute
+  (`202609040001_expand_ai_usage_cost_controls.sql`). One plan creation
+  reserves a unit per step - topic map, topic map again after setup
+  corrections, placement check, plan - so four steps: 20 / 4 = 5 plans a day.
+  When it ran out on the topic-map step, the learner was told to "Skip the
+  placement check" (wrong step). A plan refused because nothing fits before
+  the deadline also spent a unit, with no AI call made.
+
+**Fixed.**
+| Test | Red before fix | Green after |
+|---|---|---|
+| `generate/route.test.ts` allowance exhausted on the topic-map step names that step | `expected 'This account has reached its planning...' to match /topic map/i` | green |
+| `generate/route.test.ts` an accepted map that cannot fit before the deadline refunds the reservation | `no provider was called, so nothing is consumed: ... called 1 times` | green |
+
+**Founder decisions / actions.**
+1. How to count plan creation against the allowance is cost policy: keep a
+   unit per step (and raise the daily limit), or count one plan creation once.
+   Not changed.
+2. To settle "one cause or four", run in the Supabase SQL editor (read-only):
+   ```sql
+   select date_trunc('hour', created_at) as hour,
+          event_data->>'generationType' as step,
+          event_data->>'finalOutcome' as outcome,
+          event_data->>'failedValidator' as failed_validator,
+          count(*)
+   from public.product_events
+   where event_name = 'generation_observed' and created_at >= '2026-09-17'
+   group by 1, 2, 3, 4 order by 1 desc, 5 desc;
+
+   select action, window_kind, window_started_at, request_count
+   from public.ai_usage_windows
+   where window_started_at >= '2026-09-17' order by window_started_at desc;
+   ```
+   and pull Vercel's runtime logs for the audit window filtered to status 503
+   (`/api/errors`, Study Now's `/api/sessions/shape-slot`). One provider or
+   platform cause would show as a burst across all three at the same time.
