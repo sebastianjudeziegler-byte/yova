@@ -378,5 +378,5 @@ titles verbatim as deferred topics.
    where window_started_at >= '2026-09-17' order by window_started_at desc;
    ```
    and pull Vercel's runtime logs for the audit window filtered to status 503
-   (`/api/errors`, Study Now's `/api/sessions/shape-slot`). One provider or
+   (`/api/errors`, Study Now's `/api/sessions/shape`). One provider or
    platform cause would show as a burst across all three at the same time.
