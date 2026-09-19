@@ -195,6 +195,21 @@ export function teachingFirstSessionCopy(topic: string) {
   };
 }
 
+/**
+ * The learner describing themselves: they have met this material and want to
+ * start from an attempt. Goal words such as "test", "exam", "quiz", "review",
+ * "prepare" or "study" are not in this list - they describe the outcome, not
+ * what the learner knows (Brief 2.5 root cause 1).
+ */
+const LEARNER_SAYS_ALREADY_ENCOUNTERED = /\b(?:already (?:learned|know|covered|studied)|need (?:more )?practice|test my recall|mostly reviewing|skip the basics|(?:don't|do not|no need to) (?:teach|explain))\b/i;
+
+/**
+ * The fallback when the learner has given no other evidence. The goal sentence
+ * is never evidence about the learner: a test, exam or review goal says what
+ * the work is for, not that the learner has met the material, so the plan
+ * teaches first. Only the learner saying so moves it to practice first; a
+ * placement result, a covered tick or a recorded encounter move single topics.
+ */
 export function recommendLearningIntent(goal: string): LearningIntentRecommendation {
   const normalized = goal.toLowerCase();
   if (explicitlyNeedsTeaching(normalized)) {
@@ -206,28 +221,12 @@ export function recommendLearningIntent(goal: string): LearningIntentRecommendat
       reason: "This goal is to build or rehearse a work product, so YOVA should begin with a supported model, criteria, or first attempt before independent production.",
     };
   }
-  const learningSignal = /\b(learn|understand|teach me|explain|new to|from scratch|beginner|how does|fundamentals|foundations)\b/.test(normalized);
-  const studySignal = /\b(study|review|prepare|test|exam|quiz|final|recall|remember|practice test|flashcards?|cram)\b/.test(normalized);
-
-  if (learningSignal && !studySignal) {
-    return {
-      intent: "learn",
-      reason: "Your goal sounds like it needs initial understanding or guided skill-building.",
-    };
-  }
-  if (studySignal && !learningSignal) {
+  if (LEARNER_SAYS_ALREADY_ENCOUNTERED.test(normalized)) {
     return {
       intent: "study",
-      reason: "Your goal sounds like preparation or review of material you have already encountered.",
+      reason: "You said you have already covered this, so YOVA should begin with an attempt and target the gaps it reveals.",
     };
   }
-  if (learningSignal && studySignal) {
-    return {
-      intent: "study",
-      reason: "This goal includes learning and preparation. YOVA will start with an attempt, then teach any foundation the attempt exposes as missing.",
-    };
-  }
-
   return {
     intent: "learn",
     reason: "YOVA cannot see a demonstrated foundation yet, so it will teach briefly before asking for independent performance.",

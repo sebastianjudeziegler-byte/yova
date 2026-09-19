@@ -100,6 +100,12 @@ const STUDY_NOW_TOPIC_IDS = [
   "11111111-1111-4111-8111-111111111113",
   "11111111-1111-4111-8111-111111111114",
 ] as const;
+// Brief 2.5 root cause 1: the goal sentence no longer moves a plan to
+// practice first; only the learner saying so does. Tests about timing,
+// workload and method mechanics that were calibrated in practice mode state
+// that evidence explicitly instead of relying on a goal that mentions a test.
+const PRACTICE_FIRST_LEARNER = { startingContext: "I already learned this and need practice." };
+
 const planRequest = PlanGenerationRequestSchema.parse({
   intent: "plan",
   learningIntent: "learn",
@@ -287,6 +293,35 @@ describe("plan generation route", () => {
     } finally {clock.mockRestore();}
   });
 
+  // Brief 2.5 root cause 1 (audit findings 1-7): a goal that mentions a test
+  // routed every topic to practice, so a plan had zero learn blocks and every
+  // topic read "Teaching skipped". The goal sentence is never evidence about
+  // the learner; without a placement result, a covered tick or a recorded
+  // encounter, every topic is taught first.
+  it.each([
+    "I have a biology test next Friday",
+    "Prepare for my AP Biology Unit 6 test",
+  ])("gives every untouched topic a learn block for a test-prep goal: %s", async (goal) => {
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const topics = ["DNA replication", "Transcription", "Translation"].map((title, index) => ({
+      ...planRequest.knowledgeMap!.topics[0]!, id: `2222222${index}-2222-4222-8222-22222222222${index}`, title,
+      description: `Explain ${title.toLowerCase()} and its role in gene expression.`, subtopics: ["Enzymes involved", "Steps in order"],
+      prerequisiteTopicIds: [], status: "not_started" as const, initialEvidence: null,
+    }));
+    const response = await POST(planGenerationRequest({
+      goal, startingContext: undefined, learningIntent: "learn",
+      deadline: new Date(Date.now() + 8 * 86_400_000).toISOString(),
+      knowledgeMap: { ...planRequest.knowledgeMap!, topics },
+    }));
+    const body = await response.json();
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.plan.learningIntent).toBe("learn");
+    for (const topic of topics) {
+      const blocks = body.plan.sessions.filter((session: { topicIds?: string[] }) => session.topicIds?.includes(topic.id));
+      expect(blocks.some((session: { learningMode: string }) => session.learningMode === "learn"), `${topic.title} has a learn block`).toBe(true);
+    }
+  });
+
   it("rejects client-claimed knowledge before it can remove teaching from the plan", async () => {
     configureProduction();
     const forgedMap = structuredClone(planRequest.knowledgeMap!);
@@ -303,7 +338,7 @@ describe("plan generation route", () => {
   it("lets deterministic duration own Study Now timing and content budget under the availability cap", async () => {
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(studyNowGenerationRequest(20, {
+    const response = await POST(studyNowGenerationRequest(20, { ...PRACTICE_FIRST_LEARNER,
       knowledgeMap: studyNowKnowledgeMap(),
     }));
     const body = await response.json();
@@ -361,7 +396,7 @@ describe("plan generation route", () => {
 
   it("gives an explicit forty-minute Study Now request a substantial exact workload on every selected topic", async () => {
     const { POST } = await import("@/app/api/plans/generate/route");
-    const response = await POST(studyNowGenerationRequest(40, { knowledgeMap: studyNowKnowledgeMap() }));
+    const response = await POST(studyNowGenerationRequest(40, { ...PRACTICE_FIRST_LEARNER, knowledgeMap: studyNowKnowledgeMap() }));
     const body = await response.json();
     expect(response.status).toBe(200);
     const session = body.plan.sessions[0];
@@ -850,7 +885,7 @@ describe("plan generation route", () => {
     ));
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(studyNowGenerationRequest(60));
+    const response = await POST(studyNowGenerationRequest(60, PRACTICE_FIRST_LEARNER));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -898,7 +933,7 @@ describe("plan generation route", () => {
     });
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(studyNowGenerationRequest(60));
+    const response = await POST(studyNowGenerationRequest(60, PRACTICE_FIRST_LEARNER));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -935,7 +970,7 @@ describe("plan generation route", () => {
     mocks.generateKnowledgeMap.mockResolvedValueOnce(generatedKnowledgeMap());
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(studyNowGenerationRequest(25, { knowledgeMap: undefined }));
+    const response = await POST(studyNowGenerationRequest(25, { ...PRACTICE_FIRST_LEARNER, knowledgeMap: undefined }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -1055,7 +1090,7 @@ describe("plan generation route", () => {
     ));
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(planGenerationRequest());
+    const response = await POST(planGenerationRequest(PRACTICE_FIRST_LEARNER));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -1147,11 +1182,11 @@ describe("plan generation route", () => {
     ));
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const liveResponse = await POST(planGenerationRequest());
+    const liveResponse = await POST(planGenerationRequest(PRACTICE_FIRST_LEARNER));
     const liveBody = await liveResponse.json();
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     mocks.generatePlan.mockRejectedValueOnce(new Error("provider unavailable"));
-    const fallbackResponse = await POST(planGenerationRequest());
+    const fallbackResponse = await POST(planGenerationRequest(PRACTICE_FIRST_LEARNER));
     const fallbackBody = await fallbackResponse.json();
     errorLog.mockRestore();
 
