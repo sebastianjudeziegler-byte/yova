@@ -22,17 +22,23 @@ vi.mock("@/lib/openai/normal-plan-fill-generator", () => ({ generateNormalPlanFi
 
 describe("A18 permanent capacity replay", () => {
   afterEach(() => vi.useRealTimers());
-  it("retains every history topic as learning and practice in the saved windows, with explicit deadline conflicts", async () => {
+  it("fits history topics as learning and practice in the saved windows before the deadline, deferring the rest with a reason", async () => {
     const now = new Date("2026-09-10T09:00:00.000Z");
     vi.useFakeTimers(); vi.setSystemTime(now);
     const request = historyEssayJourneyRequest(buildPlanEvaluationCases(now).find(item => item.id === "history_writing_outside")!.request);
     const generated = await generateFixedPlanForJourney(request, now);
-    expect(generated.plan.sessions).toHaveLength(6);
+    // Brief 2.5 root cause 2: three windows fall before the deadline. Two
+    // topics are taught and practised there; the third is deferred with the
+    // reason shown instead of being queued after the deadline.
+    expect(generated.plan.sessions).toHaveLength(4);
+    expect(generated.plan.sessions.every(session => Date.parse(session.scheduledFor) + session.estimatedMinutes * 60_000 <= Date.parse(request.deadline!))).toBe(true);
     expect(generated.plan.sessions.some(session => session.estimatedMinutes < 25)).toBe(true);
-    expect(new Set(generated.plan.sessions.flatMap(session => session.topicIds))).toEqual(new Set(request.knowledgeMap!.topics.map(topic => topic.id)));
+    const scheduled = new Set(generated.plan.sessions.flatMap(session => session.topicIds));
+    const deferred = generated.plan.knowledgeMap!.topics.filter(topic => topic.deferred);
+    expect(scheduled.size + deferred.length).toBe(request.knowledgeMap!.topics.length);
+    expect(deferred.every(topic => /deadline/i.test(topic.deferred!.reason))).toBe(true);
     expect(generated.plan.sessions[0]!.learningMode).toBe("learn");
     expect(generated.plan.sessions.some(session => session.learningMode === "study")).toBe(true);
-    expect(generated.plan.planModel?.constraints.some(note => /after the deadline/i.test(note))).toBe(true);
     expect(generated.plan.sessions.every(session => session.workload && session.estimatedMinutes <= session.workload.ceilingMinutes)).toBe(true);
     expect(evaluatePlanDraft(generated.draft, request, "writing", generated.composition).requiredFailures).toEqual([]);
     const droppedTopic = structuredClone(generated.draft);
@@ -40,6 +46,6 @@ describe("A18 permanent capacity replay", () => {
     expect(evaluatePlanDraft(droppedTopic, request, "writing", generated.composition).requiredFailures).toContain("Every mapped topic is scheduled or explicitly deferred");
     const late = structuredClone(generated.draft);
     late.sessions[0]!.scheduledFor = new Date(Date.parse(request.deadline!) + 86400000).toISOString();
-    expect(evaluatePlanDraft(late, request, "writing", generated.composition).requiredFailures).toContain("Deadline conflicts are explicit and dates match the code-owned queue");
+    expect(evaluatePlanDraft(late, request, "writing", generated.composition).requiredFailures).toContain("No work is scheduled after the deadline and dates match the code-owned queue");
   });
 });

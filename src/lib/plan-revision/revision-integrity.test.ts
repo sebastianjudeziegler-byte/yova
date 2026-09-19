@@ -18,7 +18,7 @@ function build(delta = source, controls = empty, protections: RevisionSessionPro
 }
 
 describe("reviewed edits remain protected across later topic revisions", () => {
-  it.each(["draft", "active"] as const)("a %s method-only edit preserves every other block beyond a close deadline byte-for-byte", async contextKind => {
+  it.each(["draft", "active"] as const)("a %s method-only edit preserves every other block under a close deadline byte-for-byte", async contextKind => {
     const fixture = deltaFixture(1);
     const request = { ...fixture.request, deadline: "2026-09-08T20:00:00.000Z", availability: [{ day: "Every day", window: "Morning", minutes: 25 }] };
     const composition = composeNormalPlanEnvelopes({ ...fixture, request, learningIntentRecommendation: { intent: "learn", basis: "Learn every accepted topic before its practice check." } });
@@ -26,7 +26,8 @@ describe("reviewed edits remain protected across later topic revisions", () => {
     const draft = buildNormalPlanFromFixedEnvelope({ ...fixed, fill: buildNormalPlanFallbackFill(fixed) });
     const plan = contextKind === "active" ? commitPlanStudyRoutes({ ...draft, status: "active" }, DELTA_NOW.toISOString()) : draft;
     const target = plan.sessions[0]!;
-    expect(plan.sessions.some(session => Date.parse(session.scheduledFor) > Date.parse(request.deadline))).toBe(true);
+    // Brief 2.5 root cause 2: a close deadline no longer queues blocks after it.
+    expect(plan.sessions.every(session => Date.parse(session.scheduledFor) + session.estimatedMinutes * 60_000 <= Date.parse(request.deadline))).toBe(true);
     const methodId = target.studyRoute!.agency.alternatives[0]!.primaryMethodId;
     const fill = vi.fn(async (input: Parameters<typeof buildNormalPlanFallbackFill>[0]) => buildNormalPlanFallbackFill(input));
     const proposal = await buildPlanRevision({ ...fixture, request, plan,

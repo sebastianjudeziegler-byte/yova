@@ -53,9 +53,10 @@ export function evaluatePlanDraft(
     ? draft.sessions.some((session) => new Date(session.scheduledFor).getTime() > new Date(request.deadline as string).getTime())
     : false;
   const topicQueue = composition?.planModel?.version === "topic_plan_v2";
-  const deadlineHonest = !hasDeadlineViolation || Boolean(topicQueue
-    && composition?.planModel?.constraints.some(note => /after the deadline/i.test(note))
-    && draft.sessions.every((session, index) => session.scheduledFor === composition.envelopes[index]?.scheduledFor));
+  // Brief 2.5 root cause 2: no plan kind is exempt. Admitting a block lands
+  // after the deadline used to pass this check for topic plans.
+  const deadlineHonest = !hasDeadlineViolation
+    && (!topicQueue || draft.sessions.every((session, index) => session.scheduledFor === composition?.envelopes[index]?.scheduledFor));
   const uniqueObjectives = new Set(draft.sessions.map((session) => normalize(session.objective))).size;
   const progression = progressionSignals(draft);
   const sourceLanguageIsSafe = request.materialMode !== "upload"
@@ -116,7 +117,7 @@ export function evaluatePlanDraft(
       `${draft.sessions.length} sessions for ${scope.label.toLowerCase()}; expected ${expectedMinimumSessions}-${expectedMaximumSessions}`,
     ),
     check("time_fit", "Sessions fit supplied availability", sessionsFitAvailability, 15, true, scheduledWindows.map(({ session, weekday, matchingWindow }) => `${weekday}: ${session.estimatedMinutes}/${matchingWindow?.minutes ?? 0} min`).join("; ")),
-    check("deadline_fit", topicQueue ? "Deadline conflicts are explicit and dates match the code-owned queue" : "No work is scheduled after the deadline", deadlineHonest, 15, true, request.deadline ? `Deadline: ${request.deadline}` : "No fixed deadline"),
+    check("deadline_fit", topicQueue ? "No work is scheduled after the deadline and dates match the code-owned queue" : "No work is scheduled after the deadline", deadlineHonest, 15, true, request.deadline ? `Deadline: ${request.deadline}` : "No fixed deadline"),
     check(
       "method_alignment",
       "Methods fit each session's actual task",

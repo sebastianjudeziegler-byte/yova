@@ -1286,7 +1286,9 @@ describe("plan generation route", () => {
     expect(mocks.generateLegacyPlan).not.toHaveBeenCalled();
   });
 
-  it("retains topics beyond a close deadline when their available days are later", async () => {
+  // Brief 2.5 root cause 2: this used to return a queue placed after the
+  // deadline with an "after the deadline" note. Nothing is placed after it now.
+  it("asks for time before a close deadline when every available day is later", async () => {
     const unavailableDay = new Intl.DateTimeFormat("en-US", {
       weekday: "long",
       timeZone: "UTC",
@@ -1298,11 +1300,12 @@ describe("plan generation route", () => {
       availability: [{ day: unavailableDay, window: "Evening", minutes: 25 }],
     }));
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(422);
     const body = await response.json();
-    expect(body.plan.planModel.constraints.join(" ")).toContain("after the deadline");
-    expect(mocks.loadDurationContext).toHaveBeenCalledTimes(1);
-    expect(mocks.generatePlan).toHaveBeenCalledOnce();
+    expect(body).toMatchObject({ code: "schedule_capacity" });
+    expect(body.error).toMatch(/before the deadline/);
+    expect(body).not.toHaveProperty("plan");
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
     expect(mocks.generateLegacyPlan).not.toHaveBeenCalled();
   });
 
@@ -1554,7 +1557,7 @@ describe("plan generation route", () => {
     expect(mocks.generatePlan).not.toHaveBeenCalled();
   });
 
-  it("keeps a fallback queue and explains when availability falls after the deadline", async () => {
+  it("never builds a fallback queue after the deadline when availability falls after it", async () => {
     configureProduction();
     mocks.rateLimit.mockReturnValueOnce({ allowed: false, retryAfterSeconds: 17 });
     const deadline = new Date(Date.now() + 24 * 60 * 60 * 1_000);
@@ -1570,10 +1573,10 @@ describe("plan generation route", () => {
       availability: [{ day: unavailableDay, window: "Evening", minutes: 25 }],
     }));
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(422);
     const body = await response.json();
-    expect(body.plan.planModel.constraints.join(" ")).toContain("after the deadline");
-    expect(body.plan.sessions).not.toHaveLength(0);
+    expect(body).toMatchObject({ code: "schedule_capacity" });
+    expect(body).not.toHaveProperty("plan");
     expect(mocks.generatePlan).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
   });

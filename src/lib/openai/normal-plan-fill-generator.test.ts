@@ -43,6 +43,8 @@ describe("one-call normal-plan provider fill", () => {
 
   it("uses bounded deterministic topic copy beyond 24 envelopes without invoking or crediting the provider", async () => {
     const request = normalRequest();
+    // Enough Mondays before the deadline for all 13 topics: nothing is placed after it (Brief 2.5).
+    request.deadline = new Date(NOW.getTime() + 190 * 86_400_000).toISOString();
     request.knowledgeMap!.topics = Array.from({ length: 13 }, (_, index) => ({ ...request.knowledgeMap!.topics[0]!, id: `70000000-7000-4000-8000-${String(index+1).padStart(12,"0")}`, title: `Concept number ${index+1}`, prerequisiteTopicIds: [] }));
     const composition = composeNormalPlanEnvelopes({ request, learningIntentRecommendation: { intent: request.learningIntent, basis: "Every accepted topic needs a first pass and practice." }, durationContext: durationContext(), now: NOW });
     expect(composition.envelopes.length).toBeGreaterThan(24);

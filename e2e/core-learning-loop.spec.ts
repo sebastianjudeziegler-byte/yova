@@ -843,8 +843,9 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await activeEditor.getByRole("button",{name:"Preview changes",exact:true}).click();
   const activePreview = page.getByRole("region", { name: "Plan change preview" });
   const capacity=await(await capacityResponse).json() as {proposal:{canApply:boolean;before:LearningPlan;after:LearningPlan}};
-  // Availability may move the full queue beyond the deadline. It must never
-  // silently discard topics or fake a completion when a short window is chosen.
+  // A short window may not hold the queue before the deadline (Brief 2.5: no
+  // block after it). The preview then offers choices; it must never silently
+  // discard topics or fake a completion.
   expect(capacity.proposal.after.knowledgeMap!.topics).toEqual(capacity.proposal.before.knowledgeMap!.topics);
   expect(capacity.proposal.after.sessions.every(session=>session.status!=="complete")).toBe(true);
   if(!capacity.proposal.canApply){

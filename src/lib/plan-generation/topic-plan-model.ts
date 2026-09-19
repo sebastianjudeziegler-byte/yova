@@ -165,15 +165,15 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
   if(policy.extraPractice)fire("P10.extra.forget_during_tests","Each topic has one extra practice block with tighter spacing.");
   if(policy.collapsed)fire("P10.extra.long_plan_shutdown","The next block stays prominent and the rest of the queue is collapsed.");
 
-  const allSlots=topicPlanAvailability(input.durationContext.legacyExactDuration?request:{...request,deadline:null},input.now,drafts.length,input.revisionContext);
-  if(!allSlots.length) throw new NormalPlanEnvelopeComposerError("no_normal_session_capacity","There is no available day in the next year. Add an available day to place this queue.");
+  // Brief 2.5 root cause 2: availability is searched only up to the deadline.
+  // No block is ever suggested after it; see the fitting ladder below.
+  const allSlots=topicPlanAvailability(request,input.now,drafts.length,input.revisionContext);
+  if(!allSlots.length) throw new NormalPlanEnvelopeComposerError("no_normal_session_capacity",request.deadline?"No study window falls before the deadline. Add time before it or move the deadline.":"There is no available day in the next year. Add an available day to place this queue.");
   const peak=policy.get("energy_window") ?? input.durationContext.profile.preferredWindow;
-  const used=new Map<string,number>(); const completedLearning=new Map<string,number>(); const completedPractice=new Map<string,number>();
-  const learnDays=new Set<string>(); const usedDays=new Set<string>();
-  const envelopes:NormalPlanSessionEnvelope[]=[];
+  const deadlineAt=request.deadline ? Date.parse(request.deadline) : null;
   const deadlineDays=request.deadline ? Math.ceil((Date.parse(request.deadline)-input.now.getTime())/DAY) : null;
   const close=deadlineDays!==null && deadlineDays<=3;
-  if(close)fire("plan.deadline.first_passes","With the deadline close, first passes stay ahead of return practice; the full queue remains available.");
+  if(close)fire("plan.deadline.first_passes","With the deadline close, first passes come before return practice.");
   const gap=deadlineDays===null?3:deadlineDays<=3?1:deadlineDays<=9?2:3;
   // Reserve each topic's return dates before unrelated learning consumes those
   // opportunities. The final queue is sorted by the actual placed dates.
@@ -182,22 +182,40 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
     const grouped = topics.flatMap(topic => drafts.filter(draft => draft.topic.id === topic.id));
     drafts.splice(0,drafts.length,...grouped);
   }
+  const legacyExact=Boolean(input.durationContext.legacyExactDuration);
+  /**
+   * One placement attempt over a queue. Returns null when any block would not
+   * fit before the deadline, so the caller can compress or leave work out.
+   * Rules and constraints are kept per attempt: only the accepted attempt's
+   * rules are recorded, never a rule from a discarded attempt.
+   */
+  // level 0: normal spacing; 1: learning blocks are not spread one per day;
+  // 2: practice returns sooner too; 3: also shorter blocks, so two fit in one
+  // window (never under 15 minutes).
+  const place=(queue:Draft[],level:0|1|2|3)=>{
+  const compressed=level>=2;
+  const used=new Map<string,number>(); const completedLearning=new Map<string,number>(); const completedPractice=new Map<string,number>();
+  const learnDays=new Set<string>(); const usedDays=new Set<string>();
+  const envelopes:NormalPlanSessionEnvelope[]=[];
+  const placedRules=new Map<string,string>(); const placedConstraints:string[]=[];
+  const firePlaced=(ruleId:string,reason:string)=>{placedRules.set(ruleId,reason);};
+  const ruleIds=()=>[...new Set([...rules.keys(),...placedRules.keys()])];
   const consumed = new Set<Draft>();
   const readyBefore = (topicId: string, start: number) => {
     const topic = topics.find(item => item.id === topicId)!;
     if (learnCount(topic, topics, policy.capacity) === 0) return true;
-    const learning = drafts.filter(item => item.topic.id === topicId && item.learn);
+    const learning = queue.filter(item => item.topic.id === topicId && item.learn);
     return learning.length > 0 && learning.every(item => consumed.has(item)) && (completedLearning.get(topicId) ?? Infinity) <= start;
   };
-  for(const [index,draft] of drafts.entries()) {
+  for(const [index,draft] of queue.entries()) {
     if (consumed.has(draft)) continue;
     const prerequisiteEnd=Math.max(input.now.getTime(),...draft.topic.prerequisiteTopicIds.map(id=>completedLearning.get(id)??input.now.getTime()));
     const priorLearn=completedLearning.get(draft.topic.id) ?? prerequisiteEnd;
-    const firstGap=Math.max(0,gap-(policy.support.includes("frequent_check_ins")?1:0)-(policy.extraPractice?1:0));
-    const practiceGap=draft.round===1?firstGap:deadlineDays===null?7:deadlineDays<=3?1:deadlineDays<=9?3:5;
+    const firstGap=compressed?0:Math.max(0,gap-(policy.support.includes("frequent_check_ins")?1:0)-(policy.extraPractice?1:0));
+    const practiceGap=draft.round===1?firstGap:compressed?1:deadlineDays===null?7:deadlineDays<=3?1:deadlineDays<=9?3:5;
     let earliest=draft.learn ? Math.max(prerequisiteEnd,completedLearning.get(draft.topic.id)??input.now.getTime()) : (draft.round===1?priorLearn:completedPractice.get(draft.topic.id)??priorLearn)+practiceGap*DAY;
     const exampleFirst = draft.learn && (policy.get("difficulty_help")==="concrete_example" || policy.get("extra_context")==="examples_before_ready") && hasWorkedExample(draft.topic,input);
-    if(!policy.frontload&&!close&&draft.learn&&!exampleFirst) earliest=Math.max(earliest,input.now.getTime()+Math.min(index+1,7)*DAY);
+    if(level===0&&!policy.frontload&&!close&&draft.learn&&!exampleFirst) earliest=Math.max(earliest,input.now.getTime()+Math.min(index+1,7)*DAY);
     const candidates=allSlots.filter(slot=>Date.parse(slot.endsAt)>earliest && slot.minutes>=8 && (!policy.focus||!usedDays.has(localDay(slot.startsAt,request.timeZone))) && (!draft.learn||!policy.stepByStep||!learnDays.has(localDay(slot.startsAt,request.timeZone))));
     // Only choose energy among opportunities on the next permissible day.
     const firstDay=candidates[0]?.dayIndex;
@@ -205,21 +223,26 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
     const preferred=today.find(slot=>peak&&peak!=="varies" && (draft.learn ? period(slot.startsAt,request.timeZone)===peak : period(slot.startsAt,request.timeZone)!==peak));
     let slot=preferred ?? candidates[0];
     if(!slot && input.durationContext.legacyExactDuration) throw new NormalPlanEnvelopeComposerError("no_normal_session_capacity","The existing revision does not fit its reserved availability before the deadline.");
-    if(!slot) throw new NormalPlanEnvelopeComposerError("no_normal_session_capacity","Add a window of at least eight minutes to place the remaining topic work.");
+    if(!slot) return null;
     let start=Math.max(Date.parse(slot.startsAt)+(used.get(slot.startsAt)??0)*MINUTE,earliest);
     let remaining=Math.floor((Date.parse(slot.endsAt)-start)/MINUTE);
     if(remaining<8) {
       const next=candidates.find(s=>Date.parse(s.startsAt)>Date.parse(slot!.startsAt) && s.minutes-(used.get(s.startsAt)??0)>=8);
       if(next) {slot=next;start=Math.max(Date.parse(slot.startsAt)+(used.get(slot.startsAt)??0)*MINUTE,earliest);remaining=Math.floor((Date.parse(slot.endsAt)-start)/MINUTE);}
     }
-    if(remaining<8) throw new NormalPlanEnvelopeComposerError("no_normal_session_capacity","Add a window of at least eight minutes to place the remaining topic work.");
+    if(remaining<8) {
+      if(legacyExact) throw new NormalPlanEnvelopeComposerError("no_normal_session_capacity","Add a window of at least eight minutes to place the remaining topic work.");
+      return null;
+    }
     const atPeak=!peak||peak==="varies"||period(new Date(start).toISOString(),request.timeZone)===peak;
     const legacySourceBudget = input.durationContext.legacyExactDuration ? input.durationContext.sourceStudyBudgetMinutes : undefined;
     let ceiling=Math.min(Math.max(policy.ceiling,legacySourceBudget??0),remaining, input.durationContext.learnerOverrideMinutes ?? 60);
     if(!atPeak)ceiling=Math.max(8,Math.floor(ceiling*.8));
+    const packedCeiling=Math.max(15,Math.floor((slot.minutes-NORMAL_PLAN_SESSION_RESET_MINUTES)/2));
+    if(level===3&&packedCeiling<ceiling){ceiling=packedCeiling;firePlaced("plan.deadline.shorter_blocks","Blocks are shorter than usual so more of your topics fit before the deadline.");}
     if(draft.learn && topicWeight(draft.topic,topics)>=9)ceiling=Math.max(8,Math.floor(ceiling*.85));
     if(index===0&&policy.frontload)ceiling=Math.min(ceiling,8);
-    let workload=buildWorkload(draft,input,answers,Math.max(8,ceiling),[...rules.keys()]);
+    let workload=buildWorkload(draft,input,answers,Math.max(8,ceiling),ruleIds());
     if (input.durationContext.legacyExactDuration && (input.durationContext.learnerOverrideMinutes || legacySourceBudget)) workload = {...workload,estimatedMinutes:Math.min(ceiling,input.durationContext.learnerOverrideMinutes ?? legacySourceBudget!)};
     const groupedDrafts = [draft];
     const firstRoute = sweepRoute(draft, input, answers, start);
@@ -228,9 +251,9 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
     if (!input.revisionContext && !input.durationContext.legacyExactDuration
       && workload.questionCount === 32 && ceiling - workload.estimatedMinutes >= 8
       && firstRoute.firstPracticeRound === "active_recall" && !(draft.learn && policy.stepByStep)) {
-      const next = drafts.find((candidate, candidateIndex) => {
+      const next = queue.find((candidate, candidateIndex) => {
         if (candidateIndex <= index || consumed.has(candidate) || candidate.topic.id === draft.topic.id || candidate.learn !== draft.learn || candidate.round !== draft.round) return false;
-        if (drafts.slice(0, candidateIndex).some(previous => previous.topic.id === candidate.topic.id && previous.learn === candidate.learn && !consumed.has(previous))) return false;
+        if (queue.slice(0, candidateIndex).some(previous => previous.topic.id === candidate.topic.id && previous.learn === candidate.learn && !consumed.has(previous))) return false;
         if (!candidate.topic.prerequisiteTopicIds.every(id => readyBefore(id, start))) return false;
         if (!candidate.learn) {
           if (!readyBefore(candidate.topic.id, start)) return false;
@@ -241,22 +264,25 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
         return route.firstPracticeRound === "active_recall" && sweepRouteSignature(route) === sweepRouteSignature(firstRoute);
       });
       if (next) {
-        const nextWorkload = buildWorkload(next, input, answers, Math.floor(ceiling - workload.estimatedMinutes), [...rules.keys()]);
+        const nextWorkload = buildWorkload(next, input, answers, Math.floor(ceiling - workload.estimatedMinutes), ruleIds());
         const segments = [draft, next].map((item, part) => ({ segmentId: `segment-${part + 1}`, learningMode: item.learn ? "learn" as const : "study" as const, taskType: firstRoute.input.taskType, workload: { ...(part ? nextWorkload : workload), suggestedDate: scheduleMode !== "learner_placed" } })) as NonNullable<TopicWorkload["segments"]>;
         workload = TopicWorkloadSchema.parse({ ...workload, suggestedDate: scheduleMode !== "learner_placed", segments,
           topicSubtopics: segments.flatMap(segment => segment.workload.topicSubtopics),
           ...Object.fromEntries((["questionCount", "recallQuestionCount", "transferQuestionCount", "produceSteps", "sourceReadMinutes", "estimatedMinutes"] as const).map(field => [field, segments.reduce((sum, segment) => sum + segment.workload[field], 0)])),
         });
         groupedDrafts.push(next);
-        fire("plan.workload.next_ready_topic", "When useful work leaves room, the block continues with one compatible topic whose prerequisites are already ready.");
+        firePlaced("plan.workload.next_ready_topic", "When useful work leaves room, the block continues with one compatible topic whose prerequisites are already ready.");
       }
     }
     const scheduledFor=new Date(start).toISOString();
     const finish=start+workload.estimatedMinutes*MINUTE;
-    if(request.deadline&&finish>Date.parse(request.deadline))for(const item of groupedDrafts)constraints.push(`${item.topic.title}: availability or prerequisites put this suggestion after the deadline; move it or change availability.`);
-    if(index===0&&policy.frontload&&start>input.now.getTime()+DAY)constraints.push("Your next available window is more than 24 hours away, so the first block uses that opportunity.");
-    if(peak&&peak!=="varies"&&((draft.learn&&atPeak)||(!draft.learn&&!atPeak)))fire(`P1.energy.${peak}`,"Learning uses your preferred energy window; practice uses other available windows where possible.");
-    if(draft.learn&&(policy.get("difficulty_help")==="concrete_example"||policy.get("extra_context")==="examples_before_ready")&&hasWorkedExample(draft.topic,input))fire("P5.difficulty.concrete_example","A learning block with a worked example uses its next available opportunity.");
+    if(deadlineAt!==null&&finish>deadlineAt) {
+      if(legacyExact) throw new NormalPlanEnvelopeComposerError("no_normal_session_capacity","The existing revision does not fit its reserved availability before the deadline.");
+      return null;
+    }
+    if(index===0&&policy.frontload&&start>input.now.getTime()+DAY)placedConstraints.push("Your next available window is more than 24 hours away, so the first block uses that opportunity.");
+    if(peak&&peak!=="varies"&&((draft.learn&&atPeak)||(!draft.learn&&!atPeak)))firePlaced(`P1.energy.${peak}`,"Learning uses your preferred energy window; practice uses other available windows where possible.");
+    if(draft.learn&&(policy.get("difficulty_help")==="concrete_example"||policy.get("extra_context")==="examples_before_ready")&&hasWorkedExample(draft.topic,input))firePlaced("P5.difficulty.concrete_example","A learning block with a worked example uses its next available opportunity.");
     const initial=firstMode.get(draft.topic.id)!;
     const target=initial.targetDecisions[0]!;
     const targetDecision=draft.learn ? target : {...target,learningMode:"study" as const,basisCode:draft.round>0&&initial.learningMode==="learn"?"planned_later_attempt" as const:target.basisCode};
@@ -271,9 +297,63 @@ export function composeTopicPlanEnvelopes(input: NormalPlanEnvelopeInput): Norma
       if(item.learn){learnDays.add(localDay(scheduledFor,request.timeZone));completedLearning.set(item.topic.id,finish);} else completedPractice.set(item.topic.id,finish);
     }
   }
+  return {envelopes,rules:placedRules,constraints:placedConstraints};
+  };
+
+  // Fitting ladder when the work does not fit before the deadline (Brief 2.5
+  // root cause 2, spec section 7): compress spacing first; then leave out the
+  // lowest-priority practice, with the reason shown; then defer the
+  // lowest-priority topics, with the reason shown. A topic's teaching and its
+  // first practice are essential, except that with the deadline close first
+  // passes outrank returns (spec section 7): a taught topic's practice is then
+  // optional too, and added back wherever it still fits.
+  const taught=new Set(drafts.filter(draft=>draft.learn).map(draft=>draft.topic.id));
+  const essential=(draft:Draft)=>draft.learn||(draft.round===1&&!(close&&taught.has(draft.topic.id)));
+  const practiceDeferredTopicIds:string[]=[];
+  const inOrder=(keep:ReadonlySet<Draft>)=>drafts.filter(draft=>keep.has(draft));
+  let placed=place(drafts,0);
+  if(!placed&&deadlineAt!==null&&!legacyExact) {
+    placed=place(drafts,1);
+    if(placed) rules.set("plan.deadline.compressed_learning","Learning blocks sit closer together so the work fits before your deadline.");
+    else {
+      rules.set("plan.deadline.compressed_spacing","Practice returns sooner than usual so the work fits before your deadline.");
+      placed=place(drafts,2) ?? place(drafts,3);
+    }
+    // A revision never changes scope on its own: if its unit does not fit, the
+    // caller reports a capacity blocker with the learner's choices instead.
+    if(!placed&&!input.revisionContext) {
+      const keep=new Set(drafts.filter(essential));
+      const active=[...topics];
+      placed=place(inOrder(keep),3);
+      while(!placed&&active.length>1) {
+        // Topics are prerequisite-ordered and priority-sorted, so the last one
+        // has the lowest priority and nothing still scheduled depends on it.
+        const topic=active.pop()!;
+        for(const draft of drafts)if(draft.topic.id===topic.id)keep.delete(draft);
+        deferredIds.add(topic.id);
+        deferrals.push({topicId:topic.id,reasonCode:"deadline_capacity",reason:"There is not enough study time before your deadline to teach this topic as well. Add time before the deadline or move it to include this topic.",prerequisiteTopicIds:[]});
+        placed=place(inOrder(keep),3);
+      }
+      if(!placed) throw new NormalPlanEnvelopeComposerError("no_normal_session_capacity","No study window before the deadline can hold a block. Add time before it or move the deadline.");
+      const optional=drafts.filter(draft=>!essential(draft)&&!deferredIds.has(draft.topic.id)).sort((a,b)=>a.round-b.round||active.indexOf(a.topic)-active.indexOf(b.topic));
+      const leftOut:Draft[]=[];
+      for(const draft of optional) {
+        const attempt=place(inOrder(new Set([...keep,draft])),3);
+        if(attempt){keep.add(draft);placed=attempt;} else leftOut.push(draft);
+      }
+      for(const draft of leftOut) {
+        constraints.push(`${draft.topic.title}: a practice block is left out because it does not fit before your deadline. Add time before the deadline to bring it back.`);
+        if(draft.round===1&&!practiceDeferredTopicIds.includes(draft.topic.id))practiceDeferredTopicIds.push(draft.topic.id);
+      }
+    }
+  }
+  if(!placed) throw new NormalPlanEnvelopeComposerError("no_normal_session_capacity",deadlineAt!==null?"No study window before the deadline can hold a block. Add time before it or move the deadline.":"Add a window of at least eight minutes to place the remaining topic work.");
+  for(const [ruleId,reason] of placed.rules)rules.set(ruleId,reason);
+  constraints.push(...placed.constraints);
+  const envelopes=[...placed.envelopes];
   envelopes.sort((left,right)=>Date.parse(left.scheduledFor)-Date.parse(right.scheduledFor)||left.sequence-right.sequence);
   const sequenced=envelopes.map((envelope,index)=>({...envelope,sequence:index+1,envelopeId:`normal-plan-envelope-${String(index+1).padStart(3,"0")}`}));
-  const planModel=TopicPlanModelSchema.parse({version:"topic_plan_v2",learningGoal:request.goal,ruleIds:[...rules.keys()],personalizationSentence:[...rules.values()].join(" ").slice(0,1600),scheduleMode,collapsedQueue:policy.collapsed,topicNotes:notes,constraints:[...new Set(constraints)].slice(0,40)});
+  const planModel=TopicPlanModelSchema.parse({version:"topic_plan_v2",learningGoal:request.goal,ruleIds:[...rules.keys()],personalizationSentence:[...rules.values()].join(" ").slice(0,1600),scheduleMode,collapsedQueue:policy.collapsed,topicNotes:notes,constraints:[...new Set(constraints)].slice(0,40),practiceDeferredTopicIds});
   return deepFreeze({version:NORMAL_PLAN_ENVELOPE_COMPOSER_VERSION,status:"complete",profileVersion:input.durationContext.profileVersion,envelopes:sequenced,deferrals,planModel});
 }
 

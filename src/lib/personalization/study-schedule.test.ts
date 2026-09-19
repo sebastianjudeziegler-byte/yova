@@ -28,6 +28,12 @@ describe("study schedule personalization", () => {
     expect(recommendation.minutes).toBe(25);
   });
 
+  // Brief 2.5 root cause 2, finding 12: "Most days" was positions 0,1,2,4,5 of
+  // the next seven days, so a Friday start silently dropped Monday and Thursday.
+  it("offers every day for Most days, leaving exclusions to the learner", () => {
+    expect(frequencyIndexes("most_days")).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
   it("spreads three-to-four-day plans instead of stacking consecutive days", () => {
     expect(frequencyIndexes("three_four")).toEqual([0, 2, 4, 6]);
   });

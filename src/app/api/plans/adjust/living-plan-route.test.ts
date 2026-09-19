@@ -378,9 +378,11 @@ describe("living-plan structured preview through the existing adjustment route",
       op: "add_topic", title: `Membrane investigation ${index + 1}`,
       description: `Explain membrane transport in experimental setting ${index + 1}.`,
     }));
-    const { response, body } = await preview(additions);
+    // Fourteen more topics need a later deadline to fit before it (Brief 2.5:
+    // nothing is placed after the deadline); this case tests proposal size.
+    const { response, body } = await preview([...additions, { op: "set_deadline", iso: "2026-12-20T20:00:00.000Z" }]);
     expect(response.status, JSON.stringify(body)).toBe(200);
-    expect(body.proposal.canApply).toBe(true);
+    expect(body.proposal.canApply, JSON.stringify(body.proposal.capacity)).toBe(true);
     expect(body.proposal.after.sessions.length).toBeGreaterThan(28);
     expect(body.proposalReceipt).toBeTruthy();
     expect(mocks.fill).toHaveBeenCalled();

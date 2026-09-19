@@ -38,7 +38,9 @@ export function frequencyLabel(frequency: StudyFrequency) {
 
 export function frequencyIndexes(frequency: StudyFrequency) {
   if (frequency === "every_day") return [0, 1, 2, 3, 4, 5, 6];
-  if (frequency === "most_days") return [0, 1, 2, 4, 5];
+  // Most days is every day unless the learner removes one (Brief 2.5 finding
+  // 12): fixed positions dropped whichever weekdays fell on 3 and 6.
+  if (frequency === "most_days") return [0, 1, 2, 3, 4, 5, 6];
   if (frequency === "one_two") return [1, 4];
   return [0, 2, 4, 6];
 }
