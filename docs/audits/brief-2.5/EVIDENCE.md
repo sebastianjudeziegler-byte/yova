@@ -574,7 +574,10 @@ consumed the CPU; the learner saw "could not save this session".
 **Fix.**
 - Migration `20260919110001_planned_minutes_conflict_answers.sql` raises the
   refusal as PT409 (HTTP 409). **Founder ran the same SQL in production on 19
-  Sept** (confirmation of the loop stopping pending).
+  Sept.** Postgres log: `40001 study_route_planned_minutes_conflict` many
+  times a second until 14:39:49; at 14:39:50 the same refusal answered as
+  PT409 five times (the in-flight retries ending); no error after it, only a
+  routine checkpoint at 14:40:46. The loop stopped.
 - The completion now sends the committed route's minutes
   (`selectSessionTerminalPlannedMinutes`), so the save is accepted.
 - The client lists the refusal (40001 and PT409) as permanent for completions
