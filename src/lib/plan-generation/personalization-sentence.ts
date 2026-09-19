@@ -3,7 +3,7 @@ import { onboardingOptionLabel, type OnboardingQuestionId } from "@/lib/onboardi
 import { FUNCTIONAL_SUPPORT_OPTIONS } from "@/lib/sample-data";
 
 /**
- * Brief 2.5 root cause 4 (findings 20, 21, 72, 75, 78): the plan's "why"
+ * Brief 2.5 root cause 4 (finding 20): the plan's "why"
  * paragraph was every fired rule's canned reason stitched together - nine
  * sentences, some describing work the plan did not contain ("dense topics
  * stop at three learning blocks" on a plan with no learning blocks) and "a

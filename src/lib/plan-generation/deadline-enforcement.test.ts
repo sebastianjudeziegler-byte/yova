@@ -5,7 +5,7 @@ import { PlanGenerationRequestSchema } from "./schema";
 import { emptyOnboardingAnswers, type OnboardingAnswerValues } from "@/lib/onboarding/answers";
 
 /**
- * Brief 2.5 root cause 2 (findings 8-13, 32, 36, 62, 72). The scheduler looked
+ * Brief 2.5 root cause 2 (findings 8-12, 62, 72). The scheduler looked
  * for time a year past the deadline and only noted "after the deadline", so a
  * test-prep plan was a queue of blocks after the test. No block may finish
  * after the deadline: spacing compresses first, then the lowest-priority

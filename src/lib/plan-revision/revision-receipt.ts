@@ -1,7 +1,7 @@
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 
 /**
- * Brief 2.5 root cause 3 (finding 18): receipts said "everything else
+ * Brief 2.5 root cause 3 (finding 17): receipts said "everything else
  * unchanged" while the change had renamed, re-methoded and re-dated blocks,
  * because the text was fixed. This receipt is computed from the saved
  * before/after plans: every block that differs is named with what changed, so

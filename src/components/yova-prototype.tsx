@@ -4232,7 +4232,7 @@ function HomeScreen({ baselineSessionShapes = false, account, answers, plans, pl
   const awaitingSessionFinish = isActiveSessionCheckpointResumePoint(resumePoint)
     && resumePoint.checkpointStatus === "awaiting_finish";
   const completedCount = displayedPlan?.sessions.filter((session) => session.status === "complete").length ?? 0;
-  // Brief 2.5 finding 106: with the baseline questions on, Home does not read
+  // Brief 2.5 finding 21: with the baseline questions on, Home does not read
   // the retired eleven-question profile. Its "deepen your profile" prompt, its
   // energy card and its delivery chips came from that profile's legacy slots,
   // which the ten baseline answers do not update; they are not shown.

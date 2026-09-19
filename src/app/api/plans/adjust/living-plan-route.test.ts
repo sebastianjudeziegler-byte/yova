@@ -134,7 +134,7 @@ describe("living-plan structured preview through the existing adjustment route",
   });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
-  // Brief 2.5 root cause 3 (finding 64): a rebuilt block came back as Concept
+  // Brief 2.5 root cause 3 (finding 18): a rebuilt block came back as Concept
   // Mapping at the default length because the revision preview never gave the
   // composer the learner's onboarding answers, which plan generation always does.
   it("rebuilds a changed block with the learner's own onboarding answers", async () => {

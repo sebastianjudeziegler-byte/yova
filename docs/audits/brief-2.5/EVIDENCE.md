@@ -2,11 +2,11 @@
 
 Branch `plan-model-repair`, base main 843f7ee.
 
-> **Blocker on the finding map.** The acceptance audit
-> `docs/audits/2026-09-18-brief-2-production-audit.md` is not in the repository,
-> on main, or in Downloads. The per-finding table (all 114, each fixed / design
-> pass / founder action) is written against it once the founder supplies the
-> file. The finding numbers below come from the brief.
+> The acceptance audit is `docs/audits/2026-09-18-brief-2-production-audit.md`
+> (843f7ee, 18 Sept, 114 findings). The per-root-cause sections below were
+> written before it was available and cite the brief's finding numbers; where
+> those differ from the audit, the **finding map at the end of this file is
+> authoritative** (corrections listed there).
 
 ## Root cause 1 - The word "test" deletes teaching (findings 1-7, 19, 21, 35, 37; 3)
 
@@ -107,7 +107,7 @@ no longer exempts topic plans. `retired-cases.json` renames point at the new
 e2e titles.
 
 **Carried to later root causes.**
-- RC6 (finding 113): the composer catch *consumes* the plan allowance on a
+- RC6 (finding 26): the composer catch *consumes* the plan allowance on a
   capacity refusal (`consumeFailedPlanClaim`). More deadlines are now refused
   instead of producing a useless queue, so this matters more.
 - RC3: `refreshTopicPlanMetadata` rebuilds constraints after an edit and drops
@@ -116,7 +116,7 @@ e2e titles.
   available days" next to "Practice returns sooner than usual"; it is still
   stitched from every fired rule.
 
-## Root cause 3 - Editing disagrees with itself (findings 16, 17, 18, 64)
+## Root cause 3 - Editing disagrees with itself (findings 16, 17, 18)
 
 **Causes found.**
 1. **Undo hung, then the plan was not restored (16).** `apply_plan_revision`,
@@ -137,7 +137,7 @@ e2e titles.
 3. **Receipts claimed "everything else unchanged" (18).** The receipt was
    the fixed delta line ("Change selected study blocks") plus a hard-coded
    "; everything else unchanged." whatever the rebuild did.
-4. **A deadline change rewrote blocks to Concept Mapping (64).** A deadline
+4. **A deadline change rewrote blocks to Concept Mapping (18).** A deadline
    change rebuilt every block that no longer fitted, and the revision preview
    gave the composer neither the learner's onboarding answers (sizing) nor
    the baseline answers (method), which plan generation always passes - so
@@ -327,7 +327,7 @@ titles verbatim as deferred topics.
 ## Root cause 6 - Infrastructure (findings 24, 25, 26, 113)
 
 **What the code shows (and what it cannot).**
-- **`/api/errors` 503 (25).** The route has no 503 path (every branch answers
+- **`/api/errors` 503 (113, and in 25's network log).** The route has no 503 path (every branch answers
   204), and the invite-only proxy lists `/api/errors` as public, so it passes
   before the tester-access RPC. Production answers an unauthenticated POST
   with 204 today (checked 19 Sept). A 503 on this route therefore came from
@@ -336,14 +336,14 @@ titles verbatim as deferred topics.
   503 in front of every non-public API route is the tester-access check
   (`inviteAccessUnavailableResponse`, when `claim_yova_tester_access` errors),
   which would also produce a Study Now 503.
-- **Study Now 503 (26).** Study Now's slot handler answers 503 when the
+- **Study Now 503 (25).** Study Now's slot handler answers 503 when the
   provider is unavailable or the AI allowance cannot be verified
   (`shape-slot-handler.ts:96, 118, 129`); with the platform cause above, these
   are the candidates.
 - **Placement "unavailable" (24).** The plan creator shows "The placement
   check is unavailable right now" for any placement failure, including the
   validator rejecting a single question (which discards the whole check).
-- **Allowance exhausted at 5 plans (113) - found.** Invite-only accounts get
+- **Allowance exhausted at 5 plans (26) - found.** Invite-only accounts get
   20 `plan_generation` units a day and 5 a minute
   (`202609040001_expand_ai_usage_cost_controls.sql`). One plan creation
   reserves a unit per step - topic map, topic map again after setup
@@ -395,3 +395,153 @@ request without a map receipt, which is the case that is still charged.
    and pull Vercel's runtime logs for the audit window filtered to status 503
    (`/api/errors`, Study Now's `/api/sessions/shape`). One provider or
    platform cause would show as a burst across all three at the same time.
+
+---
+
+## Finding map - all 114 findings of the 18 Sept production audit
+
+Source: `docs/audits/2026-09-18-brief-2-production-audit.md` (843f7ee,
+copied unchanged from the founder's Downloads; findings 1-114, none
+skipped). Each finding is in exactly one category:
+
+- **Fixed** - the root cause and the test that proves it. A finding is Fixed
+  only if every non-UI part of it is fixed and tested; tests marked "CI" have
+  been written and pass locally where they can run, and run in PR #99's CI
+  (browser, migrated-database and live tests).
+- **Design pass** - UI or wording the brief excludes (sections 4-6 UI items).
+- **Founder action** - legacy plan deletion, migration, allowance policy.
+- **Not yet addressed** - with the root cause that should cover it, or
+  "nothing covers it". A partly fixed finding is here, with the fixed part
+  named.
+
+Corrections to the per-root-cause sections above (which used the brief's
+summary): RC3 did not address finding 64 (that is the edit panel's
+placement, a design item; the deadline rewrite is 18). RC4 did not address
+72, 75 or 78 (72 is covered by RC2; 75 and 78 are the session hub's copy,
+untouched). In RC6 the allowance is finding 26, Study Now 25, `/api/errors`
+113.
+
+| # | Finding (short) | Category | Root cause / test, or why |
+|---|---|---|---|
+| 1 | No learn blocks exist | Fixed | RC1. `learning-intent.test.ts` "teaches first when only the goal mentions a test or review"; `generate/route.test.ts` "gives every untouched topic a learn block for a test-prep goal"; `test-goal-teaches-first.test.ts`; live `test-goal-teaches-first.live.test.ts` (passed 2/2 in CI run 35439495392) |
+| 2 | Blocks named "Learn" are closed-book quizzes | Fixed | RC1. Untouched topics now open with a learn block (`learningMode: "learn"`, Shape A): same tests as 1; a scope-only topic routes to the no-source teaching path (`test-goal-teaches-first.test.ts`, `learnPath: "ai_explanation"`) |
+| 3 | Attached material never pointed at | Not yet addressed | Partly fixed (RC1): at creation a notes-backed topic routes `learnPath: "source"` and its direction reads "Review Chapter 12 notes.pdf..." (`test-goal-teaches-first.test.ts`). Attaching notes to an **active** plan (the audit's nitrogen case) has no test; RC1/RC5 should cover it |
+| 4 | Block length fixed by profile, not computed from content | Not yet addressed | Nothing in 2.5 covers it (content-derived sizing) |
+| 5 | Fill-to-capacity inverted (32 easy questions under a 48-min timer) | Not yet addressed | Nothing in 2.5 covers it |
+| 6 | Method not routed from Q6 | Not yet addressed | The brief put it in RC1, but RC1 does not fix it: a block's method comes from `initialPlanProfileMethod`, which reads the old canonical-profile signals, never Q6. Q6 only shapes the learn session's produce step. Nothing in 2.5 covers the block method |
+| 7 | Contrasting profiles give the same plan shape | Not yet addressed | Depends on 4, 5 and 6. RC1 adds learn blocks and RC4 makes the text profile-specific, but no test shows two profiles getting a different *kind* of plan |
+| 8 | Scheduler spills past the deadline | Fixed | RC2. `deadline-enforcement.test.ts` 3-day and 8-day (red: 9 and 6 blocks after the deadline); `plan-creation-blockers.test.ts`; e2e `plan-schedule-date` "a 1-/3-day deadline places nothing after it..." (3-day local pass; CI) |
+| 9 | First passes do not outrank returns near the deadline | Fixed | RC2. `deadline-enforcement.test.ts` (every scheduled topic is taught before the deadline); `topic-plan-model.test.ts` "puts first passes first under a close deadline..." (asserts the first block is a learn block and the rule fired; ordering beyond the first block is not asserted) |
+| 10 | No priority card; the time in "tonight at 10:27pm" ignored | Not yet addressed | Partly fixed (RC2): a deadline under ten minutes away with no study window now gets the card (`deadline-enforcement.test.ts` 9-minute case, red first; e2e "a deadline nine minutes away..." CI). The goal sentence's **time** is still dropped (the deadline becomes a date), so the audit's exact input would not reach the card. RC2 should cover time parsing |
+| 11 | Q8 "starts late" first block not within 24h | Fixed | RC1 + RC2. Cause was no learn blocks plus the missing Monday/Thursday. `study-schedule.test.ts` "offers every day for Most days" (red: `[0,1,2,4,5]`); `deadline-enforcement.test.ts` "Q8 starts late: ... within 24 hours, with no banner" (this case was already green with learn blocks present) |
+| 12 | "Most days" hard-coded to Fri/Sat/Sun/Tue/Wed | Fixed | RC2. `study-schedule.test.ts` "offers every day for Most days" |
+| 13 | No feasibility check at setup; "5 windows available", "15-15 blocks" | Not yet addressed | RC2 per the brief; the setup preview and estimate are unchanged |
+| 14 | Study guide pre-selected for every topic | Fixed | RC5. `setup-corrections.test.ts` "pre-selects the content source over the study guide when a topic has both" (red: guide id) |
+| 15 | Topic extraction non-deterministic, invents scope | Not yet addressed | Nothing in 2.5 covers it |
+| 16 | Undo hung, did not survive reload; restored the wrong change | Fixed | RC3. Migration 20260919100001 + `living-plan-route.migrated.test.ts` "answers a refusal only the database can see instead of hanging Undo" (CI); pgTAP `20260919100001_plan_revision_refusals.test.sql` (CI); e2e `living-plan` "inline Mark covered keeps its Undo across a reload..." (CI) and "moving a block changes only its date; Undo restores it after a reload..." (local pass; CI); `living-plan-route.test.ts` "moves a block's date only ... Undo restores exactly that" (red: title/method changed) |
+| 17 | Receipts lie ("everything else unchanged") | Fixed | RC3. Receipts computed from the before/after diff (`revision-receipt.ts`); `living-plan-route.test.ts` "moves a block's date only, says so in the receipt..." asserts the receipt names exactly the move, for apply and Undo |
+| 18 | Changing the deadline rewrites the whole plan (all Concept Mapping) | Fixed | RC3. `revision-dates-only.test.ts` "an earlier deadline moves only the blocks that no longer fit, and only their dates" (red: block rebuilt); `living-plan-route.test.ts` "rebuilds a changed block with the learner's own onboarding answers" (red: 23 min for a 10-15 min learner). The header counts ("Test in 4 days", "12 blocks") are 58 and 35 |
+| 19 | "Already covered" has no visible effect | Fixed | RC1. Untouched topics now teach (tests under 1) while a covered topic is practice-only (`topic-plan-model.test.ts` "never splits a topic without subtopics or a practice placeholder", covered case) |
+| 20 | Personalization paragraph is canned | Fixed | RC4. `personalization-sentence.test.ts` (4 cases, all red with the audit's own sentences: "Dense topics stop at three learning blocks", "a 11-minute") |
+| 21 | Home personalization driven by the legacy questionnaire | Not yet addressed | Partly fixed (RC4): with the baseline flag on, Home no longer shows the legacy chips, energy card or "Deepen your profile". Only "Deepen your profile" is tested (e2e `baseline-study-profile-onboarding` "You shows one questionnaire...", red: received 1); the "Personalized today" chips the audit quotes have no test |
+| 22 | Section labels became topics ("Unit 6 test scope") | Fixed | RC5 (not reproducible). `generate-plan-map.test.ts` "renames topics that name parts of a document instead of knowledge" (red: labels kept); `document-label.test.ts`; live `study-guide-rules.live.test.ts` (CI). The existing plan is founder deletion (86). Its "Trace-Code-Test" method on a biology topic is not addressed |
+| 23 | Document-referential questions ("fits the notes") | Fixed | RC5. `shape-slot-quality.test.ts` "replaces a document-referential question even when the reviewer accepts it" (red: delivered); `map-diagnostic.test.ts` "refuses a placement question about a unit's goals..." (red: resolved); `document-referential.test.ts`; live `study-guide-rules.live.test.ts` (CI) |
+| 24 | Placement check fails ("unavailable", no retry) | Not yet addressed | RC6. Not reproduced. The "unavailable" screen covers every placement failure, including the validator rejecting one question. Cause pending the founder's `product_events` query |
+| 25 | Study Now down; 503 on `/api/plans/generate`, `/api/errors`, `/api/events` | Not yet addressed | RC6. Not reproduced. The 503 on `/api/errors` cannot come from YOVA's route (no 503 path; public in the invite proxy; production answers 204 today). Pending Vercel logs |
+| 26 | Allowance hit on the 5th plan; wrong step named; "Skip for now" dead end | Not yet addressed | Partly fixed (RC6): allowance now counts plans (founder decision), `generate/route.test.ts` "charges the first topic map once and not the plan's later steps" (red: charged twice); the topic-map step names itself, "names the topic-map step when the allowance runs out..." (red). "Skip for now" skipping the whole screen into a failing build is not addressed |
+| 27 | Q4 exact vs learner_choice difference is cosmetic | Not yet addressed | Nothing in 2.5 covers it (a date chooser for learner_choice) |
+| 28 | Q1 energy only sets availability; no learn-peak split | Fixed | RC1. With learn blocks present, learn goes to the peak window: `topic-plan-model.test.ts` "enacts each plan-level adaptation..." (learn block at 19:00 for evening); learn blocks exist for test-prep goals (tests under 1) |
+| 29 | Q3 "never back to back" unhelpful, skips available days | Not yet addressed | Nothing covers it (product decision on focus spacing) |
+| 30 | Q5 concrete_example has no visible effect | Not yet addressed | Nothing covers it. RC4 only stops claiming it when not enacted |
+| 31 | Q9 frequent_check_ins could not be verified | Not yet addressed | Not reproducible by the audit (allowance). RC4 writes a sentence only when enacted; no sentence test for Q9 |
+| 32 | Two conflicting dates in one row (text vs date input) | Not yet addressed | RC2 per the brief; the date input still uses an uncontrolled `defaultValue` |
+| 33 | "Ahead of schedule" modal on first session; its action errors on the deadline | Not yet addressed | Nothing in 2.5 covers it |
+| 34 | Exiting a session mid-way leaves no trace on the plan | Not yet addressed | Nothing in 2.5 covers it |
+| 35 | Block count excludes practice; goes stale after edits | Not yet addressed | Practice now exists in every plan (RC1), but the stale count after edits is untested; RC3 should cover it |
+| 36 | Date order not monotonic with queue order; duplicate names after edits | Not yet addressed | RC2/RC3 per the brief. A deadline change no longer renames blocks (RC3), but re-dated blocks keep their queue sequence, so date order can still differ; no test |
+| 37 | No topic checkmark/note/drag/remove on the plan screen | Design pass | UI |
+| 38 | Step 2 is a mode chooser; duplicate skip | Design pass | UI |
+| 39 | Upload rejects DOCX | Not yet addressed | Nothing covers it (a file-type capability, not layout) |
+| 40 | Goal-type pills render as grey text | Design pass | UI |
+| 41 | Empty band on the goal step | Design pass | UI |
+| 42 | Steps open mid-scroll | Design pass | UI |
+| 43 | Flow logo differs from app logo | Design pass | UI |
+| 44 | Material chip copy redundant; no summary | Design pass | UI |
+| 45 | Only the second upload's status visible while uploading | Not yet addressed | Nothing covers it (upload state bug) |
+| 46 | Text-only PDF fails the private reader; warning is loose text | Not yet addressed | Nothing covers the reader failure (the warning's placement is design) |
+| 47 | Study guide / Notes toggle overlaps, no selected state | Design pass | UI |
+| 48 | Topics as `<ol>` with native selects | Design pass | UI |
+| 49 | Added topic title glued to the next label | Design pass | UI |
+| 50 | "Roughly 15-15 blocks" | Design pass | Copy (the estimate's accuracy is 13) |
+| 51 | Availability recommendation is a non-sequitur | Not yet addressed | Canned "because" text on the setup screen (`recommendStudySchedule`); RC4 should cover it, untouched |
+| 52 | Custom timetable layout | Design pass | UI |
+| 53 | No-materials path shows single-option source selects | Design pass | UI |
+| 54 | Placement offer "Back" alone | Design pass | UI |
+| 55 | Build progress steps, then a plan without teaching | Design pass | UI (the missing teaching is 1) |
+| 56 | "Add material"/"Edit plan" on an unsaved plan | Design pass | UI |
+| 57 | Two plans saved with the identical name | Not yet addressed | Nothing covers it |
+| 58 | "Test in 8 days" off by one | Not yet addressed | Nothing covers it (day-count calculation) |
+| 59 | Learning header and archive button above the plan | Design pass | UI |
+| 60 | Raw `<details>` rows, glued labels | Design pass | UI |
+| 61 | US-format date inputs | Design pass | UI |
+| 62 | Stacked "after the deadline" warning boxes | Fixed | RC2. No block is placed after the deadline, so these notes are not generated: `deadline-enforcement.test.ts` asserts no "after the deadline" constraint; e2e `plan-schedule-date` asserts no "after the deadline" text on the plan (CI). Box styling is design |
+| 63 | Receipt/Undo placement inconsistent | Design pass | UI |
+| 64 | "Edit plan" panel appended at the bottom, no scroll | Design pass | UI |
+| 65 | Edit panel raw labels | Design pass | UI |
+| 66 | Raw ISO timestamps in preview | Design pass | UI (named in the brief) |
+| 67 | Remove-topic control labels | Design pass | UI |
+| 68 | Method dropdown lists 12 methods; unselectable label | Design pass | UI (method eligibility mismatch noted) |
+| 69 | "Add material" is the generic change builder | Design pass | UI |
+| 70 | Inline actions grey the plan 10-20 s, no progress | Design pass | UI (moves and schedule edits no longer rebuild blocks, RC3) |
+| 71 | "Created by YOVA" on a plan built from uploads | Not yet addressed | Nothing covers it (wrong source claim) |
+| 72 | False banners: ">24 hours away", "full queue remains available" | Fixed | RC2 + RC4. `deadline-enforcement.test.ts` Q8 case asserts no ">24 hours" constraint with every evening available; the "full queue" text is gone and every sentence is "Because ..." (`personalization-sentence.test.ts` "is one because-you-said sentence per enacted rule") |
+| 73 | "I've already covered this" on a practice block; "not proof" | Design pass | UI/copy |
+| 74 | "a 8-minute" session copy; 8 vs 11 mismatch | Not yet addressed | Session-side copy (`rule-evidence.ts`); RC4 should cover it, untouched |
+| 75 | Hub shows internal labels and "chosen because" pills | Not yet addressed | RC4 per the brief; the session hub was not changed |
+| 76 | Timer runs during generation and on the completion screen | Not yet addressed | Nothing covers it |
+| 77 | Round 2 header regresses to "Step 1 of 3" | Design pass | UI |
+| 78 | "Why this session ran" is 13 lines | Not yet addressed | RC4 per the brief; session-side text untouched |
+| 79 | Weak question quality (easy distractors, answer position, giveaway stem) | Not yet addressed | Nothing covers it (reviewer reliability backlogged, 19 Sept) |
+| 80 | 32-question repetition and topic bleed | Not yet addressed | Nothing covers it |
+| 81 | Repair round labelled differently from the hub | Not yet addressed | Nothing covers it |
+| 82 | Finish -> Home worked on double-click | Cannot place | Records something that works; no action |
+| 83 | Desktop cards in a mobile column | Design pass | UI (named in the brief) |
+| 84 | "Up next" shows last Thursday's overdue block without an overdue label | Not yet addressed | Nothing covers it |
+| 85 | Home card claims an example-led start on a practice block | Not yet addressed | Canned method reason on Home; RC4 should cover it, untouched |
+| 86 | Junk legacy plans active across Home/Calendar | Founder action | Delete legacy plans (brief) |
+| 87 | Three different counts for today | Not yet addressed | Nothing covers it (legacy plans may contribute; not verified) |
+| 88 | Today/Calendar ignore plans created today | Not yet addressed | Not reproduced; nothing covers it. Likely tied to 8 (those plans' blocks were after their deadlines), unverified |
+| 89 | Today rows show "AM" with no time | Design pass | UI |
+| 90 | Lower-cased week subtitle | Design pass | Copy |
+| 91 | Weekly review copy | Design pass | Copy |
+| 92 | "Where you stand" shows two random 0% plans | Founder action | Legacy plans (brief) |
+| 93 | Plan subtitles look like timestamps; typos title-cased | Design pass | UI/copy |
+| 94 | Milestone card layout | Design pass | UI |
+| 95 | Duplicate "Add plan"/"Study now" cards | Design pass | UI |
+| 96 | "Active 8" vs "17 active" | Not yet addressed | Nothing covers it |
+| 97 | Next session dated yesterday, no overdue state | Not yet addressed | Nothing covers it (same class as 84) |
+| 98 | Passed session with no overdue state | Not yet addressed | Nothing covers it |
+| 99 | Calendar copy | Design pass | Copy |
+| 100 | Stale "session still waiting" card from an old plan | Founder action | Legacy plans (brief) |
+| 101 | "Next up" lists overdue items from junk plans | Founder action | Legacy plans (brief) |
+| 102 | Two items at 9:00 today overlap | Not yet addressed | Nothing covers it (cross-plan overlap); not reproduced |
+| 103 | Calendar quick-add keeps typos in the event title | Not yet addressed | Nothing covers it |
+| 104 | Jump-to-date shows week start; "⌘K" hint on mobile | Design pass | UI |
+| 105 | Calendar Add -> event form with "Start a learning plan instead" | Cannot place | Records something that works; no action |
+| 106 | Two questionnaires on You | Fixed | RC4. e2e `baseline-study-profile-onboarding` "You shows one questionnaire with no developer notes..." (local pass; CI) |
+| 107 | Developer notes under questions | Fixed | RC4. Same e2e asserts no "Layer N:" / "Nothing in v1" text (local pass; CI) |
+| 108 | You page intro copy | Design pass | Copy |
+| 109 | Q6/Q7 not captured at onboarding; no save confirmation | Fixed | RC4. e2e `baseline-study-profile-onboarding` "an account created from the Study Profile is asked Q6 and Q7, and saves them" (red: went straight to the summary; local pass; CI). The save confirmation is a design item. Existing accounts answer on You (founder done for his) |
+| 110 | "held the scaffolding one level higher" session copy | Not yet addressed | Session-side "because" text; RC4 should cover it, untouched |
+| 111 | URL never changes, no deep links | Not yet addressed | Nothing covers it |
+| 112 | Console "Access to storage is not allowed" on every load | Not yet addressed | Nothing covers it; not reproduced here |
+| 113 | `/api/errors` returns 503 | Not yet addressed | RC6. Cannot reproduce: no 503 path in the route, public in the invite proxy, production answers 204 today. Pending Vercel logs |
+| 114 | Bottom nav tap sometimes swallowed | Design pass | UI |
+
+**Totals (counted from the table).** Fixed 20: 1, 2, 8, 9, 11, 12, 14, 16,
+17, 18, 19, 20, 22, 23, 28, 62, 72, 106, 107, 109. Of these, 16, 106, 107 and
+109 rest partly on browser or migrated-database tests that only CI can run.
+Design pass 40. Founder action 4: 86, 92, 100, 101. Not yet addressed 48, of
+which 3, 10, 21 and 26 are partly fixed. Cannot place 2: 82 and 105 record
+things that work. The migration `20260919100001` (applied) and the allowance
+policy (decided) are release actions, not audit findings.

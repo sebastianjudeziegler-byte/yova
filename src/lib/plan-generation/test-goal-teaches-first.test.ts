@@ -14,7 +14,7 @@ vi.mock("server-only", () => ({}));
 const { templateDirection } = await import("@/lib/openai/shape-slot-generator");
 
 /**
- * Brief 2.5 root cause 1 (audit findings 1-7 and 3). A goal that mentions a
+ * Brief 2.5 root cause 1 (audit findings 1-3). A goal that mentions a
  * test used to route every topic to practice, so every topic read "Teaching
  * skipped" and a topic's attached notes were never studied. This drives the
  * same chain the plan route runs - the intent resolved from the goal, the

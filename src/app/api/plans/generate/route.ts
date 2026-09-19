@@ -224,7 +224,7 @@ export async function POST(request: Request) {
     diagnosticResponses: parsedRequest.data.diagnosticResponses.filter(response=>response.evaluation === "self_report"),
   });
   const evidenceUserId = developmentPreview ? "development-preview" : user!.id;
-  // Founder decision (19 Sept 2026, Brief 2.5 finding 113): the planning
+  // Founder decision (19 Sept 2026, Brief 2.5 finding 26): the planning
   // allowance counts plans, not steps. A request carrying a topic map whose
   // signed receipt verifies for this learner continues a plan whose first map
   // was already charged - topic or map corrections, the placement check and the
@@ -397,7 +397,7 @@ export async function POST(request: Request) {
         await recoverUnknownPlanReservation(supabase, requestId, aiUsageRecoveryKey);
         if (diagnosticOnly || understandingOnly) {
           return NextResponse.json(
-            // Brief 2.5 finding 113: name the step the learner is actually on.
+            // Brief 2.5 finding 26: name the step the learner is actually on.
             { error: understandingOnly
               ? "YOVA could not verify your planning allowance, so it has not built the topic map. Your sources are kept; try again in a moment."
               : "YOVA could not verify the placement-check allowance. Skip this check or try again in a moment." },
@@ -778,7 +778,7 @@ export async function POST(request: Request) {
       now: normalPlanNow,
     });
   } catch (error) {
-    // Brief 2.5 finding 113: a refusal decided in code before any provider
+    // Brief 2.5 finding 26: a refusal decided in code before any provider
     // call (nothing fits before the deadline) refunds the allowance instead of
     // spending it.
     if (composedWithoutProvider && supabase && aiUsageClaimId && error instanceof NormalPlanEnvelopeComposerError) {

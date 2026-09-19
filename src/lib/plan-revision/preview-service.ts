@@ -75,7 +75,7 @@ export async function previewPlanRevision({ input, supabase, userId, development
     request: { ...request, knowledgeMap: plan.knowledgeMap, profileSummary: authorized.profileSummary ?? request.profileSummary },
     delta: input.delta, controls: input.controls, now, contextKind: context.kind, draftReceiptWindow,
     protections: active?.protections ?? [], otherReservations,
-    // Brief 2.5 finding 64: a rebuilt block is sized and routed from the
+    // Brief 2.5 finding 18: a rebuilt block is sized and routed from the
     // learner's onboarding answers, exactly as plan generation does.
     durationContext: { profileVersion: authorized.profileVersion, ...(authorized.onboardingAnswers ? { onboardingAnswers: authorized.onboardingAnswers } : {}), profile: rolloutDecision.personalizationEnabled ? authorized.profile : buildAuthorizedNormalDurationProfile([]), recentOutcomes: rolloutDecision.personalizationEnabled ? authorized.recentOutcomes : [] },
     methodContext: { ...(authorized.onboardingAnswers ? { baselineOnboardingAnswers: authorized.onboardingAnswers } : {}), profileVersion: authorized.methodProfileVersion, personalization, observedEvidence: authorized.methodEvidence.observedEvidence, rolloutDecision },

@@ -7,7 +7,7 @@ import type { RevisionControls } from "@/lib/plan-revision/revision-schema";
 import type { MapDelta } from "@/lib/plan-revision/map-delta";
 
 /**
- * Brief 2.5 root cause 3 (findings 17, 18, 64). A deadline change rewrote
+ * Brief 2.5 root cause 3 (findings 17, 18). A deadline change rewrote
  * every block to Concept Mapping, and moving a block renamed, re-methoded and
  * re-dated it, because both rebuilt the block through the plan composer.
  * Spec section 5: a deadline change re-spaces remaining work and touches

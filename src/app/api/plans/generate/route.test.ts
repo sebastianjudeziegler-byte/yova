@@ -293,7 +293,7 @@ describe("plan generation route", () => {
     } finally {clock.mockRestore();}
   });
 
-  // Brief 2.5 root cause 1 (audit findings 1-7): a goal that mentions a test
+  // Brief 2.5 root cause 1 (audit findings 1-3): a goal that mentions a test
   // routed every topic to practice, so a plan had zero learn blocks and every
   // topic read "Teaching skipped". The goal sentence is never evidence about
   // the learner; without a placement result, a covered tick or a recorded
@@ -1288,7 +1288,7 @@ describe("plan generation route", () => {
 
   // Brief 2.5 root cause 2: this used to return a queue placed after the
   // deadline with an "after the deadline" note. Nothing is placed after it now.
-  // Brief 2.5 root cause 6 (finding 113): a plan refused because nothing fits
+  // Brief 2.5 root cause 6 (finding 26): a plan refused because nothing fits
   // before the deadline used up a planning allowance although no AI call was
   // made. The reservation is refunded instead.
   it("refunds the planning allowance when an accepted map cannot fit before the deadline", async () => {
@@ -1659,7 +1659,7 @@ describe("plan generation route", () => {
     );
   });
 
-  // Brief 2.5 finding 113, founder decision 19 Sept 2026: the planning
+  // Brief 2.5 finding 26, founder decision 19 Sept 2026: the planning
   // allowance counts plans, not steps. Only building a plan's first topic map
   // reserves a unit; every later step for that map - topic corrections, map
   // corrections, the placement check and the plan itself - carries its signed
@@ -1678,7 +1678,7 @@ describe("plan generation route", () => {
     expect(mocks.reserve, "later steps of the same plan are not charged").toHaveBeenCalledTimes(1);
   });
 
-  // Brief 2.5 root cause 6 (finding 113): the allowance ran out while YOVA was
+  // Brief 2.5 root cause 6 (finding 26): the allowance ran out while YOVA was
   // building the topic map, and the learner was told to skip the placement
   // check - a step they had not reached and could not skip their way past.
   it("names the topic-map step when the allowance runs out while building the map", async () => {

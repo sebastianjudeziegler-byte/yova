@@ -4,7 +4,7 @@ import { PlanGenerationRequestSchema } from "./schema";
 import { emptyOnboardingAnswers, type OnboardingAnswerValues } from "@/lib/onboarding/answers";
 
 /**
- * Brief 2.5 root cause 4 (findings 20, 21, 72, 75, 78). The plan's "why" text
+ * Brief 2.5 root cause 4 (finding 20). The plan's "why" text
  * stitched every fired rule's canned reason: nine sentences, "dense topics stop
  * at three learning blocks" on a plan with no learning blocks, and "a
  * 11-minute". It must be "because you said X, YOVA did Y", only for what the
