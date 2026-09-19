@@ -16,7 +16,8 @@ export function validateTopicComposition(request:PlanGenerationRequest, composit
   const map=request.knowledgeMap!;
   if(!TopicPlanModelSchema.safeParse(composition.planModel).success)fail("plan model metadata is invalid");
   const topics=new Map(map.topics.map(topic=>[topic.id,topic]));
-  const slots=topicPlanAvailability({...request,deadline:null},now,composition.envelopes.length,revisionContext);
+  // Brief 2.5 root cause 2: the composer places only inside the deadline.
+  const slots=topicPlanAvailability(request,now,composition.envelopes.length,revisionContext);
   const initialModes=normalPlanModeDecisions({knowledgeMap:map,learningIntentRecommendation:{intent:request.learningIntent,basis:"Use accepted evidence."},sessions:map.topics.filter(t=>!t.deferred&&!t.removed).map(t=>({key:`first:${t.id}`,topicIds:[t.id]}))},revisionContext);
   const modeByTopic=new Map(initialModes.flatMap(mode=>mode.targetDecisions.map(target=>[target.topicId,target.learningMode])));
   const coverage=new Map<string,string[]>();
@@ -27,7 +28,8 @@ export function validateTopicComposition(request:PlanGenerationRequest, composit
   const learningEnds = new Map<string, number>();
   const practiceEnds = new Map<string, number>();
   const deadlineDays = request.deadline ? Math.ceil((Date.parse(request.deadline) - now.getTime()) / 86_400_000) : null;
-  const firstGap = Math.max(0, (deadlineDays === null ? 3 : deadlineDays <= 3 ? 1 : deadlineDays <= 9 ? 2 : 3)
+  const compressed = composition.planModel!.ruleIds.includes("plan.deadline.compressed_spacing");
+  const firstGap = compressed ? 0 : Math.max(0, (deadlineDays === null ? 3 : deadlineDays <= 3 ? 1 : deadlineDays <= 9 ? 2 : 3)
     - Number(composition.planModel!.ruleIds.includes("P9.support.frequent_check_ins")) - Number(composition.planModel!.ruleIds.includes("P10.extra.forget_during_tests")));
   const readyBefore = (id: string, start: number) => modeByTopic.get(id) === "study" || (learningEnds.get(id) ?? Infinity) <= start;
   for(const [index,block] of composition.envelopes.entries()) {
@@ -54,7 +56,7 @@ export function validateTopicComposition(request:PlanGenerationRequest, composit
         if (block.learningMode === "study") {
           if (!readyBefore(topic.id, start)) fail("a practice segment is missing prior learning");
           const prior = workload.practiceRound === 1 ? learningEnds.get(topic.id) ?? now.getTime() : practiceEnds.get(topic.id);
-          const gap = workload.practiceRound === 1 ? firstGap : deadlineDays === null ? 7 : deadlineDays <= 3 ? 1 : deadlineDays <= 9 ? 3 : 5;
+          const gap = workload.practiceRound === 1 ? firstGap : compressed ? 1 : deadlineDays === null ? 7 : deadlineDays <= 3 ? 1 : deadlineDays <= 9 ? 3 : 5;
           if (prior === undefined || start < prior + gap * 86_400_000) fail("a practice segment was swept before its return was due");
         }
       }
@@ -78,6 +80,7 @@ export function validateTopicComposition(request:PlanGenerationRequest, composit
     const slot=slots.find(slot=>slot.startsAt===block.availabilityStartsAt&&slot.dayIndex===block.availabilityDayIndex&&slot.windowIndex===block.availabilityWindowIndex);
     const start=Date.parse(block.scheduledFor), end=start+block.timing.activeMinutes*60_000;
     if(!slot||!Number.isFinite(start)||start<Date.parse(slot.startsAt)||end>Date.parse(slot.endsAt)||block.hardMaximumMinutes!==Math.floor((Date.parse(slot.endsAt)-start)/60_000)||block.timing.hardMaximumMinutes!==block.hardMaximumMinutes)fail("a date escaped strict availability");
+    if(request.deadline&&end>Date.parse(request.deadline))fail("a block ends after the deadline");
     if(intervals.some(i=>start<i.end&&end>i.start))fail("block dates overlap");
     intervals.push({start,end});
     for (const topicId of scopeIds) {
@@ -89,7 +92,7 @@ export function validateTopicComposition(request:PlanGenerationRequest, composit
     const topic=topics.get(topicId)!;
     if(count>3 || (!topic.subtopics.length&&count>1))fail("a topic was split past its boundaries");
     if(JSON.stringify(coverage.get(topicId))!==JSON.stringify(topic.subtopics))fail("subtopics were omitted or duplicated");
-    if(!revisionContext&&!practice.has(topicId))fail("teaching has no practice placeholder");
+    if(!revisionContext&&!practice.has(topicId)&&!composition.planModel!.practiceDeferredTopicIds?.includes(topicId))fail("teaching has no practice placeholder");
   }
   for(const topic of map.topics) if(!scheduled.has(topic.id)&&!composition.deferrals.some(d=>d.topicId===topic.id))fail("an accepted topic silently disappeared");
 }

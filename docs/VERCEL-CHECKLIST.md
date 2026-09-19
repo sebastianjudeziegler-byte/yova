@@ -101,7 +101,7 @@ Then configure `SUPABASE_SECRET_KEY`, `YOVA_DRAFT_RECEIPT_SECRET`, and an explic
 pnpm readiness:production
 ```
 
-This command contacts the configured Supabase project and fails unless the live database returns the current capability contract (`20260917190001`, after `20260917160001` topic workloads, `20260917170001` authenticated session reads, `20260917180001` segment completions and `20260917190001` answered completion conflicts). It does not create an account, plan, session, or activation permit. `pnpm readiness:configuration` checks only non-secret configuration shapes for CI and is explicitly not release approval. Vercel Production builds run the same strict live gate automatically. Vercel Preview and ordinary local/CI builds remain compile checks, state that they make no production-readiness claim, and do not require Production secrets.
+This command contacts the configured Supabase project and fails unless the live database returns the current capability contract (`20260919100001`, after `20260917160001` topic workloads, `20260917170001` authenticated session reads, `20260917180001` segment completions, `20260917190001` answered completion conflicts and `20260919100001` answered plan-revision refusals). It does not create an account, plan, session, or activation permit. `pnpm readiness:configuration` checks only non-secret configuration shapes for CI and is explicitly not release approval. Vercel Production builds run the same strict live gate automatically. Vercel Preview and ordinary local/CI builds remain compile checks, state that they make no production-readiness claim, and do not require Production secrets.
 
 ### Account-data export release order
 

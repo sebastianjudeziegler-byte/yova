@@ -784,8 +784,13 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await page.getByRole("button", { name: "Edit plan",exact:true }).click();
   const editor=page.getByRole("region",{name:"Edit plan",exact:true});
   const firstWindow = editor.locator("fieldset > div").filter({ has: page.getByRole("combobox", { name: /^Day for window 1\b/ }) });
-  await firstWindow.getByRole("combobox", { name: /^Day for window 1\b/ }).selectOption("Sunday");
-  await firstWindow.getByRole("combobox", { name: /^Time for Sunday\b/ }).selectOption("Evening");
+  // Brief 2.5 root cause 2: nothing is placed after the deadline (Fri 4 Sept
+  // under the frozen clock), so moving every window to Sunday - after the test
+  // - is now refused with capacity choices instead of queued past it. This
+  // journey is about a reviewed schedule edit keeping its method contract, so
+  // it widens the window to every evening, which fits before the deadline.
+  await firstWindow.getByRole("combobox", { name: /^Day for window 1\b/ }).selectOption("Every day");
+  await firstWindow.getByRole("combobox", { name: /^Time for Every day\b/ }).selectOption("Evening");
   await editor.getByRole("button",{name:"Preview changes",exact:true}).click();
   const schedulePreview=page.getByRole("region",{name:"Plan change preview"});
   const savedResponse=page.waitForResponse(response=>new URL(response.url()).pathname==="/api/plans/adjust"&&response.request().postDataJSON().action==="apply");
@@ -843,8 +848,9 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await activeEditor.getByRole("button",{name:"Preview changes",exact:true}).click();
   const activePreview = page.getByRole("region", { name: "Plan change preview" });
   const capacity=await(await capacityResponse).json() as {proposal:{canApply:boolean;before:LearningPlan;after:LearningPlan}};
-  // Availability may move the full queue beyond the deadline. It must never
-  // silently discard topics or fake a completion when a short window is chosen.
+  // A short window may not hold the queue before the deadline (Brief 2.5: no
+  // block after it). The preview then offers choices; it must never silently
+  // discard topics or fake a completion.
   expect(capacity.proposal.after.knowledgeMap!.topics).toEqual(capacity.proposal.before.knowledgeMap!.topics);
   expect(capacity.proposal.after.sessions.every(session=>session.status!=="complete")).toBe(true);
   if(!capacity.proposal.canApply){

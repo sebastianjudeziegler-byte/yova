@@ -415,6 +415,9 @@ describe("normal-plan provider-fill boundary", () => {
       }),
       availability: [{ day: "Monday", window: "Morning", minutes: 25 }],
     });
+    // Seven Mondays before the deadline: the session cap, not the deadline, is
+    // what this case tests (Brief 2.5 defers topics the deadline cannot hold).
+    request.deadline = "2026-12-31T23:59:00.000Z";
     const composition = compose(request);
     const contract = { request, composition };
     const fallback = buildNormalPlanFallbackFill(contract);

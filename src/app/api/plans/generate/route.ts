@@ -224,6 +224,14 @@ export async function POST(request: Request) {
     diagnosticResponses: parsedRequest.data.diagnosticResponses.filter(response=>response.evaluation === "self_report"),
   });
   const evidenceUserId = developmentPreview ? "development-preview" : user!.id;
+  // Founder decision (19 Sept 2026, Brief 2.5 finding 26): the planning
+  // allowance counts plans, not steps. A request carrying a topic map whose
+  // signed receipt verifies for this learner continues a plan whose first map
+  // was already charged - topic or map corrections, the placement check and the
+  // plan itself are not charged again, so correcting the topic list costs
+  // nothing. The per-minute planning rate limit still applies to every step.
+  const continuesChargedPlan = Boolean(parsedRequest.data.knowledgeMap
+    && verifyKnowledgeMapReceipt(parsedRequest.data.knowledgeMap, parsedRequest.data.knowledgeMapReceipt, evidenceUserId, developmentPreview));
   if (parsedRequest.data.knowledgeMap && mapClaimsEvidence(parsedRequest.data.knowledgeMap)
     && !verifyKnowledgeMapReceipt(parsedRequest.data.knowledgeMap, parsedRequest.data.knowledgeMapReceipt, evidenceUserId, developmentPreview)) {
     return NextResponse.json({error: "YOVA could not verify this placement evidence. Retake the check before using it to skip teaching.", code: "placement_evidence_unverified"}, {status: 422});
@@ -329,6 +337,7 @@ export async function POST(request: Request) {
     headers: {"Cache-Control":"no-store", "X-Yova-Request-Id":requestId},
   });
   let aiUsageClaimId: string | null = null;
+  let composedWithoutProvider = false;
   let forcedNormalPlanFallbackNotice: string | null = null;
   const knowledgeMapFallbackNotice: string | null = null;
   const aiUsageRecoveryKey = crypto.randomUUID();
@@ -375,7 +384,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (!forcedNormalPlanFallbackNotice && supabase && user) {
+    if (!forcedNormalPlanFallbackNotice && supabase && user && !continuesChargedPlan) {
       let durableLimit: Awaited<ReturnType<typeof reserveAIRequest>> | null = null;
       try {
         durableLimit = await reserveAIRequest(
@@ -388,7 +397,10 @@ export async function POST(request: Request) {
         await recoverUnknownPlanReservation(supabase, requestId, aiUsageRecoveryKey);
         if (diagnosticOnly || understandingOnly) {
           return NextResponse.json(
-            { error: "YOVA could not verify the placement-check allowance. Skip this check or try again in a moment." },
+            // Brief 2.5 finding 26: name the step the learner is actually on.
+            { error: understandingOnly
+              ? "YOVA could not verify your planning allowance, so it has not built the topic map. Your sources are kept; try again in a moment."
+              : "YOVA could not verify the placement-check allowance. Skip this check or try again in a moment." },
             {
               status: 503,
               headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
@@ -431,7 +443,9 @@ export async function POST(request: Request) {
         }
         if (diagnosticOnly || understandingOnly) {
           return NextResponse.json(
-            { error: "This account has reached its planning allowance. Skip the placement check or return after the allowance resets." },
+            { error: understandingOnly
+              ? "This account has reached today's planning allowance, so YOVA cannot build the topic map now. Your sources are kept; return after the allowance resets."
+              : "This account has reached its planning allowance. Skip the placement check or return after the allowance resets." },
             {
               status: 429,
               headers: {
@@ -464,6 +478,8 @@ export async function POST(request: Request) {
   }
 
   try {
+    // No provider runs before composition when the learner's map is already accepted.
+    composedWithoutProvider = Boolean(planRequest.knowledgeMap && !planRequest.mapCorrection);
     const mapped = planRequest.knowledgeMap && !planRequest.mapCorrection
       ? null
       : !isOpenAIPlanConfigured() && (developmentPreview || process.env.NODE_ENV === "development")
@@ -762,7 +778,12 @@ export async function POST(request: Request) {
       now: normalPlanNow,
     });
   } catch (error) {
-    await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+    // Brief 2.5 finding 26: a refusal decided in code before any provider
+    // call (nothing fits before the deadline) refunds the allowance instead of
+    // spending it.
+    if (composedWithoutProvider && supabase && aiUsageClaimId && error instanceof NormalPlanEnvelopeComposerError) {
+      await recoverUnknownPlanReservation(supabase, requestId, aiUsageRecoveryKey);
+    } else await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
     return deterministicPlanFailureResponse(error, requestId);
   }
 

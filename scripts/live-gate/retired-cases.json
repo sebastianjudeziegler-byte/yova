@@ -239,12 +239,12 @@
       {
         "file": "plan-schedule-date.spec.ts",
         "name": "consolidated: a 1-day deadline survives placement, plan review and activation",
-        "replacedBy": "a 1-day deadline retains the full queue and states scheduling conflicts"
+        "replacedBy": "a 1-day deadline places nothing after it and names what is saved for later"
       },
       {
         "file": "plan-schedule-date.spec.ts",
         "name": "consolidated: a 3-day deadline survives placement, plan review and activation",
-        "replacedBy": "a 3-day deadline retains the full queue and states scheduling conflicts"
+        "replacedBy": "a 3-day deadline places nothing after it and names what is saved for later"
       }
     ]
   }

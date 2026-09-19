@@ -1,4 +1,4 @@
-export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "20260917190001";
+export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "20260919100001";
 
 const PROBE_RPC = "signed_in_generation_readiness_v6";
 export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202609080001";
@@ -77,7 +77,8 @@ export async function probeSignedInGenerationDatabase({
     && payload.topicPlanWorkloads === true
     && payload.planSessionReads === true
     && payload.topicSegmentCompletions === true
-    && payload.permanentConflictsAnswer === true;
+    && payload.permanentConflictsAnswer === true
+    && payload.planRevisionRefusalsAnswer === true;
   if (!completeContract) {
     const missing = [
       ["studyRoutesSchema", "StudyRoute table/columns"],
@@ -92,6 +93,7 @@ export async function probeSignedInGenerationDatabase({
       ["planSessionReads", "owner-scoped plan-session reads"],
       ["topicSegmentCompletions", "atomic topic-segment completion receipts"],
       ["permanentConflictsAnswer", "permanent completion conflicts answer instead of hanging"],
+      ["planRevisionRefusalsAnswer", "refused plan changes and Undo answer instead of hanging"],
     ]
       .filter(([key]) => payload[key] !== true)
       .map(([, label]) => label);

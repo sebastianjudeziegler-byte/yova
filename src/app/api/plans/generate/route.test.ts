@@ -100,6 +100,12 @@ const STUDY_NOW_TOPIC_IDS = [
   "11111111-1111-4111-8111-111111111113",
   "11111111-1111-4111-8111-111111111114",
 ] as const;
+// Brief 2.5 root cause 1: the goal sentence no longer moves a plan to
+// practice first; only the learner saying so does. Tests about timing,
+// workload and method mechanics that were calibrated in practice mode state
+// that evidence explicitly instead of relying on a goal that mentions a test.
+const PRACTICE_FIRST_LEARNER = { startingContext: "I already learned this and need practice." };
+
 const planRequest = PlanGenerationRequestSchema.parse({
   intent: "plan",
   learningIntent: "learn",
@@ -287,6 +293,35 @@ describe("plan generation route", () => {
     } finally {clock.mockRestore();}
   });
 
+  // Brief 2.5 root cause 1 (audit findings 1-3): a goal that mentions a test
+  // routed every topic to practice, so a plan had zero learn blocks and every
+  // topic read "Teaching skipped". The goal sentence is never evidence about
+  // the learner; without a placement result, a covered tick or a recorded
+  // encounter, every topic is taught first.
+  it.each([
+    "I have a biology test next Friday",
+    "Prepare for my AP Biology Unit 6 test",
+  ])("gives every untouched topic a learn block for a test-prep goal: %s", async (goal) => {
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const topics = ["DNA replication", "Transcription", "Translation"].map((title, index) => ({
+      ...planRequest.knowledgeMap!.topics[0]!, id: `2222222${index}-2222-4222-8222-22222222222${index}`, title,
+      description: `Explain ${title.toLowerCase()} and its role in gene expression.`, subtopics: ["Enzymes involved", "Steps in order"],
+      prerequisiteTopicIds: [], status: "not_started" as const, initialEvidence: null,
+    }));
+    const response = await POST(planGenerationRequest({
+      goal, startingContext: undefined, learningIntent: "learn",
+      deadline: new Date(Date.now() + 8 * 86_400_000).toISOString(),
+      knowledgeMap: { ...planRequest.knowledgeMap!, topics },
+    }));
+    const body = await response.json();
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body.plan.learningIntent).toBe("learn");
+    for (const topic of topics) {
+      const blocks = body.plan.sessions.filter((session: { topicIds?: string[] }) => session.topicIds?.includes(topic.id));
+      expect(blocks.some((session: { learningMode: string }) => session.learningMode === "learn"), `${topic.title} has a learn block`).toBe(true);
+    }
+  });
+
   it("rejects client-claimed knowledge before it can remove teaching from the plan", async () => {
     configureProduction();
     const forgedMap = structuredClone(planRequest.knowledgeMap!);
@@ -303,7 +338,7 @@ describe("plan generation route", () => {
   it("lets deterministic duration own Study Now timing and content budget under the availability cap", async () => {
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(studyNowGenerationRequest(20, {
+    const response = await POST(studyNowGenerationRequest(20, { ...PRACTICE_FIRST_LEARNER,
       knowledgeMap: studyNowKnowledgeMap(),
     }));
     const body = await response.json();
@@ -361,7 +396,7 @@ describe("plan generation route", () => {
 
   it("gives an explicit forty-minute Study Now request a substantial exact workload on every selected topic", async () => {
     const { POST } = await import("@/app/api/plans/generate/route");
-    const response = await POST(studyNowGenerationRequest(40, { knowledgeMap: studyNowKnowledgeMap() }));
+    const response = await POST(studyNowGenerationRequest(40, { ...PRACTICE_FIRST_LEARNER, knowledgeMap: studyNowKnowledgeMap() }));
     const body = await response.json();
     expect(response.status).toBe(200);
     const session = body.plan.sessions[0];
@@ -850,7 +885,7 @@ describe("plan generation route", () => {
     ));
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(studyNowGenerationRequest(60));
+    const response = await POST(studyNowGenerationRequest(60, PRACTICE_FIRST_LEARNER));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -898,7 +933,7 @@ describe("plan generation route", () => {
     });
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(studyNowGenerationRequest(60));
+    const response = await POST(studyNowGenerationRequest(60, PRACTICE_FIRST_LEARNER));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -935,7 +970,7 @@ describe("plan generation route", () => {
     mocks.generateKnowledgeMap.mockResolvedValueOnce(generatedKnowledgeMap());
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(studyNowGenerationRequest(25, { knowledgeMap: undefined }));
+    const response = await POST(studyNowGenerationRequest(25, { ...PRACTICE_FIRST_LEARNER, knowledgeMap: undefined }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -1055,7 +1090,7 @@ describe("plan generation route", () => {
     ));
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(planGenerationRequest());
+    const response = await POST(planGenerationRequest(PRACTICE_FIRST_LEARNER));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -1147,11 +1182,11 @@ describe("plan generation route", () => {
     ));
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const liveResponse = await POST(planGenerationRequest());
+    const liveResponse = await POST(planGenerationRequest(PRACTICE_FIRST_LEARNER));
     const liveBody = await liveResponse.json();
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     mocks.generatePlan.mockRejectedValueOnce(new Error("provider unavailable"));
-    const fallbackResponse = await POST(planGenerationRequest());
+    const fallbackResponse = await POST(planGenerationRequest(PRACTICE_FIRST_LEARNER));
     const fallbackBody = await fallbackResponse.json();
     errorLog.mockRestore();
 
@@ -1251,7 +1286,29 @@ describe("plan generation route", () => {
     expect(mocks.generateLegacyPlan).not.toHaveBeenCalled();
   });
 
-  it("retains topics beyond a close deadline when their available days are later", async () => {
+  // Brief 2.5 root cause 2: this used to return a queue placed after the
+  // deadline with an "after the deadline" note. Nothing is placed after it now.
+  // Brief 2.5 root cause 6 (finding 26): a plan refused because nothing fits
+  // before the deadline used up a planning allowance although no AI call was
+  // made. The reservation is refunded instead.
+  it("refunds the planning allowance when an accepted map cannot fit before the deadline", async () => {
+    configureProduction();
+    const unavailableDay = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1_000));
+    const { POST } = await import("@/app/api/plans/generate/route");
+    // Without a map receipt this request starts a charge (the per-plan allowance, 19 Sept 2026).
+    const response = await POST(planGenerationRequest({ ...UNCHARGED,
+      deadline: new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString(),
+      availability: [{ day: unavailableDay, window: "Evening", minutes: 25 }],
+    }));
+    expect(response.status).toBe(422);
+    expect(mocks.reserve).toHaveBeenCalledOnce();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+    expect(mocks.generateKnowledgeMap).not.toHaveBeenCalled();
+    expect(mocks.release, "no provider was called, so nothing is consumed").not.toHaveBeenCalled();
+    expect(mocks.releaseOperation).toHaveBeenCalledWith(expect.anything(), "plan_generation", expect.any(String), expect.any(String));
+  });
+
+  it("asks for time before a close deadline when every available day is later", async () => {
     const unavailableDay = new Intl.DateTimeFormat("en-US", {
       weekday: "long",
       timeZone: "UTC",
@@ -1263,11 +1320,12 @@ describe("plan generation route", () => {
       availability: [{ day: unavailableDay, window: "Evening", minutes: 25 }],
     }));
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(422);
     const body = await response.json();
-    expect(body.plan.planModel.constraints.join(" ")).toContain("after the deadline");
-    expect(mocks.loadDurationContext).toHaveBeenCalledTimes(1);
-    expect(mocks.generatePlan).toHaveBeenCalledOnce();
+    expect(body).toMatchObject({ code: "schedule_capacity" });
+    expect(body.error).toMatch(/before the deadline/);
+    expect(body).not.toHaveProperty("plan");
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
     expect(mocks.generateLegacyPlan).not.toHaveBeenCalled();
   });
 
@@ -1277,7 +1335,8 @@ describe("plan generation route", () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(planGenerationRequest());
+    // Without a map receipt this request starts a charge (the per-plan allowance, 19 Sept 2026).
+    const response = await POST(planGenerationRequest(UNCHARGED));
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -1519,7 +1578,7 @@ describe("plan generation route", () => {
     expect(mocks.generatePlan).not.toHaveBeenCalled();
   });
 
-  it("keeps a fallback queue and explains when availability falls after the deadline", async () => {
+  it("never builds a fallback queue after the deadline when availability falls after it", async () => {
     configureProduction();
     mocks.rateLimit.mockReturnValueOnce({ allowed: false, retryAfterSeconds: 17 });
     const deadline = new Date(Date.now() + 24 * 60 * 60 * 1_000);
@@ -1535,10 +1594,10 @@ describe("plan generation route", () => {
       availability: [{ day: unavailableDay, window: "Evening", minutes: 25 }],
     }));
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(422);
     const body = await response.json();
-    expect(body.plan.planModel.constraints.join(" ")).toContain("after the deadline");
-    expect(body.plan.sessions).not.toHaveLength(0);
+    expect(body).toMatchObject({ code: "schedule_capacity" });
+    expect(body).not.toHaveProperty("plan");
     expect(mocks.generatePlan).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
   });
@@ -1570,7 +1629,8 @@ describe("plan generation route", () => {
     mocks.reserve.mockRejectedValueOnce(new Error("reservation receipt lost"));
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(planGenerationRequest());
+    // Without a map receipt this request starts a charge (the per-plan allowance, 19 Sept 2026).
+    const response = await POST(planGenerationRequest(UNCHARGED));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -1599,6 +1659,40 @@ describe("plan generation route", () => {
     );
   });
 
+  // Brief 2.5 finding 26, founder decision 19 Sept 2026: the planning
+  // allowance counts plans, not steps. Only building a plan's first topic map
+  // reserves a unit; every later step for that map - topic corrections, map
+  // corrections, the placement check and the plan itself - carries its signed
+  // map receipt and is not charged again.
+  it("charges the first topic map once and not the plan's later steps", async () => {
+    configureProduction();
+    mocks.generateKnowledgeMap.mockResolvedValueOnce(generatedKnowledgeMap()).mockResolvedValueOnce(generatedKnowledgeMap());
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const firstMap = await POST(new Request("http://localhost/api/plans/generate?mode=understanding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(Object.entries(planRequest).filter(([key]) => key !== "knowledgeMap"))) }));
+    expect(firstMap.status, JSON.stringify(await firstMap.clone().json())).toBe(200);
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    const corrected = await POST(planGenerationRequest({ mapCorrection: "Add the quotient rule as a final topic." }, "understanding"));
+    expect(corrected.status).toBe(200);
+    const plan = await POST(planGenerationRequest());
+    expect(plan.status).toBe(200);
+    expect(mocks.reserve, "later steps of the same plan are not charged").toHaveBeenCalledTimes(1);
+  });
+
+  // Brief 2.5 root cause 6 (finding 26): the allowance ran out while YOVA was
+  // building the topic map, and the learner was told to skip the placement
+  // check - a step they had not reached and could not skip their way past.
+  it("names the topic-map step when the allowance runs out while building the map", async () => {
+    configureProduction();
+    mocks.reserve.mockResolvedValueOnce({ allowed: false, claimId: null, operationKey: "66666666-6666-4666-8666-666666666666", denialReason: "usage_limit", retryAfterSeconds: 3_600, remainingToday: 0 });
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(new Request("http://localhost/api/plans/generate?mode=understanding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(Object.entries(planRequest).filter(([key]) => key !== "knowledgeMap"))) }));
+    const body = await response.json();
+    expect(response.status).toBe(429);
+    expect(body.error).toMatch(/topic map/i);
+    expect(body.error).not.toMatch(/placement/i);
+    expect(mocks.generateKnowledgeMap).not.toHaveBeenCalled();
+  });
+
   it("keeps an accepted-map normal plan on the fixed-envelope fallback when the account allowance is exhausted", async () => {
     configureProduction();
     mocks.reserve.mockResolvedValueOnce({
@@ -1611,7 +1705,8 @@ describe("plan generation route", () => {
     });
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(planGenerationRequest());
+    // Without a map receipt this request starts a charge (the per-plan allowance, 19 Sept 2026).
+    const response = await POST(planGenerationRequest(UNCHARGED));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -1873,6 +1968,9 @@ function configureProduction() {
     },
   });
 }
+
+// A request that does not continue an already-charged plan: it carries no map receipt.
+const UNCHARGED = { knowledgeMapReceipt: undefined };
 
 function planGenerationRequest(overrides: Record<string, unknown> = {}, mode?: "understanding") {
   const payload = PlanGenerationRequestSchema.parse({ ...planRequest, ...overrides });

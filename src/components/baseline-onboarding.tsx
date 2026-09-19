@@ -24,8 +24,10 @@ export function BaselineOnboardingIntro({ onStart }: { onStart: () => void }) {
   return <main className="centered-shell"><BrandMark /><section className="setup-card"><span className="step-label">SET UP YOUR YOVA</span><h1>Make YOVA fit how you actually study.</h1><p>Ten short questions, easy to hard. Eight of them change what your sessions look like. About two minutes.</p><div className="info-strip"><Sparkles size={20} /><span>This records changeable preferences, not a brain type. The topic still decides the shape of a session; your answers change how it runs.</span></div><button className="button primary large full" onClick={onStart}>Personalize YOVA <ArrowRight size={18} /></button></section></main>;
 }
 
-export function BaselineOnboardingQuestion({ index, answers, onChange, onNext, onBack }: {
+export function BaselineOnboardingQuestion({ index, answers, onChange, onNext, onBack, steps }: {
   index: number;
+  /** Only these question indexes are asked (Brief 2.5 finding 109: the ones a Study Profile did not cover). */
+  steps?: readonly number[];
   answers: OnboardingAnswers;
   onChange: (answers: OnboardingAnswers) => void;
   onNext: () => void;
@@ -33,14 +35,15 @@ export function BaselineOnboardingQuestion({ index, answers, onChange, onNext, o
 }) {
   const question = ONBOARDING_QUESTIONS[index];
   if (!question) return null;
-  const total = ONBOARDING_QUESTIONS.length;
+  const total = steps?.length ?? ONBOARDING_QUESTIONS.length;
+  const position = steps ? Math.max(0, steps.indexOf(index)) : index;
   const selected = question.multi ? onboardingSupportNeeds(answers) : [onboardingAnswerId(answers, question.id as Exclude<OnboardingQuestionId, "support_needs">)].filter((value): value is string => Boolean(value));
   const headingId = `baseline-onboarding-${question.id}`;
   const canContinue = question.optional || selected.length > 0;
-  const last = index === total - 1;
+  const last = position === total - 1;
   return <main className="onboarding-shell">
-    <header><BrandMark /><span>{index + 1} of {total}</span></header>
-    <div className="progress-track"><div style={{ width: `${((index + 1) / total) * 100}%` }} /></div>
+    <header><BrandMark /><span>{position + 1} of {total}</span></header>
+    <div className="progress-track"><div style={{ width: `${((position + 1) / total) * 100}%` }} /></div>
     <section className="question-wrap">
       <span className="step-label">YOUR STUDY PREFERENCES</span>
       <h2 id={headingId}>{question.prompt}</h2>
@@ -56,7 +59,7 @@ export function BaselineOnboardingQuestion({ index, answers, onChange, onNext, o
         })}
       </div>
       <div className="onboarding-actions">
-        <button type="button" className="button ghost" onClick={onBack} disabled={index === 0}><ArrowLeft size={16} /> Back</button>
+        <button type="button" className="button ghost" onClick={onBack} disabled={position === 0}><ArrowLeft size={16} /> Back</button>
         <button type="button" className="button primary" onClick={onNext} disabled={!canContinue}>{last ? "Build my setup" : "Continue"} <ArrowRight size={16} /></button>
       </div>
     </section>

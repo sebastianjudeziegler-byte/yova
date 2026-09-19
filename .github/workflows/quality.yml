@@ -189,9 +189,25 @@ jobs:
       # Brief 1.5 item 1: live, unmocked practice retries (one and two missed
       # points) to completion on desktop and mobile. Same-repository runs only,
       # where the model key exists; a missing key fails instead of skipping.
-      - name: Verify live MCQ answer review and full 32-question generation
+      - name: Verify live full 32-question generation, test-goal teaching and study-guide rules
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        run: pnpm exec vitest run src/evals/practice-answer-quality.live.test.ts src/evals/practice-32-quality.live.test.ts --maxWorkers=1
+        run: pnpm exec vitest run src/evals/practice-32-quality.live.test.ts src/evals/test-goal-teaches-first.live.test.ts src/evals/study-guide-rules.live.test.ts --maxWorkers=1
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOVA_RUN_LIVE_PRACTICE_QUALITY: "1"
+          # Brief 2.5 root cause 1: a test-prep goal must still teach.
+          YOVA_RUN_LIVE_TEST_GOAL_TEACHES: "1"
+          # Brief 2.5 root cause 5: spec section 8's permanent study-guide test.
+          YOVA_RUN_LIVE_STUDY_GUIDE_RULES: "1"
+
+      # The CI410 reviewer canary is FLAKY by founder decision (19 Sept 2026):
+      # it still runs its 5+5 reviews and records the hit rate every CI, but a
+      # miss is reported here without failing the job. See
+      # scripts/live-gate/policy.json and docs/audits/BACKLOG.md.
+      - name: Report the live MCQ reviewer canary hit rate (FLAKY, non-blocking)
+        if: ${{ !cancelled() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        continue-on-error: true
+        run: pnpm exec vitest run src/evals/practice-answer-quality.live.test.ts --maxWorkers=1
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YOVA_RUN_LIVE_PRACTICE_QUALITY: "1"
@@ -201,7 +217,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: session-generation-diagnostics-${{ github.run_id }}
-          path: artifacts/quality/practice-32-synthetic-trace.json
+          path: |
+            artifacts/quality/practice-32-synthetic-trace.json
+            artifacts/quality/canary-hit-rate.json
           if-no-files-found: ignore
           retention-days: 7
 

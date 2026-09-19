@@ -34,7 +34,7 @@ export type OnboardingQuestion = Readonly<{
   options: readonly OnboardingOption[];
   optional?: boolean;
   multi?: boolean;
-  /** What the answer changes. Shown nowhere; kept beside the question so the routing claim is auditable. */
+  /** What the answer changes, for developers. Never learner-facing copy (Brief 2.5 finding 107: it was printed on You). */
   routesTo: string;
 }>;
 

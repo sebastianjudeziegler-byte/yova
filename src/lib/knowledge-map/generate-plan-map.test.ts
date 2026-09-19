@@ -225,6 +225,23 @@ describe("plan knowledge-map generation", () => {
     });
   });
 
+  // Brief 2.5 root cause 5 (finding 22): the audit's plan was titled "Unit 6
+  // test scope" and "Unit 6 concept explanations". Such titles are renamed to
+  // the knowledge they cover before the map is accepted.
+  it("renames topics that name parts of a document instead of knowledge", async () => {
+    const scope = { band: "unit_or_exam", label: "Gene expression unit", minimumSessions: 2, recommendedSessions: 4, maximumSessions: 6, minimumTeachingSessions: 2, explanation: "The unit covers transcription and translation, each learned and then practised." };
+    parseResponse
+      .mockResolvedValueOnce(response({ scopeJudgment: scope, topics: [
+        { title: "Unit 6 test scope", description: "Transcription of DNA into messenger RNA by RNA polymerase.", subtopics: ["Promoters", "RNA polymerase"], prerequisiteTopicIndexes: [], sourceMaterialTopicIds: [] },
+        { title: "Unit 6 concept explanations", description: "Translation of messenger RNA into a polypeptide at the ribosome.", subtopics: ["Codons", "tRNA"], prerequisiteTopicIndexes: [0], sourceMaterialTopicIds: [] },
+      ] }))
+      .mockResolvedValueOnce(response({ titles: [{ index: 0, title: "Transcription" }, { index: 1, title: "Translation" }] }));
+    const { generatePlanKnowledgeMap } = await import("@/lib/knowledge-map/generate-plan-map");
+    const result = await generatePlanKnowledgeMap({ ...baseRequest, goal: "Prepare for my AP Biology Unit 6 test on gene expression." });
+    expect(result.map.topics.map(topic => topic.title)).toEqual(["Transcription", "Translation"]);
+    expect(parseResponse.mock.calls[1]?.[0]?.input).toContain("Unit 6 test scope");
+  });
+
   it("rejects a map that silently drops an uploaded material topic", async () => {
     const materialTopicId = "22222222-2222-4222-8222-222222222222";
     const materialRequest = PlanGenerationRequestSchema.parse({

@@ -103,10 +103,18 @@ describe("Brief 2 topic plan model", () => {
     expect(plan.envelopes.every(block => block.learningMode === "study")).toBe(true);
     expect(plan.envelopes).toHaveLength(2);
   });
-  it("keeps the full queue when a deadline is close and explains constrained suggestions", () => {
-    const plan = run({ difficulty_help: "step_by_step" }, { deadline: "2026-09-17T10:00:00.000Z", availability: [{ day: "Every day", window: "Evening", minutes: 60 }] });
-    expect(new Set(plan.envelopes.flatMap(block => block.topicIds)).size).toBe(2);
-    expect(plan.deferrals).toEqual([]);
+  // Brief 2.5 root cause 2 replaces "keeps the full queue" (blocks after the
+  // deadline, with a note): first passes lead and nothing lands after it.
+  it("puts first passes first under a close deadline and places nothing after it", () => {
+    const deadline = "2026-09-18T21:00:00.000Z";
+    const plan = run({ difficulty_help: "step_by_step" }, { deadline, availability: [{ day: "Every day", window: "Evening", minutes: 60 }] });
+    expect(plan.envelopes.every(block => Date.parse(block.scheduledFor) + block.timing.activeMinutes * 60_000 <= Date.parse(deadline))).toBe(true);
+    expect(plan.envelopes[0]!.learningMode).toBe("learn");
+    for (const topicId of [id(1), id(2)]) expect(plan.envelopes.some(block => block.topicIds.includes(topicId)) || plan.deferrals.some(item => item.topicId === topicId && /deadline/i.test(item.reason))).toBe(true);
     expect(plan.planModel?.ruleIds).toContain("plan.deadline.first_passes");
+  });
+  it("refuses, with the fix named, when no study window falls before the deadline", () => {
+    expect(() => run({}, { deadline: "2026-09-17T10:00:00.000Z", availability: [{ day: "Every day", window: "Evening", minutes: 60 }] }))
+      .toThrow(/before the deadline/);
   });
 });

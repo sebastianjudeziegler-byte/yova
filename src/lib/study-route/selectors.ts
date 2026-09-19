@@ -103,6 +103,17 @@ export function selectSessionTerminalRouteRevisionId(
 }
 
 /**
+ * The planned minutes a terminal write must carry: the committed route's
+ * active minutes, which the database's routed-minutes guards require. The
+ * session timer is a delivery nudge and can differ (production incident, 19
+ * Sept 2026: timer 8 vs route 11 refused every save).
+ */
+export function selectSessionTerminalPlannedMinutes(session: LearningPlanSession, fallbackMinutes: number) {
+  const stored = storedStudyRoute(session);
+  return stored?.identity.lifecycleStatus === "committed" ? stored.timing.activeMinutes : fallbackMinutes;
+}
+
+/**
  * Projects the canonical route back into the current legacy plan/session
  * contract at integration boundaries. This keeps existing generators and UI
  * components behavior-compatible while giving them one route authority.

@@ -10,10 +10,16 @@ export type SetupCorrections = z.infer<typeof SetupCorrectionsSchema>;
 
 export function initialSetupCorrections(map: PlanKnowledgeMap, materials: LearningMaterial[]): SetupCorrections {
   const ids = new Set(materials.map(material => material.id));
+  // Brief 2.5 root cause 5 (finding 14): a topic's default source is a
+  // material that can teach it. A study guide (scope outline) is chosen only
+  // when nothing else covers the topic, which then takes the no-source path.
+  const outline = new Set(materials.filter(material => material.understanding?.role === "scope_outline").map(material => material.id));
+  const teaches = (reference: KnowledgeMapTopic["sourceReferences"][number]) => reference.sectionRole !== "scope_outline" && !outline.has(reference.materialId);
   return {
     materials: materials.filter(material => material.understanding?.role !== "mixed").map(material => ({ materialId: material.id, role: material.understanding?.role === "scope_outline" ? "scope_outline" : "content_source" })),
     topics: map.topics.filter(topic => !topic.removed).map(topic => ({ id: topic.id,
       materialId: topic.attachedSources?.flatMap(source => "material_id" in source && ids.has(source.material_id) ? [source.material_id] : [])[0]
+        ?? topic.sourceReferences.find(source => ids.has(source.materialId) && teaches(source))?.materialId
         ?? topic.sourceReferences.find(source => ids.has(source.materialId))?.materialId ?? null,
       covered: topic.initialEvidence?.source === "learner_report",
     })),

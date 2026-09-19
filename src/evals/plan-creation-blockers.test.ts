@@ -12,7 +12,10 @@ describe("consolidated audit: learner-visible launch blockers", () => {
     const lateNow = new Date("2026-09-07T19:30:00.000Z");
     const composition = composeNormalPlanEnvelopes({request,now:lateNow,durationContext:duration(60),learningIntentRecommendation:{intent:"learn",basis:"The learner has not learned the unit."}});
     const plan = buildNormalPlanFromFixedEnvelope({request,composition,now:lateNow,fill:buildNormalPlanFallbackFill({request,composition}),methodContext:{profileVersion:"audit_method_v1",personalization:{decisions:[],methodTie:{state:{controls:{experiments:false},activeExperiment:null,experimentHistory:[]},signals:[]}},observedEvidence:[]}});
-    expect(plan.sessions).toHaveLength(12);
+    // Fifteen minutes remain in Monday's window and the deadline falls before
+    // Wednesday: one first pass fits, and nothing is placed after the test.
+    expect(plan.sessions).toHaveLength(1);
+    expect(plan.knowledgeMap!.topics.filter(topic => topic.deferred)).toHaveLength(5);
     expect(plan.sessions[0]!.title).toMatch(/ATP|energy/i);
     expect(plan.sessions[0]!.scheduledFor).toBe(lateNow.toISOString());
     expect(plan.sessions[0]!.estimatedMinutes).toBeLessThanOrEqual(15);
@@ -39,14 +42,17 @@ describe("consolidated audit: learner-visible launch blockers", () => {
       expect(learnerView.sessions[0]?.title).toMatch(/ATP|energy/i);
       expect(learnerView.sessions.every(s => s.method.length > 3 && s.why.length > 10 && s.objective.length > 10 && s.evidence?.length)).toBe(true);
       expect(plan.sessions.every(s => s.workload && s.estimatedMinutes <= s.workload.ceilingMinutes)).toBe(true);
+      // Brief 2.5 root cause 2: nothing after the deadline. Every topic is
+      // either scheduled before it or deferred with the reason shown.
       const late = plan.sessions.filter(s => Date.parse(s.scheduledFor) + s.estimatedMinutes * 60_000 > Date.parse(request.deadline!));
-      if (late.length) expect(plan.planModel?.constraints.some(note => /after the deadline/i.test(note))).toBe(true);
-      expect(new Set(plan.sessions.flatMap(s => s.topicIds))).toEqual(new Set(request.knowledgeMap!.topics.map(t => t.id)));
-      if (days === 1) {
-        expect(learnerView.deferred).toEqual([]);
-        expect(plan.planModel?.constraints.some(note => /deadline/i.test(note))).toBe(true);
+      expect(late).toEqual([]);
+      const scheduled = new Set(plan.sessions.flatMap(s => s.topicIds));
+      for (const topic of plan.knowledgeMap!.topics) {
+        expect(scheduled.has(topic.id) || /deadline/i.test(topic.deferred?.reason ?? ""), topic.title).toBe(true);
       }
-      if (days === 11 && focus === 25) expect(plan.sessions).toHaveLength(12);
+      // Eleven days of Monday/Wednesday/Friday evenings hold every topic.
+      if (days === 11) expect(scheduled).toEqual(new Set(request.knowledgeMap!.topics.map(t => t.id)));
+      if (days === 1) expect(learnerView.deferred?.length).toBeGreaterThan(0);
     },
   );
 

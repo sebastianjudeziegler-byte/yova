@@ -37,7 +37,6 @@ export function BaselineProfileEditor({ answers, onChange }: { answers: Onboardi
             <div className="baseline-profile-checks">
               {question.options.map((option) => <label key={option.id}><input type="checkbox" checked={selected.includes(option.id)} onChange={() => onChange(toggleOnboardingSupportNeed(answers, option.id))} /> <span>{option.label}</span></label>)}
             </div>
-            <small>{question.routesTo}</small>
           </fieldset>;
         }
         const value = onboardingAnswerId(answers, question.id as Exclude<OnboardingQuestionId, "support_needs">) ?? "";
@@ -47,7 +46,6 @@ export function BaselineProfileEditor({ answers, onChange }: { answers: Onboardi
             <option value="">Not answered</option>
             {question.options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
           </select>
-          <small>{question.routesTo}</small>
         </label>;
       })}
     </div>

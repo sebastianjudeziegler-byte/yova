@@ -2,6 +2,7 @@ import { onboardingQuestions as LEGACY_POSITIONAL_QUESTIONS } from "@/lib/sample
 import {
   isOnboardingOptionId,
   ONBOARDING_QUESTION_IDS,
+  ONBOARDING_QUESTIONS,
   onboardingQuestion,
   type OnboardingQuestionId,
 } from "@/lib/onboarding/questions";
@@ -277,4 +278,17 @@ export function projectOnboardingAnswersToLegacyPositions(answers: readonly stri
 export function onboardingAnswerLabel(record: OnboardingAnswers, id: OnboardingSingleAnswerId) {
   const answerId = onboardingAnswerId(record, id);
   return answerId ? onboardingQuestion(id).options.find((option) => option.id === answerId)?.label ?? null : null;
+}
+
+/**
+ * Brief 2.5 finding 109: an account created from the public Study Profile was
+ * marked onboarded without Q6 and Q7, which the Study Profile never asks. The
+ * required questions (not marked optional) that still have no answer, in order.
+ */
+export function missingRequiredOnboardingQuestionIndexes(record: OnboardingAnswers): number[] {
+  return ONBOARDING_QUESTIONS.flatMap((question, index) => {
+    if (question.optional) return [];
+    const answered = question.multi ? onboardingSupportNeeds(record).length > 0 : Boolean(onboardingAnswerId(record, question.id as OnboardingSingleAnswerId));
+    return answered ? [] : [index];
+  });
 }

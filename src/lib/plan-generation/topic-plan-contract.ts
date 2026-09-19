@@ -66,5 +66,7 @@ export const TopicPlanModelSchema = z.object({
   collapsedQueue: z.boolean(),
   topicNotes: z.array(z.object({topicId:z.string().uuid(), note:z.string().max(600), learnBlockCount:z.number().int().min(0).max(3), topicWeight:z.number().positive()})).max(40),
   constraints: z.array(z.string().max(400)).max(40).default([]),
+  /** Taught topics whose first practice did not fit before a close deadline (reason in constraints). */
+  practiceDeferredTopicIds: z.array(z.string().uuid()).max(40).optional(),
 });
 export type TopicPlanModel = z.infer<typeof TopicPlanModelSchema>;

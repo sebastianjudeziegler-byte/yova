@@ -24,7 +24,7 @@ describe("signed-in generation release capability probe", () => {
       unansweredCompletionFeedback: true,
       livingPlanRevision: true,
       topicPlanWorkloads: true,
-      planSessionReads: true, topicSegmentCompletions: true, permanentConflictsAnswer: true,
+      planSessionReads: true, topicSegmentCompletions: true, permanentConflictsAnswer: true, planRevisionRefusalsAnswer: true,
     }));
 
     await expect(probeSignedInGenerationDatabase({
@@ -59,7 +59,7 @@ describe("signed-in generation release capability probe", () => {
         studyRoutesSchema: true, planSessionsRoutePointer: true, requiredRouteRpcs: true,
         expandedMethodAgencyBoundary: true, methodEligibilityV3Boundary: true,
         placementEvidenceBoundary: true, unansweredCompletionFeedback: true,
-        livingPlanRevision: true, topicPlanWorkloads: true, topicSegmentCompletions: true, permanentConflictsAnswer: true, planSessionReads,
+        livingPlanRevision: true, topicPlanWorkloads: true, topicSegmentCompletions: true, permanentConflictsAnswer: true, planRevisionRefusalsAnswer: true, planSessionReads,
       })),
     });
     expect(result.passed).toBe(false);
@@ -123,7 +123,7 @@ describe("signed-in generation release capability probe", () => {
       unansweredCompletionFeedback: true,
       livingPlanRevision: true,
       topicPlanWorkloads: true,
-      planSessionReads: true, topicSegmentCompletions: true, permanentConflictsAnswer: true,
+      planSessionReads: true, topicSegmentCompletions: true, permanentConflictsAnswer: true, planRevisionRefusalsAnswer: true,
     }));
 
     await probeSignedInGenerationDatabase({

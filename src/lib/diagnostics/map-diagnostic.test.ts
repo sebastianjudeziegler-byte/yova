@@ -87,6 +87,16 @@ describe("knowledge-map diagnostics", () => {
     await expect(generateMapDiagnostic(knowledgeMap, "Solve simultaneous linear equations")).rejects.toMatchObject({failedValidator:"diagnostic_structure"});
   });
 
+  // Spec section 8 rule 2 (Brief 2.5 finding 23): the validator judged a
+  // question about "the goals of Unit 6" self-contained; code refuses it.
+  it("refuses a placement question about a unit's goals even when the validator accepts it", async () => {
+    const knowledgeMap = map("material");
+    const questions = buildPreviewMapDiagnostic(knowledgeMap).map((question,index)=>providerQuestion(`topic_${index+1}`,question.prompt,question.correctAnswer));
+    questions[0] = {topicAlias:"topic_1",prompt:"Which of these is one of the goals of Unit 6?",options:["Explain long-term causes of the war","Memorize every battle date","Draw a map of Europe","I don't know yet"],correctChoiceIndex:0};
+    parseResponse.mockResolvedValueOnce(providerResponse(questions));
+    await expect(generateMapDiagnostic(knowledgeMap,"Prepare for my Unit 6 history test")).rejects.toMatchObject({failedValidator:"diagnostic_structure"});
+  });
+
   it("rejects the live glycolysis question whose premise asks for the product of each half but the key counts a whole glucose", async () => {
     const knowledgeMap = map("ai_generated");
     const questions = buildPreviewMapDiagnostic(knowledgeMap).map((question,index)=>providerQuestion(`topic_${index+1}`,question.prompt,question.correctAnswer));

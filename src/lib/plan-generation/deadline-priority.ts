@@ -24,10 +24,15 @@ export function buildDeadlinePriority(request: PlanGenerationRequest, now: Date)
   const slots = canonicalizePlanAvailabilitySlots(enumeratePlanAvailabilitySlots(
     request, now, Math.max(42, request.knowledgeMap.scopeJudgment.maximumSessions * 10),
   ), now);
-  if (!slots.length || slots.some(slot => slot.minutes >= 10)) return null;
+  if (slots.some(slot => slot.minutes >= 10)) return null;
   const topic = request.knowledgeMap.topics.find(candidate => !candidate.deferred);
   if (!topic) return null;
-  const slot = slots[0]!;
+  // Brief 2.5 finding 10: with no study window before a deadline minutes away,
+  // this returned null and the plan was built from windows after the test. The
+  // remaining time before the deadline is the only useful window then.
+  const untilDeadline = Math.floor((Date.parse(request.deadline) - now.getTime()) / 60_000);
+  const slot = slots[0] ?? (untilDeadline >= 1 && untilDeadline < 10 ? { minutes: untilDeadline, startsAt: now.toISOString() } : null);
+  if (!slot) return null;
   return DeadlinePriorityResponseSchema.parse({
     kind: "deadline_priority",
     priority: {

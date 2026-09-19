@@ -272,6 +272,10 @@ const NON_RETRYABLE_COMPLETION_SERVER_FAILURES = new Map<string, NonRetryableSes
   ["40001:post_session_study_route_coverage_conflict", "incompatible_cloud_state"],
   ["PT409:post_session_study_route_coverage_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_session_not_ready", "incompatible_cloud_state"],
+  // 20260919110001 (production incident, 19 Sept 2026): a completion whose
+  // planned minutes disagree with its committed route is refused permanently.
+  ["40001:study_route_planned_minutes_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_planned_minutes_conflict", "incompatible_cloud_state"],
   ["PT409:study_route_completion_session_not_ready", "incompatible_cloud_state"],
   ["40001:post_session_adaptation_target_conflict", "incompatible_cloud_state"],
   ["PT409:post_session_adaptation_target_conflict", "incompatible_cloud_state"],
@@ -291,6 +295,8 @@ const NON_RETRYABLE_COMPLETION_SERVER_FAILURES = new Map<string, NonRetryableSes
 
 const NON_RETRYABLE_INTERRUPTION_SERVER_FAILURES = new Map<string, NonRetryableSessionTerminalRejection>([
   ["P0001:Interrupted-session evidence is not valid.", "invalid_payload"],
+  ["40001:study_route_planned_minutes_conflict", "incompatible_cloud_state"],
+  ["PT409:study_route_planned_minutes_conflict", "incompatible_cloud_state"],
   ["40001:study_route_evidence_conflict", "incompatible_cloud_state"],
   ["PT409:study_route_evidence_conflict", "incompatible_cloud_state"],
   ["40001:study_route_interruption_conflict", "incompatible_cloud_state"],

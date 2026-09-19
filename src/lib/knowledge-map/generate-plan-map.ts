@@ -16,6 +16,7 @@ import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAIKnowledgeMapConfig } from "@/lib/openai/config";
 import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
 import { resolveKnowledgeMapSubjectBoundary } from "@/lib/knowledge-map/subject-boundary";
+import { isDocumentLabelTitle } from "@/lib/knowledge-map/document-label";
 
 const KnowledgeMapOutputSchema = z.object({
   scopeJudgment: ScopeJudgmentSchema,
@@ -45,6 +46,38 @@ const KNOWLEDGE_MAP_PROVIDER_TIMEOUT_MS = 35_000;
 // Regenerate only the short label so retry cost stays small against the route's
 // shared 120-second budget instead of requesting the full knowledge map again.
 const SCOPE_LABEL_REPAIR_TIMEOUT_MS = 10_000;
+const TopicTitleRepairOutputSchema = z.object({
+  titles: z.array(z.object({ index: z.number().int().min(0), title: z.string().trim().min(2).max(120) }).strict()).max(40),
+}).strict();
+
+/**
+ * Brief 2.5 root cause 5 (finding 22): a topic titled after a part of a
+ * document ("Unit 6 test scope") is renamed to the knowledge it covers, from
+ * its own description and subtopics, in one bounded repair call. If a title is
+ * still a document label the map is refused rather than shown.
+ */
+async function repairDocumentLabelTitles<T extends { title: string; description: string; subtopics: string[] }>(topics: T[], model: string, metrics: KnowledgeMapProviderMetrics): Promise<{ topics: T[]; metrics: KnowledgeMapProviderMetrics }> {
+  const labelled = topics.flatMap((topic, index) => isDocumentLabelTitle(topic.title) ? [{ index, title: topic.title, description: topic.description, subtopics: topic.subtopics }] : []);
+  if (!labelled.length) return { topics, metrics };
+  const response = await getOpenAIClient().responses.parse({
+    model,
+    instructions: "REPAIR ATTEMPT: These topic titles name a part of a document (a unit, a test scope, a section of explanations, a study guide) instead of the knowledge the topic covers. For each, write a 2-8 word title naming that knowledge, using only its description and subtopics. Never mention a unit, chapter, test, exam, guide, notes, scope or explanations. Return one title per supplied index.",
+    input: JSON.stringify({ topics: labelled }),
+    reasoning: { effort: "low" },
+    text: { format: zodTextFormat(TopicTitleRepairOutputSchema, "yova_topic_title_repair"), verbosity: "low" },
+    max_output_tokens: 400,
+    store: false,
+  }, { maxRetries: 0, timeout: SCOPE_LABEL_REPAIR_TIMEOUT_MS });
+  const next: KnowledgeMapProviderMetrics = { ...metrics, attempts: metrics.attempts + 1, firstAttemptPassed: false, failedValidator: "knowledge_map_structure",
+    inputTokens: metrics.inputTokens + (response.usage?.input_tokens ?? 0), cachedInputTokens: metrics.cachedInputTokens + (response.usage?.input_tokens_details.cached_tokens ?? 0),
+    cacheWriteTokens: metrics.cacheWriteTokens + (response.usage?.input_tokens_details.cache_write_tokens ?? 0), outputTokens: metrics.outputTokens + (response.usage?.output_tokens ?? 0) };
+  const repaired = TopicTitleRepairOutputSchema.safeParse(response.output_parsed);
+  const titles = new Map(repaired.success ? repaired.data.titles.map(item => [item.index, item.title]) : []);
+  if (response.status !== "completed" || labelled.some(item => !titles.has(item.index) || isDocumentLabelTitle(titles.get(item.index)!))) {
+    throw new KnowledgeMapGenerationError("knowledge_map_structure", next, model);
+  }
+  return { topics: topics.map((topic, index) => titles.has(index) ? { ...topic, title: titles.get(index)! } : topic), metrics: next };
+}
 
 const KNOWLEDGE_MAP_INSTRUCTIONS = `Build YOVA's authoritative knowledge map before creating a schedule.
 
@@ -281,7 +314,9 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
       maxOutputTokens: 5_000,
     });
     latestProviderMetrics = generated.metrics;
-    const parsed = generated.data;
+    const retitled = await repairDocumentLabelTitles(generated.data.topics, config.model, generated.metrics);
+    latestProviderMetrics = retitled.metrics;
+    const parsed = { ...generated.data, topics: retitled.topics };
     const suppliedMaterialTopicIds = new Set(materialTopics.map((topic) => topic.materialTopicId));
     const returnedMaterialTopicIds = new Set(parsed.topics.flatMap((topic) => topic.sourceMaterialTopicIds));
     if (
@@ -290,7 +325,7 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
     ) {
       throw new KnowledgeMapGenerationError(
         "knowledge_map_material_coverage",
-        generated.metrics,
+        retitled.metrics,
         config.model,
       );
     }
@@ -299,7 +334,7 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
     ))) {
       throw new KnowledgeMapGenerationError(
         "knowledge_map_structure",
-        generated.metrics,
+        retitled.metrics,
         config.model,
       );
     }
@@ -310,7 +345,7 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
     const previousTopics = new Map((request.mapCorrection ? request.knowledgeMap?.topics ?? [] : []).map(topic => [topic.id, topic]));
     const carriedIds = parsed.topics.flatMap(topic => topic.carriedFromTopicId ? [topic.carriedFromTopicId] : []);
     if (new Set(carriedIds).size !== carriedIds.length || carriedIds.some(id => !previousTopics.has(id))) {
-      throw new KnowledgeMapGenerationError("knowledge_map_structure", generated.metrics, config.model);
+      throw new KnowledgeMapGenerationError("knowledge_map_structure", retitled.metrics, config.model);
     }
     const keptTopics = parsed.topics.map(topic => {
       const previous = topic.carriedFromTopicId ? previousTopics.get(topic.carriedFromTopicId) : undefined;
@@ -353,13 +388,13 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
       map,
       stats: {
         elapsedMs: Date.now() - startedAt,
-        attempts: generated.metrics.attempts,
-        inputTokens: generated.metrics.inputTokens,
-        cachedInputTokens: generated.metrics.cachedInputTokens,
-        cacheWriteTokens: generated.metrics.cacheWriteTokens,
-        outputTokens: generated.metrics.outputTokens,
-        firstAttemptPassed: generated.metrics.firstAttemptPassed,
-        failedValidator: generated.metrics.failedValidator,
+        attempts: retitled.metrics.attempts,
+        inputTokens: retitled.metrics.inputTokens,
+        cachedInputTokens: retitled.metrics.cachedInputTokens,
+        cacheWriteTokens: retitled.metrics.cacheWriteTokens,
+        outputTokens: retitled.metrics.outputTokens,
+        firstAttemptPassed: retitled.metrics.firstAttemptPassed,
+        failedValidator: retitled.metrics.failedValidator,
         model: config.model,
         curriculumRecognized: false,
         curriculumId: null,

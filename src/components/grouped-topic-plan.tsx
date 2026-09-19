@@ -63,6 +63,8 @@ export function GroupedTopicPlan({ plan, onStartBlock, onAddMaterial, onEditPlan
     <header className="generated-heading"><div><span className="eyebrow">{draft ? "PLAN PREVIEW" : "YOUR PLAN"}</span><h1>{plan.title}</h1><p>{planDeadlineLabel(plan, now)}</p><strong>{plan.sessions.length} blocks · {completed} done</strong></div></header>
     {plan.planModel?.personalizationSentence && plan.planModel.ruleIds.length > 0 && <p className="why-plan" data-rule-ids={plan.planModel.ruleIds.join(" ")}>{plan.planModel.personalizationSentence}</p>}
     {plan.planModel?.constraints?.map((constraint, index) => <p className="material-notice" role="status" key={index}>{constraint}</p>)}
+    {/* Brief 2.5 root cause 2: a topic the deadline cannot hold is named with its reason, never silently dropped. */}
+    {plan.knowledgeMap?.topics.filter(topic => topic.deferred && !topic.removed).map(topic => <p className="material-notice" role="status" key={`deferred-${topic.id}`} data-deferred-topic-id={topic.id}>Saved for later — {topic.title}: {topic.deferred!.reason}</p>)}
     {next && <div className="plan-activation"><div><strong>Next: {next.title}</strong><p>{next.method} · ~{next.estimatedMinutes} min{next.workload?.segments ? " · 2 activities" : ""}</p></div>{onStartBlock && <button className="button primary" disabled={busy} onClick={() => onStartBlock(next.id)}>Start next block</button>}</div>}
     {!next && <p role="status">All blocks complete.</p>}
     <div className="plan-revision-actions"><button className="button secondary" disabled={busy} onClick={onAddMaterial}>Add material</button><button className="button ghost" disabled={busy} onClick={onEditPlan}>Edit plan</button></div>

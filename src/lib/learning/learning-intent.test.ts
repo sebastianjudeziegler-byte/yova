@@ -50,20 +50,32 @@ describe("learning approach router", () => {
     });
   });
 
-  it("treats preparation of a work product differently from preparation for an exam", () => {
-    expect(resolveLearningIntent({
-      goal: "Prepare a presentation about the July Crisis",
-    })).toMatchObject({ intent: "learn" });
-    expect(resolveLearningIntent({
-      goal: "Prepare for a biology exam on cellular respiration",
-    })).toMatchObject({ intent: "study" });
+  // Brief 2.5 root cause 1: the goal sentence is never evidence about the
+  // learner. "Test", "exam", "quiz", "review", "prepare" and "study" describe
+  // the outcome, not what the learner already knows, so without a placement
+  // result, a covered tick, a recorded encounter or the learner saying so, the
+  // plan teaches first. Before this, every test-prep plan skipped teaching.
+  it.each([
+    "I have a biology test next Friday",
+    "Prepare for a biology exam on cellular respiration",
+    "Review derivative rules for tomorrow's exam",
+    "Study for the AP Biology Unit 6 test",
+    "Chemistry quiz on Friday",
+    "Final exam review for macroeconomics",
+  ])("teaches first when only the goal mentions a test or review: %s", (goal) => {
+    expect(resolveLearningIntent({ goal })).toMatchObject({ intent: "learn" });
   });
 
-  it("does not treat generic not-started wording as missing knowledge", () => {
+  it("treats preparation of a work product and preparation for an exam alike when nothing is known about the learner", () => {
+    expect(resolveLearningIntent({ goal: "Prepare a presentation about the July Crisis" })).toMatchObject({ intent: "learn" });
+    expect(resolveLearningIntent({ goal: "Prepare for a biology exam on cellular respiration" })).toMatchObject({ intent: "learn" });
+  });
+
+  it("does not read generic not-started wording as a foundation", () => {
     expect(resolveLearningIntent({
       goal: "Review derivative rules for tomorrow's exam",
       startingPoint: "Not started",
-    })).toMatchObject({ intent: "study" });
+    })).toMatchObject({ intent: "learn" });
   });
 
   it.each([
@@ -97,7 +109,9 @@ describe("learning approach router", () => {
     "The research paper is assigned reading and I have not started studying it for the quiz",
   ])("keeps a paper or slides used as study material on the ordinary learning path: %s", (goal) => {
     expect(isWorkProductGoal(goal)).toBe(false);
-    expect(resolveLearningIntent({ goal })).toMatchObject({ intent: "study" });
+    // The ordinary path teaches first: the goal says what the material is for,
+    // not that the learner already knows it.
+    expect(resolveLearningIntent({ goal })).toMatchObject({ intent: "learn" });
   });
 
   it("uses demonstrated starting evidence when no plain-language starting point is supplied", () => {

@@ -749,6 +749,13 @@
       "unavailable": 0,
       "auditId": "X08",
       "evidence": "Passed on retained main run 35098660639 and failed on Brief 1.5 runs 35110929012 and 35147460282; its import graph reaches none of the files Brief 1.5 changed (docs/audits/BACKLOG.md)."
+    },
+    "src/evals/practice-answer-quality.live.test.ts::live MCQ answer quality regression > catches the CI410 no-correct-option question in at least 4 of 5 reviews and accepts its sound replacement as often": {
+      "classification": "FLAKY",
+      "passRate": "sampled: 5/5 caught in run 432, 1/5 caught in run 35439495392 (PR #99); single draws earlier: caught in 423 and 427, missed in 424 and 430",
+      "semanticFailures": 1,
+      "unavailable": 0,
+      "evidence": "Founder decision, 19 Sept 2026: mark FLAKY and keep reporting. The reviewer, its prompt and the retained CI410 fixture are unchanged between run 432 and run 35439495392 (no diff against 843f7ee), so the variance is the reviewer's, not a regression. The step still runs 5+5 reviews every CI and writes artifacts/quality/canary-hit-rate.json; reviewer reliability is backlogged in docs/audits/BACKLOG.md."
     }
   },
   "releaseRule": {

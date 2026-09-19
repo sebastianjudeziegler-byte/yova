@@ -7,8 +7,21 @@ import type { SignedPreview } from "./plan-revision-preview";
 import { loadCalendarPrototypeState } from "@/lib/calendar/persistence";
 import { expandRecurringEvent } from "@/lib/calendar/recurrence";
 
+// Brief 2.5 finding 16: Undo waited over a minute with no answer. A plan change
+// now gives up after 45 seconds, like YOVA's other client requests, and says
+// what the learner can do.
+const PLAN_REVISION_TIMEOUT_MS = 45_000;
+
 export async function sendPlanRevisionRequest(body: unknown) {
-  const response = await fetch("/api/plans/adjust", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let response: Response;
+  try {
+    response = await fetch("/api/plans/adjust", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(PLAN_REVISION_TIMEOUT_MS) });
+  } catch (error) {
+    if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new Error("YOVA did not hear back in time. Reload to see whether the change was saved, then try again if it was not.");
+    }
+    throw error;
+  }
   const result = await response.json();
   if (!response.ok) throw new Error(result.error ?? "The plan change could not be saved. Your current plan is unchanged.");
   return result;

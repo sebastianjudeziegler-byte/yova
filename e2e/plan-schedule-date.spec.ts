@@ -52,19 +52,43 @@ test("consolidated: a three-minute priority records no completion",async({page},
  expect((state.plans??[]).filter((plan:{status?:string})=>plan.status==="active")).toEqual([]);
 });
 
+// Brief 2.5 finding 10: the five cases above all had a study window before the
+// deadline, which is why they passed while production showed no card. A
+// deadline minutes away with every window later returned no card, and the plan
+// was built from windows after the test.
+test("a deadline nine minutes away outside every study window is a priority card",async({page},testInfo)=>{
+ const deadline=new Date(PLAN_FIXED_NOW.getTime()+9*60_000);
+ await page.route("**/api/plans/generate**",async route=>{
+  const body=route.request().postDataJSON();
+  const minutesAway=route.request().url().includes("?mode=")?{}:{deadline:deadline.toISOString(),timeZone:"UTC",availability:[{day:"Every day",window:"Evening",minutes:45}]};
+  await route.continue({postData:JSON.stringify({...body,...(!body.knowledgeMap?{knowledgeMap:topicMap()}:{}),...minutesAway})});
+ });
+ await openPlanSetupPreview(page);
+ await reachSchedule(page,`Teach me cellular respiration from scratch for my biology test on ${dateIn(1)}. I can study every day evenings for 45 minutes.`);
+ const generated=await generate(page);
+ await expectPriorityCard(page,generated,9);
+ await page.screenshot({path:testInfo.outputPath("priority-nine-minutes-no-window.png"),fullPage:true});
+});
+
 // Accepted-map fixtures isolate calendar/state integration. These tests exercise
 // real receipt, composition, routing and activation endpoints, not AI quality.
-for(const days of [1,3])test(`a ${days}-day deadline retains the full queue and states scheduling conflicts`,async({page},testInfo)=>{
+// Brief 2.5 root cause 2 replaces "retains the full queue and states scheduling
+// conflicts": nothing is placed after the deadline; what does not fit is saved
+// for later with the reason shown.
+for(const days of [1,3])test(`a ${days}-day deadline places nothing after it and names what is saved for later`,async({page},testInfo)=>{
  await acceptedMap(page);await openPlanSetupPreview(page);
  await reachSchedule(page,`Teach me cellular respiration from scratch for my biology test on ${dateIn(days)}. I can study every day evenings for 45 minutes.`);
  const generated=await generate(page);const plan=generated.plan as LearningPlan;
  expect(plan.planModel?.version).toBe("topic_plan_v2");expect(plan.deadline?.slice(0,10)).toBe(dateIn(days));
- expect(new Set(plan.sessions.flatMap(session=>session.topicIds??[])).size).toBe(titles.length);
- expect(plan.knowledgeMap!.topics.every(topic=>!topic.deferred)).toBe(true);
+ const scheduledTopics=new Set(plan.sessions.flatMap(session=>session.topicIds??[]));
+ const deferred=plan.knowledgeMap!.topics.filter(topic=>topic.deferred);
+ expect(scheduledTopics.size+deferred.length).toBe(titles.length);
+ expect(plan.sessions[0]!.learningMode).toBe("learn");
  const scheduled=[...plan.sessions].sort((left,right)=>left.scheduledFor.localeCompare(right.scheduledFor));
  for(let index=1;index<scheduled.length;index++){const previous=scheduled[index-1]!;expect(Date.parse(scheduled[index]!.scheduledFor)-Date.parse(previous.scheduledFor)-previous.estimatedMinutes*60_000).toBeGreaterThanOrEqual(5*60_000);}
- const late=plan.sessions.some(session=>Date.parse(session.scheduledFor)+session.estimatedMinutes*60_000>Date.parse(plan.deadline!));
- if(late){expect(plan.planModel!.constraints?.join(" ")).toContain("after the deadline");await expect(page.getByRole("region",{name:"Plan grouped by topic"})).toContainText("after the deadline");}
+ expect(plan.sessions.filter(session=>Date.parse(session.scheduledFor)+session.estimatedMinutes*60_000>Date.parse(plan.deadline!))).toEqual([]);
+ await expect(page.getByText("after the deadline")).toHaveCount(0);
+ for(const topic of deferred){expect(topic.deferred!.reason).toMatch(/deadline/i);await expect(page.locator(`[data-deferred-topic-id="${topic.id}"]`)).toContainText(topic.deferred!.reason);}
  const savedPlan=await activatePreviewPlan(page);
  const saved={plan:savedPlan,completions:await page.evaluate(()=>JSON.parse(localStorage.getItem("yova.preview.v1")??"{}").sessionCompletions??[])};
  expect(saved.plan.deadline).toBe(plan.deadline);expect(saved.plan.sessions).toHaveLength(plan.sessions.length);expect(saved.completions).toEqual([]);
