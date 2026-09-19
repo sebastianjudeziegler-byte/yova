@@ -194,3 +194,17 @@ design.
 inline "same availability" line and the server may read that as a schedule
 change; after this fix that re-dates rather than rebuilds. Legacy plans are
 being deleted (brief).
+
+## CI decision - reviewer canary FLAKY (founder, 19 Sept 2026)
+
+Run 35439495392 (cc34ee8), step 20: the new `test-goal-teaches-first.live`
+test passed 2/2; the CI410 reviewer canary caught the retained bad question in
+1 of 5 reviews (`{"badQuestionCaught":1,"badQuestionMissed":4,
+"soundReplacementAccepted":5,"soundReplacementWronglyRejected":0,
+"unusableReplies":0}`), against 5 of 5 in run 432. The reviewer, prompt and
+fixture have no diff against 843f7ee, so this is the reviewer's variance, not
+a Brief 2.5 change. Founder decision: FLAKY, keep reporting. The canary moved to
+its own `continue-on-error` step, its hit-rate file is uploaded as an artifact,
+it is FLAKY in `scripts/live-gate/policy.json`, and reviewer reliability is in
+`docs/audits/BACKLOG.md`. The 32-question and test-goal live checks stay
+blocking.
