@@ -1295,7 +1295,8 @@ describe("plan generation route", () => {
     configureProduction();
     const unavailableDay = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1_000));
     const { POST } = await import("@/app/api/plans/generate/route");
-    const response = await POST(planGenerationRequest({
+    // Without a map receipt this request starts a charge (the per-plan allowance, 19 Sept 2026).
+    const response = await POST(planGenerationRequest({ ...UNCHARGED,
       deadline: new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString(),
       availability: [{ day: unavailableDay, window: "Evening", minutes: 25 }],
     }));
@@ -1334,7 +1335,8 @@ describe("plan generation route", () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(planGenerationRequest());
+    // Without a map receipt this request starts a charge (the per-plan allowance, 19 Sept 2026).
+    const response = await POST(planGenerationRequest(UNCHARGED));
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -1627,7 +1629,8 @@ describe("plan generation route", () => {
     mocks.reserve.mockRejectedValueOnce(new Error("reservation receipt lost"));
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(planGenerationRequest());
+    // Without a map receipt this request starts a charge (the per-plan allowance, 19 Sept 2026).
+    const response = await POST(planGenerationRequest(UNCHARGED));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -1654,6 +1657,25 @@ describe("plan generation route", () => {
       "44444444-4444-4444-8444-444444444444",
       expect.objectContaining({ finalOutcome: "fallback", attempts: 0 }),
     );
+  });
+
+  // Brief 2.5 finding 113, founder decision 19 Sept 2026: the planning
+  // allowance counts plans, not steps. Only building a plan's first topic map
+  // reserves a unit; every later step for that map - topic corrections, map
+  // corrections, the placement check and the plan itself - carries its signed
+  // map receipt and is not charged again.
+  it("charges the first topic map once and not the plan's later steps", async () => {
+    configureProduction();
+    mocks.generateKnowledgeMap.mockResolvedValueOnce(generatedKnowledgeMap()).mockResolvedValueOnce(generatedKnowledgeMap());
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const firstMap = await POST(new Request("http://localhost/api/plans/generate?mode=understanding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(Object.entries(planRequest).filter(([key]) => key !== "knowledgeMap"))) }));
+    expect(firstMap.status, JSON.stringify(await firstMap.clone().json())).toBe(200);
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    const corrected = await POST(planGenerationRequest({ mapCorrection: "Add the quotient rule as a final topic." }, "understanding"));
+    expect(corrected.status).toBe(200);
+    const plan = await POST(planGenerationRequest());
+    expect(plan.status).toBe(200);
+    expect(mocks.reserve, "later steps of the same plan are not charged").toHaveBeenCalledTimes(1);
   });
 
   // Brief 2.5 root cause 6 (finding 113): the allowance ran out while YOVA was
@@ -1683,7 +1705,8 @@ describe("plan generation route", () => {
     });
     const { POST } = await import("@/app/api/plans/generate/route");
 
-    const response = await POST(planGenerationRequest());
+    // Without a map receipt this request starts a charge (the per-plan allowance, 19 Sept 2026).
+    const response = await POST(planGenerationRequest(UNCHARGED));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -1945,6 +1968,9 @@ function configureProduction() {
     },
   });
 }
+
+// A request that does not continue an already-charged plan: it carries no map receipt.
+const UNCHARGED = { knowledgeMapReceipt: undefined };
 
 function planGenerationRequest(overrides: Record<string, unknown> = {}, mode?: "understanding") {
   const payload = PlanGenerationRequestSchema.parse({ ...planRequest, ...overrides });

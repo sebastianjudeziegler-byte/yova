@@ -224,6 +224,14 @@ export async function POST(request: Request) {
     diagnosticResponses: parsedRequest.data.diagnosticResponses.filter(response=>response.evaluation === "self_report"),
   });
   const evidenceUserId = developmentPreview ? "development-preview" : user!.id;
+  // Founder decision (19 Sept 2026, Brief 2.5 finding 113): the planning
+  // allowance counts plans, not steps. A request carrying a topic map whose
+  // signed receipt verifies for this learner continues a plan whose first map
+  // was already charged - topic or map corrections, the placement check and the
+  // plan itself are not charged again, so correcting the topic list costs
+  // nothing. The per-minute planning rate limit still applies to every step.
+  const continuesChargedPlan = Boolean(parsedRequest.data.knowledgeMap
+    && verifyKnowledgeMapReceipt(parsedRequest.data.knowledgeMap, parsedRequest.data.knowledgeMapReceipt, evidenceUserId, developmentPreview));
   if (parsedRequest.data.knowledgeMap && mapClaimsEvidence(parsedRequest.data.knowledgeMap)
     && !verifyKnowledgeMapReceipt(parsedRequest.data.knowledgeMap, parsedRequest.data.knowledgeMapReceipt, evidenceUserId, developmentPreview)) {
     return NextResponse.json({error: "YOVA could not verify this placement evidence. Retake the check before using it to skip teaching.", code: "placement_evidence_unverified"}, {status: 422});
@@ -376,7 +384,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (!forcedNormalPlanFallbackNotice && supabase && user) {
+    if (!forcedNormalPlanFallbackNotice && supabase && user && !continuesChargedPlan) {
       let durableLimit: Awaited<ReturnType<typeof reserveAIRequest>> | null = null;
       try {
         durableLimit = await reserveAIRequest(

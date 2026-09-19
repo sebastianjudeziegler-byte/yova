@@ -358,10 +358,25 @@ titles verbatim as deferred topics.
 | `generate/route.test.ts` allowance exhausted on the topic-map step names that step | `expected 'This account has reached its planning...' to match /topic map/i` | green |
 | `generate/route.test.ts` an accepted map that cannot fit before the deadline refunds the reservation | `no provider was called, so nothing is consumed: ... called 1 times` | green |
 
-**Founder decisions / actions.**
-1. How to count plan creation against the allowance is cost policy: keep a
-   unit per step (and raise the daily limit), or count one plan creation once.
-   Not changed.
+**Allowance counts plans, not steps (founder decision, 19 Sept 2026: "a
+learner shouldn't be punished for correcting their topic list").** Only a
+plan's first topic-map request reserves a unit. Every later step carries the
+map's signed receipt (bound to the exact map and learner, 24 h) and is not
+charged: setup corrections, map corrections, the placement check and the plan.
+The per-minute planning rate limit still applies to every step. Trade-off:
+follow-up steps on one map are bounded by that rate limit and the receipt's
+24-hour life, not by the daily count.
+
+| Test | Red before fix | Green after |
+|---|---|---|
+| `generate/route.test.ts` "charges the first topic map once and not the plan's later steps" (first map, then a map correction, then the plan) | `expected "vi.fn()" to be called 1 times, but got 2 times` | green |
+
+Four allowance tests (fallback on unknown reservation status, exhausted
+allowance, consumption on provider failure, the capacity refund) now use a
+request without a map receipt, which is the case that is still charged.
+
+**Founder actions.**
+1. Allowance policy: decided (above).
 2. To settle "one cause or four", run in the Supabase SQL editor (read-only):
    ```sql
    select date_trunc('hour', created_at) as hour,
